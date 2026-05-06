@@ -10,16 +10,23 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
+from itertools import product
+
 import pytest
 from qiskit import QuantumCircuit
 from qiskit.circuit.library import CZGate
 from qiskit.quantum_info import Clifford, QubitSparsePauli, QubitSparsePauliList
+from qiskit.transpiler import CouplingMap
 
 from qiskit_noise_learning.experiment_builder import (
     depth0_path_generator,
     depth1_path_generator,
     even_depth_pattern_generator,
     even_depth_vanilla_pattern_generator,
+)
+from qiskit_noise_learning.experiment_builder.experiment_generators import (
+    generate_vanilla_instruction_patterns,
+    yield_matching_patterns,
 )
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
 from qiskit_noise_learning.sequences import FidelityIndex, Path, PathPattern
@@ -444,3 +451,32 @@ def test_even_depth_vanilla_pattern_generator(gate_set_cz):
         ),
     ]
     assert list(pattern_iterator) == list(expected_iterator)
+
+
+def test_sufficient_bases_ring():
+    """Test that the generation functions give the minimal number of bases."""
+    edges = [(idx, (idx + 1) % 11) for idx in range(11)]
+    coupling_map = CouplingMap(edges)
+
+    gate_idxs = [(idx, idx + 1) for idx in range(0, 10, 2)]
+    paulis = ["".join(p for p in comb) for comb in product("IXZY", repeat=2)]
+    input_paulis = QubitSparsePauliList.from_sparse_list(
+        [(pauli, idxs) for idxs in gate_idxs for pauli in paulis], num_qubits=11
+    )
+    gate = ModelGate("CZ", [(idxs, Clifford(CZGate())) for idxs in gate_idxs])
+    prep = ModelGate("P", [(tuple(range(11)), Clifford(QuantumCircuit(11)))], prep_idxs=range(11))
+    meas = ModelGate("M", [(tuple(range(11)), Clifford(QuantumCircuit(11)))], meas_idxs=range(11))
+
+    instruction_patterns = generate_vanilla_instruction_patterns(prep, meas, gate, coupling_map)
+    path_patterns = list(even_depth_vanilla_pattern_generator(prep, meas, gate, input_paulis))
+    matched_patterns = list(yield_matching_patterns(path_patterns, instruction_patterns))
+
+    assert len(instruction_patterns) == 9
+    assert len(matched_patterns) == len(path_patterns)
+
+
+def test_yield_matching_patterns_errors(gate_set_cz):
+    path_pattern = PathPattern([], [gate_set_cz["CZ"]], [])
+
+    with pytest.raises(match="a path that is not traversed"):
+        list(yield_matching_patterns([(path_pattern, None)], []))

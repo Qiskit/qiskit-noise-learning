@@ -22,7 +22,12 @@ from rustworkx import PyGraph, graph_greedy_color
 from qiskit_noise_learning.gate_sets import ModelGateSet
 from qiskit_noise_learning.math import IndexedMatrix
 from qiskit_noise_learning.models import CompleteFidelityModel, FidelityModel
-from qiskit_noise_learning.sequences import InstructionPattern, InstructionSequence, Path, PathPattern
+from qiskit_noise_learning.sequences import (
+    InstructionPattern,
+    InstructionSequence,
+    Path,
+    PathPattern,
+)
 
 # the parameter in the fidelity model
 ParameterIndex = TypeVar("ParameterIndex")

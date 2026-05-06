@@ -20,9 +20,18 @@ from collections.abc import Iterator
 
 import numpy as np
 from qiskit.quantum_info import QubitSparsePauli, QubitSparsePauliList
+from qiskit.transpiler import CouplingMap
 
+from qiskit_noise_learning.experiment_builder.utils import generate_bases
 from qiskit_noise_learning.gate_sets import ModelGate
-from qiskit_noise_learning.sequences import FidelityIndex, Path, PathPattern
+from qiskit_noise_learning.sequences import (
+    ApplyGate,
+    FidelityIndex,
+    InstructionPattern,
+    PartialPauliPermutation,
+    Path,
+    PathPattern,
+)
 
 
 def depth0_path_generator(
@@ -186,7 +195,7 @@ def even_depth_vanilla_pattern_generator(
     meas_gate: ModelGate,
     gate: ModelGate,
     input_paulis: QubitSparsePauliList,
-) -> Iterator[tuple[PathPattern, None]]:
+) -> Iterator[tuple[PathPattern, InstructionPattern | None]]:
     """Generator for path patterns with repetitions of two applications of the given gate.
 
     Args:
@@ -229,3 +238,63 @@ def even_depth_vanilla_pattern_generator(
             ),
             None,
         )
+
+
+def generate_vanilla_instruction_patterns(
+    prep_gate: ModelGate, meas_gate: ModelGate, gate: ModelGate, coupling_map: CouplingMap
+) -> list[InstructionPattern]:
+    """Return instruction patterns with repetitions of two applications of the given gate.
+
+    This method uses :func:`~generate_bases` to construct 9 instruction patterns that are sufficient
+    to measure any single- and two-qubit Pauli on a given coupling map provided it is triangle free.
+
+    Args:
+        prep_gate: The preparation gate.
+        meas_gate: The measurement gate.
+        gate: The gate of interest.
+        coupling_map: The coupling map.
+
+    Returns:
+        A list of instruction patterns.
+    """
+    ret = []
+    all_zs = QubitSparsePauli.from_label("Z" * len(coupling_map.graph.nodes()))
+    repeatable_fragment = [ApplyGate(gate), ApplyGate(gate)]
+    for basis in generate_bases(coupling_map.graph):
+        basis = QubitSparsePauli.from_label(basis)
+        in_permutation = PartialPauliPermutation.from_qubit_sparse_paulis(all_zs, basis)
+        out_permutation = PartialPauliPermutation.from_qubit_sparse_paulis(basis, all_zs)
+        ret.append(
+            InstructionPattern(
+                [ApplyGate(prep_gate), in_permutation],
+                repeatable_fragment,
+                [out_permutation, ApplyGate(meas_gate)],
+            )
+        )
+    return ret
+
+
+def yield_matching_patterns(
+    path_patterns: Iterator[PathPattern], instr_patterns: list[InstructionPattern]
+) -> Iterator[tuple[PathPattern, InstructionPattern]]:
+    """Yields pairs of path patterns and instruction patterns that traverse them.
+
+    Args:
+        path_patterns: An iterable of path patterns.
+        instruction_patterns: A list of instruction patterns.
+
+    Yields:
+       Tuples of path pattern and instruction patterns.
+
+    Raises:
+        ValueError: If any of the path patterns is not traversed by one of instructed patters.
+    """
+    for path_pattern, _ in path_patterns:
+        for instr_pattern in instr_patterns:
+            if path_pattern.is_traversed_by(instr_pattern):
+                yield (path_pattern, instr_pattern)
+                break
+        else:
+            raise ValueError(
+                "Encountered a path that is not traversed by any of the instruction sequences."
+            )
