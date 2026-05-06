@@ -1,0 +1,1411 @@
+# This code is a Qiskit project.
+#
+# (C) Copyright IBM 2026.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
+
+from itertools import product
+
+import pytest
+from qiskit.circuit import QuantumCircuit
+from qiskit.circuit.library import CZGate, XGate
+from qiskit.quantum_info import Clifford, QubitSparsePauli
+
+from qiskit_noise_learning.experiment_builder.experiment_builder import (
+    ExperimentBuilder,
+    minimize_instruction_patterns,
+)
+from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
+from qiskit_noise_learning.math import IndexedMatrix
+from qiskit_noise_learning.models import CompleteFidelityModel
+from qiskit_noise_learning.sequences import (
+    ApplyGate,
+    FidelityIndex,
+    InstructionPattern,
+    InstructionSequence,
+    PartialPauliPermutation,
+    Path,
+    PathPattern,
+)
+
+
+@pytest.fixture()
+def gate_set_1q():
+    model_gate_set = ModelGateSet(1)
+    ident = Clifford(QuantumCircuit(1))
+    model_gate_set.add_gate(ModelGate("P", [((0,), ident)], prep_idxs=range(1)))
+    model_gate_set.add_gate(ModelGate("M", [((0,), ident)], meas_idxs=range(1)))
+    # Clifford maps X -> -Y, Y -> Z, Z -> -X
+    model_gate_set.add_gate(
+        ModelGate("L0", [((0,), Clifford([[True, True, True], [True, False, True]]))])
+    )
+    model_gate_set.add_gate(ModelGate("L1", [((0,), Clifford(XGate()))]))
+    return model_gate_set
+
+
+@pytest.fixture()
+def gate_set_cz():
+    model_gate_set = ModelGateSet(2)
+    model_gate_set.add_gate(ModelGate("CZ", [((0, 1), Clifford(CZGate()))]))
+    model_gate_set.add_gate(
+        ModelGate("P", [((0, 1), Clifford(QuantumCircuit(2)))], prep_idxs=range(2))
+    )
+    model_gate_set.add_gate(
+        ModelGate("M", [((0, 1), Clifford(QuantumCircuit(2)))], meas_idxs=range(2))
+    )
+    return model_gate_set
+
+
+@pytest.fixture()
+def path_pattern_ix(gate_set_cz):
+    return PathPattern(
+        start_fragment=[
+            FidelityIndex.from_transition(
+                gate=gate_set_cz["P"],
+                in_pauli=QubitSparsePauli("II"),
+                out_pauli=QubitSparsePauli("IZ"),
+            )
+        ],
+        repeatable_fragment=[
+            FidelityIndex.from_transition(
+                gate=gate_set_cz["CZ"],
+                in_pauli=QubitSparsePauli("IX"),
+                out_pauli=QubitSparsePauli("ZX"),
+            ),
+            FidelityIndex.from_transition(
+                gate=gate_set_cz["CZ"],
+                in_pauli=QubitSparsePauli("ZX"),
+                out_pauli=QubitSparsePauli("IX"),
+            ),
+        ],
+        end_fragment=[
+            FidelityIndex.from_transition(
+                gate=gate_set_cz["M"],
+                in_pauli=QubitSparsePauli("IZ"),
+                out_pauli=QubitSparsePauli("II"),
+            )
+        ],
+    )
+
+
+@pytest.fixture()
+def path_pattern_xi(gate_set_cz):
+    return PathPattern(
+        start_fragment=[
+            FidelityIndex.from_transition(
+                gate=gate_set_cz["P"],
+                in_pauli=QubitSparsePauli("II"),
+                out_pauli=QubitSparsePauli("ZI"),
+            )
+        ],
+        repeatable_fragment=[
+            FidelityIndex.from_transition(
+                gate=gate_set_cz["CZ"],
+                in_pauli=QubitSparsePauli("XI"),
+                out_pauli=QubitSparsePauli("XZ"),
+            ),
+            FidelityIndex.from_transition(
+                gate=gate_set_cz["CZ"],
+                in_pauli=QubitSparsePauli("XZ"),
+                out_pauli=QubitSparsePauli("XI"),
+            ),
+        ],
+        end_fragment=[
+            FidelityIndex.from_transition(
+                gate=gate_set_cz["M"],
+                in_pauli=QubitSparsePauli("ZI"),
+                out_pauli=QubitSparsePauli("II"),
+            )
+        ],
+    )
+
+
+class TestExperimentBuilder:
+    """Tests for ExperimentBuilder."""
+
+    def test_construction(self, gate_set_1q):
+        experiment_builder = ExperimentBuilder(gate_set_1q)
+        assert experiment_builder.gate_set == gate_set_1q
+        assert experiment_builder.path_patterns == []
+        assert experiment_builder.instruction_patterns == []
+        assert experiment_builder.pattern_relations == set()
+        assert experiment_builder.additive_design_matrix == IndexedMatrix()
+        assert experiment_builder.multiplicative_design_matrix == IndexedMatrix()
+
+        fidelity_model = CompleteFidelityModel(gate_set_1q)
+        experiment_builder = ExperimentBuilder(fidelity_model)
+        assert experiment_builder.gate_set == gate_set_1q
+        assert experiment_builder.fidelity_model == fidelity_model
+        assert experiment_builder.path_patterns == []
+        assert experiment_builder.instruction_patterns == []
+        assert experiment_builder.pattern_relations == set()
+        assert experiment_builder.additive_design_matrix == IndexedMatrix()
+        assert experiment_builder.multiplicative_design_matrix == IndexedMatrix()
+
+    @pytest.mark.parametrize("attempt_instruction_merge", [True, False])
+    def test_add_path_patterns_merge(self, gate_set_cz, attempt_instruction_merge):
+        experiment_builder = ExperimentBuilder(gate_set_cz)
+
+        pattern = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("IZ")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("IZ"), QubitSparsePauli("IZ")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("IZ"), QubitSparsePauli("IZ")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("IZ"), QubitSparsePauli("II")
+                )
+            ],
+        )
+        mergeable_pattern = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("ZI")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("ZI"), QubitSparsePauli("ZI")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("ZI"), QubitSparsePauli("ZI")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("ZI"), QubitSparsePauli("II")
+                )
+            ],
+        )
+
+        experiment_builder.add_path_patterns([(pattern, None)])
+        assert experiment_builder.path_patterns == [pattern]
+        assert experiment_builder.instruction_patterns == [pattern.to_instruction_pattern()]
+        assert experiment_builder.pattern_relations == {(0, 0)}
+        expected_matrix = IndexedMatrix()
+        expected_matrix.add_rows(
+            row_indices=[pattern],
+            rows=[experiment_builder.fidelity_model.multiplicative_row_from_path_pattern(pattern)],
+        )
+        assert experiment_builder.multiplicative_design_matrix == expected_matrix
+
+        # add mergeable pattern
+        experiment_builder.add_path_patterns(
+            [(mergeable_pattern, None)], attempt_instruction_merge=attempt_instruction_merge
+        )
+        if not attempt_instruction_merge:
+            experiment_builder.merge_instruction_patterns()
+
+        assert experiment_builder.path_patterns == [pattern, mergeable_pattern]
+        assert experiment_builder.instruction_patterns == [
+            pattern.to_instruction_pattern().merge(mergeable_pattern.to_instruction_pattern())
+        ]
+        assert experiment_builder.pattern_relations == {(0, 0), (1, 0)}
+        expected_matrix.add_rows(
+            row_indices=[mergeable_pattern],
+            rows=[
+                experiment_builder.fidelity_model.multiplicative_row_from_path_pattern(
+                    mergeable_pattern
+                )
+            ],
+        )
+        assert experiment_builder.multiplicative_design_matrix == expected_matrix
+
+    def test_add_path_patterns_no_merge(self, gate_set_cz):
+        pattern = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("IZ")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("IZ"), QubitSparsePauli("IZ")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("IZ"), QubitSparsePauli("IZ")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("IZ"), QubitSparsePauli("II")
+                )
+            ],
+        )
+        mergeable_pattern = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("ZI")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("ZI"), QubitSparsePauli("ZI")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("ZI"), QubitSparsePauli("ZI")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("ZI"), QubitSparsePauli("II")
+                )
+            ],
+        )
+
+        experiment_builder = ExperimentBuilder(gate_set_cz)
+        experiment_builder.add_path_patterns([(pattern, None), (mergeable_pattern, None)])
+        assert experiment_builder.path_patterns == [pattern, mergeable_pattern]
+        assert experiment_builder.instruction_patterns == [
+            pattern.to_instruction_pattern(),
+            mergeable_pattern.to_instruction_pattern(),
+        ]
+        assert experiment_builder.pattern_relations == {(0, 0), (1, 1)}
+
+        row_indices = [pattern, mergeable_pattern]
+        rows = [
+            experiment_builder.fidelity_model.multiplicative_row_from_path_pattern(p)
+            for p in row_indices
+        ]
+        expected_matrix = IndexedMatrix()
+        expected_matrix.add_rows(row_indices=row_indices, rows=rows)
+        assert experiment_builder.multiplicative_design_matrix == expected_matrix
+
+    def test_add_path_patterns_linearly_dependent(self, gate_set_cz):
+        pattern = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("IZ")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("IX"), QubitSparsePauli("ZX")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("ZX"), QubitSparsePauli("IX")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("IZ"), QubitSparsePauli("II")
+                )
+            ],
+        )
+        dependent_pattern = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("ZZ")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("ZX"), QubitSparsePauli("IX")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("IX"), QubitSparsePauli("ZX")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("ZZ"), QubitSparsePauli("II")
+                )
+            ],
+        )
+        experiment_builder = ExperimentBuilder(gate_set_cz)
+        experiment_builder.add_path_patterns([(pattern, None), (dependent_pattern, None)])
+        assert experiment_builder.path_patterns == [pattern]
+        assert experiment_builder.instruction_patterns == [pattern.to_instruction_pattern()]
+        assert experiment_builder.pattern_relations == {(0, 0)}
+        expected_matrix = IndexedMatrix()
+        expected_matrix.add_rows(
+            row_indices=[pattern],
+            rows=[experiment_builder.fidelity_model.multiplicative_row_from_path_pattern(pattern)],
+        )
+        assert experiment_builder.multiplicative_design_matrix == expected_matrix
+
+        # manually override rank checking
+        experiment_builder = ExperimentBuilder(gate_set_cz)
+        experiment_builder.add_path_patterns(
+            [(pattern, None), (dependent_pattern, None)],
+            rank_reduce=False,
+        )
+        assert experiment_builder.path_patterns == [pattern, dependent_pattern]
+        assert experiment_builder.instruction_patterns == [
+            pattern.to_instruction_pattern(),
+            dependent_pattern.to_instruction_pattern(),
+        ]
+        assert experiment_builder.pattern_relations == {(0, 0), (1, 1)}
+        expected_matrix.add_rows(
+            row_indices=[dependent_pattern],
+            rows=[
+                experiment_builder.fidelity_model.multiplicative_row_from_path_pattern(
+                    dependent_pattern
+                )
+            ],
+        )
+        assert experiment_builder.multiplicative_design_matrix == expected_matrix
+
+    def test_add_paths(self, gate_set_cz):
+        experiment_builder = ExperimentBuilder(gate_set_cz)
+
+        path = Path(
+            pattern=PathPattern(
+                start_fragment=[
+                    FidelityIndex.from_transition(
+                        gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("IZ")
+                    )
+                ],
+                repeatable_fragment=[
+                    FidelityIndex.from_transition(
+                        gate_set_cz["CZ"], QubitSparsePauli("IZ"), QubitSparsePauli("IZ")
+                    ),
+                    FidelityIndex.from_transition(
+                        gate_set_cz["CZ"], QubitSparsePauli("IZ"), QubitSparsePauli("IZ")
+                    ),
+                ],
+                end_fragment=[
+                    FidelityIndex.from_transition(
+                        gate_set_cz["M"], QubitSparsePauli("IZ"), QubitSparsePauli("II")
+                    )
+                ],
+            ),
+            depth=5,
+        )
+        mergeable_path = Path(
+            pattern=PathPattern(
+                start_fragment=[
+                    FidelityIndex.from_transition(
+                        gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("ZI")
+                    )
+                ],
+                repeatable_fragment=[
+                    FidelityIndex.from_transition(
+                        gate_set_cz["CZ"], QubitSparsePauli("ZI"), QubitSparsePauli("ZI")
+                    ),
+                    FidelityIndex.from_transition(
+                        gate_set_cz["CZ"], QubitSparsePauli("ZI"), QubitSparsePauli("ZI")
+                    ),
+                ],
+                end_fragment=[
+                    FidelityIndex.from_transition(
+                        gate_set_cz["M"], QubitSparsePauli("ZI"), QubitSparsePauli("II")
+                    )
+                ],
+            ),
+            depth=5,
+        )
+
+        paths = [path, mergeable_path]
+        experiment_builder.add_paths([(x, None) for x in paths])
+        assert experiment_builder.paths == paths
+        assert experiment_builder.instruction_sequences == [
+            path.to_instruction_sequence().merge(mergeable_path.to_instruction_sequence())
+        ]
+        assert experiment_builder.sequence_relations == {(0, 0), (1, 0)}
+        expected_matrix = IndexedMatrix()
+        expected_matrix.add_rows(
+            row_indices=paths,
+            rows=[experiment_builder.fidelity_model.row_from_path(x) for x in paths],
+        )
+        assert experiment_builder.additive_design_matrix == expected_matrix
+
+        # manually override merging
+        experiment_builder = ExperimentBuilder(gate_set_cz)
+        experiment_builder.add_paths([(x, None) for x in paths], attempt_instruction_merge=False)
+        assert experiment_builder.paths == [path, mergeable_path]
+        assert experiment_builder.instruction_sequences == [
+            path.to_instruction_sequence(),
+            mergeable_path.to_instruction_sequence(),
+        ]
+        assert experiment_builder.sequence_relations == {(0, 0), (1, 1)}
+        assert experiment_builder.additive_design_matrix == expected_matrix
+
+        # test linearly dependent
+        path = Path(
+            pattern=PathPattern(
+                start_fragment=[
+                    FidelityIndex.from_transition(
+                        gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("IZ")
+                    )
+                ],
+                repeatable_fragment=[
+                    FidelityIndex.from_transition(
+                        gate_set_cz["CZ"], QubitSparsePauli("IZ"), QubitSparsePauli("IZ")
+                    ),
+                    FidelityIndex.from_transition(
+                        gate_set_cz["CZ"], QubitSparsePauli("IZ"), QubitSparsePauli("IZ")
+                    ),
+                ],
+                end_fragment=[
+                    FidelityIndex.from_transition(
+                        gate_set_cz["M"], QubitSparsePauli("IZ"), QubitSparsePauli("II")
+                    )
+                ],
+            ),
+            depth=2,
+        )
+        dependent_path = Path(
+            pattern=PathPattern(
+                start_fragment=[
+                    FidelityIndex.from_transition(
+                        gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("IZ")
+                    )
+                ],
+                repeatable_fragment=[
+                    FidelityIndex.from_transition(
+                        gate_set_cz["CZ"], QubitSparsePauli("IZ"), QubitSparsePauli("IZ")
+                    ),
+                    FidelityIndex.from_transition(
+                        gate_set_cz["CZ"], QubitSparsePauli("IZ"), QubitSparsePauli("IZ")
+                    ),
+                    FidelityIndex.from_transition(
+                        gate_set_cz["CZ"], QubitSparsePauli("IZ"), QubitSparsePauli("IZ")
+                    ),
+                    FidelityIndex.from_transition(
+                        gate_set_cz["CZ"], QubitSparsePauli("IZ"), QubitSparsePauli("IZ")
+                    ),
+                ],
+                end_fragment=[
+                    FidelityIndex.from_transition(
+                        gate_set_cz["M"], QubitSparsePauli("IZ"), QubitSparsePauli("II")
+                    )
+                ],
+            ),
+            depth=1,
+        )
+        experiment_builder = ExperimentBuilder(gate_set_cz)
+        experiment_builder.add_paths([(x, None) for x in [path, dependent_path]])
+        assert experiment_builder.paths == [path]
+        assert experiment_builder.instruction_sequences == [path.to_instruction_sequence()]
+        assert experiment_builder.sequence_relations == {(0, 0)}
+        expected_matrix = IndexedMatrix()
+        expected_matrix.add_rows(
+            row_indices=[path],
+            rows=[experiment_builder.fidelity_model.row_from_path(path)],
+        )
+        assert experiment_builder.additive_design_matrix == expected_matrix
+
+        # manually override rank checking
+        experiment_builder = ExperimentBuilder(gate_set_cz)
+        experiment_builder.add_paths(
+            [(x, None) for x in [path, dependent_path]],
+            attempt_instruction_merge=False,
+            rank_reduce=False,
+        )
+        assert experiment_builder.paths == [path, dependent_path]
+        assert experiment_builder.instruction_sequences == [
+            path.to_instruction_sequence(),
+            dependent_path.to_instruction_sequence(),
+        ]
+        assert experiment_builder.sequence_relations == {(0, 0), (1, 1)}
+        expected_matrix = IndexedMatrix()
+        expected_matrix.add_rows(
+            row_indices=[path, dependent_path],
+            rows=[
+                experiment_builder.fidelity_model.row_from_path(x) for x in [path, dependent_path]
+            ],
+        )
+        assert experiment_builder.additive_design_matrix == expected_matrix
+
+    def test_complete(self, gate_set_1q):
+        experiment_builder = ExperimentBuilder(gate_set_1q)
+
+        pattern = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["P"], QubitSparsePauli("I"), QubitSparsePauli("Z")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["L0"], QubitSparsePauli("X"), QubitSparsePauli("Y")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_1q["L1"], QubitSparsePauli("Z"), QubitSparsePauli("Z")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["M"], QubitSparsePauli("Z"), QubitSparsePauli("I")
+                )
+            ],
+        )
+        path = Path(pattern=pattern, depth=3)
+
+        experiment_builder.add_path_patterns([(pattern, None)])
+        experiment_builder.add_paths([(path, None)])
+        assert not experiment_builder.is_complete
+
+        experiment_builder.complete()
+
+        assert experiment_builder.is_complete
+        assert experiment_builder.instruction_patterns == [
+            pattern.to_instruction_pattern().complete()
+        ]
+        assert experiment_builder.instruction_sequences == [
+            path.to_instruction_sequence().complete()
+        ]
+
+    def test_identify_pattern_relations(self, gate_set_cz):
+        path_pattern_IX = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate=gate_set_cz["P"],
+                    in_pauli=QubitSparsePauli("II"),
+                    out_pauli=QubitSparsePauli("IZ"),
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate=gate_set_cz["CZ"],
+                    in_pauli=QubitSparsePauli("IX"),
+                    out_pauli=QubitSparsePauli("ZX"),
+                ),
+                FidelityIndex.from_transition(
+                    gate=gate_set_cz["CZ"],
+                    in_pauli=QubitSparsePauli("ZX"),
+                    out_pauli=QubitSparsePauli("IX"),
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate=gate_set_cz["M"],
+                    in_pauli=QubitSparsePauli("IZ"),
+                    out_pauli=QubitSparsePauli("II"),
+                )
+            ],
+        )
+
+        path_pattern_XI = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate=gate_set_cz["P"],
+                    in_pauli=QubitSparsePauli("II"),
+                    out_pauli=QubitSparsePauli("ZI"),
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate=gate_set_cz["CZ"],
+                    in_pauli=QubitSparsePauli("XI"),
+                    out_pauli=QubitSparsePauli("XZ"),
+                ),
+                FidelityIndex.from_transition(
+                    gate=gate_set_cz["CZ"],
+                    in_pauli=QubitSparsePauli("XZ"),
+                    out_pauli=QubitSparsePauli("XI"),
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate=gate_set_cz["M"],
+                    in_pauli=QubitSparsePauli("ZI"),
+                    out_pauli=QubitSparsePauli("II"),
+                )
+            ],
+        )
+        path_pattern_XX = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate=gate_set_cz["P"],
+                    in_pauli=QubitSparsePauli("II"),
+                    out_pauli=QubitSparsePauli("ZZ"),
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate=gate_set_cz["CZ"],
+                    in_pauli=QubitSparsePauli("XX"),
+                    out_pauli=QubitSparsePauli("YY"),
+                ),
+                FidelityIndex.from_transition(
+                    gate=gate_set_cz["CZ"],
+                    in_pauli=QubitSparsePauli("YY"),
+                    out_pauli=QubitSparsePauli("XX"),
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate=gate_set_cz["M"],
+                    in_pauli=QubitSparsePauli("ZZ"),
+                    out_pauli=QubitSparsePauli("II"),
+                )
+            ],
+        )
+
+        # these could all be merged, so all possible relations should be present
+        experiment_builder = ExperimentBuilder(gate_set_cz)
+        experiment_builder.add_path_patterns(
+            (x, None) for x in [path_pattern_IX, path_pattern_XI, path_pattern_XX]
+        )
+        # experiment_builder.merge_instruction_patterns()
+        experiment_builder.identify_pattern_relations()
+
+        assert experiment_builder.pattern_relations == {
+            (a, b) for a, b in product(range(3), range(3))
+        }
+
+        # without extension, none are recognized to be related due to the single qubit layers
+        # between gate applications
+        experiment_builder = ExperimentBuilder(gate_set_cz)
+        experiment_builder.add_path_patterns(
+            ((x, None) for x in [path_pattern_IX, path_pattern_XI, path_pattern_XX]),
+        )
+        experiment_builder.identify_pattern_relations(attempt_instruction_extension=False)
+        assert experiment_builder.pattern_relations == {(0, 0), (1, 1), (2, 2)}
+
+        # manually build instruction sequences without single qubit layers between gate applications
+        # Only new relations will be IX and XI will be related to XX
+        experiment_builder = ExperimentBuilder(gate_set_cz)
+        instruction_pattern_IX = InstructionPattern(
+            start_fragment=[
+                ApplyGate(gate_set_cz["P"]),
+                PartialPauliPermutation.from_sets([{("Z", "X")}, set()]),
+            ],
+            repeatable_fragment=[ApplyGate(gate_set_cz["CZ"])] * 2,
+            end_fragment=[
+                PartialPauliPermutation.from_sets([{("X", "Z")}, set()]),
+                ApplyGate(gate_set_cz["M"]),
+            ],
+        )
+        instruction_pattern_XI = InstructionPattern(
+            start_fragment=[
+                ApplyGate(gate_set_cz["P"]),
+                PartialPauliPermutation.from_sets([set(), {("Z", "X")}]),
+            ],
+            repeatable_fragment=[ApplyGate(gate_set_cz["CZ"])] * 2,
+            end_fragment=[
+                PartialPauliPermutation.from_sets([set(), {("X", "Z")}]),
+                ApplyGate(gate_set_cz["M"]),
+            ],
+        )
+        instruction_pattern_XX = InstructionPattern(
+            start_fragment=[
+                ApplyGate(gate_set_cz["P"]),
+                PartialPauliPermutation.from_sets([{("Z", "X")}] * 2),
+            ],
+            repeatable_fragment=[ApplyGate(gate_set_cz["CZ"])] * 2,
+            end_fragment=[
+                PartialPauliPermutation.from_sets([{("X", "Z")}] * 2),
+                ApplyGate(gate_set_cz["M"]),
+            ],
+        )
+        experiment_builder.add_path_patterns(
+            zip(
+                [path_pattern_IX, path_pattern_XI, path_pattern_XX],
+                [instruction_pattern_IX, instruction_pattern_XI, instruction_pattern_XX],
+            )
+        )
+        experiment_builder.identify_pattern_relations(attempt_instruction_extension=False)
+        assert experiment_builder.pattern_relations == {(0, 0), (1, 1), (2, 2), (0, 2), (1, 2)}
+
+    def test_identify_sequence_relations(self, gate_set_cz):
+        path_IX = Path(
+            pattern=PathPattern(
+                start_fragment=[
+                    FidelityIndex.from_transition(
+                        gate=gate_set_cz["P"],
+                        in_pauli=QubitSparsePauli("II"),
+                        out_pauli=QubitSparsePauli("IZ"),
+                    )
+                ],
+                repeatable_fragment=[
+                    FidelityIndex.from_transition(
+                        gate=gate_set_cz["CZ"],
+                        in_pauli=QubitSparsePauli("IX"),
+                        out_pauli=QubitSparsePauli("ZX"),
+                    ),
+                    FidelityIndex.from_transition(
+                        gate=gate_set_cz["CZ"],
+                        in_pauli=QubitSparsePauli("ZX"),
+                        out_pauli=QubitSparsePauli("IX"),
+                    ),
+                ],
+                end_fragment=[
+                    FidelityIndex.from_transition(
+                        gate=gate_set_cz["M"],
+                        in_pauli=QubitSparsePauli("IZ"),
+                        out_pauli=QubitSparsePauli("II"),
+                    )
+                ],
+            ),
+            depth=2,
+        )
+
+        path_XI = Path(
+            pattern=PathPattern(
+                start_fragment=[
+                    FidelityIndex.from_transition(
+                        gate=gate_set_cz["P"],
+                        in_pauli=QubitSparsePauli("II"),
+                        out_pauli=QubitSparsePauli("ZI"),
+                    )
+                ],
+                repeatable_fragment=[
+                    FidelityIndex.from_transition(
+                        gate=gate_set_cz["CZ"],
+                        in_pauli=QubitSparsePauli("XI"),
+                        out_pauli=QubitSparsePauli("XZ"),
+                    ),
+                    FidelityIndex.from_transition(
+                        gate=gate_set_cz["CZ"],
+                        in_pauli=QubitSparsePauli("XZ"),
+                        out_pauli=QubitSparsePauli("XI"),
+                    ),
+                ],
+                end_fragment=[
+                    FidelityIndex.from_transition(
+                        gate=gate_set_cz["M"],
+                        in_pauli=QubitSparsePauli("ZI"),
+                        out_pauli=QubitSparsePauli("II"),
+                    )
+                ],
+            ),
+            depth=2,
+        )
+        path_XX = Path(
+            pattern=PathPattern(
+                start_fragment=[
+                    FidelityIndex.from_transition(
+                        gate=gate_set_cz["P"],
+                        in_pauli=QubitSparsePauli("II"),
+                        out_pauli=QubitSparsePauli("ZZ"),
+                    )
+                ],
+                repeatable_fragment=[
+                    FidelityIndex.from_transition(
+                        gate=gate_set_cz["CZ"],
+                        in_pauli=QubitSparsePauli("XX"),
+                        out_pauli=QubitSparsePauli("YY"),
+                    ),
+                    FidelityIndex.from_transition(
+                        gate=gate_set_cz["CZ"],
+                        in_pauli=QubitSparsePauli("YY"),
+                        out_pauli=QubitSparsePauli("XX"),
+                    ),
+                ],
+                end_fragment=[
+                    FidelityIndex.from_transition(
+                        gate=gate_set_cz["M"],
+                        in_pauli=QubitSparsePauli("ZZ"),
+                        out_pauli=QubitSparsePauli("II"),
+                    )
+                ],
+            ),
+            depth=2,
+        )
+
+        paths = [path_IX, path_XI, path_XX]
+
+        # these could all be merged, so all possible relations should be present
+        experiment_builder = ExperimentBuilder(gate_set_cz)
+        experiment_builder.add_paths([(x, None) for x in paths], attempt_instruction_merge=False)
+        experiment_builder.identify_sequence_relations()
+        assert experiment_builder.sequence_relations == {
+            (a, b) for a, b in product(range(3), range(3))
+        }
+
+        # without extension, none are recognized to be related due to the single qubit layers
+        # between gate applications
+        experiment_builder = ExperimentBuilder(gate_set_cz)
+        experiment_builder.add_paths([(x, None) for x in paths], attempt_instruction_merge=False)
+        experiment_builder.identify_sequence_relations(attempt_instruction_extension=False)
+        assert experiment_builder.sequence_relations == {(0, 0), (1, 1), (2, 2)}
+
+        # manually build instruction sequences without single qubit layers between gate applications
+        # Only new relations will be IX and XI will be related to XX
+        instruction_sequences = [
+            InstructionSequence(
+                pattern=InstructionPattern(
+                    start_fragment=[
+                        ApplyGate(gate_set_cz["P"]),
+                        PartialPauliPermutation.from_sets([{("Z", "X")}, set()]),
+                    ],
+                    repeatable_fragment=[ApplyGate(gate_set_cz["CZ"])] * 2,
+                    end_fragment=[
+                        PartialPauliPermutation.from_sets([{("X", "Z")}, set()]),
+                        ApplyGate(gate_set_cz["M"]),
+                    ],
+                ),
+                depth=2,
+            ),
+            InstructionSequence(
+                pattern=InstructionPattern(
+                    start_fragment=[
+                        ApplyGate(gate_set_cz["P"]),
+                        PartialPauliPermutation.from_sets([set(), {("Z", "X")}]),
+                    ],
+                    repeatable_fragment=[ApplyGate(gate_set_cz["CZ"])] * 2,
+                    end_fragment=[
+                        PartialPauliPermutation.from_sets([set(), {("X", "Z")}]),
+                        ApplyGate(gate_set_cz["M"]),
+                    ],
+                ),
+                depth=2,
+            ),
+            InstructionSequence(
+                pattern=InstructionPattern(
+                    start_fragment=[
+                        ApplyGate(gate_set_cz["P"]),
+                        PartialPauliPermutation.from_sets([{("Z", "X")}] * 2),
+                    ],
+                    repeatable_fragment=[ApplyGate(gate_set_cz["CZ"])] * 2,
+                    end_fragment=[
+                        PartialPauliPermutation.from_sets([{("X", "Z")}] * 2),
+                        ApplyGate(gate_set_cz["M"]),
+                    ],
+                ),
+                depth=2,
+            ),
+        ]
+        experiment_builder = ExperimentBuilder(gate_set_cz)
+        experiment_builder.add_paths(
+            zip(paths, instruction_sequences), attempt_instruction_merge=False
+        )
+        experiment_builder.identify_sequence_relations(attempt_instruction_extension=False)
+        assert experiment_builder.sequence_relations == {(0, 0), (1, 1), (2, 2), (0, 2), (1, 2)}
+
+    def test_merge_instruction_patterns_basic(self, gate_set_cz, path_pattern_ix, path_pattern_xi):
+        """Verify two mergeable patterns are combined into one."""
+        eb = ExperimentBuilder(gate_set_cz)
+        eb.add_path_patterns([(path_pattern_ix, None), (path_pattern_xi, None)])
+
+        assert len(eb.instruction_patterns) == 2
+        assert eb.pattern_relations == {(0, 0), (1, 1)}
+
+        eb.merge_instruction_patterns()
+
+        assert len(eb.instruction_patterns) == 1
+        assert eb.pattern_relations == {(0, 0), (1, 0)}
+
+        merged_pattern = eb.instruction_patterns[0]
+        assert path_pattern_ix.is_traversed_by(merged_pattern)
+        assert path_pattern_xi.is_traversed_by(merged_pattern)
+
+    def test_merge_instruction_patterns_groups(self, gate_set_cz):
+        """Verify patterns are grouped and merged."""
+        path_pattern_ix = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("IZ")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("IX"), QubitSparsePauli("ZX")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("ZX"), QubitSparsePauli("IX")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("IZ"), QubitSparsePauli("II")
+                )
+            ],
+        )
+
+        path_pattern_xi = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("ZI")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("XI"), QubitSparsePauli("XZ")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("XZ"), QubitSparsePauli("XI")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("ZI"), QubitSparsePauli("II")
+                )
+            ],
+        )
+
+        # Create Group B: IZ and ZI (mergeable with each other, but NOT with Group A)
+        path_pattern_iz = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("IZ")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("IZ"), QubitSparsePauli("IZ")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("IZ"), QubitSparsePauli("IZ")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("IZ"), QubitSparsePauli("II")
+                )
+            ],
+        )
+
+        path_pattern_zi = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("ZI")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("ZI"), QubitSparsePauli("ZI")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("ZI"), QubitSparsePauli("ZI")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("ZI"), QubitSparsePauli("II")
+                )
+            ],
+        )
+
+        eb = ExperimentBuilder(gate_set_cz)
+        eb.add_path_patterns(
+            [
+                (path_pattern_ix, None),
+                (path_pattern_xi, None),
+                (path_pattern_iz, None),
+                (path_pattern_zi, None),
+            ]
+        )
+
+        assert len(eb.instruction_patterns) == 4
+        assert len(eb.pattern_relations) == 4
+
+        eb.merge_instruction_patterns()
+
+        assert len(eb.instruction_patterns) == 2
+        assert len(eb.pattern_relations) == 4
+
+    def test_merge_instruction_patterns_no_merge(self, gate_set_1q):
+        """Verify that when all patterns are incompatible, no merging occurs."""
+        pattern1 = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["P"], QubitSparsePauli("I"), QubitSparsePauli("Z")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["L0"], QubitSparsePauli("X"), QubitSparsePauli("Y")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_1q["L0"], QubitSparsePauli("Y"), QubitSparsePauli("Z")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_1q["L0"], QubitSparsePauli("Z"), QubitSparsePauli("X")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["M"], QubitSparsePauli("Z"), QubitSparsePauli("I")
+                )
+            ],
+        )
+
+        pattern2 = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["P"], QubitSparsePauli("I"), QubitSparsePauli("Z")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["L1"], QubitSparsePauli("X"), QubitSparsePauli("X")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_1q["L1"], QubitSparsePauli("Y"), QubitSparsePauli("Y")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_1q["L1"], QubitSparsePauli("Z"), QubitSparsePauli("Z")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["M"], QubitSparsePauli("Z"), QubitSparsePauli("I")
+                )
+            ],
+        )
+
+        pattern3 = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["P"], QubitSparsePauli("I"), QubitSparsePauli("Z")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["L0"], QubitSparsePauli("Z"), QubitSparsePauli("X")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_1q["L1"], QubitSparsePauli("X"), QubitSparsePauli("X")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_1q["L0"], QubitSparsePauli("X"), QubitSparsePauli("Y")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["M"], QubitSparsePauli("Z"), QubitSparsePauli("I")
+                )
+            ],
+        )
+
+        eb = ExperimentBuilder(gate_set_1q)
+        eb.add_path_patterns([(pattern1, None), (pattern2, None), (pattern3, None)])
+
+        n_patterns_before = len(eb.instruction_patterns)
+        relations_before = eb.pattern_relations.copy()
+        eb.merge_instruction_patterns()
+
+        assert len(eb.instruction_patterns) == n_patterns_before
+        assert eb.pattern_relations == relations_before
+
+    def test_merge_instruction_patterns_relation_remapping(self, gate_set_cz):
+        """Verify that pattern relations are correctly remapped after merging."""
+        pp0 = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("IZ")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("IX"), QubitSparsePauli("ZX")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("ZX"), QubitSparsePauli("IX")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("IZ"), QubitSparsePauli("II")
+                )
+            ],
+        )
+
+        pp1 = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("IZ")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("IZ"), QubitSparsePauli("IZ")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("IZ"), QubitSparsePauli("IZ")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("IZ"), QubitSparsePauli("II")
+                )
+            ],
+        )
+
+        pp2 = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("ZI")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("XI"), QubitSparsePauli("XZ")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("XZ"), QubitSparsePauli("XI")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("ZI"), QubitSparsePauli("II")
+                )
+            ],
+        )
+
+        eb = ExperimentBuilder(gate_set_cz)
+        eb.add_path_patterns([(pp0, None), (pp1, None), (pp2, None)])
+        eb.merge_instruction_patterns()
+
+        assert len(eb.instruction_patterns) == 2
+
+        pattern_to_inst = {pp_idx: ip_idx for pp_idx, ip_idx in eb.pattern_relations}
+        assert len(set(pattern_to_inst.values())) == 2
+        assert set(pattern_to_inst.keys()) == {0, 1, 2}
+
+    def test_merge_instruction_patterns_single(self, gate_set_cz, path_pattern_ix):
+        """Verify behavior with only one instruction pattern."""
+        eb = ExperimentBuilder(gate_set_cz)
+        eb.add_path_patterns([(path_pattern_ix, None)])
+
+        assert len(eb.instruction_patterns) == 1
+        original_relations = eb.pattern_relations.copy()
+
+        eb.merge_instruction_patterns()
+
+        assert len(eb.instruction_patterns) == 1
+        assert eb.pattern_relations == original_relations
+        assert path_pattern_ix.is_traversed_by(eb.instruction_patterns[0])
+
+    def test_merge_instruction_patterns_three_way_merge(self, gate_set_cz):
+        """Verify that three patterns can be merged into one when all are mutually compatible."""
+        pp0 = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("IZ")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("IX"), QubitSparsePauli("ZX")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("ZX"), QubitSparsePauli("IX")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("IZ"), QubitSparsePauli("II")
+                )
+            ],
+        )
+
+        pp1 = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("ZI")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("XI"), QubitSparsePauli("XZ")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("XZ"), QubitSparsePauli("XI")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("ZI"), QubitSparsePauli("II")
+                )
+            ],
+        )
+
+        pp2 = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("ZZ")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("XX"), QubitSparsePauli("YY")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("YY"), QubitSparsePauli("XX")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("ZZ"), QubitSparsePauli("II")
+                )
+            ],
+        )
+
+        eb = ExperimentBuilder(gate_set_cz)
+        eb.add_path_patterns([(pp0, None), (pp1, None), (pp2, None)])
+
+        assert len(eb.instruction_patterns) == 3
+
+        eb.merge_instruction_patterns()
+
+        assert len(eb.instruction_patterns) == 1
+        assert eb.pattern_relations == {(0, 0), (1, 0), (2, 0)}
+
+        merged = eb.instruction_patterns[0]
+        assert pp0.is_traversed_by(merged)
+        assert pp1.is_traversed_by(merged)
+        assert pp2.is_traversed_by(merged)
+
+    def test_merge_instruction_patterns_traversal(
+        self, gate_set_cz, path_pattern_ix, path_pattern_xi
+    ):
+        """Verify the merged patterns can still traverse all original path patterns."""
+        eb = ExperimentBuilder(gate_set_cz)
+        eb.add_path_patterns([(path_pattern_ix, None), (path_pattern_xi, None)])
+        original_patterns = eb.path_patterns.copy()
+        eb.merge_instruction_patterns()
+
+        for pp_idx, ip_idx in eb.pattern_relations:
+            path_pattern = original_patterns[pp_idx]
+            instruction_pattern = eb.instruction_patterns[ip_idx]
+            assert path_pattern.is_traversed_by(
+                instruction_pattern
+            ), f"Path pattern {pp_idx} cannot be traversed by instruction pattern {ip_idx}"
+
+    def test_merge_instruction_patterns_existing_relations(self, gate_set_cz):
+        """Verify that merging works correctly when patterns already have multiple relations."""
+        # Create path patterns
+        pp0 = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("IZ")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("IX"), QubitSparsePauli("ZX")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("ZX"), QubitSparsePauli("IX")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("IZ"), QubitSparsePauli("II")
+                )
+            ],
+        )
+
+        pp1 = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("ZI")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("XI"), QubitSparsePauli("XZ")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("XZ"), QubitSparsePauli("XI")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("ZI"), QubitSparsePauli("II")
+                )
+            ],
+        )
+
+        pp2 = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("ZZ")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("YY"), QubitSparsePauli("XX")
+                ),
+                FidelityIndex.from_transition(
+                    gate_set_cz["CZ"], QubitSparsePauli("XX"), QubitSparsePauli("YY")
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_cz["M"], QubitSparsePauli("ZZ"), QubitSparsePauli("II")
+                )
+            ],
+        )
+
+        eb = ExperimentBuilder(gate_set_cz)
+
+        eb.add_path_patterns([(pp0, None), (pp1, None), (pp2, None)])
+        eb.identify_pattern_relations()
+        eb.rank_reduce_path_patterns()
+
+        assert len(eb.instruction_patterns) == 3
+        assert len(eb.pattern_relations) == 5
+
+        eb.merge_instruction_patterns()
+
+        assert len(eb.instruction_patterns) == 2
+        assert len(eb.pattern_relations) == 3
+
+        path_pattern_indices = {pp_idx for pp_idx, _ in eb.pattern_relations}
+        assert path_pattern_indices == {0, 1, 2}
+
+
+class TestMinimizePatterns:
+    """Tests the ``minimize_patterns`` function."""
+
+    def test_basic(self):
+        """Test a basic use case."""
+        patterns = []
+        for perm in [("Z", "Z"), ("X", "Z"), ("Y", "Z")]:
+            partial_perm = PartialPauliPermutation.from_sets([{perm}])
+            patterns.append(InstructionPattern([], [], [partial_perm]))
+
+        minimized_patterns, _ = minimize_instruction_patterns(patterns)
+        assert len(minimized_patterns) == 3
+
+        patterns.append(
+            InstructionPattern([], [], [PartialPauliPermutation.from_sets([{("Z", "Z")}])])
+        )
+        minimized_patterns, reorg_dict = minimize_instruction_patterns(patterns)
+        assert len(minimized_patterns) == 3
+        assert reorg_dict[0] == reorg_dict[3]
+
+    def test_single_qubit_basis_patterns(self):
+        """Test that the optimal number of single-qubit patterns is found.."""
+        patterns = []
+        for basis in "IZXY":
+            for i in range(num_qubits := 10):
+                in_pauli = QubitSparsePauli.from_sparse_label(("Z", (i,)), num_qubits=num_qubits)
+                out_pauli = QubitSparsePauli.from_sparse_label((basis, (i,)), num_qubits=num_qubits)
+                partial_perm = PartialPauliPermutation.from_qubit_sparse_paulis(in_pauli, out_pauli)
+                patterns.append(InstructionPattern([], [], [partial_perm]))
+
+        minimized_patterns, _ = minimize_instruction_patterns(patterns)
+        assert len(minimized_patterns) == 3
+
+    def test_two_qubit_basis_patterns(self):
+        """Test that the optimal number of two-qubit patterns is found on a ring."""
+        patterns = []
+        num_qubits = 10
+        for basis_0, basis_1 in product("IXYZ", repeat=2):
+            in_basis = basis_0 + basis_1
+            out_basis = "".join("Z" if b != "I" else b for b in in_basis)
+            for idx in range(num_qubits):
+                subs = (idx, (idx + 1) % num_qubits)
+                in_pauli = QubitSparsePauli.from_sparse_label(
+                    (in_basis, subs), num_qubits=num_qubits
+                )
+                out_pauli = QubitSparsePauli.from_sparse_label(
+                    (out_basis, subs), num_qubits=num_qubits
+                )
+                partial_perm = PartialPauliPermutation.from_qubit_sparse_paulis(in_pauli, out_pauli)
+                patterns.append(InstructionPattern([], [], [partial_perm]))
+
+        minimized_patterns, _ = minimize_instruction_patterns(patterns)
+        assert len(minimized_patterns) == 9
