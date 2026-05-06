@@ -21,8 +21,8 @@ def generate_bases(graph: PyGraph) -> list[str]:
     """Generate the 9 basis strings for measuring single- and two-qubit Pauli fidelities.
 
     For triangle-free topologies, 9 bases are always sufficient to measure all 9 non-identity Pauli
-    pair combinations on every edge. This function uses an alternating parity strategy where
-    adjacent qubits are assigned different parities, ensuring complete coverage.
+    pair combinations on every edge. This function uses an alternating color strategy where
+    adjacent qubits are assigned different colors.
 
     .. note::
 
@@ -34,7 +34,7 @@ def generate_bases(graph: PyGraph) -> list[str]:
     Returns:
         The basis strings.
     """
-    qubit_parity = {}
+    qubit_color = {}
     visited = set()
 
     for start_q in graph.node_indices():
@@ -42,12 +42,12 @@ def generate_bases(graph: PyGraph) -> list[str]:
             continue
 
         # BFS from this qubit
-        queue = [(start_q, 0)]  # (qubit, parity)
+        queue = [(start_q, 0)]  # (qubit, color)
         visited.add(start_q)
-        qubit_parity[start_q] = 0
+        qubit_color[start_q] = 0
 
         while queue:
-            q, parity = queue.pop(0)
+            q, color = queue.pop(0)
 
             # Find neighbors
             for q1, q2 in graph.edge_list():
@@ -59,8 +59,8 @@ def generate_bases(graph: PyGraph) -> list[str]:
 
                 if neighbor:
                     visited.add(neighbor)
-                    qubit_parity[neighbor] = 1 - parity
-                    queue.append((neighbor, 1 - parity))
+                    qubit_color[neighbor] = 1 - color
+                    queue.append((neighbor, 1 - color))
 
     generated_bases = []
     all_pauli_pairs = list(product(["X", "Y", "Z"], repeat=2))
@@ -68,8 +68,8 @@ def generate_bases(graph: PyGraph) -> list[str]:
     for p0, p1 in all_pauli_pairs:
         basis_list = []
         for q in graph.node_indices():
-            parity = qubit_parity[q]
-            basis_list.append(p0 if parity == 0 else p1)
+            color = qubit_color[q]
+            basis_list.append(p0 if color == 0 else p1)
         basis = "".join(basis_list[::-1])
         generated_bases.append(basis)
 
