@@ -1,0 +1,108 @@
+[build-system]
+requires = ["setuptools", "setuptools_scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qiskit-noise-learning"
+dynamic = ["version"]
+description = "A toolkit for randomization-based quantum noise characterization."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Ian Hincks", email = "ian.hincks@ibm.com" }
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "numpy>=2",
+    "qiskit>=2.2.0",
+    "qiskit-ibm-runtime>=0.46",
+    "samplomatic>=0.17",
+    "xarray>=2026.4"
+]
+
+
+[tool.setuptools]
+packages = ["qiskit_noise_learning"]
+
+
+[tool.setuptools_scm]
+version_file = "qiskit_noise_learning/_version.py"
+
+[project.urls]
+Homepage = "https://github.com/Qiskit/qiskit-noise-learning"
+BugTracker = "https://github.com/Qiskit/qiskit-noise-learning/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",                 # For running tests
+    "ruff",                   # Formatter and linter
+    "pre-commit",             # Pre-commit hooks
+    "towncrier",              # Changelog management
+    "scipy-doctest",          # SciPy's style of doc-testing
+]
+
+vis = [
+    "plotly",
+]
+
+[tool.pytest.ini_options]
+addopts = "--doctest-modules"
+pythonpath = ["."]
+
+[tool.ruff]
+lint.select = [
+    "E",      # pycodestyle
+    "F",      # pyflake
+    "I",      # isort
+    "SLF",    # private member access rules
+    "UP",     # pyupgrade
+]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402", "F401"]      # Ignore unused import in init files
+
+[tool.towncrier]
+package = "qiskit-noise-learning"
+directory = "changelog.d"
+filename = "CHANGELOG.md"
+start_string = "<!-- towncrier release notes start -->\n"
+title_format = "## [{version}](https://github.com/Qiskit/qiskit-noise-learning/tree/{version}) - {project_date}"
+issue_format = "[#{issue}](https://github.com/Qiskit/qiskit-noise-learning/issues/{issue})"
+
+[[tool.towncrier.type]]
+directory = "security"
+name = "Security"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "removed"
+name = "Removed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "deprecated"
+name = "Deprecated"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "added"
+name = "Added"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "changed"
+name = "Changed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "fixed"
+name = "Fixed"
+showcontent = true
