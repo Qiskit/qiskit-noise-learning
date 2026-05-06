@@ -124,7 +124,11 @@ def validate_header(file_path: str) -> tuple[str, bool, str]:
     for idx, (actual, required) in enumerate(zip(lines[start:], header_lines)):
         if idx == 2:
             if not copyright_pattern.match(actual.strip()):
-                return (file_path, False, f"Header copyright year line must end with {year}.")
+                return (
+                    file_path,
+                    False,
+                    f"Header copyright year line must end with {year}.",
+                )
         elif (actual := actual.strip()) != (required := required.strip()):
             return (
                 file_path,
@@ -145,7 +149,8 @@ def main():
             type=Path,
             nargs="*",
             default=[default_path],
-            help="Paths to scan; defaults to '../qiskit_noise_learning' relative to the script location.",
+            help="Paths to scan; defaults to '../qiskit_noise_learning' relative to "
+            "the script location.",
         )
         parser.add_argument(
             "-o",
