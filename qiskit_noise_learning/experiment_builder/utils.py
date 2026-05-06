@@ -18,7 +18,7 @@ from rustworkx import PyGraph
 
 
 def generate_bases(graph: PyGraph) -> list[str]:
-    """Generate basis strings for measuring single- and two-qubit Pauli fidelities.
+    """Generate the 9 basis strings for measuring single- and two-qubit Pauli fidelities.
 
     For triangle-free topologies, 9 bases are always sufficient to measure all 9 non-identity Pauli
     pair combinations on every edge. This function uses an alternating parity strategy where
