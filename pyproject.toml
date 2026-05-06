@@ -23,7 +23,8 @@ dependencies = [
     "qiskit>=2.2.0",
     "qiskit-ibm-runtime>=0.46",
     "samplomatic>=0.17",
-    "xarray>=2026.4"
+    "scipy>=1.13",
+    "xarray>=2025.7"
 ]
 
 
