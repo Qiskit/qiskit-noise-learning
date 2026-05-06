@@ -10,5 +10,5 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from . import data, experiment_builder, experimental, gate_sets, sequences
+from . import data, experiment_builder, gate_sets, sequences
 from ._version import __version__
