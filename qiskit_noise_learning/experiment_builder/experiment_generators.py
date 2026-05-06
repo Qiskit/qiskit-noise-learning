@@ -195,7 +195,7 @@ def even_depth_vanilla_pattern_generator(
     meas_gate: ModelGate,
     gate: ModelGate,
     input_paulis: QubitSparsePauliList,
-) -> Iterator[tuple[PathPattern, None]]:
+) -> Iterator[tuple[PathPattern, InstructionPattern | None]]:
     """Generator for path patterns with repetitions of two applications of the given gate.
 
     Args:

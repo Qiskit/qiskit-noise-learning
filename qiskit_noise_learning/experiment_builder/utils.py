@@ -41,15 +41,13 @@ def generate_bases(graph: PyGraph) -> list[str]:
         if start_q in visited:
             continue
 
-        # BFS from this qubit
-        queue = [(start_q, 0)]  # (qubit, color)
+        queue = [(start_q, 0)]
         visited.add(start_q)
         qubit_color[start_q] = 0
 
         while queue:
             q, color = queue.pop(0)
 
-            # Find neighbors
             for q1, q2 in graph.edge_list():
                 neighbor = None
                 if q1 == q and q2 not in visited:
