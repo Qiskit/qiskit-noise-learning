@@ -195,7 +195,7 @@ def even_depth_vanilla_pattern_generator(
     meas_gate: ModelGate,
     gate: ModelGate,
     input_paulis: QubitSparsePauliList,
-) -> Iterator[tuple[PathPattern, InstructionPattern | None]]:
+) -> Iterator[tuple[PathPattern, None]]:
     """Generator for path patterns with repetitions of two applications of the given gate.
 
     Args:
@@ -262,13 +262,12 @@ def generate_vanilla_instruction_patterns(
     repeatable_fragment = [ApplyGate(gate), ApplyGate(gate)]
     for basis in generate_bases(coupling_map.graph):
         basis = QubitSparsePauli.from_label(basis)
-        in_permutation = PartialPauliPermutation.from_qubit_sparse_paulis(all_zs, basis)
-        out_permutation = PartialPauliPermutation.from_qubit_sparse_paulis(basis, all_zs)
+        permutation = PartialPauliPermutation.from_qubit_sparse_paulis(all_zs, basis)
         ret.append(
             InstructionPattern(
-                [ApplyGate(prep_gate), in_permutation],
+                [ApplyGate(prep_gate), permutation],
                 repeatable_fragment,
-                [out_permutation, ApplyGate(meas_gate)],
+                [permutation.inverse, ApplyGate(meas_gate)],
             )
         )
     return ret
@@ -298,3 +297,31 @@ def yield_matching_patterns(
             raise ValueError(
                 "Encountered a path that is not traversed by any of the instruction sequences."
             )
+
+
+def standard_vanilla_pattern_generator(
+    prep_gate: ModelGate,
+    meas_gate: ModelGate,
+    gate: ModelGate,
+    input_paulis: QubitSparsePauliList,
+    coupling_map: CouplingMap,
+) -> Iterator[tuple[PathPattern, InstructionPattern]]:
+    """Generator for path and instruction patterns with two applications of the given gate.
+
+    This function makes use of :func:`~generate_vanilla_instruction_patterns` which ensures that
+    all single- and two-qubit Pauli fidelities can be estimated in 9 instruction patterns.
+
+    Args:
+        prep_gate: The preparation gate.
+        meas_gate: The measurement gate.
+        gate: The gate of interest.
+        input_paulis: The list of Paulis to be fed into the first application of the gate.
+        coupling_map: The coupling map.
+
+    Returns:
+        An iterator over path and instruction patterns of two applications of the gate.
+    """
+    yield from yield_matching_patterns(
+        even_depth_vanilla_pattern_generator(prep_gate, meas_gate, gate, input_paulis),
+        generate_vanilla_instruction_patterns(prep_gate, meas_gate, gate, coupling_map),
+    )

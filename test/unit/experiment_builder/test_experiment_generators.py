@@ -23,6 +23,7 @@ from qiskit_noise_learning.experiment_builder import (
     depth1_path_generator,
     even_depth_pattern_generator,
     even_depth_vanilla_pattern_generator,
+    standard_vanilla_pattern_generator,
 )
 from qiskit_noise_learning.experiment_builder.experiment_generators import (
     generate_vanilla_instruction_patterns,
@@ -473,6 +474,12 @@ def test_sufficient_bases_ring():
 
     assert len(instruction_patterns) == 9
     assert len(matched_patterns) == len(path_patterns)
+
+    other_matched_patterns = list(
+        standard_vanilla_pattern_generator(prep, meas, gate, input_paulis, coupling_map)
+    )
+
+    assert other_matched_patterns == matched_patterns
 
 
 def test_yield_matching_patterns_errors(gate_set_cz):
