@@ -241,12 +241,16 @@ class ExecutorCircuitGenerator(
             for p_idx, p in enumerate(partition):
                 mapper[p[0]] = (c_idx, p_idx)
                 current_sequences.append(p[1])
-            samplex_items.append(samplex_item := self.generate_samplex_item(current_sequences))
+            samplex_item, current_creg_names, current_meas_map = self.generate_samplex_item(current_sequences)
+            
+            samplex_items.append(samplex_item)
+            creg_names.append(current_creg_names)
+            measurement_map.append(current_meas_map)
 
-            creg_names.append([c.name for c in samplex_item.circuit.cregs])
+            
 
         return samplex_items, ExecutorDataMapper(
-            mapper, creg_names, sequences, self._num_randomizations
+            sequence_map=mapper, creg_names=creg_names, measurement_map=measurement_map, instruction_sequences=sequences, num_randomizations=self._num_randomizations
         )
 
     def generate_samplex_item(self, sequences: list[InstructionSequence]) -> tuple[SamplexItem, list[str], dict[str, np.ndarray[int]]]:
