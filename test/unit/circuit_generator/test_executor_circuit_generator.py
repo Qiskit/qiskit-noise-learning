@@ -648,3 +648,66 @@ def test_collect_complex_mapping():
         dataset["measurement_flips"].values, np.array([[False, False, False, False]])
     )
     assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 3), "meas1": (3, 4)}
+
+
+def test_generate_and_collect_with_pass_manager():
+    """Test generate and collect with a pass manager that adds an extra measurement."""
+    from qiskit.circuit import ClassicalRegister
+    from qiskit.circuit.library import Measure
+    from qiskit.transpiler import PassManager, TransformationPass
+
+    class AddMeasPass(TransformationPass):
+        def run(self, dag):
+            creg = ClassicalRegister(1, "pass_meas")
+            dag.add_creg(creg)
+            dag.apply_operation_back(Measure(), qargs=[dag.qubits[0]], cargs=[creg[0]])
+            return dag
+
+    gateset = QiskitGateSet(2)
+    with gateset.build_new_gate() as builder:
+        builder.circuit.cz(0, 1)
+        builder.circuit.noop(range(2))
+
+    model_gateset = gateset.model_gate_set
+    pattern = InstructionPattern(
+        [ApplyGate(model_gateset["P"])],
+        [ApplyGate(model_gateset["L0"])],
+        [ApplyGate(model_gateset["M"])],
+    )
+    seq = InstructionSequence(pattern, 1)
+
+    num_randomizations = 2
+    cg = ExecutorCircuitGenerator(
+        gateset, num_randomizations=num_randomizations, pass_manager=PassManager([AddMeasPass()])
+    )
+    samplex_items, data_mapper = cg.generate([seq])
+
+    # Verify generate produces the expected data mapper
+    assert data_mapper.item_sequence_indices == [[0]]
+    assert data_mapper.creg_names == [["meas0", "pass_meas"]]
+    assert list(data_mapper.measurement_maps[0].keys()) == ["meas0", "pass_meas"]
+    np.testing.assert_array_equal(data_mapper.measurement_maps[0]["meas0"], [0, 1])
+    np.testing.assert_array_equal(data_mapper.measurement_maps[0]["pass_meas"], [0])
+
+    # Verify the template circuit has both cregs
+    assert "pass_meas" in [c.name for c in samplex_items[0].circuit.cregs]
+
+    # Now test collect with spoofed data
+    num_shots = 3
+    meas0_data = np.ones((1, num_randomizations, num_shots, 2), dtype=np.uint8)
+    pass_meas_data = np.zeros((1, num_randomizations, num_shots, 1), dtype=np.uint8)
+    result = make_result([{"meas0": meas0_data, "pass_meas": pass_meas_data}])
+    raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
+
+    dataset = raw_data.datatree["0"].dataset
+    assert dataset.attrs["creg_names"] == ["meas0", "pass_meas"]
+    assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 2), "pass_meas": (2, 3)}
+    np.testing.assert_array_equal(
+        dataset["data"].values,
+        np.concatenate([meas0_data, pass_meas_data], axis=-1).reshape(
+            num_randomizations, num_shots, 3
+        ),
+    )
+    np.testing.assert_array_equal(
+        dataset["measurement_flips"].values, np.zeros((num_randomizations, 3), dtype=bool)
+    )
