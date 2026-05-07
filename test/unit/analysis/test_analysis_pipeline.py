@@ -275,27 +275,6 @@ class TestAnalysisPipeline:
         with pytest.raises(ValueError, match="does not match"):
             _StubObsToAveraged() + _StubRawToObs()
 
-    def test_iadd_appends(self):
-        """Test that += appends a stage to the pipeline."""
-        s1, s2, s3 = _StubRawToObs(), _StubObsToAveraged(), _StubAveragedToModel()
-        pipeline = AnalysisPipeline(s1, s2)
-        pipeline += s3
-        assert pipeline.stages == (s1, s2, s3)
-        assert pipeline.output_level is ModelData
-
-    def test_iadd_flattens(self):
-        """Test that += flattens when appending a pipeline."""
-        s1, s2, s3 = _StubRawToObs(), _StubObsToAveraged(), _StubAveragedToModel()
-        pipeline = AnalysisPipeline(s1)
-        pipeline += AnalysisPipeline(s2, s3)
-        assert pipeline.stages == (s1, s2, s3)
-
-    def test_iadd_incompatible_raises(self):
-        """Test that += raises ValueError for incompatible stages."""
-        pipeline = AnalysisPipeline(_StubRawToObs())
-        with pytest.raises(ValueError, match="does not match"):
-            pipeline += _StubRawToObs()
-
     def test_repr_stage(self):
         """Test the repr of a bare stage."""
         assert repr(_StubRawToObs()) == "_StubRawToObs()"

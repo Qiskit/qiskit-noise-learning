@@ -126,19 +126,6 @@ class AnalysisPipeline(AnalysisStage):
         """The stages in this pipeline."""
         return self._stages
 
-    def __iadd__(self, other: AnalysisStage) -> "AnalysisPipeline":
-        if not isinstance(other, AnalysisStage):
-            return NotImplemented
-        new_stages = list(other._stages) if isinstance(other, AnalysisPipeline) else [other]  # noqa: SLF001
-        if self._stages and new_stages:
-            if self._stages[-1].output_level != new_stages[0].input_level:
-                raise ValueError(
-                    f"The output level of {self._stages[-1]} does not match the input level of "
-                    f"{new_stages[0]}."
-                )
-        self._stages = (*self._stages, *new_stages)
-        return self
-
     def __repr__(self) -> str:
         stages_repr = ", ".join(repr(s) for s in self._stages)
         return f"AnalysisPipeline({stages_repr})"
