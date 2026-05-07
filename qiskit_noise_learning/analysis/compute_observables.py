@@ -178,13 +178,15 @@ def compute_expectation_value(
         bits: A record of the measured bits, with dimensions ``(randomization, shots, bits)``.
         flips: Specification of required flips on bits ``(randomization, bits)``.
         shot_mask: A boolean mask on the ``(randomization, shots)`` dimensions.
-        bit_mask: A boolean mask on the ``(bit,)`` dimension.
+        bit_mask: A boolean mask on the ``(bit,)`` dimension. Note that the dimension is first
+            truncated to ``0:len(bit_mask)`` under the assumption that the expectation-value
+            relevant bits are at the beginning of the dimension.
         signs: Signs for the computed observables along the ``(randomization,)`` dimension.
 
     Returns:
         Expectation values with dimension ``(randomization,)``.
     """
-    corrected_bits = (bits ^ flips[:, np.newaxis, :])[..., bit_mask]
+    corrected_bits = (bits ^ flips[:, np.newaxis, :])[..., :len(bit_mask)][..., bit_mask]
     broadcasted_shot_mask = np.broadcast_to(shot_mask[:, :, np.newaxis], corrected_bits.shape)
     masked_arr = np.ma.array(corrected_bits, mask=broadcasted_shot_mask)
     per_sample = 1 - 2 * np.mod(np.sum(masked_arr, axis=-1), 2)
