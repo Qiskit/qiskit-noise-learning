@@ -257,7 +257,8 @@ class ExecutorCircuitGenerator(
 
         Returns:
             A samplex item where the order of the arguments correspond to the order of
-            ``sequences``.
+            ``sequences``, an ordered list of creg names, and a dictionary mapping creg names to
+            the ordered list of qubit indices they measure.
 
         Raises:
             ValueError: If ``sequences`` is empty.
@@ -368,4 +369,4 @@ class ExecutorCircuitGenerator(
             samplex=samplex,
             samplex_arguments=samplex_arguments,
             shape=(num_sequences, self._num_randomizations),
-        )
+        ), creg_names, measurement_map
