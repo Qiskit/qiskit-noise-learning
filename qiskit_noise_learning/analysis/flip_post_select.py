@@ -24,9 +24,9 @@ class FlipPostSelect(AnalysisStage):
     """Apply a mask to raw data based on bit flips across measurement outcomes.
     
     Args:
-        creg_pair_identifier: A callable that, given a list of all creg names, returns an iterator
-            over pairs of creg names for which to do the flip-based post selection on. Defaults to
-            returning pairs of cregs with names of the form ``"*"`` and ``"*_ps"``.
+        creg_pair_identifier: A callable that, given a list of present creg names, returns an
+            iterator over pairs of creg names for which to do the flip-based post selection on. 
+            Defaults to returning pairs of cregs with names of the form ``"*"`` and ``"*_ps"``.
         mode: Post-selection mode; either ``"node"`` or ``"edge"``.
     """
 
@@ -59,6 +59,8 @@ class FlipPostSelect(AnalysisStage):
     @staticmethod
     def from_list(creg_pairs: list[tuple[str, str]], mode: Literal["node"] | Literal["edge"] = "edge") -> Self:
         """Create from a pre-defined list of pairs of creg names.
+
+        If a given pair is not found in the supplied ``creg_names``, it will be skipped.
         
         Args:
             creg_pairs: A list of pairs of creg names.
