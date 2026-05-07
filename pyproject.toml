@@ -25,7 +25,6 @@ dependencies = [
     "samplomatic>=0.17",
     "scipy>=1.13",
     "xarray>=2025.7",
-    "qiskit-addon-utils"
 ]
 
 
