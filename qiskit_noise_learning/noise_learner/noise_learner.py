@@ -59,15 +59,19 @@ class NoiseLearner:
     Args:
         backend: The backend to learn noise from.
         options: Learning options. If ``None``, default options are used.
+        executor: An optional executor to use for running quantum programs. If ``None``, an
+            :class:`~qiskit_ibm_runtime.Executor` is created from the backend.
     """
 
     def __init__(
         self,
         backend: BackendV2,
         options: LearningOptions | None = None,
+        executor=None,
     ):
         self._backend = backend
         self._options = options or LearningOptions()
+        self._executor = executor
         self._analyzer = _ANALYZERS[self._options.analyzer]
         self._pattern_generator = _PATTERN_GENERATORS[self._options.path_generator]
 
@@ -178,5 +182,7 @@ class NoiseLearner:
             The job.
         """
         program = QuantumProgram(shots=self._options.shots_per_randomizations, items=samplex_items)
+        if self._executor is not None:
+            return self._executor.run(program)
         executor = Executor(mode=self._backend)
         return executor.run(program)

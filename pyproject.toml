@@ -47,10 +47,14 @@ dev = [
     "pre-commit",             # Pre-commit hooks
     "towncrier",              # Changelog management
     "scipy-doctest",          # SciPy's style of doc-testing
+    "nbconvert",              # For executing notebooks in CI
+    "ipykernel",              # Jupyter kernel for notebook execution
 ]
 
 vis = [
     "plotly",
+    "samplomatic[vis]",
+    "qiskit[visualization]"
 ]
 
 [tool.pytest.ini_options]
