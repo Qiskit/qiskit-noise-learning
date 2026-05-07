@@ -55,13 +55,13 @@ class ExecutorDataMapper:
         self,
         sequence_map: dict[int, tuple[int, int]],
         creg_names: list[list[str]],
-        measurement_map: list[dict[str, np.ndarray[int]]],
+        measurement_maps: list[dict[str, np.ndarray[int]]],
         instruction_sequences: list[InstructionSequence],
         num_randomizations: int,
     ):
         self._sequence_map = sequence_map
         self._creg_names = creg_names
-        self._measurement_map = measurement_map
+        self._measurement_map = measurement_maps
         self._instruction_sequences = instruction_sequences
         self._num_randomizations = num_randomizations
 
@@ -77,9 +77,9 @@ class ExecutorDataMapper:
         return self._creg_names
 
     @property
-    def measurement_map(self) -> list[dict[str, np.ndarray[int]]]:
+    def measurement_maps(self) -> list[dict[str, np.ndarray[int]]]:
         """A per-program-item map from creg name to an ordered array of measured qubit indices."""
-        return self._measurement_map
+        return self._measurement_maps
 
     @property
     def instruction_sequences(self) -> list:
@@ -235,7 +235,7 @@ class ExecutorCircuitGenerator(
         samplex_items = []
         mapper = {}
         creg_names = []
-        measurement_map = []
+        measurement_maps = []
         for c_idx, partition in enumerate(self.partition(sequences)):
             current_sequences = []
             for p_idx, p in enumerate(partition):
@@ -245,12 +245,12 @@ class ExecutorCircuitGenerator(
             
             samplex_items.append(samplex_item)
             creg_names.append(current_creg_names)
-            measurement_map.append(current_meas_map)
+            measurement_maps.append(current_meas_map)
 
             
 
         return samplex_items, ExecutorDataMapper(
-            sequence_map=mapper, creg_names=creg_names, measurement_map=measurement_map, instruction_sequences=sequences, num_randomizations=self._num_randomizations
+            sequence_map=mapper, creg_names=creg_names, measurement_maps=measurement_maps, instruction_sequences=sequences, num_randomizations=self._num_randomizations
         )
 
     def generate_samplex_item(self, sequences: list[InstructionSequence]) -> tuple[SamplexItem, list[str], dict[str, np.ndarray[int]]]:
@@ -354,7 +354,7 @@ class ExecutorCircuitGenerator(
                 if creg.name not in creg_names:
                     creg_names.append(creg.name)
 
-            # add measurement map information for new cregs
+            # add measurement map information for added cregs
             for instruction in template.data:
                 if instruction.operation.name == "measure":
                     qubit_idx = template.find_bit(instruction.qubits[0]).index
