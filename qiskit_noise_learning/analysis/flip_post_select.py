@@ -22,7 +22,13 @@ from qiskit_noise_learning.sequences import PathPattern
 
 class FlipPostSelect(AnalysisStage):
     """Apply a mask to raw data based on bit flips across measurement outcomes.
-    
+
+    This post selection stage is based on identifying successful bit flips on the same qubit(s)
+    between two measurements. It can be configured to operate in one of two modes:
+    * ``"node"``: Shots are discarded if at least one bit failed to flip.
+    * ``"edge"``: Shots are discarded if there exists a pair of neighbouring qubits in the
+        measurement for which both bits failed to flip.
+
     Args:
         creg_pair_identifier: A callable that, given a list of present creg names, returns an
             iterator over pairs of creg names for which to do the flip-based post selection on. 
@@ -77,6 +83,8 @@ class FlipPostSelect(AnalysisStage):
     @staticmethod
     def from_suffix(suffix: str = "ps", mode:  Literal["node"] | Literal["edge"] = "edge") -> Self:
         """Defines the creg pair identifier to find pairs with names ``"*"`` and ``f"*_{suffix}"``.
+
+        Any cregs that do not have a corresponding pair according to this rule are ignored.
 
         Args:
             suffix: The suffix for creg name pattern matching.
