@@ -16,4 +16,3 @@ from .compute_observables import ComputeObservables
 from .curve_fit_observables import CurveFitObservables
 from .fit import Fit
 from .nnls_solve import NNLSSolve
-from .post_select import PostSelect
