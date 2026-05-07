@@ -14,6 +14,7 @@ from itertools import count
 
 import numpy as np
 from qiskit.circuit import BoxOp, CircuitInstruction, ClassicalRegister, QuantumCircuit
+from qiskit.transpiler import PassManager
 from qiskit_ibm_runtime.quantum_program import QuantumProgramResult
 from qiskit_ibm_runtime.quantum_program.quantum_program import SamplexItem
 from samplomatic import build
@@ -41,7 +42,10 @@ class ExecutorDataMapper:
 
     Args:
         sequence_map: A map from instruction sequence indices to result indices.
-        creg_names: The name of classical registers in the circuit.
+        creg_names: The name of classical registers in each program item. Ordering controls order
+            of insertion into raw data by the :meth:`ExecutorCircuitGenerator.collect` method.
+        measurement_map: For each program item, a dictionary from creg names to an ordered array of
+            measured qubit indices.
         instruction_sequences: The instruction sequences associated with the data.
         num_randomizations: The number of randomizations used per experiment.
 
@@ -51,11 +55,13 @@ class ExecutorDataMapper:
         self,
         sequence_map: dict[int, tuple[int, int]],
         creg_names: list[list[str]],
+        measurement_map: list[dict[str, np.ndarray[int]]],
         instruction_sequences: list[InstructionSequence],
         num_randomizations: int,
     ):
         self._sequence_map = sequence_map
         self._creg_names = creg_names
+        self._measurement_map = measurement_map
         self._instruction_sequences = instruction_sequences
         self._num_randomizations = num_randomizations
 
@@ -64,9 +70,16 @@ class ExecutorDataMapper:
         """List of names of the classical registers contained in the results.
 
         The list at a given index corresponds to names expected in the data of the
-        :class:`qiskit_ibm_runtime.quantum_program.QuantumProgramResult` at the same index.
+        :class:`qiskit_ibm_runtime.quantum_program.QuantumProgramResult` at the same index. The
+        ordering controls the order of insertion of results into raw data in
+        :meth:`ExecutorCircuitGenerator.collect`.
         """
         return self._creg_names
+
+    @property
+    def measurement_map(self) -> list[dict[str, np.ndarray[int]]]:
+        """A per-program-item map from creg name to an ordered array of measured qubit indices."""
+        return self._measurement_map
 
     @property
     def instruction_sequences(self) -> list:
@@ -97,11 +110,27 @@ class ExecutorCircuitGenerator(
     Args:
         gate_set: The Qiskit gate set that this generator constructs against.
         num_randomizations: The number of randomizations to use.
+        creg_prefix: The prefix assigned to all creg names used in instruction sequence
+            measurements. Defaults to ``"meas"``.
+        local_clifford_ref_prefix: The prefix assigned to all local Clifford parameter references
+            in template circuits. Defaults to ``"c"``.
+        pass_manager: An optional ``PassManager`` to apply to all template circuits produced by
+            :meth:`ExecutorCircuitGenerator.generate`.
     """
 
-    def __init__(self, gate_set: QiskitGateSet, num_randomizations: int = 50):
+    def __init__(
+        self, 
+        gate_set: QiskitGateSet, 
+        num_randomizations: int = 50,
+        creg_prefix: str = "meas",
+        local_clifford_ref_prefix: str = "c",
+        pass_manager: PassManager | None = None,
+    ):
         self._gate_set = gate_set
         self._num_randomizations = num_randomizations
+        self._creg_prefix = creg_prefix
+        self._local_clifford_ref_prefix = local_clifford_ref_prefix
+        self._pass_manager = pass_manager
 
     @property
     def gate_set(self) -> QiskitGateSet:
@@ -203,23 +232,24 @@ class ExecutorCircuitGenerator(
         )
 
     def generate(self, sequences):
-        input_sequences = sequences
         samplex_items = []
         mapper = {}
         creg_names = []
+        measurement_map = []
         for c_idx, partition in enumerate(self.partition(sequences)):
-            sequences = []
+            current_sequences = []
             for p_idx, p in enumerate(partition):
                 mapper[p[0]] = (c_idx, p_idx)
-                sequences.append(p[1])
-            samplex_items.append(samplex_item := self.generate_samplex_item(sequences))
+                current_sequences.append(p[1])
+            samplex_items.append(samplex_item := self.generate_samplex_item(current_sequences))
+
             creg_names.append([c.name for c in samplex_item.circuit.cregs])
 
         return samplex_items, ExecutorDataMapper(
-            mapper, creg_names, input_sequences, self._num_randomizations
+            mapper, creg_names, sequences, self._num_randomizations
         )
 
-    def generate_samplex_item(self, sequences: list[InstructionSequence]) -> SamplexItem:
+    def generate_samplex_item(self, sequences: list[InstructionSequence]) -> tuple[SamplexItem, list[str], dict[str, np.ndarray[int]]]:
         """Generate a samplex item from instruction sequences with the same structure.
 
         Args:
@@ -239,8 +269,10 @@ class ExecutorCircuitGenerator(
 
         boxed_circuit = QuantumCircuit(self.gate_set.num_qubits)
 
-        ref_iter = (f"c{idx}" for idx in count())
-        creg_iter = (f"meas{idx}" for idx in count())
+        ref_iter = (f"{self._local_clifford_ref_prefix}{idx}" for idx in count())
+        creg_iter = (f"{self._creg_prefix}{idx}" for idx in count())
+        creg_names = []
+        measurement_map = dict()
 
         gateset_idxs = list(self.gate_set.qubit_subset)
         gateset_idxs.sort()
@@ -268,7 +300,10 @@ class ExecutorCircuitGenerator(
                         annotations.append(annotation)
 
                 if num_meas := len(gate.meas_idxs):
-                    creg = ClassicalRegister(num_meas, next(creg_iter))
+                    creg_names.append(next(creg_iter))
+                    measurement_map[creg_names[-1]] = np.array(sorted(gate.meas_idxs), dtype=int)
+
+                    creg = ClassicalRegister(num_meas, creg_names[-1])
                     boxed_circuit.add_register(creg)
                     body.add_register(creg)
                     body.compose(gate.circuit, qubits=body.qubits, clbits=creg, inplace=True)
@@ -306,6 +341,27 @@ class ExecutorCircuitGenerator(
                     current_permutation = PartialPauliPermutation([0] * self.gate_set.num_qubits)
 
         template, samplex = build(boxed_circuit)
+        if self._pass_manager is not None:
+            template = self._pass_manager.run(template)
+
+            # add additional creg names from the pass manager
+            for creg in template.cregs:
+                if creg.name not in creg_names:
+                    creg_names.append(creg.name)
+
+            # add measurement map information for new cregs
+            for instruction in template.data:
+                if instruction.operation.name == "measure":
+                    qubit_idx = template.find_bit(instruction.qubits[0]).index
+                    clbit = instruction.clbits[0]
+                    for creg in template.cregs:
+                        if creg.name not in measurement_map and clbit in creg:
+                            measurement_map.setdefault(creg.name, []).append(qubit_idx)
+                            break
+
+            for key, val in measurement_map.items():
+                if isinstance(val, list):
+                    measurement_map[key] = np.array(val, dtype=int)
 
         return SamplexItem(
             template,
