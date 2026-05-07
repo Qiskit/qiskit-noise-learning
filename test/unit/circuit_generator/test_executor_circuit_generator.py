@@ -126,9 +126,11 @@ def test_generate_samplex_item(gateset):
         [ApplyGate(model_gateset["M"])],
     )
     seq0 = InstructionSequence(pattern0, 5)
-    samplex_item = circuit_generator.generate_samplex_item([seq0])
+    samplex_item, creg_names, measurement_map = circuit_generator.generate_samplex_item([seq0])
 
     assert len(samplex_item.samplex_arguments) == 12
+    assert creg_names == ["meas0"]
+    assert "meas0" in measurement_map
 
     expected = np.zeros((1, 1, 10), np.uint8)
     for value in samplex_item.samplex_arguments.values():
@@ -154,10 +156,14 @@ def test_generate_samplex_item(gateset):
     )
     seq2 = InstructionSequence(pattern2, 5)
 
-    other_samplex_item = circuit_generator.generate_samplex_item([seq0, seq1, seq2])
+    other_samplex_item, other_creg_names, other_meas_map = (
+        circuit_generator.generate_samplex_item([seq0, seq1, seq2])
+    )
 
     assert samplex_item.samplex == other_samplex_item.samplex
     assert len(other_samplex_item.samplex_arguments) == 12
+    assert other_creg_names == creg_names
+    assert other_meas_map.keys() == measurement_map.keys()
 
     expected = np.zeros((3, 1, 10), np.uint8)
     values = list(other_samplex_item.samplex_arguments.values())
@@ -192,7 +198,6 @@ def test_generate_samplex_item_permutation_composition(gateset):
         [ApplyGate(model_gateset["M"])],
     )
     seq0 = InstructionSequence(pattern0, 5)
-    samplex_item0 = circuit_generator.generate_samplex_item([seq0])
 
     array = np.empty((gateset.num_qubits,), dtype=np.uint8)
     array[gateset_idxs] = 2
@@ -204,8 +209,13 @@ def test_generate_samplex_item_permutation_composition(gateset):
     )
     seq1 = InstructionSequence(pattern1, 5)
 
-    samplex_item0 = circuit_generator.generate_samplex_item([seq0])
-    samplex_item1 = circuit_generator.generate_samplex_item([seq1])
+    samplex_item0, creg_names0, meas_map0 = circuit_generator.generate_samplex_item([seq0])
+    samplex_item1, creg_names1, meas_map1 = circuit_generator.generate_samplex_item([seq1])
+
+    assert creg_names0 == creg_names1
+    assert meas_map0.keys() == meas_map1.keys()
+    for key in meas_map0:
+        np.testing.assert_array_equal(meas_map0[key], meas_map1[key])
 
     # should have same structure but different values
     assert not all(
@@ -221,7 +231,12 @@ def test_generate_samplex_item_permutation_composition(gateset):
         [ApplyGate(model_gateset["M"])],
     )
     seq2 = InstructionSequence(pattern2, 5)
-    samplex_item2 = circuit_generator.generate_samplex_item([seq2])
+    samplex_item2, creg_names2, meas_map2 = circuit_generator.generate_samplex_item([seq2])
+
+    assert creg_names2 == creg_names1
+    assert meas_map2.keys() == meas_map1.keys()
+    for key in meas_map2:
+        np.testing.assert_array_equal(meas_map2[key], meas_map1[key])
 
     # should have same structure and same values
     assert all(
@@ -237,7 +252,11 @@ def test_generate_samplex_item_permutation_composition(gateset):
         [ApplyGate(model_gateset["M"])],
     )
     seq3 = InstructionSequence(pattern3, 5)
-    samplex_item3 = circuit_generator.generate_samplex_item([seq3])
+    samplex_item3, creg_names3, meas_map3 = circuit_generator.generate_samplex_item([seq3])
+
+    assert creg_names3 == creg_names1
+    for key in meas_map3:
+        np.testing.assert_array_equal(meas_map3[key], meas_map1[key])
 
     # should have same structure different values
     assert not all(
@@ -254,7 +273,7 @@ def test_generate_samplex_item_permutation_composition(gateset):
         [perm1, ApplyGate(model_gateset["M"])],
     )
     seq4 = InstructionSequence(pattern4, 5)
-    samplex_item4 = circuit_generator.generate_samplex_item([seq4])
+    samplex_item4, creg_names4, meas_map4 = circuit_generator.generate_samplex_item([seq4])
 
     pattern5 = InstructionPattern(
         [ApplyGate(model_gateset["P"])],
@@ -262,7 +281,12 @@ def test_generate_samplex_item_permutation_composition(gateset):
         [perm1.compose(perm0), ApplyGate(model_gateset["M"])],
     )
     seq5 = InstructionSequence(pattern5, 5)
-    samplex_item5 = circuit_generator.generate_samplex_item([seq5])
+    samplex_item5, creg_names5, meas_map5 = circuit_generator.generate_samplex_item([seq5])
+
+    assert creg_names5 == creg_names4
+    for key in meas_map5:
+        np.testing.assert_array_equal(meas_map5[key], meas_map4[key])
+
     # should have same structure same values
     assert all(
         (a == b).all()
@@ -327,7 +351,7 @@ def test_generate(gateset):
     samplex_items, data_mapper = circuit_generator.generate(sequences)
     assert len(samplex_items) == 3
     assert data_mapper.creg_names == [["meas0"], ["meas0"], ["meas0"]]
-    assert data_mapper.sequence_map == {0: (0, 0), 1: (1, 0), 2: (2, 0)}
+    assert data_mapper.item_sequence_indices == [[0], [1], [2]]
 
     gateset_idxs = [idx for idx in gateset.qubit_subset]
     gateset_idxs.sort()
@@ -345,14 +369,7 @@ def test_generate(gateset):
     samplex_items, data_mapper = circuit_generator.generate(sequences)
     assert len(samplex_items) == 4
     assert data_mapper.creg_names == [["meas0"], ["meas0"], ["meas0"], ["meas0"]]
-    assert data_mapper.sequence_map == {
-        0: (0, 0),
-        1: (1, 0),
-        2: (2, 0),
-        3: (0, 1),
-        4: (2, 1),
-        5: (3, 0),
-    }
+    assert data_mapper.item_sequence_indices == [[0, 3], [1], [2, 4], [5]]
 
     pattern2 = InstructionPattern(
         [ApplyGate(model_gateset["P"])],
@@ -391,7 +408,11 @@ def test_generate_different_decomposition_mode():
 def test_collect_empty():
     """Test `ExecutorCircuitGenerator.collect()` with no sequences."""
     data_mapper = ExecutorDataMapper(
-        sequence_map={}, creg_names=[], instruction_sequences=[], num_randomizations=0
+        item_sequence_indices=[],
+        creg_names=[],
+        measurement_maps=[],
+        instruction_sequences=[],
+        num_randomizations=0,
     )
     result = QuantumProgramResult([])
     seq_data = ExecutorCircuitGenerator.collect(result, data_mapper)
@@ -403,8 +424,9 @@ def test_collect_single_sequence_no_measurement_flips():
     creg_data = np.array([[[[1, 0, 1]]]], dtype=np.uint8)
     result = make_result([{"meas0": creg_data}])
     data_mapper = ExecutorDataMapper(
-        sequence_map={0: (0, 0)},
+        item_sequence_indices=[[0]],
         creg_names=[["meas0"]],
+        measurement_maps=[{"meas0": np.array([0, 1, 2])}],
         instruction_sequences=[
             InstructionSequence(pattern=InstructionPattern([], [], []), depth=0)
         ],
@@ -412,14 +434,14 @@ def test_collect_single_sequence_no_measurement_flips():
     )
 
     raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
-    dataset = raw_data.datatree["3"]
+    dataset = raw_data.datatree["0"]
     np.testing.assert_array_equal(
         dataset["instruction_pattern"].data, [InstructionPattern([], [], [])]
     )
     np.testing.assert_array_equal(dataset["depth"].data, [0])
     np.testing.assert_array_equal(dataset["data"].data, creg_data.reshape(1, 1, 3))
     np.testing.assert_array_equal(dataset["measurement_flips"].data, np.array([[False] * 3]))
-    assert dataset["creg_bit_boundaries"].values[0] == {"meas0": (0, 3)}
+    assert dataset.dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 3)}
 
 
 def test_collect_single_sequence_with_measurement_flips():
@@ -428,8 +450,9 @@ def test_collect_single_sequence_with_measurement_flips():
     flip_data = np.array([[[[1, 1, 0]]]], dtype=np.uint8)
     result = make_result([{"meas0": creg_data, "measurement_flips.meas0": flip_data}])
     data_mapper = ExecutorDataMapper(
-        sequence_map={0: (0, 0)},
+        item_sequence_indices=[[0]],
         creg_names=[["meas0"]],
+        measurement_maps=[{"meas0": np.array([0, 1, 2])}],
         instruction_sequences=[
             InstructionSequence(pattern=InstructionPattern([], [], []), depth=0)
         ],
@@ -437,11 +460,11 @@ def test_collect_single_sequence_with_measurement_flips():
     )
 
     raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
-    dataset = raw_data.datatree["3"].dataset
+    dataset = raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(dataset["data"].values, creg_data.reshape(1, 1, 3))
     np.testing.assert_array_equal(dataset["measurement_flips"].values, flip_data.reshape(1, 3))
     assert dataset["depth"].values == [0]
-    assert dataset["creg_bit_boundaries"].values[0] == {"meas0": (0, 3)}
+    assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 3)}
 
 
 def test_collect_multiple_sequences_same_item():
@@ -449,8 +472,9 @@ def test_collect_multiple_sequences_same_item():
     creg_data = np.array([[[[1, 0]]], [[[0, 1]]]], dtype=np.uint8)
     result = make_result([{"meas0": creg_data}])
     data_mapper = ExecutorDataMapper(
-        sequence_map={0: (0, 0), 1: (0, 1)},
+        item_sequence_indices=[[0, 1]],
         creg_names=[["meas0"]],
+        measurement_maps=[{"meas0": np.array([0, 1])}],
         instruction_sequences=[
             InstructionSequence(pattern=InstructionPattern([], [], []), depth=0),
             InstructionSequence(pattern=InstructionPattern([], [], []), depth=1),
@@ -459,14 +483,14 @@ def test_collect_multiple_sequences_same_item():
     )
 
     raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
-    dataset = raw_data.datatree["2"].dataset
+    dataset = raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
         dataset["instruction_pattern"].data, [InstructionPattern([], [], [])] * 2
     )
     np.testing.assert_array_equal(dataset["depth"].data, [0, 1])
     np.testing.assert_array_equal(dataset["data"].values, creg_data.reshape(2, 1, 2))
     np.testing.assert_array_equal(dataset["measurement_flips"].data, np.array([[False] * 2] * 2))
-    assert dataset["creg_bit_boundaries"].values[0] == {"meas0": (0, 2)}
+    assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 2)}
 
 
 def test_collect_multiple_sequences_different_items():
@@ -481,8 +505,9 @@ def test_collect_multiple_sequences_different_items():
         ]
     )
     data_mapper = ExecutorDataMapper(
-        sequence_map={0: (0, 0), 1: (1, 0)},
+        item_sequence_indices=[[0], [1]],
         creg_names=[["meas0"], ["meas0"]],
+        measurement_maps=[{"meas0": np.array([0, 1])}, {"meas0": np.array([0, 1])}],
         instruction_sequences=[
             InstructionSequence(pattern=InstructionPattern([], [], []), depth=0),
             InstructionSequence(pattern=InstructionPattern([], [], []), depth=1),
@@ -491,7 +516,7 @@ def test_collect_multiple_sequences_different_items():
     )
 
     raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
-    dataset = raw_data.datatree["2"].dataset
+    dataset = raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
         dataset["instruction_pattern"].data, [InstructionPattern([], [], [])] * 2
     )
@@ -502,45 +527,7 @@ def test_collect_multiple_sequences_different_items():
     np.testing.assert_array_equal(
         dataset["measurement_flips"].values, np.array([[False, False], [True, False]])
     )
-    assert dataset["creg_bit_boundaries"].values[0] == {"meas0": (0, 2)}
-
-
-def test_collect_iteration_order():
-    """Effectively the same data as test_collect_multiple_sequences_different_items, but re-orders
-    data_mapper.sequence_map entries to ensure the results don't depend on insertion order.
-    """
-    data0 = np.array([[[[1, 1]]]], dtype=np.uint8)
-    data1 = np.array([[[[0, 0]]]], dtype=np.uint8)
-    flips1 = np.array([[[[1, 0]]]], dtype=bool)
-    result = make_result(
-        [
-            {"meas0": data0},
-            {"meas0": data1, "measurement_flips.meas0": flips1},
-        ]
-    )
-    data_mapper = ExecutorDataMapper(
-        sequence_map={1: (1, 0), 0: (0, 0)},
-        creg_names=[["meas0"], ["meas0"]],
-        instruction_sequences=[
-            InstructionSequence(pattern=InstructionPattern([], [], []), depth=0),
-            InstructionSequence(pattern=InstructionPattern([], [], []), depth=1),
-        ],
-        num_randomizations=1,
-    )
-
-    raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
-    dataset = raw_data.datatree["2"].dataset
-    np.testing.assert_array_equal(
-        dataset["instruction_pattern"].data, [InstructionPattern([], [], [])] * 2
-    )
-    np.testing.assert_array_equal(dataset["depth"].data, [0, 1])
-    np.testing.assert_array_equal(
-        dataset["data"].values, np.append(data0, data1, axis=0).reshape(2, 1, 2)
-    )
-    np.testing.assert_array_equal(
-        dataset["measurement_flips"].values, np.array([[False, False], [True, False]])
-    )
-    assert dataset["creg_bit_boundaries"].values[0] == {"meas0": (0, 2)}
+    assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 2)}
 
 
 def test_collect_multiple_cregs():
@@ -558,8 +545,9 @@ def test_collect_multiple_cregs():
         ]
     )
     data_mapper = ExecutorDataMapper(
-        sequence_map={0: (0, 0)},
+        item_sequence_indices=[[0]],
         creg_names=[["meas0", "meas1"]],
+        measurement_maps=[{"meas0": np.array([0, 1]), "meas1": np.array([2, 3, 4])}],
         instruction_sequences=[
             InstructionSequence(pattern=InstructionPattern([], [], []), depth=0)
         ],
@@ -568,7 +556,7 @@ def test_collect_multiple_cregs():
 
     raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
 
-    dataset = raw_data.datatree["5"].dataset
+    dataset = raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
         dataset["instruction_pattern"].data, [InstructionPattern([], [], [])]
     )
@@ -579,7 +567,7 @@ def test_collect_multiple_cregs():
     np.testing.assert_array_equal(
         dataset["measurement_flips"].values, np.array([[True, True, False, False, False]])
     )
-    assert dataset["creg_bit_boundaries"].values[0] == {"meas0": (0, 2), "meas1": (2, 5)}
+    assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 2), "meas1": (2, 5)}
 
 
 def test_collect_complex_mapping():
@@ -587,6 +575,8 @@ def test_collect_complex_mapping():
 
     Simulates three items where some sequences share an item (different d_idx) and others
     are in separate items, with a mix of measurement flips present and absent.
+    Items 0 and 1 share the same creg structure (["meas0"] only) so they merge into one leaf.
+    Item 2 has a different structure (["meas0", "meas1"]) so it gets its own leaf.
     """
     result = make_result(
         [
@@ -604,8 +594,13 @@ def test_collect_complex_mapping():
         ]
     )
     data_mapper = ExecutorDataMapper(
-        sequence_map={0: (0, 0), 1: (1, 0), 2: (0, 1), 3: (2, 0)},
+        item_sequence_indices=[[0, 2], [1], [3]],
         creg_names=[["meas0"], ["meas0"], ["meas0", "meas1"]],
+        measurement_maps=[
+            {"meas0": np.array([0, 1])},
+            {"meas0": np.array([0, 1, 2])},
+            {"meas0": np.array([0, 1, 2]), "meas1": np.array([3])},
+        ],
         instruction_sequences=[
             InstructionSequence(pattern=InstructionPattern([], [], []), depth=depth)
             for depth in range(4)
@@ -615,8 +610,8 @@ def test_collect_complex_mapping():
 
     raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
 
-    # 2 classical bits
-    dataset = raw_data.datatree["2"].dataset
+    # Item 0 has meas0 with 2 bits — leaf "0"
+    dataset = raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
         dataset["instruction_pattern"].data, [InstructionPattern([], [], [])] * 2
     )
@@ -625,10 +620,10 @@ def test_collect_complex_mapping():
     np.testing.assert_array_equal(
         dataset["measurement_flips"].values, result[0]["measurement_flips.meas0"].reshape(2, 2)
     )
-    assert dataset["creg_bit_boundaries"].values[0] == {"meas0": (0, 2)}
+    assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 2)}
 
-    # 3 classical bits
-    dataset = raw_data.datatree["3"].dataset
+    # Item 1 has meas0 with 3 bits — different measurement_map, so new leaf "1"
+    dataset = raw_data.datatree["1"].dataset
     np.testing.assert_array_equal(
         dataset["instruction_pattern"].data, [InstructionPattern([], [], [])]
     )
@@ -637,10 +632,10 @@ def test_collect_complex_mapping():
     np.testing.assert_array_equal(
         dataset["measurement_flips"].values, np.array([[False, False, False]])
     )
-    assert dataset["creg_bit_boundaries"].values[0] == {"meas0": (0, 3)}
+    assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 3)}
 
-    # 4 classical bits
-    dataset = raw_data.datatree["4"].dataset
+    # Item 2 has meas0 + meas1 — leaf "2"
+    dataset = raw_data.datatree["2"].dataset
     np.testing.assert_array_equal(
         dataset["instruction_pattern"].data, [InstructionPattern([], [], [])]
     )
@@ -652,4 +647,4 @@ def test_collect_complex_mapping():
     np.testing.assert_array_equal(
         dataset["measurement_flips"].values, np.array([[False, False, False, False]])
     )
-    assert dataset["creg_bit_boundaries"].values[0] == {"meas0": (0, 3), "meas1": (3, 4)}
+    assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 3), "meas1": (3, 4)}
