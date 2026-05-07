@@ -366,7 +366,7 @@ class ExecutorCircuitGenerator(
 
             for key, val in measurement_map.items():
                 if isinstance(val, list):
-                    measurement_map[key] = np.array(val, dtype=int)
+                    measurement_map[key] = np.array(sorted(val), dtype=int)
 
         return SamplexItem(
             template,
