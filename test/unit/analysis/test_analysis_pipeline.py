@@ -219,11 +219,12 @@ class TestAnalysisPipeline:
         assert obs in obs_hist
 
     def test_nested_pipeline_levels(self):
-        """Test properties for nested pipelines."""
+        """Test properties for nested pipelines (constructor flattens)."""
         inner = AnalysisPipeline(_StubRawToObs(), _StubObsToAveraged())
         outer = AnalysisPipeline(inner, _StubAveragedToModel())
         assert outer.input_level is RawData
         assert outer.output_level is ModelData
+        assert len(outer.stages) == 3  # flattened
 
     def test_nested_pipeline_run(self):
         """Test the run method for nested pipelines."""
@@ -238,18 +239,51 @@ class TestAnalysisPipeline:
         assert isinstance(result[AveragedData], AveragedData)
 
     def test_deeply_nested_pipeline(self):
-        """Test a deeply nested pipeline."""
+        """Test a deeply nested pipeline (constructor flattens at each level)."""
         p1 = AnalysisPipeline(_StubRawToObs())
         p2 = AnalysisPipeline(p1, _StubObsToAveraged())
         p3 = AnalysisPipeline(p2, _StubAveragedToModel())
         assert p3.input_level is RawData
         assert p3.output_level is ModelData
+        assert len(p3.stages) == 3  # flattened
 
         raw = RawData(datatree=xr.DataTree())
         fit = Fit()
         fit[RawData] = raw
         result = p3.run(fit)
         assert isinstance(result[ModelData], ModelData)
+
+    def test_add_creates_pipeline(self):
+        """Test that + on two stages returns an AnalysisPipeline."""
+        stage1, stage2 = _StubRawToObs(), _StubObsToAveraged()
+        result = stage1 + stage2
+        assert isinstance(result, AnalysisPipeline)
+        assert result.stages == (stage1, stage2)
+
+    def test_add_flattens_pipelines(self):
+        """Test that + flattens when one operand is a pipeline."""
+        s1, s2, s3 = _StubRawToObs(), _StubObsToAveraged(), _StubAveragedToModel()
+        pipeline = AnalysisPipeline(s1, s2)
+        result = pipeline + s3
+        assert result.stages == (s1, s2, s3)
+
+        result2 = s1 + AnalysisPipeline(s2, s3)
+        assert result2.stages == (s1, s2, s3)
+
+    def test_add_incompatible_raises(self):
+        """Test that + on incompatible stages raises ValueError."""
+        with pytest.raises(ValueError, match="does not match"):
+            _StubObsToAveraged() + _StubRawToObs()
+
+    def test_repr_stage(self):
+        """Test the repr of a bare stage."""
+        assert repr(_StubRawToObs()) == "_StubRawToObs()"
+
+    def test_repr_pipeline(self):
+        """Test the repr of a pipeline."""
+        s1, s2 = _StubRawToObs(), _StubObsToAveraged()
+        pipeline = AnalysisPipeline(s1, s2)
+        assert repr(pipeline) == "AnalysisPipeline(_StubRawToObs(), _StubObsToAveraged())"
 
     def test_pipeline_run_with_leveled_data(self):
         """Test that the run method on leveled data returns a fit with the right data."""
