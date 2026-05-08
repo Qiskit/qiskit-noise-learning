@@ -201,10 +201,11 @@ class TestEv:
 
 def _run_compute_observables(paths, instruction_sequences, data, measurement_flips):
     """Helper: build a Fit with the given paths and RawData, run ComputeObservables."""
-    # creg_bit_boundaries not currently relevant to computations
+    num_bits = data[0].shape[-1] if data else 0
     raw_data = RawData.from_arrays(
+        creg_names=["meas0"],
+        measurement_map={"meas0": np.arange(num_bits)},
         instruction_sequences=instruction_sequences,
-        creg_bit_boundaries=[dict()] * len(instruction_sequences),
         data=data,
         measurement_flips=measurement_flips,
         time_lbs=[np.empty(len(x), dtype="datetime64[us]") for x in data],

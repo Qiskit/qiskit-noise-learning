@@ -36,18 +36,21 @@ def test_from_arrays():
     num_bits = 2
 
     raw = RawData.from_arrays(
+        creg_names=["meas0"],
+        measurement_map={"meas0": np.array([0, 1])},
         instruction_sequences=[seq],
-        creg_bit_boundaries=[{"meas0": (0, 2)}],
         data=[np.zeros((num_randomizations, num_shots, num_bits), dtype=bool)],
         measurement_flips=[np.zeros((num_randomizations, num_bits), dtype=bool)],
         time_lbs=[np.array(["2026-01-01"] * num_randomizations, dtype="datetime64[us]")],
         time_ubs=[np.array(["2026-01-02"] * num_randomizations, dtype="datetime64[us]")],
     )
     dt = raw.datatree
-    assert str(num_bits) in dt
-    ds = dt[str(num_bits)].dataset
+    assert "0" in dt
+    ds = dt["0"].dataset
     assert ds["data"].shape == (num_randomizations, num_shots, num_bits)
     assert ds["measurement_flips"].shape == (num_randomizations, num_bits)
+    assert ds.attrs["creg_names"] == ["meas0"]
+    assert ds.attrs["creg_bit_boundaries"] == {"meas0": (0, 2)}
 
 
 def test_filter_time():
@@ -59,15 +62,16 @@ def test_filter_time():
     t_ubs = np.array(["2026-01-02", "2026-01-04", "2026-01-06"], dtype="datetime64[us]")
 
     raw = RawData.from_arrays(
+        creg_names=["meas0"],
+        measurement_map={"meas0": np.array([0, 1])},
         instruction_sequences=[seq],
-        creg_bit_boundaries=[{"meas0": (0, 2)}],
         data=[np.ones((3, num_shots, num_bits), dtype=bool)],
         measurement_flips=[np.zeros((3, num_bits), dtype=bool)],
         time_lbs=[t_lbs],
         time_ubs=[t_ubs],
     )
     filtered = raw.filter_time(lb=np.datetime64("2026-01-03"), ub=np.datetime64("2026-01-04"))
-    ds = filtered.datatree[str(num_bits)].dataset
+    ds = filtered.datatree["0"].dataset
     time_lbs_out = ds["time_lbs"].values
     assert np.isnat(time_lbs_out[0])
     assert not np.isnat(time_lbs_out[1])

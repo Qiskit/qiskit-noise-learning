@@ -94,7 +94,11 @@ def model(gate_set_cz):
 @pytest.fixture()
 def data_mapper():
     return ExecutorDataMapper(
-        sequence_map={}, creg_names=[], instruction_sequences=[], num_randomizations=1
+        item_sequence_indices=[],
+        creg_names=[],
+        measurement_maps=[],
+        instruction_sequences=[],
+        num_randomizations=1,
     )
 
 

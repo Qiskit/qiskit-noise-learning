@@ -24,7 +24,7 @@ dependencies = [
     "qiskit-ibm-runtime>=0.46",
     "samplomatic>=0.17",
     "scipy>=1.13",
-    "xarray>=2025.7"
+    "xarray>=2025.7",
 ]
 
 

@@ -13,7 +13,9 @@
 from itertools import count
 
 import numpy as np
+import xarray as xr
 from qiskit.circuit import BoxOp, CircuitInstruction, ClassicalRegister, QuantumCircuit
+from qiskit.transpiler import PassManager
 from qiskit_ibm_runtime.quantum_program import QuantumProgramResult
 from qiskit_ibm_runtime.quantum_program.quantum_program import SamplexItem
 from samplomatic import build
@@ -40,8 +42,12 @@ class ExecutorDataMapper:
     input sequences.
 
     Args:
-        sequence_map: A map from instruction sequence indices to result indices.
-        creg_names: The name of classical registers in the circuit.
+        item_sequence_indices: For each program item, an ordered list of instruction sequence
+            indices. Position in the list corresponds to the configuration index within the result
+            item.
+        creg_names: The name of classical registers in each program item.
+        measurement_maps: For each program item, a dictionary from creg names to an ordered array
+            of measured qubit indices.
         instruction_sequences: The instruction sequences associated with the data.
         num_randomizations: The number of randomizations used per experiment.
 
@@ -49,15 +55,22 @@ class ExecutorDataMapper:
 
     def __init__(
         self,
-        sequence_map: dict[int, tuple[int, int]],
+        item_sequence_indices: list[list[int]],
         creg_names: list[list[str]],
+        measurement_maps: list[dict[str, np.ndarray[int]]],
         instruction_sequences: list[InstructionSequence],
         num_randomizations: int,
     ):
-        self._sequence_map = sequence_map
+        self._item_sequence_indices = item_sequence_indices
         self._creg_names = creg_names
+        self._measurement_maps = measurement_maps
         self._instruction_sequences = instruction_sequences
         self._num_randomizations = num_randomizations
+
+    @property
+    def item_sequence_indices(self) -> list[list[int]]:
+        """Per program item, the instruction sequence indices corresponding to each config."""
+        return self._item_sequence_indices
 
     @property
     def creg_names(self) -> list[list[str]]:
@@ -69,19 +82,14 @@ class ExecutorDataMapper:
         return self._creg_names
 
     @property
+    def measurement_maps(self) -> list[dict[str, np.ndarray[int]]]:
+        """A per-program-item map from creg name to an ordered array of measured qubit indices."""
+        return self._measurement_maps
+
+    @property
     def instruction_sequences(self) -> list:
         """The instruction sequences corresponding to the sequence indices in the sequence map."""
         return self._instruction_sequences
-
-    @property
-    def sequence_map(self) -> dict[int, tuple[int, int]]:
-        """Map from sequence indices to result indices.
-
-        The returned tuple's first entry is the index of the input sequence's result in the
-        :class:`qiskit_ibm_runtime.quantum_program.QuantumProgramResult`, while the second entry is
-        the index of the data contained in the result.
-        """
-        return self._sequence_map
 
     @property
     def num_randomizations(self) -> int:
@@ -97,11 +105,27 @@ class ExecutorCircuitGenerator(
     Args:
         gate_set: The Qiskit gate set that this generator constructs against.
         num_randomizations: The number of randomizations to use.
+        creg_prefix: The prefix assigned to all creg names used in instruction sequence
+            measurements. Defaults to ``"meas"``.
+        local_clifford_ref_prefix: The prefix assigned to all local Clifford parameter references
+            in template circuits. Defaults to ``"c"``.
+        pass_manager: An optional ``PassManager`` to apply to all template circuits produced by
+            :meth:`ExecutorCircuitGenerator.generate`.
     """
 
-    def __init__(self, gate_set: QiskitGateSet, num_randomizations: int = 50):
+    def __init__(
+        self, 
+        gate_set: QiskitGateSet, 
+        num_randomizations: int = 50,
+        creg_prefix: str = "meas",
+        local_clifford_ref_prefix: str = "c",
+        pass_manager: PassManager | None = None,
+    ):
         self._gate_set = gate_set
         self._num_randomizations = num_randomizations
+        self._creg_prefix = creg_prefix
+        self._local_clifford_ref_prefix = local_clifford_ref_prefix
+        self._pass_manager = pass_manager
 
     @property
     def gate_set(self) -> QiskitGateSet:
@@ -110,7 +134,6 @@ class ExecutorCircuitGenerator(
     @staticmethod
     def collect(result, data_mapper):
         # extract time bounds on a program item basis
-
         if hasattr(result.metadata, "chunk_timing"):
             program_item_time_lbs = [
                 np.array([], dtype="datetime64[us]") for _ in range(len(result))
@@ -130,7 +153,10 @@ class ExecutorCircuitGenerator(
                         program_item_time_lbs[part.idx_item], [chunk_stop] * part.size
                     )
         else:
-            the_length = len(data_mapper.instruction_sequences) * data_mapper.num_randomizations
+            num_seqs_per_item = max(
+                len(indices) for indices in data_mapper.item_sequence_indices
+            )
+            the_length = num_seqs_per_item * data_mapper.num_randomizations
             program_item_time_lbs = np.full(
                 (len(result), the_length), "NaT", dtype="datetime64[us]"
             )
@@ -138,88 +164,97 @@ class ExecutorCircuitGenerator(
                 (len(result), the_length), "NaT", dtype="datetime64[us]"
             )
 
-        data = []
-        measurement_flips = []
-        creg_bit_boundaries = []
-        time_lbs = []
-        time_ubs = []
+        raw_data = RawData(datatree=xr.DataTree())
 
-        for seq_idx in range(len(data_mapper.instruction_sequences)):
-            item_idx, d_idx = data_mapper.sequence_map[seq_idx]
+        for item_idx, seq_indices in enumerate(data_mapper.item_sequence_indices):
             this_item = result[item_idx]
+            item_creg_names = data_mapper.creg_names[item_idx]
+            item_measurement_map = data_mapper.measurement_maps[item_idx]
 
-            this_creg_bit_boundaries = dict()
-            this_data = []
-            these_flips = []
-            bit_count = 0
-            for creg in data_mapper.creg_names[item_idx]:
-                new_bit_count = bit_count + this_item[creg].shape[-1]
-                this_creg_bit_boundaries[creg] = (bit_count, new_bit_count)
-                bit_count = new_bit_count
+            data = []
+            measurement_flips = []
+            time_lbs = []
+            time_ubs = []
+            instruction_sequences = []
 
-                this_data.append(this_item[creg][d_idx])
-                flips = this_item.get(f"measurement_flips.{creg}")
-                if flips is None:
-                    flips = np.zeros(
-                        (this_data[-1].shape[0], 1, this_data[-1].shape[-1]), dtype=np.bool_
-                    )
-                else:
-                    flips = flips[d_idx]
-                these_flips.append(flips)
+            for d_idx, seq_idx in enumerate(seq_indices):
+                this_data = []
+                these_flips = []
+                for creg in item_creg_names:
+                    this_data.append(this_item[creg][d_idx])
+                    flips = this_item.get(f"measurement_flips.{creg}")
+                    if flips is None:
+                        flips = np.zeros(
+                            (this_data[-1].shape[0], 1, this_data[-1].shape[-1]), dtype=np.bool_
+                        )
+                    else:
+                        flips = flips[d_idx]
+                    these_flips.append(flips)
 
-            creg_bit_boundaries.append(this_creg_bit_boundaries)
-            # assuming only one register
-            this_data_array = this_data[0]
-            for data_array in this_data[1:]:
-                this_data_array = np.append(this_data_array, data_array, axis=-1)
-            data.append(this_data_array)
-            these_flips_array = these_flips[0]
-            for flips_array in these_flips[1:]:
-                these_flips_array = np.append(these_flips_array, flips_array, axis=-1)
-            measurement_flips.append(
-                these_flips_array.reshape((these_flips_array.shape[0], these_flips_array.shape[-1]))
+                data.append(np.concatenate(this_data, axis=-1))
+                flips_array = np.concatenate(these_flips, axis=-1)
+                measurement_flips.append(
+                    flips_array.reshape((flips_array.shape[0], flips_array.shape[-1]))
+                )
+
+                time_lbs.append(
+                    program_item_time_lbs[item_idx][
+                        data_mapper.num_randomizations
+                        * d_idx : data_mapper.num_randomizations
+                        * (d_idx + 1)
+                    ]
+                )
+                time_ubs.append(
+                    program_item_time_ubs[item_idx][
+                        data_mapper.num_randomizations
+                        * d_idx : data_mapper.num_randomizations
+                        * (d_idx + 1)
+                    ]
+                )
+                instruction_sequences.append(data_mapper.instruction_sequences[seq_idx])
+
+            item_raw_data = RawData.from_arrays(
+                creg_names=item_creg_names,
+                measurement_map=item_measurement_map,
+                instruction_sequences=instruction_sequences,
+                data=data,
+                measurement_flips=measurement_flips,
+                time_lbs=time_lbs,
+                time_ubs=time_ubs,
             )
+            raw_data = raw_data.merge(item_raw_data)
 
-            # extract time bounds from relevant section of time arrays
-            time_lbs.append(
-                program_item_time_lbs[item_idx][
-                    data_mapper.num_randomizations * d_idx : data_mapper.num_randomizations
-                    * (d_idx + 1)
-                ]
-            )
-            time_ubs.append(
-                program_item_time_ubs[item_idx][
-                    data_mapper.num_randomizations * d_idx : data_mapper.num_randomizations
-                    * (d_idx + 1)
-                ]
-            )
-        return RawData.from_arrays(
-            instruction_sequences=list(data_mapper.instruction_sequences),
-            creg_bit_boundaries=creg_bit_boundaries,
-            data=data,
-            measurement_flips=measurement_flips,
-            time_lbs=np.array(time_lbs, dtype="datetime64[us]"),
-            time_ubs=np.array(time_ubs, dtype="datetime64[us]"),
-        )
+        return raw_data
 
     def generate(self, sequences):
-        input_sequences = sequences
         samplex_items = []
-        mapper = {}
+        item_sequence_indices = []
         creg_names = []
-        for c_idx, partition in enumerate(self.partition(sequences)):
-            sequences = []
-            for p_idx, p in enumerate(partition):
-                mapper[p[0]] = (c_idx, p_idx)
-                sequences.append(p[1])
-            samplex_items.append(samplex_item := self.generate_samplex_item(sequences))
-            creg_names.append([c.name for c in samplex_item.circuit.cregs])
+        measurement_maps = []
+        for partition in self.partition(sequences):
+            current_sequences = []
+            current_indices = []
+            for seq_idx, seq in partition:
+                current_indices.append(seq_idx)
+                current_sequences.append(seq)
+            samplex_item, current_creg_names, current_meas_map = self.generate_samplex_item(
+                current_sequences
+            )
+
+            samplex_items.append(samplex_item)
+            item_sequence_indices.append(current_indices)
+            creg_names.append(current_creg_names)
+            measurement_maps.append(current_meas_map)
 
         return samplex_items, ExecutorDataMapper(
-            mapper, creg_names, input_sequences, self._num_randomizations
+            item_sequence_indices=item_sequence_indices,
+            creg_names=creg_names,
+            measurement_maps=measurement_maps,
+            instruction_sequences=sequences,
+            num_randomizations=self._num_randomizations,
         )
 
-    def generate_samplex_item(self, sequences: list[InstructionSequence]) -> SamplexItem:
+    def generate_samplex_item(self, sequences: list[InstructionSequence]) -> tuple[SamplexItem, list[str], dict[str, np.ndarray[int]]]:
         """Generate a samplex item from instruction sequences with the same structure.
 
         Args:
@@ -227,7 +262,8 @@ class ExecutorCircuitGenerator(
 
         Returns:
             A samplex item where the order of the arguments correspond to the order of
-            ``sequences``.
+            ``sequences``, an ordered list of creg names, and a dictionary mapping creg names to
+            the ordered list of qubit indices they measure.
 
         Raises:
             ValueError: If ``sequences`` is empty.
@@ -239,8 +275,10 @@ class ExecutorCircuitGenerator(
 
         boxed_circuit = QuantumCircuit(self.gate_set.num_qubits)
 
-        ref_iter = (f"c{idx}" for idx in count())
-        creg_iter = (f"meas{idx}" for idx in count())
+        ref_iter = (f"{self._local_clifford_ref_prefix}{idx}" for idx in count())
+        creg_iter = (f"{self._creg_prefix}{idx}" for idx in count())
+        creg_names = []
+        measurement_map = dict()
 
         gateset_idxs = list(self.gate_set.qubit_subset)
         gateset_idxs.sort()
@@ -268,7 +306,10 @@ class ExecutorCircuitGenerator(
                         annotations.append(annotation)
 
                 if num_meas := len(gate.meas_idxs):
-                    creg = ClassicalRegister(num_meas, next(creg_iter))
+                    creg_names.append(next(creg_iter))
+                    measurement_map[creg_names[-1]] = np.array(sorted(gate.meas_idxs), dtype=int)
+
+                    creg = ClassicalRegister(num_meas, creg_names[-1])
                     boxed_circuit.add_register(creg)
                     body.add_register(creg)
                     body.compose(gate.circuit, qubits=body.qubits, clbits=creg, inplace=True)
@@ -306,10 +347,31 @@ class ExecutorCircuitGenerator(
                     current_permutation = PartialPauliPermutation([0] * self.gate_set.num_qubits)
 
         template, samplex = build(boxed_circuit)
+        if self._pass_manager is not None:
+            template = self._pass_manager.run(template)
+
+            # add additional creg names from the pass manager
+            for creg in template.cregs:
+                if creg.name not in creg_names:
+                    creg_names.append(creg.name)
+
+            # add measurement map information for added cregs
+            for instruction in template.data:
+                if instruction.name == "measure":
+                    qubit_idx = template.find_bit(instruction.qubits[0]).index
+                    clbit = instruction.clbits[0]
+                    for creg in template.cregs:
+                        if creg.name not in measurement_map and clbit in creg:
+                            measurement_map.setdefault(creg.name, []).append(qubit_idx)
+                            break
+
+            for key, val in measurement_map.items():
+                if isinstance(val, list):
+                    measurement_map[key] = np.array(sorted(val), dtype=int)
 
         return SamplexItem(
             template,
             samplex=samplex,
             samplex_arguments=samplex_arguments,
             shape=(num_sequences, self._num_randomizations),
-        )
+        ), creg_names, measurement_map
