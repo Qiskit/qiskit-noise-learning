@@ -158,6 +158,51 @@ def test_flip_post_select_mismatched_qubits_raises():
         FlipPostSelect.from_suffix(mode="node").run(fit)
 
 
+def test_flip_post_select_multiple_randomizations():
+    """FlipPostSelect correctly handles multiple randomizations independently."""
+    # 3 randomizations, 2 shots each
+    # data layout: [meas0 (4 bits), meas0_ps (4 bits)]
+    # rand 0: shot 0 bit 0 fails to flip → mask; shot 1 all flip → keep
+    # rand 1: both shots all flip → keep both
+    # rand 2: shot 0 all flip → keep; shot 1 bit 3 fails to flip → mask
+    data = np.array(
+        [
+            [
+                [False, False, False, False, False, True, True, True],
+                [False, False, False, False, True, True, True, True],
+            ],
+            [
+                [False, False, False, False, True, True, True, True],
+                [True, True, True, True, False, False, False, False],
+            ],
+            [
+                [False, False, False, False, True, True, True, True],
+                [False, False, False, True, True, True, True, True],
+            ],
+        ],
+        dtype=bool,
+    )
+    raw = make_raw_data(
+        creg_names=["meas0", "meas0_ps"],
+        measurement_map={
+            "meas0": np.array([0, 1, 2, 3]),
+            "meas0_ps": np.array([0, 1, 2, 3]),
+        },
+        data=data,
+    )
+    fit = make_fit(raw, CouplingMap.from_line(4))
+
+    result = FlipPostSelect.from_suffix(mode="node").run(fit)
+
+    mask = result[RawData].datatree["0"].dataset["data_mask"].values
+    expected = np.array([
+        [True, False],
+        [False, False],
+        [False, True],
+    ])
+    np.testing.assert_array_equal(mask, expected)
+
+
 def test_flip_post_select_from_list_targets_specific_pair():
     """FlipPostSelect.from_list targets only the specified creg pair."""
     # Two pairs: ("a","b") and ("c","d"), only target ("a","b")

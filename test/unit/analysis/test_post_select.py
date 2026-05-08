@@ -168,6 +168,38 @@ def test_post_select_from_list_targets_specific_creg():
     np.testing.assert_array_equal(mask, [[False, True]])
 
 
+def test_post_select_multiple_randomizations():
+    """PostSelect correctly handles multiple randomizations independently."""
+    # 3 randomizations, 2 shots each, 4 bits
+    # rand 0: shot 0 has True bit → mask; shot 1 all False → keep
+    # rand 1: both shots all False → keep both
+    # rand 2: shot 0 all False → keep; shot 1 has True bit → mask
+    data = np.array(
+        [
+            [[True, False, False, False], [False, False, False, False]],
+            [[False, False, False, False], [False, False, False, False]],
+            [[False, False, False, False], [False, True, False, False]],
+        ],
+        dtype=bool,
+    )
+    raw = make_raw_data(
+        creg_names=["meas0_ps"],
+        measurement_map={"meas0_ps": np.array([0, 1, 2, 3])},
+        data=data,
+    )
+    fit = make_fit(raw, CouplingMap.from_line(4))
+
+    result = PostSelect.from_suffix(mode="node").run(fit)
+
+    mask = result[RawData].datatree["0"].dataset["data_mask"].values
+    expected = np.array([
+        [True, False],
+        [False, False],
+        [False, True],
+    ])
+    np.testing.assert_array_equal(mask, expected)
+
+
 def test_post_select_preserves_existing_mask():
     """PostSelect preserves pre-existing True entries in data_mask (OR semantics)."""
     data = np.zeros((1, 3, 4), dtype=bool)
