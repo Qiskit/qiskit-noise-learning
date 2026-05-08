@@ -356,7 +356,7 @@ class ExecutorCircuitGenerator(
 
             # add measurement map information for added cregs
             for instruction in template.data:
-                if instruction.operation.name == "measure":
+                if instruction.name == "measure":
                     qubit_idx = template.find_bit(instruction.qubits[0]).index
                     clbit = instruction.clbits[0]
                     for creg in template.cregs:
