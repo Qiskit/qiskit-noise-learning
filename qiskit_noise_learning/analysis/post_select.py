@@ -109,6 +109,8 @@ class PostSelect(AnalysisStage):
         coupling_map = fit.model.gate_set.coupling_map
 
         def _dataset_selector(dataset: xr.Dataset) -> xr.Dataset:
+            if "data" not in dataset:
+                return dataset
             data = dataset["data"].values
             mask = dataset["data_mask"].values.copy()
             boundaries = dataset.attrs["creg_bit_boundaries"]
