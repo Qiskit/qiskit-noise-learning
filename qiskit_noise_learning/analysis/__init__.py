@@ -17,3 +17,4 @@ from .curve_fit_observables import CurveFitObservables
 from .fit import Fit
 from .nnls_solve import NNLSSolve
 from .flip_post_select import FlipPostSelect
+from .post_select import PostSelect
