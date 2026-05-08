@@ -43,7 +43,8 @@ class ExecutorDataMapper:
 
     Args:
         item_sequence_indices: For each program item, an ordered list of instruction sequence
-            indices. Position in the list corresponds to ``d_idx`` within the result.
+            indices. Position in the list corresponds to the configuration index within the result
+            item.
         creg_names: The name of classical registers in each program item.
         measurement_maps: For each program item, a dictionary from creg names to an ordered array
             of measured qubit indices.
@@ -68,7 +69,7 @@ class ExecutorDataMapper:
 
     @property
     def item_sequence_indices(self) -> list[list[int]]:
-        """Per program item, the instruction sequence indices in d_idx order."""
+        """Per program item, the instruction sequence indices corresponding to each config."""
         return self._item_sequence_indices
 
     @property
