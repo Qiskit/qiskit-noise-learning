@@ -25,7 +25,7 @@ def _measurement_maps_equal(
     map1: dict[str, np.ndarray], map2: dict[str, np.ndarray]
 ) -> bool:
     """Check equality of two measurement maps (dicts of str -> np.ndarray)."""
-    return maps1.keys() == maps2.keys() and all(np.array_equal(map1[k], map2[k]) for k in map1)
+    return map1.keys() == map2.keys() and all(np.array_equal(map1[k], map2[k]) for k in map1)
 
 
 class RawData(LeveledData):
