@@ -43,12 +43,8 @@ class ExecutorDataMapper:
 
     Args:
         item_sequence_indices: For each program item, an ordered list of instruction sequence
-<<<<<<< HEAD
-            indices. Position in the list corresponds to ``d_idx`` within the result.
-=======
             indices. Position in the list corresponds to the configuration index within the result
             item.
->>>>>>> main
         creg_names: The name of classical registers in each program item.
         measurement_maps: For each program item, a dictionary from creg names to an ordered array
             of measured qubit indices.
