@@ -15,5 +15,9 @@ from .average_observables import AverageObservables
 from .compute_observables import ComputeObservables
 from .curve_fit_observables import CurveFitObservables
 from .fit import Fit
+<<<<<<< HEAD
 from .nnls_solve import NNLSSolve
 from .flip_post_select import FlipPostSelect
+=======
+from .nnls_solve import NNLSSolve
+>>>>>>> main

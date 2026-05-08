@@ -56,6 +56,14 @@ class AnalysisStage(ABC):
         The fit container may be mutated in place.
         """
 
+    def __add__(self, other: "AnalysisStage") -> "AnalysisPipeline":
+        if not isinstance(other, AnalysisStage):
+            return NotImplemented
+        return AnalysisPipeline(self, other)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}()"
+
     def run(self, fit: Fit | LeveledData) -> Fit:
         """Run this stage, returning a new :class:`Fit` with the output level populated.
 
@@ -92,8 +100,14 @@ class AnalysisPipeline(AnalysisStage):
     """
 
     def __init__(self, *stages: AnalysisStage):
-        self._stages = stages
-        for stage0, stage1 in zip(stages, stages[1:]):
+        flat: list[AnalysisStage] = []
+        for stage in stages:
+            if isinstance(stage, AnalysisPipeline):
+                flat.extend(stage._stages)  # noqa: SLF001
+            else:
+                flat.append(stage)
+        self._stages = tuple(flat)
+        for stage0, stage1 in zip(self._stages, self._stages[1:]):
             if stage0.output_level != stage1.input_level:
                 raise ValueError(
                     f"The output level of {stage0} does not match the input level of {stage1}."
@@ -111,6 +125,10 @@ class AnalysisPipeline(AnalysisStage):
     def stages(self) -> tuple[AnalysisStage, ...]:
         """The stages in this pipeline."""
         return self._stages
+
+    def __repr__(self) -> str:
+        stages_repr = ", ".join(repr(s) for s in self._stages)
+        return f"AnalysisPipeline({stages_repr})"
 
     def _run(self, fit: Fit):
         for stage in self._stages:

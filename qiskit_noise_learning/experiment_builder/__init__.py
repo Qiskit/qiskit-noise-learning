@@ -18,4 +18,5 @@ from .experiment_generators import (
     depth1_path_generator,
     even_depth_pattern_generator,
     even_depth_vanilla_pattern_generator,
+    standard_vanilla_pattern_generator,
 )

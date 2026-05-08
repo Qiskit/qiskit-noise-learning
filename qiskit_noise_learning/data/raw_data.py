@@ -25,9 +25,7 @@ def _measurement_maps_equal(
     map1: dict[str, np.ndarray], map2: dict[str, np.ndarray]
 ) -> bool:
     """Check equality of two measurement maps (dicts of str -> np.ndarray)."""
-    if map1.keys() != map2.keys():
-        return False
-    return all(np.array_equal(map1[k], map2[k]) for k in map1)
+    return map1.keys() == map2.keys() and all(np.array_equal(map1[k], map2[k]) for k in map1)
 
 
 class RawData(LeveledData):
@@ -89,7 +87,11 @@ class RawData(LeveledData):
 
         Args:
             creg_names: Ordered list of classical register names.
+<<<<<<< HEAD
             measurement_map: Dictionary mapping creg names to arrays of measured qubit indices.
+=======
+            measurement_map: Dictionary mapping creg names to arrays of measured physical qubit indices.
+>>>>>>> main
             instruction_sequences: The list of instruction sequences used to generate the
                 experiments.
             data: A list of outcome data for each instruction sequence for all classical registers.
