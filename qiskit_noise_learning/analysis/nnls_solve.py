@@ -36,6 +36,10 @@ class NNLSSolve(AnalysisStage):
     def output_level(self):
         return ModelData
 
+    def _linear_solve(self, a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, dict]:
+        x, residual = opt.nnls(a_mat, b_vec)
+        return x, {"residual": residual}
+
     def _run(self, fit: Fit):
         averaged_data = fit[AveragedData]
         fidelity_model = fit.model
@@ -64,7 +68,7 @@ class NNLSSolve(AnalysisStage):
         A = design_matrix.data
 
         # Solve the nnls problem
-        x, residual = opt.nnls(A, b)
+        x, metadata = self._linear_solve(A, b)
 
         # Compute covariance
         cov_b = np.diag(sigma_b**2)
@@ -90,5 +94,5 @@ class NNLSSolve(AnalysisStage):
             covariance=cov_x,
             time_lbs=np.full(len(x), time_lb, dtype="datetime64[us]"),
             time_ubs=np.full(len(x), time_ub, dtype="datetime64[us]"),
-            metadata=dict(residual=residual),
+            metadata=metadata,
         )
