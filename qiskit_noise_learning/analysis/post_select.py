@@ -38,7 +38,7 @@ class PostSelect(AnalysisStage):
     def __init__(
         self,
         creg_identifier: Callable[[list[str]], Iterator[str]] | None = None,
-        mode: Literal["node"] | Literal["edge"] = "edge",
+        mode: Literal["node", "edge"] = "edge",
     ):
         if creg_identifier is None:
             creg_identifier = PostSelect.from_suffix().creg_identifier
@@ -64,7 +64,7 @@ class PostSelect(AnalysisStage):
     @staticmethod
     def from_list(
         creg_names_list: list[str],
-        mode: Literal["node"] | Literal["edge"] = "edge",
+        mode: Literal["node", "edge"] = "edge",
     ) -> Self:
         """Create from a pre-defined list of creg names.
 
@@ -85,7 +85,7 @@ class PostSelect(AnalysisStage):
     @staticmethod
     def from_suffix(
         suffix: str = "ps",
-        mode: Literal["node"] | Literal["edge"] = "edge",
+        mode: Literal["node", "edge"] = "edge",
     ) -> Self:
         """Identify cregs by suffix for post-selection.
 

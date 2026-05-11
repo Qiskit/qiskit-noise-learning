@@ -64,7 +64,7 @@ class FlipPostSelect(AnalysisStage):
 
     @staticmethod
     def from_list(
-        creg_pairs: list[tuple[str, str]], mode: Literal["node"] | Literal["edge"] = "edge"
+        creg_pairs: list[tuple[str, str]], mode: Literal["node", "edge"] = "edge"
     ) -> Self:
         """Create from a pre-defined list of pairs of creg names.
 
@@ -83,7 +83,7 @@ class FlipPostSelect(AnalysisStage):
         return FlipPostSelect(creg_pair_identifier=creg_pair_identifier, mode=mode)
 
     @staticmethod
-    def from_suffix(suffix: str = "ps", mode: Literal["node"] | Literal["edge"] = "edge") -> Self:
+    def from_suffix(suffix: str = "ps", mode: Literal["node", "edge"] = "edge") -> Self:
         """Defines the creg pair identifier to find pairs with names ``"*"`` and ``f"*_{suffix}"``.
 
         Any cregs that do not have a corresponding pair according to this rule are ignored.
