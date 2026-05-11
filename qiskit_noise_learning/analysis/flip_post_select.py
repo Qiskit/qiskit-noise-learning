@@ -63,7 +63,7 @@ class FlipPostSelect(AnalysisStage):
     def _run(self, fit):
         coupling_map = fit.model.gate_set.coupling_map
 
-        def _dataset_selector(dataset: xr.Dataset) -> xr.Dataset:
+        def _dataset_masker(dataset: xr.Dataset) -> xr.Dataset:
             if "data" not in dataset:
                 return dataset
             data = dataset["data"].values
@@ -102,7 +102,7 @@ class FlipPostSelect(AnalysisStage):
             new_data_mask = xr.DataArray(data=mask, dims=["randomization", "shot"])
             return dataset.assign(data_mask=new_data_mask)
 
-        fit[RawData] = RawData(fit.raw_data.datatree.map_over_datasets(_dataset_selector))
+        fit[RawData] = RawData(fit.raw_data.datatree.map_over_datasets(_dataset_masker))
 
 
 def suffix_creg_pair_identifier(
