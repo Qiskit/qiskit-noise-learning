@@ -25,7 +25,7 @@ def broadcast_sample(
     shape: tuple[int, ...],
     rng: np.random.Generator,
 ) -> dict[str, np.ndarray]:
-    """Sample from a samplex, iterating over broadcast axes in samplex_arguments.
+    """Sample from a samplex, iterating over broadcast axes in ``samplex_arguments``.
 
     Axes where ``samplex_arguments`` has size > 1 (after right-aligning with
     ``shape``) are **broadcast** axes (e.g. a parameter sweep); the remaining
