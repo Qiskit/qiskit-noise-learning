@@ -19,10 +19,7 @@ from qiskit_ibm_runtime import RuntimeJobV2
 from qiskit_noise_learning.data import RawData
 
 from ..analysis import AnalysisStage, Fit
-from ..circuit_generator.executor_circuit_generator import (
-    ExecutorCircuitGenerator,
-    ExecutorDataMapper,
-)
+from ..circuit_generator import ExecutorCircuitGenerator, ExecutorDataMapper
 from ..models import PauliLindbladModel
 from ..sequences import Path
 from .noise_learner_result import NoiseLearnerResult

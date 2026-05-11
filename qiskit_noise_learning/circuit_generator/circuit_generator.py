@@ -10,15 +10,19 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
+from __future__ import annotations
+
 import abc
 from collections import defaultdict
 from collections.abc import Sequence
-from typing import Generic, TypeVar
-
-from qiskit_noise_learning.data import RawData
+from typing import TYPE_CHECKING, Generic, TypeVar
 
 from ..gate_sets import GateSet
 from ..sequences import InstructionSequence
+
+if TYPE_CHECKING:
+    from ..analysis import Fit
+    from ..experiment_builder import ExperimentBuilder
 
 TaskT = TypeVar("TaskT")
 ResultT = TypeVar("ResultT")
@@ -53,12 +57,14 @@ class CircuitGenerator(abc.ABC, Generic[TaskT, DataMapperT, ResultT]):
 
     @staticmethod
     @abc.abstractmethod
-    def collect(result: ResultT, data_mapper: DataMapperT) -> RawData:
+    def collect(result: ResultT, data_mapper: DataMapperT | None = None) -> Fit:
         """Coerce data from a specific execution framework into a canonical form."""
 
     @abc.abstractmethod
-    def generate(self, sequences: list[InstructionSequence]) -> tuple[TaskT, DataMapperT]:
-        """Generate a new experimental task from the provided instruction sequences."""
+    def generate(
+        self, experiment_builder: ExperimentBuilder, depths: list[int]
+    ) -> tuple[TaskT, DataMapperT]:
+        """Generate a new experimental task from an experiment builder and depths."""
 
     @classmethod
     def partition(cls, sequences: Sequence[InstructionSequence]) -> list[list[InstructionSequence]]:
