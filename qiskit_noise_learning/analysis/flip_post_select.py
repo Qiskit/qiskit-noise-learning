@@ -39,7 +39,7 @@ class FlipPostSelect(AnalysisStage):
     def __init__(
         self,
         creg_pair_identifier: Callable[[list[str]], Iterator[tuple[str, str]]] | None = None,
-        mode: Literal["node"] | Literal["edge"] = "edge",
+        mode: Literal["node", "edge"] = "edge",
     ):
         if creg_pair_identifier is None:
             creg_pair_identifier = FlipPostSelect.from_suffix().creg_pair_identifier
