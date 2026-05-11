@@ -21,9 +21,7 @@ from .leveled_data import LeveledData
 from .xarray_utils import filter_time, ragged_concat
 
 
-def _measurement_maps_equal(
-    map1: dict[str, np.ndarray], map2: dict[str, np.ndarray]
-) -> bool:
+def _measurement_maps_equal(map1: dict[str, np.ndarray], map2: dict[str, np.ndarray]) -> bool:
     """Check equality of two measurement maps (dicts of str -> np.ndarray)."""
     return map1.keys() == map2.keys() and all(np.array_equal(map1[k], map2[k]) for k in map1)
 
@@ -182,11 +180,8 @@ class RawData(LeveledData):
         """Find a key in the datatree whose dataset has matching creg metadata."""
         for key, node in datatree.items():
             node_attrs = node.dataset.attrs
-            if (
-                node_attrs.get("creg_names") == attrs.get("creg_names")
-                and _measurement_maps_equal(
-                    node_attrs.get("measurement_map", {}), attrs.get("measurement_map", {})
-                )
+            if node_attrs.get("creg_names") == attrs.get("creg_names") and _measurement_maps_equal(
+                node_attrs.get("measurement_map", {}), attrs.get("measurement_map", {})
             ):
                 return key
         return None

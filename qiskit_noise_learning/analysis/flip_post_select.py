@@ -10,14 +10,14 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from typing import Callable, Iterator, Literal, Self
+from collections.abc import Callable, Iterator
+from typing import Literal, Self
+
 import numpy as np
 import xarray as xr
 
 from qiskit_noise_learning.analysis import AnalysisStage
 from qiskit_noise_learning.data import RawData
-from qiskit_noise_learning.data.xarray_utils import time_bound
-from qiskit_noise_learning.sequences import PathPattern
 
 
 class FlipPostSelect(AnalysisStage):
@@ -31,13 +31,13 @@ class FlipPostSelect(AnalysisStage):
 
     Args:
         creg_pair_identifier: A callable that, given a list of present creg names, returns an
-            iterator over pairs of creg names for which to do the flip-based post selection on. 
+            iterator over pairs of creg names for which to do the flip-based post selection on.
             Defaults to returning pairs of cregs with names of the form ``"*"`` and ``"*_ps"``.
         mode: Post-selection mode; either ``"node"`` or ``"edge"``.
     """
 
     def __init__(
-        self, 
+        self,
         creg_pair_identifier: Callable[[list[str]], Iterator[tuple[str, str]]] | None = None,
         mode: Literal["node"] | Literal["edge"] = "edge",
     ):
@@ -57,17 +57,19 @@ class FlipPostSelect(AnalysisStage):
     @property
     def mode(self) -> str:
         return self._mode
-    
+
     @property
     def creg_pair_identifier(self) -> Callable[[list[str]], Iterator[tuple[str, str]]]:
         return self._creg_pair_identifier
-    
+
     @staticmethod
-    def from_list(creg_pairs: list[tuple[str, str]], mode: Literal["node"] | Literal["edge"] = "edge") -> Self:
+    def from_list(
+        creg_pairs: list[tuple[str, str]], mode: Literal["node"] | Literal["edge"] = "edge"
+    ) -> Self:
         """Create from a pre-defined list of pairs of creg names.
 
         If a given pair is not found in the supplied ``creg_names``, it will be skipped.
-        
+
         Args:
             creg_pairs: A list of pairs of creg names.
             mode: Flip post-selection mode.
@@ -77,11 +79,11 @@ class FlipPostSelect(AnalysisStage):
             for creg_pair in creg_pairs:
                 if creg_pair[0] in creg_names and creg_pair[1] in creg_names:
                     yield creg_pair
-        
+
         return FlipPostSelect(creg_pair_identifier=creg_pair_identifier, mode=mode)
-    
+
     @staticmethod
-    def from_suffix(suffix: str = "ps", mode:  Literal["node"] | Literal["edge"] = "edge") -> Self:
+    def from_suffix(suffix: str = "ps", mode: Literal["node"] | Literal["edge"] = "edge") -> Self:
         """Defines the creg pair identifier to find pairs with names ``"*"`` and ``f"*_{suffix}"``.
 
         Any cregs that do not have a corresponding pair according to this rule are ignored.
@@ -100,7 +102,6 @@ class FlipPostSelect(AnalysisStage):
                         yield (base, name)
 
         return FlipPostSelect(creg_pair_identifier=creg_pair_identifier, mode=mode)
-
 
     def _run(self, fit):
         coupling_map = fit.model.gate_set.coupling_map

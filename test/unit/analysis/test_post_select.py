@@ -57,12 +57,14 @@ def make_raw_data(creg_names, measurement_map, data):
 def test_post_select_node_masks_shots_with_any_true_bit():
     """PostSelect node mode masks shots with any True bit in the post-selection creg."""
     data = np.array(
-        [[
-            [False, False, False, False],
-            [True, False, False, False],
-            [False, False, True, False],
-            [False, False, False, False],
-        ]],
+        [
+            [
+                [False, False, False, False],
+                [True, False, False, False],
+                [False, False, True, False],
+                [False, False, False, False],
+            ]
+        ],
         dtype=bool,
     )
     raw = make_raw_data(
@@ -101,11 +103,13 @@ def test_post_select_edge_masks_adjacent_pair():
     # shot 1: bits 0,2 True → not adjacent → keep
     # shot 2: bits 2,3 True → adjacent → mask
     data = np.array(
-        [[
-            [True, True, False, False],
-            [True, False, True, False],
-            [False, False, True, True],
-        ]],
+        [
+            [
+                [True, True, False, False],
+                [True, False, True, False],
+                [False, False, True, True],
+            ]
+        ],
         dtype=bool,
     )
     raw = make_raw_data(
@@ -124,10 +128,12 @@ def test_post_select_edge_masks_adjacent_pair():
 def test_post_select_edge_non_adjacent_not_masked():
     """PostSelect edge mode does not mask shots with True only on non-adjacent qubits."""
     data = np.array(
-        [[
-            [True, False, True, False],
-            [True, False, False, True],
-        ]],
+        [
+            [
+                [True, False, True, False],
+                [True, False, False, True],
+            ]
+        ],
         dtype=bool,
     )
     raw = make_raw_data(
@@ -149,10 +155,12 @@ def test_post_select_from_list_targets_specific_creg():
     # shot 0: meas0 has True bits but not targeted → keep
     # shot 1: my_creg has True → mask
     data = np.array(
-        [[
-            [True, True, False, False],
-            [False, False, True, False],
-        ]],
+        [
+            [
+                [True, True, False, False],
+                [False, False, True, False],
+            ]
+        ],
         dtype=bool,
     )
     raw = make_raw_data(
@@ -192,11 +200,13 @@ def test_post_select_multiple_randomizations():
     result = PostSelect.from_suffix(mode="node").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
-    expected = np.array([
-        [True, False],
-        [False, False],
-        [False, True],
-    ])
+    expected = np.array(
+        [
+            [True, False],
+            [False, False],
+            [False, True],
+        ]
+    )
     np.testing.assert_array_equal(mask, expected)
 
 

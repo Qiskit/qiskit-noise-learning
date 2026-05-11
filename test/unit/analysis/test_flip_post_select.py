@@ -62,11 +62,13 @@ def test_flip_post_select_node_masks_unchanged_bits():
     # shot 1: bit 2 same (both False) → mask
     # shot 2: all bits flipped → keep
     data = np.array(
-        [[
-            [False, False, False, False, True, True, True, True],
-            [False, False, False, False, True, True, False, True],
-            [True, False, True, False, False, True, False, True],
-        ]],
+        [
+            [
+                [False, False, False, False, True, True, True, True],
+                [False, False, False, False, True, True, False, True],
+                [True, False, True, False, False, True, False, True],
+            ]
+        ],
         dtype=bool,
     )
     raw = make_raw_data(
@@ -88,10 +90,12 @@ def test_flip_post_select_node_masks_unchanged_bits():
 def test_flip_post_select_node_no_masking_when_all_flipped():
     """FlipPostSelect node mode produces no masking when all bits flip."""
     data = np.array(
-        [[
-            [False, False, False, False, True, True, True, True],
-            [True, True, True, True, False, False, False, False],
-        ]],
+        [
+            [
+                [False, False, False, False, True, True, True, True],
+                [True, True, True, True, False, False, False, False],
+            ]
+        ],
         dtype=bool,
     )
     raw = make_raw_data(
@@ -118,11 +122,13 @@ def test_flip_post_select_edge_masks_adjacent_pair_failures():
     # shot 1: bits 0,2 fail to flip → not adjacent → keep
     # shot 2: only bit 1 fails → no pair → keep
     data = np.array(
-        [[
-            [False, False, False, False, False, False, True, True],
-            [False, False, False, False, False, True, False, True],
-            [False, False, False, False, True, False, True, True],
-        ]],
+        [
+            [
+                [False, False, False, False, False, False, True, True],
+                [False, False, False, False, False, True, False, True],
+                [False, False, False, False, True, False, True, True],
+            ]
+        ],
         dtype=bool,
     )
     raw = make_raw_data(
@@ -195,11 +201,13 @@ def test_flip_post_select_multiple_randomizations():
     result = FlipPostSelect.from_suffix(mode="node").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
-    expected = np.array([
-        [True, False],
-        [False, False],
-        [False, True],
-    ])
+    expected = np.array(
+        [
+            [True, False],
+            [False, False],
+            [False, True],
+        ]
+    )
     np.testing.assert_array_equal(mask, expected)
 
 
@@ -210,10 +218,12 @@ def test_flip_post_select_from_list_targets_specific_pair():
     # shot 0: a and b bits same (fail to flip) → mask
     # shot 1: c and d bits same but a/b flipped → keep (c/d not targeted)
     data = np.array(
-        [[
-            [False, False, False, False, True, True, True, True],
-            [False, False, True, True, False, False, False, False],
-        ]],
+        [
+            [
+                [False, False, False, False, True, True, True, True],
+                [False, False, True, True, False, False, False, False],
+            ]
+        ],
         dtype=bool,
     )
     raw = make_raw_data(
@@ -238,11 +248,13 @@ def test_flip_post_select_preserves_existing_mask():
     """FlipPostSelect preserves pre-existing True entries in data_mask."""
     # All bits flip → no new masking
     data = np.array(
-        [[
-            [False, False, False, False, True, True, True, True],
-            [False, False, False, False, True, True, True, True],
-            [False, False, False, False, True, True, True, True],
-        ]],
+        [
+            [
+                [False, False, False, False, True, True, True, True],
+                [False, False, False, False, True, True, True, True],
+                [False, False, False, False, True, True, True, True],
+            ]
+        ],
         dtype=bool,
     )
     raw = make_raw_data(

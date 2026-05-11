@@ -10,9 +10,9 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from typing import Callable, Iterator, Literal, Self
+from collections.abc import Callable, Iterator
+from typing import Literal, Self
 
-import numpy as np
 import xarray as xr
 
 from qiskit_noise_learning.analysis import AnalysisStage
