@@ -80,7 +80,8 @@ class AnalysisStage(ABC):
         end = LEVELS.index(self.output_level)
         for level_type in LEVELS[start + 1 : end]:
             result[level_type] = Skipped
-        for level_type in LEVELS[end:]:
+        result[self.output_level] = result[self.output_level]
+        for level_type in LEVELS[end + 1 :]:
             result[level_type] = Absent
         self._run(result)
         return result

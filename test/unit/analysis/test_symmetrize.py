@@ -56,7 +56,6 @@ def _make_model_data(model, rates):
                 ]
             )
 
-    # Simpler approach: build flat arrays
     param_indices = []
     param_values = []
     for gate_name, gens in model.generators.items():
@@ -83,15 +82,11 @@ class TestSymmetrizeGenerators:
 
     def test_no_pairs_unchanged(self, cz_model):
         """When no generator pairs exist under conjugation, rates are unchanged."""
-        # ZI under CZ stays ZI (it commutes with CZ), so ZI has no conjugate partner
-        # among the other generators unless one exists. Let's use a model where
-        # no pairs form.
         gate_set = ModelGateSet(2)
         gate_set.add_gate(ModelGate("CZ", [((0, 1), Clifford(CZGate()))]))
         gate_set.add_gate(ModelGate("P", qubit_idxs=range(2), prep_idxs=range(2)))
         gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), meas_idxs=range(2)))
 
-        # ZI and IZ are both invariant under CZ conjugation, so no pairs form among them
         generators = {
             "CZ": QubitSparsePauliList(["ZI", "IZ"]),
             "P": QubitSparsePauliList(["XI", "IX"]),
@@ -110,14 +105,11 @@ class TestSymmetrizeGenerators:
         result = SymmetrizeGenerators().run(fit)
 
         result_rates = result.model_data.dataset["parameter_values"].data
-        # CZ rates unchanged (ZI->ZI, IZ->IZ under CZ, no pairs)
         cz_mask = [p.gate_name == "CZ" for p in result.model_data.dataset["parameter"].data]
         np.testing.assert_allclose(result_rates[cz_mask], [0.1, 0.2])
 
     def test_paired_generators_averaged(self, cz_model):
         """Paired generators get their rates averaged."""
-        # Under CZ: XI -> XZ and XZ -> XI (they are conjugate pairs)
-        # Similarly: IX -> ZX and ZX -> IX
         rates = {
             "CZ": np.array([0.1, 0.3, 0.2, 0.4, 0.5, 0.6]),  # XI, IX, XX, ZI, IZ, ZZ
             "P": np.array([0.01, 0.02, 0.03]),
@@ -132,10 +124,8 @@ class TestSymmetrizeGenerators:
         result_params = result.model_data.dataset["parameter"].data
         result_rates = result.model_data.dataset["parameter_values"].data
 
-        # Find rates by generator index
         rate_map = {(p.gate_name, str(p.generator)): r for p, r in zip(result_params, result_rates)}
 
-        # SPAM gates should be unchanged
         assert rate_map[("P", str(QubitSparsePauliList(["XI"])[0]))] == pytest.approx(0.01)
         assert rate_map[("M", str(QubitSparsePauliList(["IX"])[0]))] == pytest.approx(0.02)
 
@@ -153,9 +143,7 @@ class TestSymmetrizeGenerators:
         result = SymmetrizeGenerators().run(fit)
 
         cov = result.model_data.dataset["covariance"].data
-        # Covariance should not be all zeros (unlike SymmetrizeFidelities)
         assert not np.allclose(cov, 0)
-        # Should be symmetric
         np.testing.assert_allclose(cov, cov.T)
 
     def test_requires_pauli_lindblad_model(self):
@@ -180,7 +168,6 @@ class TestSymmetrizeFidelities:
 
     def test_already_symmetric_unchanged(self, cz_model):
         """Rates already in the null space are not modified."""
-        # All equal rates satisfy any fidelity symmetry
         rates = {
             "CZ": np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1]),
             "P": np.array([0.01, 0.01, 0.01]),
@@ -194,7 +181,6 @@ class TestSymmetrizeFidelities:
 
         result_rates = result.model_data.dataset["parameter_values"].data
         cz_mask = [p.gate_name == "CZ" for p in result.model_data.dataset["parameter"].data]
-        # Should be non-negative
         assert np.all(result_rates[cz_mask] >= -1e-10)
 
     def test_projection_non_negative(self, cz_model):
@@ -279,7 +265,6 @@ class TestSymmetrizeFidelities:
         result_params = result.model_data.dataset["parameter"].data
         result_rates = result.model_data.dataset["parameter_values"].data
 
-        # Verify M1@r == M2@r for the CZ gate
         gate = cz_model.gate_set["CZ"]
         cz_indices = [i for i, p in enumerate(result_params) if p.gate_name == "CZ"]
         gate_generators = [result_params[i].generator for i in cz_indices]

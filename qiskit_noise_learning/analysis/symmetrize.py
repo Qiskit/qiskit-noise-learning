@@ -17,31 +17,15 @@ from scipy.linalg import null_space
 
 from qiskit_noise_learning.analysis.analysis_pipeline import AnalysisStage
 from qiskit_noise_learning.analysis.fit import Fit
-from qiskit_noise_learning.data import LeveledData, ModelData
+from qiskit_noise_learning.data import ModelData
 from qiskit_noise_learning.models import PauliLindbladModel
 
 
-class _SameLevelStage(AnalysisStage):
-    """Base for stages where input_level == output_level.
-
-    Overrides :meth:`run` to avoid clearing the input before calling :meth:`_run`.
-    """
-
-    def run(self, fit: Fit | LeveledData) -> Fit:
-        if isinstance(fit, LeveledData):
-            result = Fit()
-            result[type(fit)] = fit
-        else:
-            result = fit.copy()
-        self._run(result)
-        return result
-
-
-class SymmetrizeGenerators(_SameLevelStage):
+class SymmetrizeGenerators(AnalysisStage):
     """Project generator rates to satisfy conjugation symmetry, gate by gate.
 
-    For each gate, finds pairs of generators where one is the Clifford conjugate of the other
-    and averages their rates. The covariance is propagated through the linear averaging transform.
+    For each gate, finds the pairs of generators that map to each under its conjugate action. The
+    covariance is propagated through averaging.
     """
 
     input_level = ModelData
@@ -102,11 +86,11 @@ class SymmetrizeGenerators(_SameLevelStage):
         )
 
 
-class SymmetrizeFidelities(_SameLevelStage):
+class SymmetrizeFidelities(AnalysisStage):
     """Project generator rates into the fidelity-symmetry null space, gate by gate.
 
-    For each gate, builds commutation matrices of generators vs generators and conjugated
-    generators vs generators, then projects rates into the null space of their difference.
+    For each gate, builds commutation matrices of generators against generators and conjugated
+    generators against generators, then projects rates into the null space of their difference.
     Covariance is zeroed (the iterative projection with clipping is non-linear).
     """
 
