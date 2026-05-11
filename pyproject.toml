@@ -21,6 +21,7 @@ classifiers = [
 dependencies = [
     "numpy>=2",
     "qiskit>=2.2.0",
+    "qiskit-aer",
     "qiskit-ibm-runtime>=0.46",
     "samplomatic>=0.17",
     "scipy>=1.13",
@@ -28,8 +29,8 @@ dependencies = [
 ]
 
 
-[tool.setuptools]
-packages = ["qiskit_noise_learning"]
+[tool.setuptools.packages.find]
+include = ["qiskit_noise_learning*"]
 
 
 [tool.setuptools_scm]
