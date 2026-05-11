@@ -112,6 +112,8 @@ def suffix_creg_pair_identifier(
         suffix_tag = f"_{suffix}"
         for name in creg_names:
             if name.endswith(suffix_tag):
-                yield name
+                base = name[: -len(suffix_tag)]
+                if base in creg_names:
+                    yield (base, name)
 
     return creg_identifier

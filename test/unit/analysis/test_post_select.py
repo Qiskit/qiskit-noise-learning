@@ -74,7 +74,7 @@ def test_post_select_node_masks_shots_with_any_true_bit():
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = PostSelect.from_suffix(mode="node").run(fit)
+    result = PostSelect(mode="node").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
     np.testing.assert_array_equal(mask, [[False, True, True, False]])
@@ -90,7 +90,7 @@ def test_post_select_node_no_masking_when_all_false():
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = PostSelect.from_suffix(mode="node").run(fit)
+    result = PostSelect(mode="node").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
     np.testing.assert_array_equal(mask, np.zeros((2, 3), dtype=bool))
@@ -119,7 +119,7 @@ def test_post_select_edge_masks_adjacent_pair():
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = PostSelect.from_suffix(mode="edge").run(fit)
+    result = PostSelect(mode="edge").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
     np.testing.assert_array_equal(mask, [[True, False, True]])
@@ -143,37 +143,10 @@ def test_post_select_edge_non_adjacent_not_masked():
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = PostSelect.from_suffix(mode="edge").run(fit)
+    result = PostSelect(mode="edge").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
     np.testing.assert_array_equal(mask, [[False, False]])
-
-
-def test_post_select_from_list_targets_specific_creg():
-    """PostSelect.from_list targets only the named creg."""
-    # data layout: [meas0_b0, meas0_b1, my_creg_b0, my_creg_b1]
-    # shot 0: meas0 has True bits but not targeted → keep
-    # shot 1: my_creg has True → mask
-    data = np.array(
-        [
-            [
-                [True, True, False, False],
-                [False, False, True, False],
-            ]
-        ],
-        dtype=bool,
-    )
-    raw = make_raw_data(
-        creg_names=["meas0", "my_creg"],
-        measurement_map={"meas0": np.array([0, 1]), "my_creg": np.array([2, 3])},
-        data=data,
-    )
-    fit = make_fit(raw, CouplingMap.from_line(4))
-
-    result = PostSelect.from_list(["my_creg"], mode="node").run(fit)
-
-    mask = result[RawData].datatree["0"].dataset["data_mask"].values
-    np.testing.assert_array_equal(mask, [[False, True]])
 
 
 def test_post_select_multiple_randomizations():
@@ -197,7 +170,7 @@ def test_post_select_multiple_randomizations():
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = PostSelect.from_suffix(mode="node").run(fit)
+    result = PostSelect(mode="node").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
     expected = np.array(
@@ -229,7 +202,7 @@ def test_post_select_preserves_existing_mask():
 
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = PostSelect.from_suffix(mode="node").run(fit)
+    result = PostSelect(mode="node").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
     np.testing.assert_array_equal(mask, [[False, True, True]])

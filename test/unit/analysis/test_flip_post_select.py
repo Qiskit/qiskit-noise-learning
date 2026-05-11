@@ -81,7 +81,7 @@ def test_flip_post_select_node_masks_unchanged_bits():
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = FlipPostSelect.from_suffix(mode="node").run(fit)
+    result = FlipPostSelect(mode="node").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
     np.testing.assert_array_equal(mask, [[False, True, False]])
@@ -108,7 +108,7 @@ def test_flip_post_select_node_no_masking_when_all_flipped():
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = FlipPostSelect.from_suffix(mode="node").run(fit)
+    result = FlipPostSelect(mode="node").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
     np.testing.assert_array_equal(mask, np.zeros((1, 2), dtype=bool))
@@ -141,7 +141,7 @@ def test_flip_post_select_edge_masks_adjacent_pair_failures():
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = FlipPostSelect.from_suffix(mode="edge").run(fit)
+    result = FlipPostSelect(mode="edge").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
     np.testing.assert_array_equal(mask, [[True, False, False]])
@@ -161,7 +161,7 @@ def test_flip_post_select_mismatched_qubits_raises():
     fit = make_fit(raw, CouplingMap.from_line(4))
 
     with pytest.raises(ValueError, match="do not measure the same qubits"):
-        FlipPostSelect.from_suffix(mode="node").run(fit)
+        FlipPostSelect(mode="node").run(fit)
 
 
 def test_flip_post_select_multiple_randomizations():
@@ -198,7 +198,7 @@ def test_flip_post_select_multiple_randomizations():
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = FlipPostSelect.from_suffix(mode="node").run(fit)
+    result = FlipPostSelect(mode="node").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
     expected = np.array(
@@ -209,39 +209,6 @@ def test_flip_post_select_multiple_randomizations():
         ]
     )
     np.testing.assert_array_equal(mask, expected)
-
-
-def test_flip_post_select_from_list_targets_specific_pair():
-    """FlipPostSelect.from_list targets only the specified creg pair."""
-    # Two pairs: ("a","b") and ("c","d"), only target ("a","b")
-    # data layout: [a (2 bits), b (2 bits), c (2 bits), d (2 bits)]
-    # shot 0: a and b bits same (fail to flip) → mask
-    # shot 1: c and d bits same but a/b flipped → keep (c/d not targeted)
-    data = np.array(
-        [
-            [
-                [False, False, False, False, True, True, True, True],
-                [False, False, True, True, False, False, False, False],
-            ]
-        ],
-        dtype=bool,
-    )
-    raw = make_raw_data(
-        creg_names=["a", "b", "c", "d"],
-        measurement_map={
-            "a": np.array([0, 1]),
-            "b": np.array([0, 1]),
-            "c": np.array([2, 3]),
-            "d": np.array([2, 3]),
-        },
-        data=data,
-    )
-    fit = make_fit(raw, CouplingMap.from_line(4))
-
-    result = FlipPostSelect.from_list([("a", "b")], mode="node").run(fit)
-
-    mask = result[RawData].datatree["0"].dataset["data_mask"].values
-    np.testing.assert_array_equal(mask, [[True, False]])
 
 
 def test_flip_post_select_preserves_existing_mask():
@@ -274,7 +241,7 @@ def test_flip_post_select_preserves_existing_mask():
 
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = FlipPostSelect.from_suffix(mode="node").run(fit)
+    result = FlipPostSelect(mode="node").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
     np.testing.assert_array_equal(mask, [[False, True, False]])
