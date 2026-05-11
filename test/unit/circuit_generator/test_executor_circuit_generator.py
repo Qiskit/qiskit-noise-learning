@@ -156,8 +156,8 @@ def test_generate_samplex_item(gateset):
     )
     seq2 = InstructionSequence(pattern2, 5)
 
-    other_samplex_item, other_creg_names, other_meas_map = (
-        circuit_generator.generate_samplex_item([seq0, seq1, seq2])
+    other_samplex_item, other_creg_names, other_meas_map = circuit_generator.generate_samplex_item(
+        [seq0, seq1, seq2]
     )
 
     assert samplex_item.samplex == other_samplex_item.samplex
