@@ -186,7 +186,7 @@ def compute_expectation_value(
     Returns:
         Expectation values with dimension ``(randomization,)``.
     """
-    corrected_bits = (bits ^ flips[:, np.newaxis, :])[..., :len(bit_mask)][..., bit_mask]
+    corrected_bits = (bits ^ flips[:, np.newaxis, :])[..., : len(bit_mask)][..., bit_mask]
     broadcasted_shot_mask = np.broadcast_to(shot_mask[:, :, np.newaxis], corrected_bits.shape)
     masked_arr = np.ma.array(corrected_bits, mask=broadcasted_shot_mask)
     per_sample = 1 - 2 * np.mod(np.sum(masked_arr, axis=-1), 2)

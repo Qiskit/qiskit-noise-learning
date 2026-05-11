@@ -114,8 +114,8 @@ class ExecutorCircuitGenerator(
     """
 
     def __init__(
-        self, 
-        gate_set: QiskitGateSet, 
+        self,
+        gate_set: QiskitGateSet,
         num_randomizations: int = 50,
         creg_prefix: str = "meas",
         local_clifford_ref_prefix: str = "c",
@@ -153,9 +153,7 @@ class ExecutorCircuitGenerator(
                         program_item_time_lbs[part.idx_item], [chunk_stop] * part.size
                     )
         else:
-            num_seqs_per_item = max(
-                len(indices) for indices in data_mapper.item_sequence_indices
-            )
+            num_seqs_per_item = max(len(indices) for indices in data_mapper.item_sequence_indices)
             the_length = num_seqs_per_item * data_mapper.num_randomizations
             program_item_time_lbs = np.full(
                 (len(result), the_length), "NaT", dtype="datetime64[us]"
@@ -199,15 +197,13 @@ class ExecutorCircuitGenerator(
 
                 time_lbs.append(
                     program_item_time_lbs[item_idx][
-                        data_mapper.num_randomizations
-                        * d_idx : data_mapper.num_randomizations
+                        data_mapper.num_randomizations * d_idx : data_mapper.num_randomizations
                         * (d_idx + 1)
                     ]
                 )
                 time_ubs.append(
                     program_item_time_ubs[item_idx][
-                        data_mapper.num_randomizations
-                        * d_idx : data_mapper.num_randomizations
+                        data_mapper.num_randomizations * d_idx : data_mapper.num_randomizations
                         * (d_idx + 1)
                     ]
                 )
@@ -254,7 +250,9 @@ class ExecutorCircuitGenerator(
             num_randomizations=self._num_randomizations,
         )
 
-    def generate_samplex_item(self, sequences: list[InstructionSequence]) -> tuple[SamplexItem, list[str], dict[str, np.ndarray[int]]]:
+    def generate_samplex_item(
+        self, sequences: list[InstructionSequence]
+    ) -> tuple[SamplexItem, list[str], dict[str, np.ndarray[int]]]:
         """Generate a samplex item from instruction sequences with the same structure.
 
         Args:
@@ -369,9 +367,13 @@ class ExecutorCircuitGenerator(
                 if isinstance(val, list):
                     measurement_map[key] = np.array(sorted(val), dtype=int)
 
-        return SamplexItem(
-            template,
-            samplex=samplex,
-            samplex_arguments=samplex_arguments,
-            shape=(num_sequences, self._num_randomizations),
-        ), creg_names, measurement_map
+        return (
+            SamplexItem(
+                template,
+                samplex=samplex,
+                samplex_arguments=samplex_arguments,
+                shape=(num_sequences, self._num_randomizations),
+            ),
+            creg_names,
+            measurement_map,
+        )
