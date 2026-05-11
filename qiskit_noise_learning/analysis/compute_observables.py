@@ -55,7 +55,7 @@ class ComputeObservables(AnalysisStage):
             path_pattern_depths.setdefault(path.pattern, set()).add(path.depth)
 
         # mapping from path patterns into data
-        # nested mapping: path pattern -> bit_count_str -> depth ->
+        # nested mapping: path pattern -> dt_key -> depth ->
         # {"array_indices": list[int], "signs": list[int]}
         path_pattern_to_data = dict()
 
@@ -64,7 +64,7 @@ class ComputeObservables(AnalysisStage):
         unique_instruction_patterns: list[InstructionPattern] = []
         instruction_pattern_path_signs: list[dict[PathPattern, tuple[bool, bool]]] = []
 
-        for bit_count_str, datasubtree in raw_data.datatree.items():
+        for dt_key, datasubtree in raw_data.datatree.items():
             for array_idx, (ip, depth) in enumerate(
                 zip(
                     datasubtree.dataset["instruction_pattern"].data,
@@ -94,7 +94,7 @@ class ComputeObservables(AnalysisStage):
                     # get the dictionary for this path pattern, bit count, and depth
                     path_pattern_bit_count_depth_dict = (
                         path_pattern_to_data.setdefault(path_pattern, dict())
-                        .setdefault(bit_count_str, dict())
+                        .setdefault(dt_key, dict())
                         .setdefault(depth, {"array_indices": [], "signs": []})
                     )
                     path_pattern_bit_count_depth_dict["array_indices"].append(array_idx)
@@ -106,7 +106,7 @@ class ComputeObservables(AnalysisStage):
         observable_count = 0
         max_num_randomizations = 0
         for path_pattern, datatree_mapping in path_pattern_to_data.items():
-            for bit_count_str, depth_mapping in datatree_mapping.items():
+            for dt_key, depth_mapping in datatree_mapping.items():
                 for depth, dataset_mapping in depth_mapping.items():
                     observable_count += 1
                     max_num_randomizations = max(
@@ -126,8 +126,8 @@ class ComputeObservables(AnalysisStage):
         observable_idx = 0
         for path_pattern, datatree_mapping in path_pattern_to_data.items():
             bit_mask = path_pattern.end_fragment[-1].mask
-            for bit_count_str, depth_mapping in datatree_mapping.items():
-                raw_dataset = raw_data.datatree[bit_count_str].dataset
+            for dt_key, depth_mapping in datatree_mapping.items():
+                raw_dataset = raw_data.datatree[dt_key].dataset
                 for depth, dataset_mapping in depth_mapping.items():
                     randomization_mask = np.array(dataset_mapping["array_indices"])
 
@@ -178,13 +178,15 @@ def compute_expectation_value(
         bits: A record of the measured bits, with dimensions ``(randomization, shots, bits)``.
         flips: Specification of required flips on bits ``(randomization, bits)``.
         shot_mask: A boolean mask on the ``(randomization, shots)`` dimensions.
-        bit_mask: A boolean mask on the ``(bit,)`` dimension.
+        bit_mask: A boolean mask on the ``(bit,)`` dimension. Note that the dimension is first
+            truncated to ``0:len(bit_mask)`` under the assumption that the expectation-value
+            relevant bits are at the beginning of the dimension.
         signs: Signs for the computed observables along the ``(randomization,)`` dimension.
 
     Returns:
         Expectation values with dimension ``(randomization,)``.
     """
-    corrected_bits = (bits ^ flips[:, np.newaxis, :])[..., bit_mask]
+    corrected_bits = (bits ^ flips[:, np.newaxis, :])[..., :len(bit_mask)][..., bit_mask]
     broadcasted_shot_mask = np.broadcast_to(shot_mask[:, :, np.newaxis], corrected_bits.shape)
     masked_arr = np.ma.array(corrected_bits, mask=broadcasted_shot_mask)
     per_sample = 1 - 2 * np.mod(np.sum(masked_arr, axis=-1), 2)

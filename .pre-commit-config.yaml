@@ -22,4 +22,3 @@ repos:
         args: [ --fix ]
       # Run the formatter.
       - id: ruff-format
-

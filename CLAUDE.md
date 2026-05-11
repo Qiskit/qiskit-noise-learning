@@ -29,6 +29,7 @@ Tests include doctests (`--doctest-modules` is set in `pyproject.toml`).
 - **Formatter/linter**: `ruff` (line length 100, target Python 3.11)
 - Rules: pycodestyle (E), pyflakes (F), isort (I), private member access (SLF), pyupgrade (UP)
 - All files (except `docs/`) must have the IBM copyright header — see `tools/verify_headers.py`
+- Constructor (`__init__`) parameters are documented in the **class docstring**, not in a separate `__init__` docstring.
 
 ## CI
 
