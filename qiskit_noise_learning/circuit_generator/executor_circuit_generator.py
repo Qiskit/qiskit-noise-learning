@@ -354,12 +354,13 @@ class ExecutorCircuitGenerator(
                     creg_names.append(creg.name)
 
             # add measurement map information for added cregs
+            original_creg_names = set(measurement_map)
             for instruction in template.data:
                 if instruction.name == "measure":
                     qubit_idx = template.find_bit(instruction.qubits[0]).index
                     clbit = instruction.clbits[0]
                     for creg in template.cregs:
-                        if creg.name not in measurement_map and clbit in creg:
+                        if creg.name not in original_creg_names and clbit in creg:
                             measurement_map.setdefault(creg.name, []).append(qubit_idx)
                             break
 
