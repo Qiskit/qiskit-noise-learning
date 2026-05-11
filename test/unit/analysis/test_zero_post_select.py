@@ -17,7 +17,7 @@ import numpy as np
 import xarray as xr
 from qiskit.transpiler import CouplingMap
 
-from qiskit_noise_learning.analysis import Fit, PostSelect
+from qiskit_noise_learning.analysis import Fit, ZeroPostSelect
 from qiskit_noise_learning.data import RawData
 
 
@@ -54,8 +54,8 @@ def make_raw_data(creg_names, measurement_map, data):
     )
 
 
-def test_post_select_node_masks_shots_with_any_true_bit():
-    """PostSelect node mode masks shots with any True bit in the post-selection creg."""
+def test_zero_post_select_node_masks_shots_with_any_true_bit():
+    """ZeroPostSelect node mode masks shots with any True bit in the post-selection creg."""
     data = np.array(
         [
             [
@@ -74,14 +74,14 @@ def test_post_select_node_masks_shots_with_any_true_bit():
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = PostSelect(mode="node").run(fit)
+    result = ZeroPostSelect(mode="node").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
     np.testing.assert_array_equal(mask, [[False, True, True, False]])
 
 
-def test_post_select_node_no_masking_when_all_false():
-    """PostSelect node mode produces no masking when all bits are False."""
+def test_zero_post_select_node_no_masking_when_all_false():
+    """ZeroPostSelect node mode produces no masking when all bits are False."""
     data = np.zeros((2, 3, 4), dtype=bool)
     raw = make_raw_data(
         creg_names=["meas0_ps"],
@@ -90,14 +90,14 @@ def test_post_select_node_no_masking_when_all_false():
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = PostSelect(mode="node").run(fit)
+    result = ZeroPostSelect(mode="node").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
     np.testing.assert_array_equal(mask, np.zeros((2, 3), dtype=bool))
 
 
-def test_post_select_edge_masks_adjacent_pair():
-    """PostSelect edge mode masks shots with True on adjacent qubits."""
+def test_zero_post_select_edge_masks_adjacent_pair():
+    """ZeroPostSelect edge mode masks shots with True on adjacent qubits."""
     # coupling map line: 0-1, 1-2, 2-3
     # shot 0: bits 0,1 True → adjacent → mask
     # shot 1: bits 0,2 True → not adjacent → keep
@@ -119,14 +119,14 @@ def test_post_select_edge_masks_adjacent_pair():
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = PostSelect(mode="edge").run(fit)
+    result = ZeroPostSelect(mode="edge").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
     np.testing.assert_array_equal(mask, [[True, False, True]])
 
 
-def test_post_select_edge_non_adjacent_not_masked():
-    """PostSelect edge mode does not mask shots with True only on non-adjacent qubits."""
+def test_zero_post_select_edge_non_adjacent_not_masked():
+    """ZeroPostSelect edge mode does not mask shots with True only on non-adjacent qubits."""
     data = np.array(
         [
             [
@@ -143,14 +143,14 @@ def test_post_select_edge_non_adjacent_not_masked():
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = PostSelect(mode="edge").run(fit)
+    result = ZeroPostSelect(mode="edge").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
     np.testing.assert_array_equal(mask, [[False, False]])
 
 
-def test_post_select_multiple_randomizations():
-    """PostSelect correctly handles multiple randomizations independently."""
+def test_zero_post_select_multiple_randomizations():
+    """ZeroPostSelect correctly handles multiple randomizations independently."""
     # 3 randomizations, 2 shots each, 4 bits
     # rand 0: shot 0 has True bit → mask; shot 1 all False → keep
     # rand 1: both shots all False → keep both
@@ -170,7 +170,7 @@ def test_post_select_multiple_randomizations():
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = PostSelect(mode="node").run(fit)
+    result = ZeroPostSelect(mode="node").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
     expected = np.array(
@@ -183,8 +183,8 @@ def test_post_select_multiple_randomizations():
     np.testing.assert_array_equal(mask, expected)
 
 
-def test_post_select_preserves_existing_mask():
-    """PostSelect preserves pre-existing True entries in data_mask (OR semantics)."""
+def test_zero_post_select_preserves_existing_mask():
+    """ZeroPostSelect preserves pre-existing True entries in data_mask (OR semantics)."""
     data = np.zeros((1, 3, 4), dtype=bool)
     data[0, 1, 0] = True  # shot 1 will be masked by node mode
 
@@ -202,7 +202,7 @@ def test_post_select_preserves_existing_mask():
 
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = PostSelect(mode="node").run(fit)
+    result = ZeroPostSelect(mode="node").run(fit)
 
     mask = result[RawData].datatree["0"].dataset["data_mask"].values
     np.testing.assert_array_equal(mask, [[False, True, True]])

@@ -17,5 +17,5 @@ from .curve_fit_observables import CurveFitObservables
 from .fit import Fit
 from .flip_post_select import FlipPostSelect
 from .nnls_solve import NNLSSolve
-from .post_select import PostSelect
 from .symmetrize import SymmetrizeFidelities, SymmetrizeGenerators
+from .zero_post_select import ZeroPostSelect

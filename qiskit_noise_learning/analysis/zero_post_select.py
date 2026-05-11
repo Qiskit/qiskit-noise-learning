@@ -19,7 +19,7 @@ from qiskit_noise_learning.analysis import AnalysisStage
 from qiskit_noise_learning.data import RawData
 
 
-class PostSelect(AnalysisStage):
+class ZeroPostSelect(AnalysisStage):
     """Apply a mask to raw data based on whether bit values are all False.
 
     This post-selection stage identifies cregs and masks shots whose bit patterns indicate
