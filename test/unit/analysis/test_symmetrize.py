@@ -30,7 +30,7 @@ def cz_model():
     gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), meas_idxs=range(2)))
 
     generators = {
-        "CZ": QubitSparsePauliList(["XI", "IX", "XX", "ZI", "IZ", "ZZ"]),
+        "CZ": QubitSparsePauliList(["XI", "IX", "XX", "YY", "ZI", "IZ", "ZZ"]),
         "P": QubitSparsePauliList(["XI", "IX", "XX"]),
         "M": QubitSparsePauliList(["XI", "IX", "XX"]),
     }
@@ -111,7 +111,7 @@ class TestSymmetrizeGenerators:
     def test_paired_generators_averaged(self, cz_model):
         """Paired generators get their rates averaged."""
         rates = {
-            "CZ": np.array([0.1, 0.3, 0.2, 0.4, 0.5, 0.6]),  # XI, IX, XX, ZI, IZ, ZZ
+            "CZ": np.array([0.1, 0.3, 0.2, 0.4, 0.4, 0.5, 0.6]),  # XI, IX, XX, YY, ZI, IZ, ZZ
             "P": np.array([0.01, 0.02, 0.03]),
             "M": np.array([0.01, 0.02, 0.03]),
         }
@@ -132,7 +132,7 @@ class TestSymmetrizeGenerators:
     def test_covariance_propagated(self, cz_model):
         """Covariance is propagated through the linear transform."""
         rates = {
-            "CZ": np.array([0.1, 0.3, 0.2, 0.4, 0.5, 0.6]),
+            "CZ": np.array([0.1, 0.3, 0.2, 0.4, 0.4, 0.5, 0.6]),
             "P": np.array([0.01, 0.02, 0.03]),
             "M": np.array([0.01, 0.02, 0.03]),
         }
@@ -169,7 +169,7 @@ class TestSymmetrizeFidelities:
     def test_already_symmetric_unchanged(self, cz_model):
         """Rates already in the null space are not modified."""
         rates = {
-            "CZ": np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1]),
+            "CZ": np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]),
             "P": np.array([0.01, 0.01, 0.01]),
             "M": np.array([0.01, 0.01, 0.01]),
         }
@@ -186,7 +186,7 @@ class TestSymmetrizeFidelities:
     def test_projection_non_negative(self, cz_model):
         """Projected rates are always non-negative."""
         rates = {
-            "CZ": np.array([0.5, 0.001, 0.3, 0.002, 0.1, 0.4]),
+            "CZ": np.array([0.5, 0.001, 0.3, 0.3, 0.002, 0.1, 0.4]),
             "P": np.array([0.01, 0.02, 0.03]),
             "M": np.array([0.01, 0.02, 0.03]),
         }
@@ -202,7 +202,7 @@ class TestSymmetrizeFidelities:
     def test_covariance_zeroed(self, cz_model):
         """Covariance is zeroed after non-linear projection."""
         rates = {
-            "CZ": np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6]),
+            "CZ": np.array([0.1, 0.2, 0.3, 0.3, 0.4, 0.5, 0.6]),
             "P": np.array([0.01, 0.02, 0.03]),
             "M": np.array([0.01, 0.02, 0.03]),
         }
@@ -218,7 +218,7 @@ class TestSymmetrizeFidelities:
     def test_spam_rates_unchanged(self, cz_model):
         """SPAM gate rates are not modified."""
         rates = {
-            "CZ": np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6]),
+            "CZ": np.array([0.1, 0.2, 0.3, 0.3, 0.4, 0.5, 0.6]),
             "P": np.array([0.01, 0.02, 0.03]),
             "M": np.array([0.04, 0.05, 0.06]),
         }
@@ -252,7 +252,7 @@ class TestSymmetrizeFidelities:
     def test_fidelity_symmetry_holds(self, cz_model):
         """After projection, the fidelity symmetry condition M1@r == M2@r holds."""
         rates = {
-            "CZ": np.array([0.5, 0.1, 0.3, 0.2, 0.4, 0.05]),
+            "CZ": np.array([0.5, 0.1, 0.3, 0.1, 0.2, 0.4, 0.05]),
             "P": np.array([0.01, 0.02, 0.03]),
             "M": np.array([0.01, 0.02, 0.03]),
         }
@@ -282,3 +282,8 @@ class TestSymmetrizeFidelities:
                     m2[i, j] = 1
 
         np.testing.assert_allclose(m1 @ gate_rates, m2 @ gate_rates, atol=1e-10)
+
+        cz_map = fit.model.to_pauli_lindblad_maps(result[ModelData])["CZ"]
+        xx_fidelity = cz_map.pauli_fidelity(fit.model.generators["CZ"][2])
+        yy_fidelity = cz_map.pauli_fidelity(fit.model.generators["CZ"][3])
+        np.testing.assert_allclose(xx_fidelity, yy_fidelity, atol=1e-10)
