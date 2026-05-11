@@ -29,6 +29,7 @@ from .insert_noise_pass import InsertNoisePass
 
 
 def get_aer_sampler(aer_simulator: AerSimulator) -> AerSamplerV2:
+    """Return an :class:`~qiskit_aer.primitives.SamplerV2` configured from ``aer_simulator``."""
     aer_simulator.set_max_qubits(10000)
     # Pass a deepcopy so the sampler's backend is independent of the input simulator.
     return AerSamplerV2.from_backend(deepcopy(aer_simulator))

@@ -23,6 +23,19 @@ from qiskit_aer.noise import PauliLindbladError
 
 
 class InsertNoisePass(TransformationPass):
+    """Transpiler pass that inserts Pauli-Lindblad noise channels after (or before) tagged barriers.
+
+    Barriers whose labels match the pattern ``<pos><idx>@tag=<tag>`` are replaced with a
+    sub-circuit consisting of the original barrier followed (or preceded) by a
+    :class:`~qiskit_aer.noise.PauliLindbladError` looked up from ``noise_dict`` by ``<tag>``.
+
+    Args:
+        noise_dict: Map from gate-name tags to Pauli-Lindblad noise maps.  Pass ``None`` to
+            perform a no-op (no noise is inserted).
+        noise_after: If ``True`` (default), insert noise after the barrier; otherwise before.
+        noise_scale: Multiplicative scale factor applied to all noise rates.
+    """
+
     def __init__(
         self,
         noise_dict: dict[str, PauliLindbladMap] | None,
