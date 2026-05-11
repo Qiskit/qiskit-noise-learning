@@ -28,7 +28,7 @@ jobs:
     - name: Pre-commit checks (linting)
       if: matrix.python-version == '3.12'
       run: |
-        pre-commit run
+        pre-commit run --all-files
     - name: Test with pytest
       run: |
         python -m pytest
