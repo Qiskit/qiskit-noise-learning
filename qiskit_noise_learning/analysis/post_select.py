@@ -11,7 +11,7 @@
 # that they have been altered from the originals.
 
 from collections.abc import Callable, Iterator
-from typing import Literal, Self
+from typing import Literal
 
 import xarray as xr
 
@@ -31,7 +31,8 @@ class PostSelect(AnalysisStage):
 
     Args:
         creg_identifier: A callable that, given a list of present creg names, returns an
-            iterator over creg names to post-select on.
+            iterator over creg names to post-select on. Defaults to identifying cregs with naming
+            pattern ``"*_ps"``.
         mode: Post-selection mode; either ``"node"`` or ``"edge"``.
     """
 
@@ -40,9 +41,7 @@ class PostSelect(AnalysisStage):
         creg_identifier: Callable[[list[str]], Iterator[str]] | None = None,
         mode: Literal["node", "edge"] = "edge",
     ):
-        if creg_identifier is None:
-            creg_identifier = PostSelect.from_suffix().creg_identifier
-        self._creg_identifier = creg_identifier
+        self._creg_identifier = creg_identifier or suffix_creg_identifier()
         self._mode = mode
 
     @property
@@ -60,50 +59,6 @@ class PostSelect(AnalysisStage):
     @property
     def creg_identifier(self) -> Callable[[list[str]], Iterator[str]]:
         return self._creg_identifier
-
-    @staticmethod
-    def from_list(
-        creg_names_list: list[str],
-        mode: Literal["node", "edge"] = "edge",
-    ) -> Self:
-        """Create from a pre-defined list of creg names.
-
-        If a given creg is not found in the dataset's creg names, it will be skipped.
-
-        Args:
-            creg_names_list: A list of creg names to post-select on.
-            mode: Post-selection mode.
-        """
-
-        def creg_identifier(creg_names):
-            for name in creg_names_list:
-                if name in creg_names:
-                    yield name
-
-        return PostSelect(creg_identifier=creg_identifier, mode=mode)
-
-    @staticmethod
-    def from_suffix(
-        suffix: str = "ps",
-        mode: Literal["node", "edge"] = "edge",
-    ) -> Self:
-        """Identify cregs by suffix for post-selection.
-
-        Cregs whose names end with ``f"_{suffix}"`` are identified for post-selection.
-        Cregs without this suffix are ignored.
-
-        Args:
-            suffix: The suffix for creg name pattern matching.
-            mode: Post-selection mode.
-        """
-
-        def creg_identifier(creg_names):
-            suffix_tag = f"_{suffix}"
-            for name in creg_names:
-                if name.endswith(suffix_tag):
-                    yield name
-
-        return PostSelect(creg_identifier=creg_identifier, mode=mode)
 
     def _run(self, fit):
         coupling_map = fit.model.gate_set.coupling_map
@@ -136,3 +91,13 @@ class PostSelect(AnalysisStage):
             return dataset.assign(data_mask=new_data_mask)
 
         fit[RawData] = RawData(fit.raw_data.datatree.map_over_datasets(_dataset_selector))
+
+
+def suffix_creg_identifier(suffix: str = "ps") -> Callable[[list[str]], Iterator[str]]:
+    def creg_identifier(creg_names):
+        suffix_tag = f"_{suffix}"
+        for name in creg_names:
+            if name.endswith(suffix_tag):
+                yield name
+
+    return creg_identifier

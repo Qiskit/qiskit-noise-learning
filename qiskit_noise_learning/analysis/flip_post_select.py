@@ -11,7 +11,7 @@
 # that they have been altered from the originals.
 
 from collections.abc import Callable, Iterator
-from typing import Literal, Self
+from typing import Literal
 
 import numpy as np
 import xarray as xr
@@ -41,9 +41,7 @@ class FlipPostSelect(AnalysisStage):
         creg_pair_identifier: Callable[[list[str]], Iterator[tuple[str, str]]] | None = None,
         mode: Literal["node", "edge"] = "edge",
     ):
-        if creg_pair_identifier is None:
-            creg_pair_identifier = FlipPostSelect.from_suffix().creg_pair_identifier
-        self._creg_pair_identifier = creg_pair_identifier
+        self._creg_pair_identifier = creg_pair_identifier or suffix_creg_pair_identifier()
         self._mode = mode
 
     @property
@@ -61,47 +59,6 @@ class FlipPostSelect(AnalysisStage):
     @property
     def creg_pair_identifier(self) -> Callable[[list[str]], Iterator[tuple[str, str]]]:
         return self._creg_pair_identifier
-
-    @staticmethod
-    def from_list(
-        creg_pairs: list[tuple[str, str]], mode: Literal["node", "edge"] = "edge"
-    ) -> Self:
-        """Create from a pre-defined list of pairs of creg names.
-
-        If a given pair is not found in the supplied ``creg_names``, it will be skipped.
-
-        Args:
-            creg_pairs: A list of pairs of creg names.
-            mode: Flip post-selection mode.
-        """
-
-        def creg_pair_identifier(creg_names):
-            for creg_pair in creg_pairs:
-                if creg_pair[0] in creg_names and creg_pair[1] in creg_names:
-                    yield creg_pair
-
-        return FlipPostSelect(creg_pair_identifier=creg_pair_identifier, mode=mode)
-
-    @staticmethod
-    def from_suffix(suffix: str = "ps", mode: Literal["node", "edge"] = "edge") -> Self:
-        """Defines the creg pair identifier to find pairs with names ``"*"`` and ``f"*_{suffix}"``.
-
-        Any cregs that do not have a corresponding pair according to this rule are ignored.
-
-        Args:
-            suffix: The suffix for creg name pattern matching.
-            mode: The post selection mode.
-        """
-
-        def creg_pair_identifier(creg_names):
-            suffix_tag = f"_{suffix}"
-            for name in creg_names:
-                if name.endswith(suffix_tag):
-                    base = name[: -len(suffix_tag)]
-                    if base in creg_names:
-                        yield (base, name)
-
-        return FlipPostSelect(creg_pair_identifier=creg_pair_identifier, mode=mode)
 
     def _run(self, fit):
         coupling_map = fit.model.gate_set.coupling_map
@@ -146,3 +103,15 @@ class FlipPostSelect(AnalysisStage):
             return dataset.assign(data_mask=new_data_mask)
 
         fit[RawData] = RawData(fit.raw_data.datatree.map_over_datasets(_dataset_selector))
+
+
+def suffix_creg_pair_identifier(
+    suffix: str = "ps",
+) -> Callable[[list[str]], Iterator[tuple[str, str]]]:
+    def creg_identifier(creg_names):
+        suffix_tag = f"_{suffix}"
+        for name in creg_names:
+            if name.endswith(suffix_tag):
+                yield name
+
+    return creg_identifier
