@@ -23,7 +23,7 @@ from qiskit_noise_learning.data.xarray_utils import time_bound
 from qiskit_noise_learning.math import IndexedMatrix
 
 
-class ModelSolve(AnalysisStage):
+class ModelSolve(AnalysisStage, BaseModel):
     """Base class for finding model parameters.
 
     Constructs the multiplicative design matrix from the :class:`~.FidelityModel` stored on the
@@ -104,7 +104,7 @@ class ModelSolve(AnalysisStage):
         )
 
 
-class NNLSSolve(ModelSolve, BaseModel):
+class NNLSSolve(ModelSolve):
     """Solves for the :class:`~.ModelData` using the [scipy's NNLS implementation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.nnls.html)
 
     See :class:`~.ModelSolve` for more details.
@@ -115,7 +115,7 @@ class NNLSSolve(ModelSolve, BaseModel):
         return x, {"residual": residual}
 
 
-class LSQLinearSolve(ModelSolve, BaseModel):
+class LSQLinearSolve(ModelSolve):
     """Solves for the :class:`~.ModelData` using the [scipy's least squares linear implementation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.lsq_linear.html#scipy.optimize.lsq_linear)
 
     See :class:`~.ModelSolve` for more details.
