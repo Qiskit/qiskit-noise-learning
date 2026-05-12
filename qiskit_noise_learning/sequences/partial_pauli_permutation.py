@@ -672,9 +672,9 @@ class PartialPauliPermutation(Instruction):
         s += f"    num_qubits={self.num_qubits}\n"
         for qubit_idx, single_set in enumerate(self.to_sets()):
             if len(single_set) > 0:
-                s += f"    {qubit_idx}: "
-                for input, output in single_set:
-                    s += f"{input} -> {output}, "
-                s += "\n"
+                input, output = zip(*single_set, strict=True)
+                if input != output:
+                    s += f"    {qubit_idx}: "
+                    s += ''.join(input) + ' -> ' + ''.join(output) + "\n"
         s += ")"
         return s
