@@ -55,6 +55,9 @@ vis = [
 
 [tool.pytest.ini_options]
 addopts = "--doctest-modules"
+filterwarnings = [
+    "ignore:.*IBMFractionalTranslationPlugin is deprecated.*:DeprecationWarning",
+]
 pythonpath = ["."]
 
 [tool.ruff]
