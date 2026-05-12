@@ -123,9 +123,12 @@ class NNLSSolve(ModelSolve):
 
 
 class LSQLinearSolve(ModelSolve):
-    """Solves for the :class:`~.ModelData` using :func:`~scipy.optimize.lsq_linear`.
-
-    See :class:`~.ModelSolve` for more details.
+    """Solves for the :class:`~.ModelData` using SciPy's linear least squares solver. 
+    
+    See SciPy's 
+    [documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.lsq_linear.html) 
+    for details on the method. See :class:`~.ModelSolve` for more details about the general 
+    responsibility of a model solver in this library.
     """
 
     linear_solve_options: dict[str, Any] = {
