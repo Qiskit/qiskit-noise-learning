@@ -24,7 +24,7 @@ from qiskit.circuit import (
     QuantumRegister,
 )
 from qiskit.quantum_info import Clifford
-from samplomatic import Twirl
+from samplomatic import Tag, Twirl
 
 from .gate import Gate, int_sequence_to_str
 from .model_gate import ModelGate
@@ -98,6 +98,8 @@ class QiskitGate(Gate):
         self._qubit_map = qubit_map
         self._circuit = circuit
         self._annotations = [Twirl()] if annotations is None else list(annotations)
+        if not any(isinstance(annotation, Tag) for annotation in self._annotations):
+            self._annotations.append(Tag(name))
         if not any(isinstance(annotation, Twirl) for annotation in self._annotations):
             raise ValueError("Annotations must include a ''Twirl'' annotation.")
 
