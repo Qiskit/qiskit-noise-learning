@@ -142,4 +142,11 @@ class LSQLinearSolve(ModelSolve):
             b_vec,
             **self.linear_solve_options,
         )
-        return opt_res.x, {"opt_res": opt_res}
+    Args:
+        bounds: ...
+    """
+
+    def __init__(
+        self,
+        bounds: tuple[float, float] = ...
+
