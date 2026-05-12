@@ -27,7 +27,7 @@ from .schemas import (
 
 
 class DataMapperModelV1(BaseModel):
-    """Versioned serialization schema for ExecutorDataMapper + analysis context.
+    """Versioned serialization schema for :class:`ExecutorDataMapper` + analysis context.
 
     This class is a pure data schema with no dependencies on executor-specific types.
     It can be serialized to/from the ``passthrough_data`` field of a ``QuantumProgram``.

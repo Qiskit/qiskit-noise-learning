@@ -20,7 +20,10 @@ from pydantic import BaseModel, Field
 
 
 class QubitSparsePauliSchema(BaseModel):
-    """Serialization schema for a QubitSparsePauli."""
+    """Serialization schema for a ``QubitSparsePauli``.
+
+    Stores as an integer lists of Paulis and their corresponding qubit indices.
+    """
 
     num_qubits: int
     paulis: list[int]
@@ -28,21 +31,24 @@ class QubitSparsePauliSchema(BaseModel):
 
 
 class QubitSparsePauliListSchema(BaseModel):
-    """Serialization schema for a QubitSparsePauliList."""
+    """Serialization schema for a ``QubitSparsePauliList``."""
 
     num_qubits: int
     paulis: list[QubitSparsePauliSchema]
 
 
 class CliffordComponentSchema(BaseModel):
-    """Serialization schema for a single Clifford in a ModelGate's clifford list."""
+    r"""Serialization schema for a single ``Clifford`` in a :class:`ModelGate`\'s clifford list.
+
+    Stores each Clifford in tableau form.
+    """
 
     qubit_idxs: list[int]
     tableau: list[list[bool]]
 
 
 class ModelGateSchema(BaseModel):
-    """Serialization schema for a ModelGate."""
+    """Serialization schema for a :class:`ModelGate`."""
 
     name: str
     qubit_idxs: list[int]
@@ -52,7 +58,7 @@ class ModelGateSchema(BaseModel):
 
 
 class ModelGateSetSchema(BaseModel):
-    """Serialization schema for a ModelGateSet."""
+    """Serialization schema for a :class:`ModelGateSet`."""
 
     num_qubits: int
     qubit_subset: list[int]
@@ -61,14 +67,14 @@ class ModelGateSetSchema(BaseModel):
 
 
 class ApplyGateSchema(BaseModel):
-    """Serialization schema for an ApplyGate instruction."""
+    """Serialization schema for an :class:`ApplyGate` instruction."""
 
     type: Literal["apply_gate"] = "apply_gate"
     gate_name: str
 
 
 class PartialPauliPermutationSchema(BaseModel):
-    """Serialization schema for a PartialPauliPermutation instruction."""
+    """Serialization schema for a :class:`PartialPauliPermutation` instruction."""
 
     type: Literal["partial_pauli_permutation"] = "partial_pauli_permutation"
     partial_permutation_indices: list[int]
@@ -80,7 +86,7 @@ InstructionSchema = Annotated[
 
 
 class InstructionPatternSchema(BaseModel):
-    """Serialization schema for an InstructionPattern."""
+    """Serialization schema for an :class:`InstructionPattern`."""
 
     start_fragment: list[InstructionSchema]
     repeatable_fragment: list[InstructionSchema]
@@ -88,14 +94,14 @@ class InstructionPatternSchema(BaseModel):
 
 
 class InstructionSequenceSchema(BaseModel):
-    """Serialization schema for an InstructionSequence."""
+    """Serialization schema for an :class:`InstructionSequence`."""
 
     depth: int
     pattern: InstructionPatternSchema
 
 
 class FidelityIndexSchema(BaseModel):
-    """Serialization schema for a FidelityIndex."""
+    """Serialization schema for a :class:`FidelityIndex`."""
 
     gate_name: str
     pauli: QubitSparsePauliSchema
@@ -104,7 +110,7 @@ class FidelityIndexSchema(BaseModel):
 
 
 class PathPatternSchema(BaseModel):
-    """Serialization schema for a PathPattern."""
+    """Serialization schema for a :class:`PathPattern`."""
 
     start_fragment: list[FidelityIndexSchema]
     repeatable_fragment: list[FidelityIndexSchema]
@@ -112,14 +118,14 @@ class PathPatternSchema(BaseModel):
 
 
 class PathSchema(BaseModel):
-    """Serialization schema for a Path."""
+    """Serialization schema for a :class:`Path`."""
 
     depth: int
     pattern: PathPatternSchema
 
 
 class PauliLindbladModelSchema(BaseModel):
-    """Serialization schema for a PauliLindbladModel."""
+    """Serialization schema for a :class:`PauliLindbladModel`."""
 
     generators: dict[str, QubitSparsePauliListSchema]
     noise_site: dict[str, str]
