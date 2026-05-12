@@ -115,10 +115,15 @@ class NNLSSolve(ModelSolve):
     [documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.nnls.html) 
     for details on the method. See :class:`~.ModelSolve` for more details about the general 
     responsibility of a model solver in this library.
+    Args:
+        max_iter: The maximum number of iterations, passed on to the SciPy solver.
     """
 
+    def __init__(self, max_iter: int | None = None):
+        self.max_iter = max_iter
+
     def _linear_solve(self, a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, dict]:
-        x, residual = opt.nnls(a_mat, b_vec, **self.linear_solve_options)
+        x, residual = opt.nnls(a_mat, b_vec, max_iter=self.max_iter)
         return x, {"residual": residual}
 
 
