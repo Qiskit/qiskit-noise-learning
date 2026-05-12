@@ -15,7 +15,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from qiskit import QuantumCircuit
-from qiskit_ibm_runtime.quantum_program import QuantumProgramResult
+from qiskit_ibm_runtime.results import QuantumProgramResult
 from samplomatic import Twirl
 
 from qiskit_noise_learning.circuit_generator import ExecutorCircuitGenerator
@@ -30,8 +30,7 @@ from qiskit_noise_learning.sequences import (
 
 
 def make_result(items, chunk_timing=None):
-    """Create a stub object mimicking QuantumProgramResult for use with
-    ExecutorCircuitGenerator.collect.
+    """Create mock ``QuantumProgramResult`` for use with ``ExecutorCircuitGenerator.collect``.
 
     Args:
         items: A list of dicts mapping creg names (and optionally "measurement_flips.<creg>")
@@ -42,7 +41,7 @@ def make_result(items, chunk_timing=None):
             that produces the correct number of time entries per item.
 
     Returns:
-        A stub result object with the interface expected by ExecutorCircuitGenerator.collect.
+        A stub result object with the interface expected by ``ExecutorCircuitGenerator.collect``.
     """
     # make a default chunk timing
     if chunk_timing is None:
@@ -711,3 +710,45 @@ def test_generate_and_collect_with_pass_manager():
     np.testing.assert_array_equal(
         dataset["measurement_flips"].values, np.zeros((num_randomizations, 3), dtype=bool)
     )
+
+
+def test_generate_with_pass_manager_multi_qubit_creg():
+    """Test that the measurement map correctly captures all qubits when the pass manager adds a
+    creg with multiple measurements."""
+    from qiskit.circuit import ClassicalRegister
+    from qiskit.circuit.library import Measure
+    from qiskit.transpiler import PassManager, TransformationPass
+
+    class AddMultiMeasPass(TransformationPass):
+        def run(self, dag):
+            creg = ClassicalRegister(2, "extra")
+            dag.add_creg(creg)
+            dag.apply_operation_back(Measure(), qargs=[dag.qubits[0]], cargs=[creg[0]])
+            dag.apply_operation_back(Measure(), qargs=[dag.qubits[1]], cargs=[creg[1]])
+            return dag
+
+    gateset = QiskitGateSet(2)
+    with gateset.build_new_gate() as builder:
+        builder.circuit.cz(0, 1)
+        builder.circuit.noop(range(2))
+
+    model_gateset = gateset.model_gate_set
+    pattern = InstructionPattern(
+        [ApplyGate(model_gateset["P"])],
+        [ApplyGate(model_gateset["L0"])],
+        [ApplyGate(model_gateset["M"])],
+    )
+    seq = InstructionSequence(pattern, 1)
+
+    num_randomizations = 2
+    cg = ExecutorCircuitGenerator(
+        gateset,
+        num_randomizations=num_randomizations,
+        pass_manager=PassManager([AddMultiMeasPass()]),
+    )
+    samplex_items, data_mapper = cg.generate([seq])
+
+    assert data_mapper.creg_names == [["meas0", "extra"]]
+    assert list(data_mapper.measurement_maps[0].keys()) == ["meas0", "extra"]
+    np.testing.assert_array_equal(data_mapper.measurement_maps[0]["meas0"], [0, 1])
+    np.testing.assert_array_equal(data_mapper.measurement_maps[0]["extra"], [0, 1])
