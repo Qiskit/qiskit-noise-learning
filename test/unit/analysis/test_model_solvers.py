@@ -16,16 +16,21 @@ import pytest
 from qiskit_noise_learning.analysis import Fit, LSQLinearSolve, NNLSSolve
 from qiskit_noise_learning.data import AveragedData
 from qiskit_noise_learning.math import IndexedVector
+from qiskit_noise_learning.sequences import Path
 
 _SOLVERS = [LSQLinearSolve(), NNLSSolve()]
 
 
 class MockFidelityModel:
-    def __init__(self, rows: dict):
+    def __init__(self, rows: dict, path_rows: dict | None = None):
         self._rows = rows
+        self._path_rows = path_rows or {}
 
     def multiplicative_row_from_path_pattern(self, path_pattern):
         return self._rows[path_pattern]
+
+    def row_from_path(self, path):
+        return self._path_rows[path]
 
 
 def _make_decay_data(f_values, f_std_values=None):
@@ -213,3 +218,85 @@ def test_metadata_contains_residual(solver):
     result = solver.run(fit)
 
     assert "residual" in result.model_data.metadata
+
+
+def _make_fixed_depth_data(entries, std_values=None):
+    """Build AveragedData with fixed-depth entries.
+
+    Args:
+        entries: List of (path_pattern, depth, fidelity) tuples.
+        std_values: Optional list of std values. Defaults to 0.001 for all.
+    """
+    n = len(entries)
+    if std_values is None:
+        std_values = [0.001] * n
+
+    return AveragedData.from_arrays(
+        path_patterns=[e[0] for e in entries],
+        depths=[e[1] for e in entries],
+        observables=np.array([e[2] for e in entries]),
+        std=np.array(std_values),
+        time_lbs=np.empty(n, dtype="datetime64[us]"),
+        time_ubs=np.empty(n, dtype="datetime64[us]"),
+    )
+
+
+@pytest.mark.parametrize("solver", _SOLVERS)
+def test_fixed_depth_single(solver):
+    """Test solving a single fixed-depth entry using the additive row."""
+    pp = "pp0"
+    depth = 3
+    fidelity = 0.7
+    path = Path(pattern=pp, depth=depth)
+
+    data = _make_fixed_depth_data([(pp, depth, fidelity)])
+    model = MockFidelityModel(
+        rows={},
+        path_rows={path: IndexedVector({"theta": 2.0})},
+    )
+
+    fit = Fit(model=model)
+    fit[AveragedData] = data
+    result = solver.run(fit)
+
+    model_data = result.model_data
+    assert np.isclose(
+        model_data.dataset["parameter_values"].sel(parameter="theta").item(),
+        -np.log(fidelity) / 2,
+        atol=1e-6,
+    )
+
+
+@pytest.mark.parametrize("solver", _SOLVERS)
+def test_mixed_decay_and_fixed_depth(solver):
+    """Test solving with both decay (depth=-1) and fixed-depth entries."""
+    pp0, pp1 = "pp0", "pp1"
+    decay_fidelity = 0.9
+    depth = 2
+    fixed_depth_fidelity = 0.75
+    path = Path(pattern=pp1, depth=depth)
+
+    decay_data = _make_decay_data({pp0: decay_fidelity})
+    fixed_data = _make_fixed_depth_data([(pp1, depth, fixed_depth_fidelity)])
+    data = decay_data.merge(fixed_data)
+
+    model = MockFidelityModel(
+        rows={pp0: IndexedVector({"r0": 1.0})},
+        path_rows={path: IndexedVector({"r1": 1.0})},
+    )
+
+    fit = Fit(model=model)
+    fit[AveragedData] = data
+    result = solver.run(fit)
+
+    model_data = result.model_data
+    assert np.isclose(
+        model_data.dataset["parameter_values"].sel(parameter="r0").item(),
+        -np.log(decay_fidelity),
+        atol=1e-6,
+    )
+    assert np.isclose(
+        model_data.dataset["parameter_values"].sel(parameter="r1").item(),
+        -np.log(fixed_depth_fidelity),
+        atol=1e-6,
+    )

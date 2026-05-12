@@ -20,15 +20,17 @@ from qiskit_noise_learning.analysis import AnalysisStage, Fit
 from qiskit_noise_learning.data import AveragedData, ModelData
 from qiskit_noise_learning.data.xarray_utils import time_bound
 from qiskit_noise_learning.math import IndexedMatrix
+from qiskit_noise_learning.sequences import Path
 
 
 class ModelSolve(AnalysisStage):
     """Base class for finding model parameters.
 
-    Constructs the multiplicative design matrix from the :class:`~.FidelityModel` stored on the
-    :class:`~.Fit` container and the path pattern keys in the :class:`~.AveragedData` (depth==-1
-    entries). Then solves ``A @ x = b`` using a specified method, where ``A`` is the
-    design matrix and ``b`` is the vector of decay rates ``-log(f)``.
+    Constructs the design matrix from the :class:`~.FidelityModel` stored on the :class:`~.Fit`
+    container and the data in :class:`~.AveragedData`. For decay data (``depth == -1``), the
+    multiplicative design matrix row is used. For fixed-depth data (``depth != -1``), the additive
+    design matrix row is used. Then solves ``A @ x = b`` using a specified method, where ``A`` is
+    the design matrix and ``b`` is the vector of ``-log(f)`` values.
     """
 
     @property
@@ -54,25 +56,41 @@ class ModelSolve(AnalysisStage):
     def _run(self, fit: Fit):
         averaged_data = fit[AveragedData]
         fidelity_model = fit.model
+        dataset = averaged_data.dataset
 
-        # Filter to decay data (depth == -1)
-        decay_mask = averaged_data.dataset["depth"].data == -1
-        decay_dataset = averaged_data.dataset.sel({"observable": decay_mask})
+        # Build design matrix by iterating over (path_pattern, depth) pairs
+        path_patterns = list(dataset["path_pattern"].data)
+        depths = list(dataset["depth"].data)
 
-        # Build design matrix from the fidelity model and the path patterns in the decay data
-        path_patterns = list(decay_dataset["path_pattern"].data)
-        rows = [fidelity_model.multiplicative_row_from_path_pattern(pp) for pp in path_patterns]
+        row_indices = []
+        rows = []
+        for pp, depth in zip(path_patterns, depths):
+            if depth == -1:
+                row_index = pp
+                row = fidelity_model.multiplicative_row_from_path_pattern(pp)
+            else:
+                path = Path(pattern=pp, depth=depth)
+                row_index = path
+                row = fidelity_model.row_from_path(path)
+            row_indices.append(row_index)
+            rows.append(row)
+
         design_matrix = IndexedMatrix()
-        design_matrix.add_rows(row_indices=path_patterns, rows=rows)
+        design_matrix.add_rows(row_indices=row_indices, rows=rows)
 
         # Construct b from averaged_data taking the negative logarithm
         row_index_map = design_matrix.row_index_map
         b = np.empty(len(row_index_map), dtype=float)
         sigma_b = np.empty(len(row_index_map), dtype=float)
-        for pp, row_idx in row_index_map.items():
-            pp_mask = decay_dataset["path_pattern"].data == pp
-            fidelity = float(decay_dataset["observables"].data[pp_mask][0])
-            fidelity_std = float(decay_dataset["std"].data[pp_mask][0])
+        for row_index, row_idx in row_index_map.items():
+            if isinstance(row_index, Path):
+                mask = (dataset["path_pattern"].data == row_index.pattern) & (
+                    dataset["depth"].data == row_index.depth
+                )
+            else:
+                mask = (dataset["path_pattern"].data == row_index) & (dataset["depth"].data == -1)
+            fidelity = float(dataset["observables"].data[mask][0])
+            fidelity_std = float(dataset["std"].data[mask][0])
             b[row_idx] = -np.log(max(fidelity, 1e-300))
             sigma_b[row_idx] = fidelity_std / max(fidelity, 1e-300)
 
@@ -96,8 +114,8 @@ class ModelSolve(AnalysisStage):
         inv_col = {v: k for k, v in col_index_map.items()}
         param_labels = [inv_col[i] for i in range(len(x))]
 
-        time_lb = time_bound(decay_dataset["time_lbs"].data, "min")
-        time_ub = time_bound(decay_dataset["time_ubs"].data, "max")
+        time_lb = time_bound(dataset["time_lbs"].data, "min")
+        time_ub = time_bound(dataset["time_ubs"].data, "max")
 
         fit[ModelData] = ModelData.from_arrays(
             parameter_indices=param_labels,
