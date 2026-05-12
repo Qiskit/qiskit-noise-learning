@@ -15,16 +15,17 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+import xarray as xr
 from qiskit.circuit.library import CZGate
 from qiskit.quantum_info import Clifford, QubitSparsePauliList
 
-from qiskit_noise_learning.analysis import AnalysisStage
-from qiskit_noise_learning.circuit_generator.executor_circuit_generator import ExecutorDataMapper
+from qiskit_noise_learning.analysis import AnalysisStage, Fit
+from qiskit_noise_learning.circuit_generator import ExecutorCircuitGenerator
 from qiskit_noise_learning.data import ModelData, RawData
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
 from qiskit_noise_learning.models import PauliLindbladModel
 from qiskit_noise_learning.noise_learner import NoiseLearnerResult
-from qiskit_noise_learning.noise_learner.noise_learner_job import ExperimentSchema, NoiseLearnerJob
+from qiskit_noise_learning.noise_learner.noise_learner_job import NoiseLearnerJob
 
 
 class _StubProgramResult:
@@ -92,22 +93,6 @@ def model(gate_set_cz):
 
 
 @pytest.fixture()
-def data_mapper():
-    return ExecutorDataMapper(
-        item_sequence_indices=[],
-        creg_names=[],
-        measurement_maps=[],
-        instruction_sequences=[],
-        num_randomizations=1,
-    )
-
-
-@pytest.fixture()
-def experiment_schema(data_mapper, model):
-    return ExperimentSchema(data_mapper=data_mapper, paths=[], model=model)
-
-
-@pytest.fixture()
 def stub_runtime_job():
     return _StubRuntimeJob()
 
@@ -118,8 +103,26 @@ def analysis_stage():
 
 
 @pytest.fixture()
-def job(stub_runtime_job, experiment_schema, analysis_stage):
-    return NoiseLearnerJob(stub_runtime_job, experiment_schema, analysis_stage)
+def job(stub_runtime_job, analysis_stage):
+    return NoiseLearnerJob(stub_runtime_job, analysis_stage)
+
+
+@pytest.fixture()
+def _patch_collect(monkeypatch, model):
+    """Monkeypatch collect to return a stub Fit.
+
+    NoiseLearnerJob.result() calls collect with no data_mapper, causing it to deserialize from
+    result.passthrough_data. Since _StubProgramResult has no passthrough_data (building valid
+    passthrough_data is the domain of the serialization tests), we replace collect with a lambda
+    that returns a pre-built Fit to test NoiseLearnerJob orchestration in isolation.
+    """
+    stub_fit = Fit(model=model, paths=[])
+    stub_fit[RawData] = RawData(datatree=xr.DataTree())
+    monkeypatch.setattr(
+        ExecutorCircuitGenerator,
+        "collect",
+        staticmethod(lambda result, data_mapper=None: stub_fit),
+    )
 
 
 def test_noise_learner_job_init(job, stub_runtime_job):
@@ -127,6 +130,7 @@ def test_noise_learner_job_init(job, stub_runtime_job):
     assert job.runtime_job is stub_runtime_job
 
 
+@pytest.mark.usefixtures("_patch_collect")
 def test_noise_learner_result_result(job, model):
     """Test NoiseLearnerJob.result returns sensible data."""
     result = job.result()
@@ -136,12 +140,14 @@ def test_noise_learner_result_result(job, model):
     assert isinstance(result.fit.model_data, ModelData)
 
 
+@pytest.mark.usefixtures("_patch_collect")
 def test_noise_learner_job_result_calls_runtime_job_result(job, stub_runtime_job):
     """Test NoiseLearnerJob.result calls RuntimeJobV2.result."""
     job.result()
     assert stub_runtime_job.call_count == 1
 
 
+@pytest.mark.usefixtures("_patch_collect")
 def test_noise_learner_job_result_passes_args_to_runtime_job(job, stub_runtime_job):
     """Test NoiseLearnerJob.result passes args to RuntimeJobV2."""
     job.result("arg1", timeout=10)
