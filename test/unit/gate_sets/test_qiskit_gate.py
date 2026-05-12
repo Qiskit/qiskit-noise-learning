@@ -15,6 +15,7 @@ from itertools import product
 import pytest
 from qiskit.circuit import Annotation, QuantumCircuit
 from qiskit.quantum_info import Clifford
+from samplomatic import Tag
 
 from qiskit_noise_learning.gate_sets import ModelGate, QiskitGate
 
@@ -32,6 +33,7 @@ def test_construction():
     assert gate.idling_idxs == {0, 1, 2, 5}
     assert gate.gate_idxs == set()
     assert list(gate.constituent_gate_idxs) == []
+    assert Tag("L0") in gate.annotations
 
 
 def test_construction_with_prep():
