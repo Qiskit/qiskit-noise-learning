@@ -675,6 +675,6 @@ class PartialPauliPermutation(Instruction):
                 input, output = zip(*single_set, strict=True)
                 if input != output:
                     s += f"    {qubit_idx}: "
-                    s += ''.join(input) + ' -> ' + ''.join(output) + "\n"
+                    s += "".join(input) + " -> " + "".join(output) + "\n"
         s += ")"
         return s
