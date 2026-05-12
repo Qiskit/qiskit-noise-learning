@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Versioned serialization schema for the executor data mapper and analysis context."""
+"""Reusable pydantic serialization schemas for noise learning types."""
 
 from __future__ import annotations
 
@@ -123,30 +123,3 @@ class PauliLindbladModelSchema(BaseModel):
 
     generators: dict[str, QubitSparsePauliListSchema]
     noise_site: dict[str, str]
-
-
-class DataMapperModelV1(BaseModel):
-    """Versioned serialization schema for ExecutorDataMapper + analysis context.
-
-    This class is a pure data schema with no dependencies on executor-specific types.
-    It can be serialized to/from the ``passthrough_data`` field of a ``QuantumProgram``.
-    """
-
-    version: Literal[1] = 1
-    gate_set: ModelGateSetSchema
-    item_sequence_indices: list[list[int]]
-    creg_names: list[list[str]]
-    measurement_maps: list[dict[str, list[int]]]
-    num_randomizations: int
-    instruction_sequences: list[InstructionSequenceSchema]
-    paths: list[PathSchema]
-    model: PauliLindbladModelSchema
-
-    def to_passthrough_data(self) -> dict:
-        """Serialize to a DataTree-compatible dict for QuantumProgram.passthrough_data."""
-        return {"noise_learning_data_mapper": self.model_dump()}
-
-    @classmethod
-    def from_passthrough_data(cls, data: dict) -> DataMapperModelV1:
-        """Reconstruct from a passthrough_data dict."""
-        return cls.model_validate(data["noise_learning_data_mapper"])

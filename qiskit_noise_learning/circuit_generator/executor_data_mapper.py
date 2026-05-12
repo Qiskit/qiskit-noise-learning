@@ -10,40 +10,24 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""ExecutorDataMapper and serialization helpers."""
+"""ExecutorDataMapper class."""
 
 from __future__ import annotations
 
 import numpy as np
-from qiskit.quantum_info import Clifford, QubitSparsePauli, QubitSparsePauliList
-from qiskit.transpiler import CouplingMap
 
-from ..gate_sets import ModelGate, ModelGateSet
 from ..models import FidelityModel, PauliLindbladModel
-from ..sequences import (
-    ApplyGate,
-    FidelityIndex,
-    InstructionPattern,
-    InstructionSequence,
-    PartialPauliPermutation,
-    Path,
-    PathPattern,
-)
-from .data_mapper_model_v1 import (
-    ApplyGateSchema,
-    CliffordComponentSchema,
+from ..sequences import InstructionSequence, Path
+from ..serialization import (
     DataMapperModelV1,
-    FidelityIndexSchema,
-    InstructionPatternSchema,
-    InstructionSequenceSchema,
-    ModelGateSchema,
-    ModelGateSetSchema,
-    PartialPauliPermutationSchema,
-    PathPatternSchema,
-    PathSchema,
-    PauliLindbladModelSchema,
-    QubitSparsePauliListSchema,
-    QubitSparsePauliSchema,
+    deserialize_gate_set,
+    deserialize_instruction_sequence,
+    deserialize_path,
+    deserialize_pauli_lindblad_model,
+    serialize_gate_set,
+    serialize_instruction_sequence,
+    serialize_path,
+    serialize_pauli_lindblad_model,
 )
 
 
@@ -144,7 +128,7 @@ class ExecutorDataMapper:
 
         gate_set = self._fidelity_model.gate_set
         return DataMapperModelV1(
-            gate_set=_serialize_gate_set(gate_set),
+            gate_set=serialize_gate_set(gate_set),
             item_sequence_indices=self._item_sequence_indices,
             creg_names=self._creg_names,
             measurement_maps=[
@@ -152,20 +136,20 @@ class ExecutorDataMapper:
             ],
             num_randomizations=self._num_randomizations,
             instruction_sequences=[
-                _serialize_instruction_sequence(seq) for seq in self._instruction_sequences
+                serialize_instruction_sequence(seq) for seq in self._instruction_sequences
             ],
-            paths=[_serialize_path(p) for p in self._paths],
-            model=_serialize_pauli_lindblad_model(self._fidelity_model),
+            paths=[serialize_path(p) for p in self._paths],
+            model=serialize_pauli_lindblad_model(self._fidelity_model),
         )
 
     @classmethod
     def from_data_mapper_model(cls, model: DataMapperModelV1) -> ExecutorDataMapper:
         """Reconstruct an :class:`ExecutorDataMapper` from a :class:`DataMapperModelV1`."""
-        gate_set = _deserialize_gate_set(model.gate_set)
-        fidelity_model = _deserialize_pauli_lindblad_model(model.model, gate_set)
-        paths = [_deserialize_path(p, gate_set) for p in model.paths]
+        gate_set = deserialize_gate_set(model.gate_set)
+        fidelity_model = deserialize_pauli_lindblad_model(model.model, gate_set)
+        paths = [deserialize_path(p, gate_set) for p in model.paths]
         instruction_sequences = [
-            _deserialize_instruction_sequence(seq, gate_set) for seq in model.instruction_sequences
+            deserialize_instruction_sequence(seq, gate_set) for seq in model.instruction_sequences
         ]
         measurement_maps = [
             {k: np.array(v, dtype=int) for k, v in m.items()} for m in model.measurement_maps
@@ -196,212 +180,3 @@ class ExecutorDataMapper:
             model = DataMapperModelV1.model_validate(raw)
             return cls.from_data_mapper_model(model)
         raise ValueError(f"Unsupported data mapper model version: {version}")
-
-
-# --- Serialization helpers ---
-
-
-def _serialize_qubit_sparse_pauli(pauli: QubitSparsePauli) -> QubitSparsePauliSchema:
-    return QubitSparsePauliSchema(
-        num_qubits=pauli.num_qubits,
-        paulis=[int(p) for p in pauli.paulis],
-        indices=[int(i) for i in pauli.indices],
-    )
-
-
-def _deserialize_qubit_sparse_pauli(schema: QubitSparsePauliSchema) -> QubitSparsePauli:
-    return QubitSparsePauli.from_raw_parts(
-        num_qubits=schema.num_qubits,
-        paulis=schema.paulis,
-        indices=schema.indices,
-    )
-
-
-def _serialize_qubit_sparse_pauli_list(
-    pauli_list: QubitSparsePauliList,
-) -> QubitSparsePauliListSchema:
-    return QubitSparsePauliListSchema(
-        num_qubits=pauli_list.num_qubits,
-        paulis=[_serialize_qubit_sparse_pauli(p) for p in pauli_list],
-    )
-
-
-def _deserialize_qubit_sparse_pauli_list(
-    schema: QubitSparsePauliListSchema,
-) -> QubitSparsePauliList:
-    paulis = [_deserialize_qubit_sparse_pauli(p) for p in schema.paulis]
-    return QubitSparsePauliList.from_qubit_sparse_paulis(paulis)
-
-
-def _serialize_gate_set(gate_set: ModelGateSet) -> ModelGateSetSchema:
-    coupling_map = gate_set.coupling_map
-    edges = [list(edge) for edge in coupling_map.get_edges()]
-    gates = []
-    for name, gate in gate_set.items():
-        cliffords = []
-        for qubit_idxs, clifford in gate.cliffords:
-            cliffords.append(
-                CliffordComponentSchema(
-                    qubit_idxs=list(qubit_idxs),
-                    tableau=clifford.symplectic_matrix.tolist(),
-                )
-            )
-        gates.append(
-            ModelGateSchema(
-                name=name,
-                qubit_idxs=list(gate.qubit_idxs),
-                meas_idxs=sorted(gate.meas_idxs),
-                prep_idxs=sorted(gate.prep_idxs),
-                cliffords=cliffords,
-            )
-        )
-    return ModelGateSetSchema(
-        num_qubits=gate_set.num_qubits,
-        qubit_subset=sorted(gate_set.qubit_subset),
-        coupling_map_edges=edges,
-        gates=gates,
-    )
-
-
-def _deserialize_gate_set(schema: ModelGateSetSchema) -> ModelGateSet:
-    coupling_map = CouplingMap(schema.coupling_map_edges)
-    gate_set = ModelGateSet(
-        num_qubits=schema.num_qubits,
-        qubit_subset=schema.qubit_subset,
-        coupling_map=coupling_map,
-    )
-    for gate_schema in schema.gates:
-        cliffords = []
-        for comp in gate_schema.cliffords:
-            tableau = np.array(comp.tableau, dtype=bool)
-            cliffords.append((tuple(comp.qubit_idxs), Clifford(tableau)))
-        gate = ModelGate(
-            name=gate_schema.name,
-            cliffords=cliffords,
-            qubit_idxs=gate_schema.qubit_idxs,
-            meas_idxs=gate_schema.meas_idxs,
-            prep_idxs=gate_schema.prep_idxs,
-        )
-        gate_set.add_gate(gate)
-    return gate_set
-
-
-def _serialize_instruction_sequence(seq: InstructionSequence) -> InstructionSequenceSchema:
-    return InstructionSequenceSchema(
-        depth=seq.depth,
-        pattern=InstructionPatternSchema(
-            start_fragment=[_serialize_instruction(i) for i in seq.pattern.start_fragment],
-            repeatable_fragment=[
-                _serialize_instruction(i) for i in seq.pattern.repeatable_fragment
-            ],
-            end_fragment=[_serialize_instruction(i) for i in seq.pattern.end_fragment],
-        ),
-    )
-
-
-def _serialize_instruction(instr) -> ApplyGateSchema | PartialPauliPermutationSchema:
-    if isinstance(instr, ApplyGate):
-        return ApplyGateSchema(gate_name=instr.gate.name)
-    elif isinstance(instr, PartialPauliPermutation):
-        return PartialPauliPermutationSchema(
-            partial_permutation_indices=[int(x) for x in instr.partial_permutation_indices],
-        )
-    raise TypeError(f"Unknown instruction type: {type(instr)}")
-
-
-def _deserialize_instruction_sequence(
-    schema: InstructionSequenceSchema, gate_set: ModelGateSet
-) -> InstructionSequence:
-    pattern = InstructionPattern(
-        start_fragment=[
-            _deserialize_instruction(i, gate_set) for i in schema.pattern.start_fragment
-        ],
-        repeatable_fragment=[
-            _deserialize_instruction(i, gate_set) for i in schema.pattern.repeatable_fragment
-        ],
-        end_fragment=[_deserialize_instruction(i, gate_set) for i in schema.pattern.end_fragment],
-    )
-    return InstructionSequence(pattern=pattern, depth=schema.depth)
-
-
-def _deserialize_instruction(
-    schema: ApplyGateSchema | PartialPauliPermutationSchema, gate_set: ModelGateSet
-):
-    if isinstance(schema, ApplyGateSchema):
-        return ApplyGate(gate_set[schema.gate_name].model_gate)
-    elif isinstance(schema, PartialPauliPermutationSchema):
-        return PartialPauliPermutation(np.array(schema.partial_permutation_indices, dtype=np.int8))
-    raise TypeError(f"Unknown instruction schema type: {type(schema)}")
-
-
-def _serialize_path(path: Path) -> PathSchema:
-    return PathSchema(
-        depth=path.depth,
-        pattern=PathPatternSchema(
-            start_fragment=[_serialize_fidelity_index(fi) for fi in path.pattern.start_fragment],
-            repeatable_fragment=[
-                _serialize_fidelity_index(fi) for fi in path.pattern.repeatable_fragment
-            ],
-            end_fragment=[_serialize_fidelity_index(fi) for fi in path.pattern.end_fragment],
-        ),
-    )
-
-
-def _serialize_fidelity_index(fi: FidelityIndex) -> FidelityIndexSchema:
-    return FidelityIndexSchema(
-        gate_name=fi.gate.name,
-        pauli=_serialize_qubit_sparse_pauli(fi.pauli),
-        in_bit_indices=sorted(fi.in_bit_indices),
-        out_bit_indices=sorted(fi.out_bit_indices),
-    )
-
-
-def _deserialize_path(schema: PathSchema, gate_set: ModelGateSet) -> Path:
-    pattern = PathPattern(
-        start_fragment=[
-            _deserialize_fidelity_index(fi, gate_set) for fi in schema.pattern.start_fragment
-        ],
-        repeatable_fragment=[
-            _deserialize_fidelity_index(fi, gate_set) for fi in schema.pattern.repeatable_fragment
-        ],
-        end_fragment=[
-            _deserialize_fidelity_index(fi, gate_set) for fi in schema.pattern.end_fragment
-        ],
-    )
-    return Path(pattern=pattern, depth=schema.depth)
-
-
-def _deserialize_fidelity_index(
-    schema: FidelityIndexSchema, gate_set: ModelGateSet
-) -> FidelityIndex:
-    gate = gate_set[schema.gate_name].model_gate
-    pauli = _deserialize_qubit_sparse_pauli(schema.pauli)
-    return FidelityIndex(
-        gate=gate,
-        pauli=pauli,
-        in_bit_indices=frozenset(schema.in_bit_indices),
-        out_bit_indices=frozenset(schema.out_bit_indices),
-    )
-
-
-def _serialize_pauli_lindblad_model(model: PauliLindbladModel) -> PauliLindbladModelSchema:
-    generators = {}
-    for gate_name, pauli_list in model.generators.items():
-        generators[gate_name] = _serialize_qubit_sparse_pauli_list(pauli_list)
-    return PauliLindbladModelSchema(
-        generators=generators,
-        noise_site=dict(model.noise_site),
-    )
-
-
-def _deserialize_pauli_lindblad_model(
-    schema: PauliLindbladModelSchema, gate_set: ModelGateSet
-) -> PauliLindbladModel:
-    generators = {}
-    for gate_name, pauli_list_schema in schema.generators.items():
-        generators[gate_name] = _deserialize_qubit_sparse_pauli_list(pauli_list_schema)
-    return PauliLindbladModel(
-        gate_set=gate_set,
-        generators=generators,
-        noise_site=schema.noise_site,
-    )

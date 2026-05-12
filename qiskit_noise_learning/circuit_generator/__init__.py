@@ -12,6 +12,5 @@
 
 """Executor circuit generator module."""
 
-from .data_mapper_model_v1 import DataMapperModelV1
 from .executor_circuit_generator import ExecutorCircuitGenerator
 from .executor_data_mapper import ExecutorDataMapper
