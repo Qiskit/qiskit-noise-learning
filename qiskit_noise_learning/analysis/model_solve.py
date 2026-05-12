@@ -31,8 +31,6 @@ class ModelSolve(AnalysisStage):
     design matrix and ``b`` is the vector of decay rates ``-log(f)``.
     """
 
-    linear_solve_options: dict[str, Any] = {}
-
     @property
     def input_level(self):
         return AveragedData
