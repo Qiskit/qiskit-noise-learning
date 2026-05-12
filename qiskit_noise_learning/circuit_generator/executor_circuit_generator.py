@@ -16,8 +16,8 @@ import numpy as np
 import xarray as xr
 from qiskit.circuit import BoxOp, CircuitInstruction, ClassicalRegister, QuantumCircuit
 from qiskit.transpiler import PassManager
-from qiskit_ibm_runtime.quantum_program import QuantumProgramResult
 from qiskit_ibm_runtime.quantum_program.quantum_program import SamplexItem
+from qiskit_ibm_runtime.results import QuantumProgramResult
 from samplomatic import build
 from samplomatic.annotations import InjectLocalClifford, Tag, Twirl
 
@@ -38,8 +38,7 @@ class ExecutorDataMapper:
     circuit and different samplex arguments, the order of input sequences to
     :meth:`.ExecutorCircuitGenerator.generate` is not preserved during execution. This class
     contains properties to format the results of a
-    :class:`qiskit_ibm_runtime.quantum_program.QuantumProgramResult` to the order of the
-    input sequences.
+    :class:`qiskit_ibm_runtime.results.QuantumProgramResult` to the order of the input sequences.
 
     Args:
         item_sequence_indices: For each program item, an ordered list of instruction sequence
@@ -77,7 +76,7 @@ class ExecutorDataMapper:
         """List of names of the classical registers contained in the results.
 
         The list at a given index corresponds to names expected in the data of the
-        :class:`qiskit_ibm_runtime.quantum_program.QuantumProgramResult` at the same index.
+        :class:`qiskit_ibm_runtime.quantum_program.results` at the same index.
         """
         return self._creg_names
 

@@ -15,7 +15,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from qiskit import QuantumCircuit
-from qiskit_ibm_runtime.quantum_program import QuantumProgramResult
+from qiskit_ibm_runtime.results import QuantumProgramResult
 from samplomatic import Twirl
 
 from qiskit_noise_learning.circuit_generator import ExecutorCircuitGenerator
@@ -30,8 +30,7 @@ from qiskit_noise_learning.sequences import (
 
 
 def make_result(items, chunk_timing=None):
-    """Create a stub object mimicking QuantumProgramResult for use with
-    ExecutorCircuitGenerator.collect.
+    """Create mock ``QuantumProgramResult`` for use with ``ExecutorCircuitGenerator.collect``.
 
     Args:
         items: A list of dicts mapping creg names (and optionally "measurement_flips.<creg>")
@@ -42,7 +41,7 @@ def make_result(items, chunk_timing=None):
             that produces the correct number of time entries per item.
 
     Returns:
-        A stub result object with the interface expected by ExecutorCircuitGenerator.collect.
+        A stub result object with the interface expected by ``ExecutorCircuitGenerator.collect``.
     """
     # make a default chunk timing
     if chunk_timing is None:
