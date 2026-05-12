@@ -76,7 +76,7 @@ class ExecutorDataMapper:
         """List of names of the classical registers contained in the results.
 
         The list at a given index corresponds to names expected in the data of the
-        :class:`qiskit_ibm_runtime.quantum_program.results` at the same index.
+        :class:`qiskit_ibm_runtime.results.QuantumProgramResult` at the same index.
         """
         return self._creg_names
 
