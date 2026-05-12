@@ -47,26 +47,7 @@ from qiskit_noise_learning.serialization import (
     serialize_qubit_sparse_pauli_list,
 )
 
-
-def _assert_gate_sets_equal(gs1: ModelGateSet, gs2: ModelGateSet):
-    assert gs1.num_qubits == gs2.num_qubits
-    assert sorted(gs1.qubit_subset) == sorted(gs2.qubit_subset)
-    assert set(gs1.coupling_map.get_edges()) == set(gs2.coupling_map.get_edges())
-    assert set(gs1.keys()) == set(gs2.keys())
-    for name in gs1:
-        assert gs1[name].model_gate == gs2[name].model_gate
-
-
-def _assert_pauli_lindblad_models_equal(m1: PauliLindbladModel, m2: PauliLindbladModel):
-    _assert_gate_sets_equal(m1.gate_set, m2.gate_set)
-    assert m1.noise_site == m2.noise_site
-    assert set(m1.generators.keys()) == set(m2.generators.keys())
-    for name in m1.generators:
-        list1 = m1.generators[name]
-        list2 = m2.generators[name]
-        assert len(list1) == len(list2)
-        for p1, p2 in zip(list1, list2):
-            assert p1 == p2
+from .utils import assert_gate_sets_equal, assert_pauli_lindblad_models_equal
 
 
 @pytest.fixture
@@ -97,7 +78,7 @@ def test_qubit_sparse_pauli_list():
 def test_gate_set(model_gate_set):
     schema = serialize_gate_set(model_gate_set)
     restored = deserialize_gate_set(schema)
-    _assert_gate_sets_equal(model_gate_set, restored)
+    assert_gate_sets_equal(model_gate_set, restored)
 
 
 def test_instruction_apply_gate(model_gate_set):
@@ -161,4 +142,4 @@ def test_pauli_lindblad_model(model_gate_set):
     original = PauliLindbladModel(model_gate_set, generators)
     schema = serialize_pauli_lindblad_model(original)
     restored = deserialize_pauli_lindblad_model(schema, model_gate_set)
-    _assert_pauli_lindblad_models_equal(original, restored)
+    assert_pauli_lindblad_models_equal(original, restored)
