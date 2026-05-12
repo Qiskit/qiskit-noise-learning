@@ -41,7 +41,14 @@ class ModelSolve(AnalysisStage):
 
     @abstractmethod
     def _linear_solve(self, a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, dict]:
-        pass
+        """Perform the linear inversion ``a_mat \ b_vec``, somehow.
+        
+        Args:
+            a_mat: The matrix to invert by, not necessarily invertible.
+            b_vec: The vector to invert.
+            
+        Returns:
+           The inverted vector and any dictionary of metadata.
 
     def _run(self, fit: Fit):
         averaged_data = fit[AveragedData]
