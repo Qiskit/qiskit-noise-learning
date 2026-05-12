@@ -66,7 +66,8 @@ class QiskitGate(Gate):
         prep_idxs: The physical qubit indices that this gate prepares, or resets. This is included
             because explicitly using the :class:`Reset` instruction is not common.
         annotations: The annotations that describe how to implement the gate. If ``None``, this
-            defaults to Pauli twirling.
+            defaults to Pauli twirling. If no :class:`samplomatic.Tag` annotation is provided,
+            then one is added automatically whose tag name is equal to ``name``.
     """
 
     def __init__(
