@@ -102,9 +102,12 @@ class ModelSolve(AnalysisStage):
 
 
 class NNLSSolve(ModelSolve):
-    """Solves for the :class:`~.ModelData` using the [scipy's NNLS implementation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.nnls.html)
-
-    See :class:`~.ModelSolve` for more details.
+    """Solves for the :class:`~.ModelData` using SciPy's non-negative least squares solver. 
+    
+    See SciPy's 
+    [documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.nnls.html) 
+    for details on the method. See :class:`~.ModelSolve` for more details about the general 
+    responsibility of a model solver in this library.
     """
 
     def _linear_solve(self, a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, dict]:
