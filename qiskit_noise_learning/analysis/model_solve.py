@@ -116,7 +116,7 @@ class NNLSSolve(ModelSolve):
 
 
 class LSQLinearSolve(ModelSolve):
-    """Solves for the :class:`~.ModelData` using the [scipy's least squares linear implementation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.lsq_linear.html#scipy.optimize.lsq_linear)
+    """Solves for the :class:`~.ModelData` using :func:`~scipy.optimize.lsq_linear`.
 
     See :class:`~.ModelSolve` for more details.
     """
