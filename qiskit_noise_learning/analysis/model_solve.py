@@ -15,7 +15,6 @@ from typing import Any
 
 import numpy as np
 import scipy.optimize as opt
-from pydantic import BaseModel
 
 from qiskit_noise_learning.analysis import AnalysisStage, Fit
 from qiskit_noise_learning.data import AveragedData, ModelData
@@ -23,7 +22,7 @@ from qiskit_noise_learning.data.xarray_utils import time_bound
 from qiskit_noise_learning.math import IndexedMatrix
 
 
-class ModelSolve(AnalysisStage, BaseModel):
+class ModelSolve(AnalysisStage):
     """Base class for finding model parameters.
 
     Constructs the multiplicative design matrix from the :class:`~.FidelityModel` stored on the
