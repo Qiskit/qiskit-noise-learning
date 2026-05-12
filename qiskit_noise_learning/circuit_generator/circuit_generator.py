@@ -62,8 +62,8 @@ class CircuitGenerator(abc.ABC, Generic[TaskT, DataMapperT, ResultT]):
 
     @abc.abstractmethod
     def generate(
-        self, experiment_builder: ExperimentBuilder, depths: list[int]
-    ) -> tuple[TaskT, DataMapperT]:
+        self, experiment_builder: ExperimentBuilder, depths: list[int], shots: int
+    ) -> TaskT:
         """Generate a new experimental task from an experiment builder and depths."""
 
     @classmethod

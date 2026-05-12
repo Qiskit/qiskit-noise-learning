@@ -18,7 +18,7 @@ import numpy as np
 import xarray as xr
 from qiskit.circuit import BoxOp, CircuitInstruction, ClassicalRegister, QuantumCircuit
 from qiskit.transpiler import PassManager
-from qiskit_ibm_runtime.quantum_program import QuantumProgramResult
+from qiskit_ibm_runtime.quantum_program import QuantumProgram, QuantumProgramResult
 from qiskit_ibm_runtime.quantum_program.quantum_program import SamplexItem
 from samplomatic import build
 from samplomatic.annotations import InjectLocalClifford, Tag, Twirl
@@ -37,7 +37,7 @@ TO_SAMPLOMATIC_C1 = np.array([0, 7, 9, 13, 18, 22], dtype=np.uint8)
 
 
 class ExecutorCircuitGenerator(
-    CircuitGenerator[list[SamplexItem], ExecutorDataMapper, QuantumProgramResult]
+    CircuitGenerator[QuantumProgram, ExecutorDataMapper, QuantumProgramResult]
 ):
     """A circuit generator that converts sequences of Qiskit gates into a samplex items.
 
@@ -180,6 +180,30 @@ class ExecutorCircuitGenerator(
         return fit
 
     def generate(
+        self,
+        experiment_builder: ExperimentBuilder,
+        depths: list[int],
+        shots: int,
+    ) -> QuantumProgram:
+        """Generate a :class:`~.QuantumProgram` from an :class:`ExperimentBuilder`.
+
+        The returned program embeds a serialized :class:`~.ExecutorDataMapper` in its
+        ``passthrough_data``, enabling :meth:`collect` to reconstruct the data mapper from the
+        result without needing it passed separately.
+
+        Args:
+            experiment_builder: The experiment builder describing the experiments.
+            depths: The depths to generate instruction sequences for.
+            shots: The number of shots per randomization.
+
+        Returns:
+            A :class:`~.QuantumProgram` with embedded passthrough data.
+        """
+        samplex_items, data_mapper = self.generate_samplex_items(experiment_builder, depths)
+        passthrough_data = data_mapper.to_data_mapper_model().to_passthrough_data()
+        return QuantumProgram(shots=shots, items=samplex_items, passthrough_data=passthrough_data)
+
+    def generate_samplex_items(
         self,
         experiment_builder: ExperimentBuilder,
         depths: list[int],
