@@ -42,13 +42,14 @@ class ModelSolve(AnalysisStage):
     @abstractmethod
     def _linear_solve(self, a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, dict]:
         """Perform the linear inversion ``a_mat \ b_vec``, somehow.
-        
+
         Args:
             a_mat: The matrix to invert by, not necessarily invertible.
             b_vec: The vector to invert.
-            
+
         Returns:
            The inverted vector and any dictionary of metadata.
+        """
 
     def _run(self, fit: Fit):
         averaged_data = fit[AveragedData]
@@ -109,11 +110,11 @@ class ModelSolve(AnalysisStage):
 
 
 class NNLSSolve(ModelSolve):
-    """Solves for the :class:`~.ModelData` using SciPy's non-negative least squares solver. 
-    
-    See SciPy's 
-    [documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.nnls.html) 
-    for details on the method. See :class:`~.ModelSolve` for more details about the general 
+    """Solves for the :class:`~.ModelData` using SciPy's non-negative least squares solver.
+
+    See SciPy's
+    [documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.nnls.html)
+    for details on the method. See :class:`~.ModelSolve` for more details about the general
     responsibility of a model solver in this library.
     Args:
         max_iter: The maximum number of iterations, passed on to the SciPy solver.
@@ -123,16 +124,16 @@ class NNLSSolve(ModelSolve):
         self.max_iter = max_iter
 
     def _linear_solve(self, a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, dict]:
-        x, residual = opt.nnls(a_mat, b_vec, max_iter=self.max_iter)
+        x, residual = opt.nnls(a_mat, b_vec, maxiter=self.max_iter)
         return x, {"residual": residual}
 
 
 class LSQLinearSolve(ModelSolve):
-    """Solves for the :class:`~.ModelData` using SciPy's linear least squares solver. 
-    
-    See SciPy's 
-    [documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.lsq_linear.html) 
-    for details on the method. See :class:`~.ModelSolve` for more details about the general 
+    """Solves for the :class:`~.ModelData` using SciPy's linear least squares solver.
+
+    See SciPy's
+    [documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.lsq_linear.html)
+    for details on the method. See :class:`~.ModelSolve` for more details about the general
     responsibility of a model solver in this library.
     """
 
@@ -147,11 +148,4 @@ class LSQLinearSolve(ModelSolve):
             b_vec,
             **self.linear_solve_options,
         )
-    Args:
-        bounds: ...
-    """
-
-    def __init__(
-        self,
-        bounds: tuple[float, float] = ...
-
+        return opt_res.x, {"opt_res": opt_res}
