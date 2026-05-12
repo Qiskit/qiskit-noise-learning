@@ -28,7 +28,7 @@ class ModelSolve(AnalysisStage, BaseModel):
 
     Constructs the multiplicative design matrix from the :class:`~.FidelityModel` stored on the
     :class:`~.Fit` container and the path pattern keys in the :class:`~.AveragedData` (depth==-1
-    entries). Then solves ``A @ x = b`` using an arbitrary method, where ``A`` is the
+    entries). Then solves ``A @ x = b`` using a specified method, where ``A`` is the
     design matrix and ``b`` is the vector of decay rates ``-log(f)``.
     """
 
