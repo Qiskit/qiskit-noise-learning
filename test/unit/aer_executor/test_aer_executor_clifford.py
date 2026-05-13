@@ -357,7 +357,7 @@ def test_rx_decomposition_without_transpile(stabilizer_simulator):
     program = QuantumProgram(shots=shots)
     program.append_circuit_item(qc)
 
-    result = AerExecutor(stabilizer_simulator).run(program).result()
+    result = AerExecutor(stabilizer_simulator, decompose_rx=True).run(program).result()
 
     assert len(result) == 1
     item_data = result[0]
@@ -387,7 +387,7 @@ def test_rx_parameterized_decomposition_without_transpile(stabilizer_simulator):
     program = QuantumProgram(shots=shots)
     program.append_circuit_item(qc, circuit_arguments=circuit_arguments)
 
-    result = AerExecutor(stabilizer_simulator).run(program).result()
+    result = AerExecutor(stabilizer_simulator, decompose_rx=True).run(program).result()
 
     assert len(result) == 1
     item_data = result[0]

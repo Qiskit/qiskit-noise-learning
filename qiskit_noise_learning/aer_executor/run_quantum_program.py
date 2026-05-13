@@ -68,6 +68,7 @@ def run_quantum_program(
     program: QuantumProgram,
     noise_dict: dict[str, PauliLindbladMap] | None = None,
     angle_decimals: int = 5,
+    decompose_rx: bool = False,
 ) -> QuantumProgramResult:
     """Run a quantum program on a simulator.
 
@@ -76,6 +77,8 @@ def run_quantum_program(
         program: The program to run.
         noise_dict: A map from barrier label refs to noise maps.
         angle_decimals: How accurately to resolve angles.
+        decompose_rx: Whether to decompose ``rx`` gates into the stabilizer
+            basis (``h``, ``rz``) before simulation.
 
     Returns:
         Results of simulation.
@@ -88,7 +91,7 @@ def run_quantum_program(
 
     for prog_item in program.items:
         passes = []
-        if qasm_simulator.options.method == "stabilizer" and "rx" in prog_item.circuit.count_ops():
+        if decompose_rx and "rx" in prog_item.circuit.count_ops():
             passes.append(BasisTranslator(SessionEquivalenceLibrary, _STABILIZER_BASIS_GATES))
         if noise_dict is not None:
             passes.append(InsertNoisePass(noise_dict=noise_dict))

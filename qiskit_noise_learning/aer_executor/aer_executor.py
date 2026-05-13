@@ -33,6 +33,8 @@ class AerRuntimeJob:
         program: The quantum program to execute.
         noise_dict: A map from barrier label refs to Pauli-Lindblad noise maps.
         angle_decimals: Rounding precision for gate angles (in units of π/2).
+        decompose_rx: Whether to decompose ``rx`` gates into the stabilizer
+            basis (``h``, ``rz``) before simulation.
     """
 
     def __init__(
@@ -41,11 +43,13 @@ class AerRuntimeJob:
         program: QuantumProgram,
         noise_dict: dict[str, PauliLindbladMap] | None = None,
         angle_decimals: int = 5,
+        decompose_rx: bool = False,
     ):
         self._qasm_simulator = qasm_simulator
         self._program = program
         self._noise_dict = noise_dict
         self._angle_decimals = angle_decimals
+        self._decompose_rx = decompose_rx
         self._job_id: str = str(uuid.uuid4())
         self.tags: list[str] = []
 
@@ -54,6 +58,7 @@ class AerRuntimeJob:
             program=self._program,
             noise_dict=self._noise_dict,
             angle_decimals=self._angle_decimals,
+            decompose_rx=self._decompose_rx,
         )
 
     def job_id(self) -> str:
@@ -80,6 +85,9 @@ class AerExecutor:
         qasm_simulator: The Aer simulator to run programs on.
         noise_dict: A map from barrier label refs to Pauli-Lindblad noise maps.
         angle_decimals: Rounding precision for gate angles (in units of π/2).
+        decompose_rx: Whether to decompose ``rx`` gates into the stabilizer
+            basis (``h``, ``rz``) before simulation. Useful when running on
+            a stabilizer simulator that does not natively support ``rx``.
     """
 
     def __init__(
@@ -87,10 +95,12 @@ class AerExecutor:
         qasm_simulator: AerSimulator,
         noise_dict: dict[str, PauliLindbladMap] | None = None,
         angle_decimals: int = 5,
+        decompose_rx: bool = False,
     ) -> None:
         self._qasm_simulator = qasm_simulator
         self._noise_dict = noise_dict
         self._angle_decimals = angle_decimals
+        self._decompose_rx = decompose_rx
 
     def run(self, program: QuantumProgram) -> AerRuntimeJob:
         """Run a quantum program and return a completed job.
@@ -106,4 +116,5 @@ class AerExecutor:
             program=program,
             noise_dict=self._noise_dict,
             angle_decimals=self._angle_decimals,
+            decompose_rx=self._decompose_rx,
         )
