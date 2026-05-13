@@ -2,13 +2,15 @@
 
 A Python toolkit for randomization-based quantum noise characterization.
 
+> **Alpha software.** This library is unversioned and under active development. Interfaces are unstable and may change without notice between commits. All users not directly involved in active development and testing should be cautious, though all feedback is appreciated.
+
 ## Installation
 
 ```bash
 pip install .
 ```
 
-Include development dependencies with `[dev]` and visualizaton dependencies with `[vis]`:
+Include development dependencies with `[dev]` and visualization dependencies with `[vis]`:
 
 ```bash
 pip install -e ".[dev,vis]"
@@ -19,9 +21,9 @@ pre-commit install
 ## Interfaces and Documentation
 
 This library has two levels of interface.
-The first is the low-level interface where the user interacts with many concepts and objects that this library implements.
+The first is the low-level interface where the user directly interacts with many concepts and objects that this library implements.
 This allows them full control over every aspect of noise learning.
-The second is a higher-levl interface that wraps a stock workflow into an easy-to-use `NoiseLearner` object.
+The second is a higher-level interface that wraps a stock workflow into an easy-to-use `NoiseLearner` object.
 You can see both demonstrated in the following notebooks:
 
 - [`docs/noise_learner_demo.ipynb`](docs/noise_learner_demo.ipynb) — end-to-end use of `NoiseLearner`
