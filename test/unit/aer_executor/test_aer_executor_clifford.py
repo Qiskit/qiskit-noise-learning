@@ -338,3 +338,63 @@ def test_samplex_item_with_broadcast_sweep(fez_backend, stabilizer_simulator, an
 
     # theta=π, phi=π: CX|10⟩ = |11⟩, X on q1 → |10⟩
     assert_correct({"c": np.array([True, False])}, sweep_slice(1, 1))
+
+
+def test_rx_decomposition_without_transpile(stabilizer_simulator):
+    """RX gates are automatically decomposed to the stabilizer basis.
+
+    Submits a circuit with raw RX gates directly to the stabilizer simulator
+    without pre-transpiling to a backend basis, exercising the internal
+    BasisTranslator pass that converts RX(θ) to H-RZ(θ)-H.
+    """
+    shots = 128
+
+    qc = QuantumCircuit(2, 2)
+    qc.rx(np.pi, 0)  # flips qubit 0
+    qc.rx(0, 1)  # identity on qubit 1
+    qc.measure([0, 1], [0, 1])
+
+    program = QuantumProgram(shots=shots)
+    program.append_circuit_item(qc)
+
+    result = AerExecutor(stabilizer_simulator).run(program).result()
+
+    assert len(result) == 1
+    item_data = result[0]
+
+    # RX(π)|0⟩ → |1⟩, RX(0)|0⟩ → |0⟩; LSB-first: bit0=True, bit1=False
+    assert item_data["c"].shape == (shots, 2)
+    assert (item_data["c"][:, 0] == True).all()  # noqa: E712
+    assert (item_data["c"][:, 1] == False).all()  # noqa: E712
+
+
+def test_rx_parameterized_decomposition_without_transpile(stabilizer_simulator):
+    """Parameterized RX gates are decomposed correctly without pre-transpilation.
+
+    Submits a circuit with RX(theta) where theta is a Parameter, bound via
+    circuit_arguments. Verifies parameter binding works after BasisTranslator
+    replaces RX with H-RZ-H.
+    """
+    shots = 128
+
+    theta = Parameter("theta")
+    qc = QuantumCircuit(1, 1)
+    qc.rx(theta, 0)
+    qc.measure(0, 0)
+
+    circuit_arguments = np.array([[0.0], [np.pi]], dtype=float)
+
+    program = QuantumProgram(shots=shots)
+    program.append_circuit_item(qc, circuit_arguments=circuit_arguments)
+
+    result = AerExecutor(stabilizer_simulator).run(program).result()
+
+    assert len(result) == 1
+    item_data = result[0]
+
+    # Shape: (2, shots, 1) — two parameter configurations
+    assert item_data["c"].shape == (2, shots, 1)
+    # theta=0: |0⟩ → measures 0
+    assert (item_data["c"][0] == False).all()  # noqa: E712
+    # theta=π: |1⟩ → measures 1
+    assert (item_data["c"][1] == True).all()  # noqa: E712

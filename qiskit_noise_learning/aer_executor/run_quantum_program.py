@@ -15,10 +15,12 @@
 from copy import deepcopy
 
 import numpy as np
+from qiskit.circuit.equivalence_library import SessionEquivalenceLibrary
 from qiskit.primitives.containers.bindings_array import BindingsArray
 from qiskit.primitives.containers.sampler_pub import SamplerPub
 from qiskit.quantum_info import PauliLindbladMap
 from qiskit.transpiler import PassManager
+from qiskit.transpiler.passes import BasisTranslator
 from qiskit_aer import AerSimulator
 from qiskit_aer.primitives import SamplerV2 as AerSamplerV2
 from qiskit_ibm_runtime.quantum_program.quantum_program import (
@@ -30,6 +32,28 @@ from qiskit_ibm_runtime.results import QuantumProgramResult
 
 from .broadcast_sample import broadcast_sample
 from .insert_noise_pass import InsertNoisePass
+
+# this is the list of gates that aer's stabilizer based simulator understands, and therefore the
+# gates that we configure the transpiler not to touch when the method is stabilizer.
+_STABILIZER_BASIS_GATES = [
+    "barrier",
+    "cx",
+    "cy",
+    "cz",
+    "ecr",
+    "h",
+    "id",
+    "measure",
+    "rz",
+    "s",
+    "sdg",
+    "swap",
+    "sx",
+    "sxdg",
+    "x",
+    "y",
+    "z",
+]
 
 
 def get_aer_sampler(aer_simulator: AerSimulator) -> AerSamplerV2:
@@ -63,10 +87,12 @@ def run_quantum_program(
     metadata_list = []
 
     for prog_item in program.items:
+        passes = []
+        if qasm_simulator.options.method == "stabilizer" and "rx" in prog_item.circuit.count_ops():
+            passes.append(BasisTranslator(SessionEquivalenceLibrary, _STABILIZER_BASIS_GATES))
         if noise_dict is not None:
-            circuit = PassManager([InsertNoisePass(noise_dict=noise_dict)]).run(prog_item.circuit)
-        else:
-            circuit = prog_item.circuit
+            passes.append(InsertNoisePass(noise_dict=noise_dict))
+        circuit = PassManager(passes).run(prog_item.circuit) if passes else prog_item.circuit
 
         if isinstance(prog_item, CircuitItem):
             if prog_item.circuit_arguments is not None:
