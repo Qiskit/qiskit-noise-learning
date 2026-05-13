@@ -17,5 +17,5 @@ from .curve_fit_observables import CurveFitObservables
 from .fit import Fit
 from .flip_post_select import FlipPostSelect
 from .model_solve import LSQLinearSolve, NNLSSolve
-from .symmetrize import SymmetrizeFidelities, SymmetrizeGenerators
+from .symmetrize import SymmetrizeFidelities, SymmetrizeFidelities3, SymmetrizeGenerators
 from .zero_post_select import ZeroPostSelect
