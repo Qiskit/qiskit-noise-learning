@@ -153,9 +153,10 @@ class NoiseLearner:
         circuit_gen = ExecutorCircuitGenerator(
             gate_set, num_randomizations=self._options.num_randomizations
         )
-        return circuit_gen.generate(
-            builder, self._options.depths, self._options.shots_per_randomizations
+        experiment = builder.build(
+            depths=self._options.depths, shots=self._options.shots_per_randomizations
         )
+        return circuit_gen.generate(experiment)
 
     def _execute(self, program: QuantumProgram):
         """Submit a :class:`~.QuantumProgram` to the backend.

@@ -22,11 +22,10 @@ from ..sequences import InstructionSequence
 
 if TYPE_CHECKING:
     from ..analysis import Fit
-    from ..experiment_builder import ExperimentBuilder
+    from ..experiment_builder import Experiment
 
 TaskT = TypeVar("TaskT")
 ResultT = TypeVar("ResultT")
-DataMapperT = TypeVar("DataMapperT")
 
 
 class _StructureKey:
@@ -43,11 +42,11 @@ class _StructureKey:
         return hash(self.sequence.depth)
 
 
-class CircuitGenerator(abc.ABC, Generic[TaskT, DataMapperT, ResultT]):
-    """Generate experimental tasks from given instruction sequences.
+class CircuitGenerator(abc.ABC, Generic[TaskT, ResultT]):
+    """Generate experimental tasks from a fully-expanded :class:`.Experiment`.
 
-    In addition to generating experimental tasks, this class also provides an interface to designate
-    data, that is, to convert the results from tasks to the standard results.
+    In addition to generating experimental tasks, this class also provides an interface to collect
+    results, that is, to convert the results from tasks to the standard :class:`.Fit` form.
     """
 
     @property
@@ -57,14 +56,12 @@ class CircuitGenerator(abc.ABC, Generic[TaskT, DataMapperT, ResultT]):
 
     @staticmethod
     @abc.abstractmethod
-    def collect(result: ResultT, data_mapper: DataMapperT | None = None) -> Fit:
-        """Coerce data from a specific execution framework into a canonical form."""
+    def collect(result: ResultT) -> Fit:
+        """Coerce data from a specific execution framework into a canonical :class:`.Fit`."""
 
     @abc.abstractmethod
-    def generate(
-        self, experiment_builder: ExperimentBuilder, depths: list[int], shots: int
-    ) -> TaskT:
-        """Generate a new experimental task from an experiment builder and depths."""
+    def generate(self, experiment: Experiment) -> TaskT:
+        """Generate a new experimental task from a fully-expanded experiment."""
 
     @classmethod
     def partition(cls, sequences: Sequence[InstructionSequence]) -> list[list[InstructionSequence]]:

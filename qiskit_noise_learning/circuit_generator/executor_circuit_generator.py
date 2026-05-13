@@ -26,8 +26,9 @@ from samplomatic.annotations import InjectLocalClifford, Tag, Twirl
 from qiskit_noise_learning.analysis import Fit
 from qiskit_noise_learning.data import RawData
 
-from ..experiment_builder import ExperimentBuilder
+from ..experiment_builder import Experiment
 from ..gate_sets import QiskitGateSet
+from ..models import FidelityModel
 from ..sequences import ApplyGate, InstructionSequence, PartialPauliPermutation, Path
 from .circuit_generator import CircuitGenerator
 from .executor_data_mapper import ExecutorDataMapper
@@ -36,9 +37,7 @@ TO_SAMPLOMATIC_C1 = np.array([0, 7, 9, 13, 18, 22], dtype=np.uint8)
 """An array elements of :const:`~C1_TO_TABLEAU` to corresponding value in samplomatic."""
 
 
-class ExecutorCircuitGenerator(
-    CircuitGenerator[QuantumProgram, ExecutorDataMapper, QuantumProgramResult]
-):
+class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramResult]):
     """A circuit generator that converts sequences of Qiskit gates into a samplex items.
 
     Args:
@@ -71,19 +70,17 @@ class ExecutorCircuitGenerator(
         return self._gate_set
 
     @staticmethod
-    def collect(result, data_mapper: ExecutorDataMapper | None = None) -> Fit:
+    def collect(result: QuantumProgramResult) -> Fit:
         """Collect results into a :class:`~.Fit` object.
 
         Args:
-            result: The :class:`~.QuantumProgramResult`.
-            data_mapper: The data mapper. If ``None``, it is deserialized from
-                ``result.passthrough_data``.
+            result: The :class:`~.QuantumProgramResult`. Must have ``passthrough_data``
+                containing a serialized :class:`~.ExecutorDataMapper`.
 
         Returns:
-            A :class:`~.Fit` populated with raw data, and optionally the model and paths.
+            A :class:`~.Fit` populated with raw data, model, and paths.
         """
-        if data_mapper is None:
-            data_mapper = ExecutorDataMapper.from_passthrough_data(result.passthrough_data)
+        data_mapper = ExecutorDataMapper.from_passthrough_data(result.passthrough_data)
 
         # extract time bounds on a program item basis
         if hasattr(result.metadata, "chunk_timing"):
@@ -179,52 +176,44 @@ class ExecutorCircuitGenerator(
         fit[RawData] = raw_data
         return fit
 
-    def generate(
-        self,
-        experiment_builder: ExperimentBuilder,
-        depths: list[int],
-        shots: int,
-    ) -> QuantumProgram:
-        """Generate a :class:`~.QuantumProgram` from an :class:`ExperimentBuilder`.
+    def generate(self, experiment: Experiment) -> QuantumProgram:
+        """Generate a :class:`~.QuantumProgram` from an :class:`.Experiment`.
 
         The returned program embeds a serialized :class:`~.ExecutorDataMapper` in its
         ``passthrough_data``, enabling :meth:`collect` to reconstruct the data mapper from the
         result without needing it passed separately.
 
         Args:
-            experiment_builder: The experiment builder describing the experiments.
-            depths: The depths to generate instruction sequences for.
-            shots: The number of shots per randomization.
+            experiment: The fully-expanded experiment to generate circuits for.
 
         Returns:
             A :class:`~.QuantumProgram` with embedded passthrough data.
         """
-        samplex_items, data_mapper = self.generate_samplex_items(experiment_builder, depths)
+        samplex_items, data_mapper = self.generate_samplex_items(
+            experiment.sequences, experiment.paths, experiment.fidelity_model
+        )
         passthrough_data = data_mapper.to_data_mapper_model().to_passthrough_data()
-        return QuantumProgram(shots=shots, items=samplex_items, passthrough_data=passthrough_data)
+        return QuantumProgram(
+            shots=experiment.shots, items=samplex_items, passthrough_data=passthrough_data
+        )
 
     def generate_samplex_items(
         self,
-        experiment_builder: ExperimentBuilder,
-        depths: list[int],
+        sequences: list[InstructionSequence],
+        paths: list[Path],
+        fidelity_model: FidelityModel | None = None,
     ) -> tuple[list[SamplexItem], ExecutorDataMapper]:
-        """Generate samplex items from an experiment builder.
+        """Generate samplex items from instruction sequences.
 
         Args:
-            experiment_builder: The experiment builder describing the experiments.
-            depths: The depths to generate instruction sequences for.
+            sequences: The instruction sequences to generate circuits for.
+            paths: The analysis paths associated with the sequences.
+            fidelity_model: The fidelity model associated with the data.
 
         Returns:
             A tuple of samplex items and an :class:`ExecutorDataMapper` containing the data
             mapper, fidelity model, and analysis paths.
         """
-        sequences = experiment_builder.generate_instruction_sequences(depths=depths)
-
-        paths = [Path(p, d) for p in experiment_builder.path_patterns for d in depths]
-        paths.extend(experiment_builder.paths)
-
-        fidelity_model = experiment_builder.fidelity_model
-
         samplex_items = []
         item_sequence_indices = []
         creg_names = []
