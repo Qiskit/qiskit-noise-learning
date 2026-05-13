@@ -11,7 +11,6 @@
 # that they have been altered from the originals.
 
 from abc import abstractmethod
-from typing import Any
 
 import numpy as np
 import scipy.optimize as opt
