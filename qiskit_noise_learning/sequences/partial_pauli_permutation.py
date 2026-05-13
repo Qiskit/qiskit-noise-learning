@@ -670,11 +670,33 @@ class PartialPauliPermutation(Instruction):
     def __repr__(self):
         s = "PartialPauliPermutation(\n"
         s += f"    num_qubits={self.num_qubits}\n"
+        identity_indices = []
         for qubit_idx, single_set in enumerate(self.to_sets()):
             if len(single_set) > 0:
                 input, output = zip(*single_set, strict=True)
                 if input != output:
                     s += f"    {qubit_idx}: "
                     s += "".join(input) + " -> " + "".join(output) + "\n"
-        s += ")"
+                else:
+                    identity_indices.append(qubit_idx)
+        s += f")\nidentity indices: {identity_indices}"
+        return s
+    
+    def __str__(self):
+        s = "PartialPauliPermutation(\n"
+        s += f"    num_qubits={self.num_qubits}\n"
+        identity_indices = []
+        for qubit_idx, single_set in enumerate(self.to_sets()):
+            if len(single_set) > 0:
+                input, output = zip(*single_set, strict=True)
+                if input != output:
+                    s += f"    {qubit_idx}: "
+                    s += "".join(input) + " -> " + "".join(output) + "\n"
+                else:
+                    identity_indices.append(qubit_idx)
+        s += f")\nidentity indices: "
+        if len(identity_indices) <= 20:
+            s += str(identity_indices)
+        else:
+            s += str(identity_indices[:3])[:-1] + ', ..., ' + str(identity_indices[-3:])[1:]
         return s
