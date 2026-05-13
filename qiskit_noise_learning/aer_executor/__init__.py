@@ -13,3 +13,4 @@
 """Aer-based local executor for QuantumProgram objects."""
 
 from .aer_executor import AerExecutor, AerRuntimeJob
+from .inline import inline_samplexes
