@@ -21,8 +21,7 @@ pre-commit install
 ## Interfaces and Documentation
 
 This library has two levels of interface.
-The first is the low-level interface where the user directly interacts with many concepts and objects that this library implements.
-This allows them full control over every aspect of noise learning.
+The first is the low-level interface where the user directly interacts with objects representing core concepts in noise learning, enabling custom design of every aspect of a noise learning protocol.
 The second is a higher-level interface that wraps a stock workflow into an easy-to-use `NoiseLearner` object.
 You can see both demonstrated in the following notebooks:
 
