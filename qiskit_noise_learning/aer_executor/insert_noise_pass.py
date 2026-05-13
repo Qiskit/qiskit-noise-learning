@@ -104,6 +104,9 @@ class InsertNoisePass(TransformationPass):
                 )
             return None
 
+        if len(pauli_lindblad_map) == 0:
+            return None
+
         pauli_lindblad_error = PauliLindbladError(
             generators=pauli_lindblad_map.generators().to_pauli_list(),
             rates=self._noise_scale * pauli_lindblad_map.rates,
