@@ -62,9 +62,9 @@ def param_samplex_item(fez_backend):
     transpiled = pm.run(qc)
     template_circuit, samplex = build(transpiled)
     # parameters sorted alphabetically: [phi, theta]
-    param_values = np.array(
-        [[[0.0, 0.0], [np.pi, 0.0]], [[0.0, np.pi], [np.pi, np.pi]]]
-    ).reshape((2, 2, 1, 2))
+    param_values = np.array([[[0.0, 0.0], [np.pi, 0.0]], [[0.0, np.pi], [np.pi, np.pi]]]).reshape(
+        (2, 2, 1, 2)
+    )
     program = QuantumProgram(shots=64)
     program.append_samplex_item(
         template_circuit,
@@ -155,9 +155,7 @@ def test_resolve_roundtrip_cx_correct(cx_samplex_item, stabilizer_simulator):
     for name, arr in result[0].items():
         flips = passthrough.get(f"measurement_flips.{name}")
         corrected = arr ^ flips if flips is not None else arr
-        assert (
-            corrected == False
-        ).all(), (  # noqa: E712
+        assert (corrected == False).all(), (  # noqa: E712
             f"CX|00⟩ should yield all-zero bits for '{name}' after flip correction"
         )
 
@@ -308,9 +306,7 @@ def test_inline_samplexes_merges_existing_passthrough_data(fez_backend):
 
     assert "inlined" in result.passthrough_data
     assert "my_data" in result.passthrough_data
-    np.testing.assert_array_equal(
-        result.passthrough_data["my_data"], pre_existing["my_data"]
-    )
+    np.testing.assert_array_equal(result.passthrough_data["my_data"], pre_existing["my_data"])
 
 
 def test_inline_samplexes_roundtrip(cx_program, stabilizer_simulator):
@@ -323,8 +319,6 @@ def test_inline_samplexes_roundtrip(cx_program, stabilizer_simulator):
     for name, arr in result[0].items():
         flips = passthrough.get(f"measurement_flips.{name}")
         corrected = arr ^ flips if flips is not None else arr
-        assert (
-            corrected == False
-        ).all(), (  # noqa: E712
+        assert (corrected == False).all(), (  # noqa: E712
             f"CX|00⟩ should yield all-zero bits for '{name}' after flip correction"
         )
