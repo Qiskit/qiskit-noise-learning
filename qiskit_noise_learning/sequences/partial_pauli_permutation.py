@@ -694,7 +694,7 @@ class PartialPauliPermutation(Instruction):
                     s += "".join(input) + " -> " + "".join(output) + "\n"
                 else:
                     identity_indices.append(qubit_idx)
-        
+
         if len(identity_indices) <= 20:
             s += f")\nidentity indices: {identity_indices}"
         else:
