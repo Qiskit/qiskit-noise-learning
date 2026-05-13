@@ -200,9 +200,8 @@ def test_covariance_constrained_params(solver):
     assert np.allclose(cov.sel(parameter_col="r1").values, 0.0)
 
 
-@pytest.mark.parametrize("solver", [NNLSSolve()])
-def test_metadata_contains_residual(solver):
-    """Test that metadata contains the residual."""
+def test_metadata_contains_residual():
+    """Test that metadata contains the NNLS residual."""
     pp = "pp0"
 
     decay_data = _make_decay_data({pp: 0.8})
@@ -210,6 +209,6 @@ def test_metadata_contains_residual(solver):
 
     fit = Fit(model=model)
     fit[AveragedData] = decay_data
-    result = solver.run(fit)
+    result = NNLSSolve().run(fit)
 
     assert "residual" in result.model_data.metadata
