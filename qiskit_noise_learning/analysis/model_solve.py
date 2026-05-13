@@ -116,11 +116,12 @@ class NNLSSolve(ModelSolve):
     [documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.nnls.html)
     for details on the method. See :class:`~.ModelSolve` for more details about the general
     responsibility of a model solver in this library.
+
     Args:
-        nnls_opts: The options passed on to the SciPy solver.
+        **nnls_opts: The options passed on to the SciPy solver.
     """
 
-    def __init__(self, nnls_opts: dict[str, Any] = {}):
+    def __init__(self, **nnls_opts):
         self.nnls_opts = nnls_opts
 
     def _linear_solve(self, a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, dict]:
@@ -135,14 +136,12 @@ class LSQLinearSolve(ModelSolve):
     [documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.lsq_linear.html)
     for details on the method. See :class:`~.ModelSolve` for more details about the general
     responsibility of a model solver in this library.
+
     Args:
-        lsq_linear_opts: The options passed on to the SciPy solver.
+        **lsq_linear_opts: The options passed on to the SciPy solver.
     """
 
-    def __init__(
-        self,
-        lsq_linear_opts: dict[str, Any] = {},
-    ) -> None:
+    def __init__(self, **lsq_linear_opts):
         self.lsq_linear_opts = lsq_linear_opts
 
         self.lsq_linear_opts["bounds"] = self.lsq_linear_opts.get("bounds", (0, np.inf))
