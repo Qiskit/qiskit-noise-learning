@@ -679,7 +679,8 @@ class PartialPauliPermutation(Instruction):
                     s += "".join(input) + " -> " + "".join(output) + "\n"
                 else:
                     identity_indices.append(qubit_idx)
-        s += f")\nidentity indices: {identity_indices}"
+        s += f"identity indices: {identity_indices}\n"
+        s += ")"
         return s
 
     def __str__(self):
@@ -695,8 +696,9 @@ class PartialPauliPermutation(Instruction):
                 else:
                     identity_indices.append(qubit_idx)
         if len(identity_indices) <= 20:
-            s += f")\nidentity indices: {identity_indices}"
+            s += f"identity indices: {identity_indices}\n"
         else:
-            s += ")\nidentity indices: "
-            s += str(identity_indices[:3])[:-1] + ", ..., " + str(identity_indices[-3:])[1:]
+            s += "identity indices: "
+            s += str(identity_indices[:3])[:-1] + ", ..., " + str(identity_indices[-3:])[1:] + "\n"
+        s += ")"
         return s
