@@ -10,6 +10,8 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
+from abc import abstractmethod
+
 import numpy as np
 import scipy.optimize as opt
 
@@ -19,12 +21,12 @@ from qiskit_noise_learning.data.xarray_utils import time_bound
 from qiskit_noise_learning.math import IndexedMatrix
 
 
-class NNLSSolve(AnalysisStage):
-    """Solve for model parameters using non-negative least squares.
+class ModelSolve(AnalysisStage):
+    """Base class for finding model parameters.
 
     Constructs the multiplicative design matrix from the :class:`~.FidelityModel` stored on the
     :class:`~.Fit` container and the path pattern keys in the :class:`~.AveragedData` (depth==-1
-    entries). Then solves ``A @ x = b`` using non-negative least squares, where ``A`` is the
+    entries). Then solves ``A @ x = b`` using a specified method, where ``A`` is the
     design matrix and ``b`` is the vector of decay rates ``-log(f)``.
     """
 
@@ -36,9 +38,17 @@ class NNLSSolve(AnalysisStage):
     def output_level(self):
         return ModelData
 
+    @abstractmethod
     def _linear_solve(self, a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, dict]:
-        x, residual = opt.nnls(a_mat, b_vec)
-        return x, {"residual": residual}
+        """Perform the linear inversion ``a_mat \\ b_vec``, somehow.
+
+        Args:
+            a_mat: The matrix to invert by, not necessarily invertible.
+            b_vec: The vector to invert.
+
+        Returns:
+           The inverted vector and any dictionary of metadata.
+        """
 
     def _run(self, fit: Fit):
         averaged_data = fit[AveragedData]
@@ -96,3 +106,50 @@ class NNLSSolve(AnalysisStage):
             time_ubs=np.full(len(x), time_ub, dtype="datetime64[us]"),
             metadata=metadata,
         )
+
+
+class NNLSSolve(ModelSolve):
+    """Solves for the :class:`~.ModelData` using SciPy's non-negative least squares solver.
+
+    See SciPy's
+    [documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.nnls.html)
+    for details on the method. See :class:`~.ModelSolve` for more details about the general
+    responsibility of a model solver in this library.
+
+    Args:
+        **nnls_opts: The options passed on to the SciPy solver.
+    """
+
+    def __init__(self, **nnls_opts):
+        self.nnls_opts = nnls_opts
+
+    def _linear_solve(self, a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, dict]:
+        x, residual = opt.nnls(a_mat, b_vec, **self.nnls_opts)
+        return x, {"residual": residual}
+
+
+class LSQLinearSolve(ModelSolve):
+    """Solves for the :class:`~.ModelData` using SciPy's linear least squares solver.
+
+    See SciPy's
+    [documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.lsq_linear.html)
+    for details on the method. See :class:`~.ModelSolve` for more details about the general
+    responsibility of a model solver in this library.
+
+    Args:
+        **lsq_linear_opts: The options passed on to the SciPy solver.
+    """
+
+    def __init__(self, **lsq_linear_opts):
+        self.lsq_linear_opts = lsq_linear_opts
+
+        self.lsq_linear_opts["bounds"] = self.lsq_linear_opts.get("bounds", (0, np.inf))
+        self.lsq_linear_opts["method"] = self.lsq_linear_opts.get("method", "bvls")
+
+    def _linear_solve(self, a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, dict]:
+        opt_res = opt.lsq_linear(
+            a_mat,
+            b_vec,
+            **self.lsq_linear_opts,
+        )
+        return opt_res.x, {"opt_res": opt_res}
