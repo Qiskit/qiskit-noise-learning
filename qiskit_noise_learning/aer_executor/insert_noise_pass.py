@@ -96,6 +96,9 @@ class InsertNoisePass(TransformationPass):
                 f"Noise not found for {noise_key}, expecting one of: {self._noise_dict.keys()}"
             )
 
+        if len(pauli_lindblad_map) == 0:
+            return None
+
         qspl = QubitSparsePauliList.from_sparse_list(
             [(p, supp) for p, supp, _ in pauli_lindblad_map.to_sparse_list()],
             num_qubits=pauli_lindblad_map.num_qubits,
