@@ -22,7 +22,10 @@ from samplomatic.builders.build import build
 from samplomatic.transpiler import generate_boxing_pass_manager
 
 from qiskit_noise_learning.aer_executor import AerExecutor
-from qiskit_noise_learning.aer_executor.inline import inline_samplex_item, inline_samplexes
+from qiskit_noise_learning.aer_executor.inline import (
+    inline_samplex_item,
+    inline_samplexes,
+)
 
 
 @pytest.fixture
@@ -281,6 +284,29 @@ def test_inline_samplexes_preserves_program_fields(cx_program):
     assert result.shots == cx_program.shots
     assert result.noise_maps == cx_program.noise_maps
     assert result.meas_level == cx_program.meas_level
+
+
+def test_inline_samplexes_merges_existing_passthrough_data(fez_backend):
+    """When ```program.passthrough_data``` is already a dict, inlined data is merged into it."""
+    qc = QuantumCircuit(2, 2)
+    qc.cx(0, 1)
+    qc.measure([0, 1], [0, 1])
+    pm = generate_preset_pass_manager(
+        backend=fez_backend, initial_layout=[17, 27], optimization_level=0
+    )
+    pm.post_scheduling = generate_boxing_pass_manager()
+    transpiled = pm.run(qc)
+    template_circuit, samplex = build(transpiled)
+
+    pre_existing = {"my_data": np.array([1, 2, 3])}
+    program = QuantumProgram(shots=64, passthrough_data=pre_existing)
+    program.append_samplex_item(template_circuit, samplex=samplex, shape=(2,))
+
+    result = inline_samplexes(program, rng=np.random.default_rng(0))
+
+    assert "inlined" in result.passthrough_data
+    assert "my_data" in result.passthrough_data
+    np.testing.assert_array_equal(result.passthrough_data["my_data"], pre_existing["my_data"])
 
 
 def test_inline_samplexes_roundtrip(cx_program, stabilizer_simulator):

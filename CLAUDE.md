@@ -30,6 +30,11 @@ Tests include doctests (`--doctest-modules` is set in `pyproject.toml`).
 - Rules: pycodestyle (E), pyflakes (F), isort (I), private member access (SLF), pyupgrade (UP)
 - All files (except `docs/`) must have the IBM copyright header — see `tools/verify_headers.py`
 - Constructor (`__init__`) parameters are documented in the **class docstring**, not in a separate `__init__` docstring.
+- Never write tests for private methods or functions; test behavior through the public API only.
+- In docstrings, refer to classes and functions either as prose ("the Aer executor") or with a
+  Sphinx cross-reference (`:class:`~.AerExecutor``).  Use bare backtick-quoted names
+  (``AerExecutor``) only when the docstring is known never to be rendered by Sphinx (e.g.
+  internal helpers, test code).
 
 ## CI
 

@@ -13,11 +13,12 @@
 """Transpiler pass that inserts Pauli-Lindblad noise after labeled barriers."""
 
 import re
+import warnings
 
 from qiskit import QuantumCircuit
 from qiskit.converters import circuit_to_dag
 from qiskit.dagcircuit import DAGCircuit, DAGOpNode
-from qiskit.quantum_info import PauliLindbladMap, QubitSparsePauliList
+from qiskit.quantum_info import PauliLindbladMap
 from qiskit.transpiler import TransformationPass
 from qiskit_aer.noise import PauliLindbladError
 
@@ -34,6 +35,8 @@ class InsertNoisePass(TransformationPass):
             perform a no-op (no noise is inserted).
         noise_after: If ``True`` (default), insert noise after the barrier; otherwise before.
         noise_scale: Multiplicative scale factor applied to all noise rates.
+        warn_absent: If ``True`` (default), emit a warning when a tagged barrier's tag is not
+            found in ``noise_dict``.  Set to ``False`` to suppress these warnings.
     """
 
     def __init__(
@@ -41,34 +44,38 @@ class InsertNoisePass(TransformationPass):
         noise_dict: dict[str, PauliLindbladMap] | None,
         noise_after: bool = True,
         noise_scale: float = 1.0,
+        warn_absent: bool = True,
     ):
-        self._noise_dict = noise_dict
+        self._noise_dict = noise_dict or {}
         self._noise_after = noise_after
         self._noise_scale = noise_scale
+        self._warn_absent = warn_absent
 
         self._pattern = re.compile(r"^(?P<pos>[A-Za-z])(?P<idx>\d+)@tag=(?P<tag>.+)$")
 
         super().__init__()
 
     def run(self, dag: DAGCircuit) -> DAGCircuit:
+        if not self._noise_dict:
+            return dag
+
         for op_node in reversed(list(dag.topological_op_nodes())):
             if op_node.name != "barrier":
                 continue
 
-            _new_subdag = self._new_subdag(op_node=op_node)
-            if _new_subdag:
+            if _new_subdag := self._new_subdag(op_node=op_node):
                 dag.substitute_node_with_dag(
                     node=op_node,
                     input_dag=_new_subdag,
                 )
+
         return dag
 
     def _match_key(self, name: str) -> str | None:
-        m = self._pattern.match(name)
-        if not m:
+        if not (match_group := self._pattern.match(name)):
             return None
-        pos = m.group("pos")
-        tag = m.group("tag")
+        pos = match_group.group("pos")
+        tag = match_group.group("tag")
 
         if self._noise_after:
             if pos != "R":
@@ -80,28 +87,28 @@ class InsertNoisePass(TransformationPass):
         return tag
 
     def _new_subdag(self, op_node: DAGOpNode) -> DAGCircuit | None:
-        # op._label is a private attribute; no public API exposes barrier labels
+        # Qiskit has no public API for reading barrier labels; _label is the only option.
         if op_node.op._label is None:  # noqa: SLF001
             return None
         noise_key = self._match_key(op_node.op._label)  # noqa: SLF001
         if noise_key is None:
             return None
 
-        try:
-            if self._noise_dict is None:
-                return None
-            pauli_lindblad_map = self._noise_dict[noise_key]
-        except KeyError:
-            raise ValueError(
-                f"Noise not found for {noise_key}, expecting one of: {self._noise_dict.keys()}"
-            )
+        pauli_lindblad_map = self._noise_dict.get(noise_key)
+        if pauli_lindblad_map is None:
+            if self._noise_dict and self._warn_absent:
+                warnings.warn(
+                    f"No noise found for tag '{noise_key}'; "
+                    f"available tags: {list(self._noise_dict.keys())}",
+                    stacklevel=2,
+                )
+            return None
 
-        qspl = QubitSparsePauliList.from_sparse_list(
-            [(p, supp) for p, supp, _ in pauli_lindblad_map.to_sparse_list()],
-            num_qubits=pauli_lindblad_map.num_qubits,
-        )
+        if len(pauli_lindblad_map) == 0:
+            return None
+
         pauli_lindblad_error = PauliLindbladError(
-            generators=qspl.to_pauli_list(),
+            generators=pauli_lindblad_map.generators().to_pauli_list(),
             rates=self._noise_scale * pauli_lindblad_map.rates,
         )
 

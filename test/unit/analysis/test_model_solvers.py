@@ -20,6 +20,8 @@ from qiskit_noise_learning.sequences import Path
 
 _SOLVERS = [LSQLinearSolve(), NNLSSolve()]
 
+_SOLVERS = [LSQLinearSolve(), NNLSSolve()]
+
 
 class MockFidelityModel:
     def __init__(self, rows: dict, path_rows: dict | None = None):

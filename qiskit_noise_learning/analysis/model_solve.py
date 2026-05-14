@@ -11,7 +11,6 @@
 # that they have been altered from the originals.
 
 from abc import abstractmethod
-from typing import Any
 
 import numpy as np
 import scipy.optimize as opt
@@ -43,7 +42,7 @@ class ModelSolve(AnalysisStage):
 
     @abstractmethod
     def _linear_solve(self, a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, dict]:
-        """Perform the linear inversion ``a_mat \ b_vec``, somehow.
+        """Perform the linear inversion ``a_mat \\ b_vec``, somehow.
 
         Args:
             a_mat: The matrix to invert by, not necessarily invertible.
@@ -134,15 +133,16 @@ class NNLSSolve(ModelSolve):
     [documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.nnls.html)
     for details on the method. See :class:`~.ModelSolve` for more details about the general
     responsibility of a model solver in this library.
+
     Args:
-        max_iter: The maximum number of iterations, passed on to the SciPy solver.
+        **nnls_opts: The options passed on to the SciPy solver.
     """
 
-    def __init__(self, max_iter: int | None = None):
-        self.max_iter = max_iter
+    def __init__(self, **nnls_opts):
+        self.nnls_opts = nnls_opts
 
     def _linear_solve(self, a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, dict]:
-        x, residual = opt.nnls(a_mat, b_vec, maxiter=self.max_iter)
+        x, residual = opt.nnls(a_mat, b_vec, **self.nnls_opts)
         return x, {"residual": residual}
 
 
@@ -153,17 +153,21 @@ class LSQLinearSolve(ModelSolve):
     [documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.lsq_linear.html)
     for details on the method. See :class:`~.ModelSolve` for more details about the general
     responsibility of a model solver in this library.
+
+    Args:
+        **lsq_linear_opts: The options passed on to the SciPy solver.
     """
 
-    linear_solve_options: dict[str, Any] = {
-        "bounds": (0, np.inf),
-        "method": "bvls",
-    }
+    def __init__(self, **lsq_linear_opts):
+        self.lsq_linear_opts = lsq_linear_opts
+
+        self.lsq_linear_opts["bounds"] = self.lsq_linear_opts.get("bounds", (0, np.inf))
+        self.lsq_linear_opts["method"] = self.lsq_linear_opts.get("method", "bvls")
 
     def _linear_solve(self, a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, dict]:
         opt_res = opt.lsq_linear(
             a_mat,
             b_vec,
-            **self.linear_solve_options,
+            **self.lsq_linear_opts,
         )
         return opt_res.x, {"opt_res": opt_res}
