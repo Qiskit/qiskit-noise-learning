@@ -698,7 +698,7 @@ class PartialPauliPermutation(Instruction):
         if len(identity_indices) <= 20:
             s += f"    identity-like indices: {identity_indices}\n"
         else:
-            s += "identity indices: "
+            s += "    identity-like indices: "
             s += str(identity_indices[:3])[:-1] + ", ..., " + str(identity_indices[-3:])[1:] + "\n"
         s += ")"
         return s
