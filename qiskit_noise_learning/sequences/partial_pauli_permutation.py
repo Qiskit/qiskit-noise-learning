@@ -679,7 +679,7 @@ class PartialPauliPermutation(Instruction):
                     s += "".join(input) + " -> " + "".join(output) + "\n"
                 else:
                     identity_indices.append(qubit_idx)
-        s += f"identity indices: {identity_indices}\n"
+        s += f"    identity-like indices: {identity_indices}\n"
         s += ")"
         return s
 
