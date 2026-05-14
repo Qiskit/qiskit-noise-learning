@@ -45,7 +45,10 @@ from qiskit_noise_learning.sequences import Path
 from qiskit.quantum_info import QubitSparsePauli, QubitSparsePauliList
 from qiskit_aer import QasmSimulator
 
-from qiskit_noise_learning.qnl_test_utils import get_fid_pairs,make_gateset
+from qiskit_noise_learning.qnl_test_utils import (get_fid_pairs,
+                                                    make_gateset,get_fids_df,
+                                                    make_noise_model_comp_df,
+                                                    plot_model_comparison)
 from qiskit_noise_learning.models import PauliLindbladModel
 from qiskit_noise_learning.circuit_generator import ExecutorCircuitGenerator
 
@@ -93,7 +96,7 @@ qasm_simulator = QasmSimulator(
 executor = AerExecutor(
     qasm_simulator=qasm_simulator,
     noise_dict=noise_maps_true,
-    annotation_key="tag",  # Use "tag" to match the Tag annotations
+    # annotation_key="tag",  # Use "tag" to match the Tag annotations
     angle_decimals=3
 )
 
@@ -185,8 +188,6 @@ def make_true_avg_data(avg_data,true_fidelity_pairs):
             )
     return true_avg_data
 #%%
-from qiskit_noise_learning.qnl_test_utils import get_fids_df,make_noise_model_comp_df,plot_model_comparison
-
 # get the true fidelity data from the input noise model
 fids_df_true = get_fids_df(noise_maps_true[layer_name].apply_layout(qubit_subset, num_qubits=backend.num_qubits),fid_ps_1, fid_ps_2)
 fids_df_true['name'] = 'true'
@@ -195,9 +196,8 @@ fid_pairs_true = fids_df_true['fid_pair'].values
 #%%
 fitter_configs = [
                                     [True,None,None,'legacy'],
-                                    # [True,None,None,'legacy2'],
-                                    # [True,None,'generators','nnls'],
-                                    # [True,None,'generators','lsqlinear'],
+                                    [True,None,'generators','nnls'],
+                                    [True,None,'generators','lsqlinear'],
                                     [True,None,'fidelities','nnls'],
                                     [True,None,'fidelities','lsqlinear'],
                                     [True,None,'fidelities3','nnls'],
@@ -278,24 +278,4 @@ for axrow, fit_config in zip(axs,fitter_configs):
             rmse = np.sqrt(np.mean((df_comp['rate']['model'] - df_comp['rate']['actual'])**2))
             ax.annotate(f'RMS error: {rmse:.3e}',xy=(0.05,0.75),xycoords='axes fraction',fontsize=12)
 plt.tight_layout()
-fig
-# %%
-fit.averaged_data.dataset.observables
-
-
-fidelities_canonical = make_canonical_fid_dict(fid_ps_1.to_pauli_list().to_labels(),fid_ps_2.to_pauli_list().to_labels(),fid_pairs_true)
-conj_paulis = make_conj_pauli_list(list(fidelities_canonical.keys()),fid_ps_1.to_pauli_list().to_labels(),fid_ps_2.to_pauli_list().to_labels())
-len(conj_paulis)
-
-    
-noise_map_legacy = fit_noise_model_legacy2(basis_paulis=PauliList(list(fidelities_canonical.keys())), 
-                            conjugated_basis_paulis=PauliList(conj_paulis), layer_name=layer_name,num_qubits=backend.num_qubits,
-                            pauli_fidelities=np.array(list(fidelities_canonical.values())))
-# %%
-noise_map_legacy[layer_name].inverse().gamma()
-# %%
-out[ModelData].dataset.parameter
-# %%
-type(fit_true.averaged_data.dataset.path_pattern[0])
-fit_true.averaged_data.dataset.path_pattern[0].item().repeatable_fragment[0].gate.name
 # %%
