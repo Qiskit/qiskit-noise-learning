@@ -21,8 +21,9 @@ from qiskit.quantum_info import PauliLindbladMap
 from qiskit.transpiler import PassManager
 from qiskit_aer import AerSimulator
 from qiskit_aer.primitives import SamplerV2 as AerSamplerV2
-from qiskit_ibm_runtime.quantum_program import QuantumProgram, QuantumProgramResult
+from qiskit_ibm_runtime.quantum_program import QuantumProgram
 from qiskit_ibm_runtime.quantum_program.quantum_program import CircuitItem, SamplexItem
+from qiskit_ibm_runtime.results import QuantumProgramResult
 
 from .broadcast_sample import broadcast_sample
 from .insert_noise_pass import InsertNoisePass

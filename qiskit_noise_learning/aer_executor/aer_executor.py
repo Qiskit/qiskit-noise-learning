@@ -17,7 +17,7 @@ import uuid
 from qiskit.quantum_info import PauliLindbladMap
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import QuantumProgram
-from qiskit_ibm_runtime.quantum_program.quantum_program_result import QuantumProgramResult
+from qiskit_ibm_runtime.results import QuantumProgramResult
 
 from .run_quantum_program import run_quantum_program
 

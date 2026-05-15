@@ -18,8 +18,9 @@ import numpy as np
 import xarray as xr
 from qiskit.circuit import BoxOp, CircuitInstruction, ClassicalRegister, QuantumCircuit
 from qiskit.transpiler import PassManager
-from qiskit_ibm_runtime.quantum_program import QuantumProgram, QuantumProgramResult
+from qiskit_ibm_runtime.quantum_program import QuantumProgram
 from qiskit_ibm_runtime.quantum_program.quantum_program import SamplexItem
+from qiskit_ibm_runtime.results import QuantumProgramResult
 from samplomatic import build
 from samplomatic.annotations import InjectLocalClifford, Tag, Twirl
 

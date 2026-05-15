@@ -38,7 +38,7 @@ class ExecutorDataMapper:
     circuit and different samplex arguments, the order of input sequences to
     :meth:`.ExecutorCircuitGenerator.generate` is not preserved during execution. This class
     contains properties to format the results of a
-    :class:`qiskit_ibm_runtime.quantum_program.QuantumProgramResult` to the order of the
+    :class:`qiskit_ibm_runtime.results.QuantumProgramResult` to the order of the
     input sequences.
 
     Args:
@@ -83,7 +83,7 @@ class ExecutorDataMapper:
         """List of names of the classical registers contained in the results.
 
         The list at a given index corresponds to names expected in the data of the
-        :class:`qiskit_ibm_runtime.quantum_program.QuantumProgramResult` at the same index.
+        :class:`qiskit_ibm_runtime.results.QuantumProgramResult` at the same index.
         """
         return self._creg_names
 
