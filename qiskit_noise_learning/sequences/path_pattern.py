@@ -239,7 +239,7 @@ class PathPattern(BasePattern[FidelityIndex]):
                 or _phased_pauli_to_unphased(out_pauli)[1]
                 != _phased_pauli_to_unphased(current_pauli)[1]
             ):
-                return repeatable_error
+                raise repeatable_error
 
             repeatable_flip = out_pauli.phase != current_pauli.phase
             current_pauli = out_pauli
