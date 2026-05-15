@@ -583,7 +583,10 @@ class TestComputeObservables:
         np.testing.assert_allclose(ds["observables"][idx2], sign2 * 1.0)
 
     def test_path_to_multiple_sequences(self, gate_set_1q):
-        """"""
+        """Test computation of an observablef or a single path measured by two different instruction
+        patterns with different sign flips (so there are different sign corrections across raw data
+        for a single observable).
+        """
         # Clifford maps X -> -Y, Y -> Z, Z -> -X
         path_pattern = PathPattern(
             start_fragment=[
