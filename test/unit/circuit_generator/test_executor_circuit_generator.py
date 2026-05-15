@@ -49,7 +49,7 @@ def make_result(items, chunk_timing=None, passthrough_data=None):
             serialized ExecutorDataMapper for use by ExecutorCircuitGenerator.collect.
 
     Returns:
-        A stub result object with the interface expected by ExecutorCircuitGenerator.collect.
+        A stub result object with the interface expected by ``ExecutorCircuitGenerator.collect``.
     """
     # make a default chunk timing
     if chunk_timing is None:
@@ -519,9 +519,7 @@ def test_collect_single_sequence_no_measurement_flips(collect_fixture):
     fit = ExecutorCircuitGenerator.collect(result)
     raw_data = fit.raw_data
     dataset = raw_data.datatree["0"]
-    np.testing.assert_array_equal(
-        dataset["instruction_pattern"].data, [collect_fixture["pattern"]]
-    )
+    np.testing.assert_array_equal(dataset["instruction_pattern"].data, [collect_fixture["pattern"]])
     np.testing.assert_array_equal(dataset["depth"].data, [0])
     np.testing.assert_array_equal(dataset["data"].data, creg_data.reshape(1, 1, 3))
     np.testing.assert_array_equal(dataset["measurement_flips"].data, np.array([[False] * 3]))
@@ -647,9 +645,7 @@ def test_collect_multiple_cregs(collect_fixture):
 
     fit = ExecutorCircuitGenerator.collect(result)
     dataset = fit.raw_data.datatree["0"].dataset
-    np.testing.assert_array_equal(
-        dataset["instruction_pattern"].data, [collect_fixture["pattern"]]
-    )
+    np.testing.assert_array_equal(dataset["instruction_pattern"].data, [collect_fixture["pattern"]])
     np.testing.assert_array_equal(dataset["depth"].data, [0])
     np.testing.assert_array_equal(
         dataset["data"].values, np.append(creg0_data, creg1_data, axis=-1).reshape(1, 1, 5)
@@ -716,9 +712,7 @@ def test_collect_complex_mapping(collect_fixture):
 
     # Item 1 has meas0 with 3 bits — different measurement_map, so new leaf "1"
     dataset = raw_data.datatree["1"].dataset
-    np.testing.assert_array_equal(
-        dataset["instruction_pattern"].data, [collect_fixture["pattern"]]
-    )
+    np.testing.assert_array_equal(dataset["instruction_pattern"].data, [collect_fixture["pattern"]])
     np.testing.assert_array_equal(dataset["depth"].data, [1])
     np.testing.assert_array_equal(dataset["data"].values, items[1]["meas0"].reshape(1, 1, 3))
     np.testing.assert_array_equal(
@@ -728,9 +722,7 @@ def test_collect_complex_mapping(collect_fixture):
 
     # Item 2 has meas0 + meas1 — leaf "2"
     dataset = raw_data.datatree["2"].dataset
-    np.testing.assert_array_equal(
-        dataset["instruction_pattern"].data, [collect_fixture["pattern"]]
-    )
+    np.testing.assert_array_equal(dataset["instruction_pattern"].data, [collect_fixture["pattern"]])
     np.testing.assert_array_equal(dataset["depth"].data, [3])
     np.testing.assert_array_equal(
         dataset["data"].values,

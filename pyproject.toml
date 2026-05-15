@@ -22,7 +22,7 @@ dependencies = [
     "numpy>=2",
     "qiskit>=2.2.0",
     "qiskit-aer",
-    "qiskit-ibm-runtime>=0.46",
+    "qiskit-ibm-runtime>=0.47",
     "samplomatic>=0.17",
     "scipy>=1.13",
     "xarray>=2025.7",
@@ -55,6 +55,9 @@ vis = [
 
 [tool.pytest.ini_options]
 addopts = "--doctest-modules"
+filterwarnings = [
+    "ignore:.*IBMFractionalTranslationPlugin is deprecated.*:DeprecationWarning",
+]
 pythonpath = ["."]
 
 [tool.ruff]

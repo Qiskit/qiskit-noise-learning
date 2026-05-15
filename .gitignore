@@ -16,6 +16,7 @@ __pycache__/
 .vscode
 
 # Distribution / packaging
+uv.lock
 .Python
 build/
 develop-eggs/

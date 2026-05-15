@@ -21,19 +21,32 @@ from qiskit.quantum_info import PauliLindbladMap
 from qiskit.transpiler import PassManager
 from qiskit_aer import AerSimulator
 from qiskit_aer.primitives import SamplerV2 as AerSamplerV2
-from qiskit_ibm_runtime.quantum_program import QuantumProgram
-from qiskit_ibm_runtime.quantum_program.quantum_program import CircuitItem, SamplexItem
+from qiskit_ibm_runtime.quantum_program.quantum_program import (
+    CircuitItem,
+    QuantumProgram,
+    SamplexItem,
+)
 from qiskit_ibm_runtime.results import QuantumProgramResult
 
 from .broadcast_sample import broadcast_sample
 from .insert_noise_pass import InsertNoisePass
 
 
+def _round_to_clifford(values: np.ndarray, decimals: int) -> np.ndarray:
+    """Round angles to the nearest multiple of π/2 at ``decimals`` decimal places.
+
+    This prevents floating-point drift from disqualifying nominally-Clifford circuits
+    from the stabilizer simulation method.
+    """
+    return np.round(values / (np.pi / 2), decimals=decimals) * (np.pi / 2)
+
+
 def get_aer_sampler(aer_simulator: AerSimulator) -> AerSamplerV2:
     """Return an :class:`~qiskit_aer.primitives.SamplerV2` configured from ``aer_simulator``."""
-    aer_simulator.set_max_qubits(10000)
-    # Pass a deepcopy so the sampler's backend is independent of the input simulator.
-    return AerSamplerV2.from_backend(deepcopy(aer_simulator))
+    # Deepcopy first so set_max_qubits does not mutate the caller's simulator.
+    backend = deepcopy(aer_simulator)
+    backend.set_max_qubits(10000)
+    return AerSamplerV2.from_backend(backend)
 
 
 def run_quantum_program(
@@ -41,6 +54,7 @@ def run_quantum_program(
     program: QuantumProgram,
     noise_dict: dict[str, PauliLindbladMap] | None = None,
     angle_decimals: int = 5,
+    warn_absent: bool = True,
 ) -> QuantumProgramResult:
     """Run a quantum program on a simulator.
 
@@ -48,12 +62,15 @@ def run_quantum_program(
         qasm_simulator: The simulator to use.
         program: The program to run.
         noise_dict: A map from barrier label refs to noise maps.
-        angle_decimals: How accurately to resolve angles.
+        angle_decimals: Gate angles are rounded to the nearest multiple of π/2 at this
+            decimal precision before simulation.  See :func:`AerExecutor` for details.
+        warn_absent: Passed to :class:`InsertNoisePass`; see :class:`AerExecutor`.
 
     Returns:
         Results of simulation.
     """
     aer_sampler = get_aer_sampler(qasm_simulator)
+    # _seed is private but is the only way to obtain the sampler's RNG seed for reproducibility.
     rng = np.random.default_rng(aer_sampler._seed)  # noqa: SLF001
 
     result_list = []
@@ -61,7 +78,9 @@ def run_quantum_program(
 
     for prog_item in program.items:
         if noise_dict is not None:
-            circuit = PassManager([InsertNoisePass(noise_dict=noise_dict)]).run(prog_item.circuit)
+            circuit = PassManager(
+                [InsertNoisePass(noise_dict=noise_dict, warn_absent=warn_absent)]
+            ).run(prog_item.circuit)
         else:
             circuit = prog_item.circuit
 
@@ -71,9 +90,7 @@ def run_quantum_program(
                     {tuple(prog_item.circuit.parameters): prog_item.circuit_arguments}
                 )
                 for k, v in bindings_array._data.items():  # noqa: SLF001
-                    bindings_array._data[k] = np.round(  # noqa: SLF001
-                        v / (np.pi / 2), decimals=angle_decimals
-                    ) * (np.pi / 2)
+                    bindings_array._data[k] = _round_to_clifford(v, angle_decimals)  # noqa: SLF001
             else:
                 bindings_array = None
             sampler_res = aer_sampler.run(
@@ -101,9 +118,7 @@ def run_quantum_program(
                 {tuple(prog_item.circuit.parameters): samplex_data.pop("parameter_values")}
             )
             for k, v in bindings_array._data.items():  # noqa: SLF001
-                bindings_array._data[k] = np.round(v / (np.pi / 2), decimals=angle_decimals) * (  # noqa: SLF001
-                    np.pi / 2
-                )
+                bindings_array._data[k] = _round_to_clifford(v, angle_decimals)  # noqa: SLF001
             sampler_res = aer_sampler.run(
                 [
                     SamplerPub(

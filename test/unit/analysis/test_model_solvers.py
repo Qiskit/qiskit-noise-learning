@@ -11,10 +11,13 @@
 # that they have been altered from the originals.
 
 import numpy as np
+import pytest
 
-from qiskit_noise_learning.analysis import Fit, NNLSSolve
+from qiskit_noise_learning.analysis import Fit, LSQLinearSolve, NNLSSolve
 from qiskit_noise_learning.data import AveragedData
 from qiskit_noise_learning.math import IndexedVector
+
+_SOLVERS = [LSQLinearSolve(), NNLSSolve()]
 
 
 class MockFidelityModel:
@@ -43,7 +46,8 @@ def _make_decay_data(f_values, f_std_values=None):
     )
 
 
-def test_single_pattern():
+@pytest.mark.parametrize("solver", _SOLVERS)
+def test_single_pattern(solver):
     """Test solving a single pattern with a 1x1 design matrix."""
     f_true = 0.8
     pp = "pp0"
@@ -53,7 +57,7 @@ def test_single_pattern():
 
     fit = Fit(model=model)
     fit[AveragedData] = decay_data
-    result = NNLSSolve().run(fit)
+    result = solver.run(fit)
 
     model_data = result.model_data
     assert np.isclose(
@@ -63,7 +67,8 @@ def test_single_pattern():
     )
 
 
-def test_multiple_patterns():
+@pytest.mark.parametrize("solver", _SOLVERS)
+def test_multiple_patterns(solver):
     """Test solving two path patterns mapped to different parameters."""
     pp0, pp1 = "pp0", "pp1"
     f0, f1 = 0.9, 0.7
@@ -78,7 +83,7 @@ def test_multiple_patterns():
 
     fit = Fit(model=model)
     fit[AveragedData] = decay_data
-    result = NNLSSolve().run(fit)
+    result = solver.run(fit)
 
     model_data = result.model_data
     assert np.isclose(
@@ -93,8 +98,9 @@ def test_multiple_patterns():
     )
 
 
-def test_underdetermined():
-    """Test solving one decay to two parameters — NNLS picks a non-negative split."""
+@pytest.mark.parametrize("solver", _SOLVERS)
+def test_underdetermined(solver):
+    """Test solving one decay to two parameters — solver picks a non-negative split."""
     f_true = 0.8
     pp = "pp0"
 
@@ -103,7 +109,7 @@ def test_underdetermined():
 
     fit = Fit(model=model)
     fit[AveragedData] = decay_data
-    result = NNLSSolve().run(fit)
+    result = solver.run(fit)
 
     model_data = result.model_data
     r0 = model_data.dataset["parameter_values"].sel(parameter="r0").item()
@@ -114,7 +120,8 @@ def test_underdetermined():
     assert model_data.dataset["covariance"].values.shape == (2, 2)
 
 
-def test_overdetermined():
+@pytest.mark.parametrize("solver", _SOLVERS)
+def test_overdetermined(solver):
     """Test solving three decays to two parameters."""
     pp0, pp1, pp2 = "pp0", "pp1", "pp2"
     f0, f1 = 0.9, 0.8
@@ -131,7 +138,7 @@ def test_overdetermined():
 
     fit = Fit(model=model)
     fit[AveragedData] = decay_data
-    result = NNLSSolve().run(fit)
+    result = solver.run(fit)
 
     model_data = result.model_data
     assert np.isclose(
@@ -147,7 +154,8 @@ def test_overdetermined():
     assert model_data.dataset["covariance"].values.shape == (2, 2)
 
 
-def test_covariance_identity_design():
+@pytest.mark.parametrize("solver", _SOLVERS)
+def test_covariance_identity_design(solver):
     """Test covariance computation with a 1x1 identity design matrix."""
     f_true = 0.8
     f_std = 0.02
@@ -158,7 +166,7 @@ def test_covariance_identity_design():
 
     fit = Fit(model=model)
     fit[AveragedData] = decay_data
-    result = NNLSSolve().run(fit)
+    result = solver.run(fit)
 
     expected_var = (f_std / f_true) ** 2
     cov_data = result.model_data.dataset["covariance"].values
@@ -166,8 +174,9 @@ def test_covariance_identity_design():
     assert np.isclose(cov_data[0, 0], expected_var, rtol=1e-6)
 
 
-def test_covariance_constrained_params():
-    """Test that covariance is zero for parameters constrained to zero by NNLS."""
+@pytest.mark.parametrize("solver", _SOLVERS)
+def test_covariance_constrained_params(solver):
+    """Test that covariance is zero for parameters constrained to zero by the solver."""
     pp0, pp1 = "pp0", "pp1"
 
     decay_data = _make_decay_data({pp0: 0.8, pp1: 0.999})
@@ -180,7 +189,7 @@ def test_covariance_constrained_params():
 
     fit = Fit(model=model)
     fit[AveragedData] = decay_data
-    result = NNLSSolve().run(fit)
+    result = solver.run(fit)
 
     model_data = result.model_data
     r1_val = model_data.dataset["parameter_values"].sel(parameter="r1").item()
