@@ -12,6 +12,7 @@
 
 """Experiment builder module."""
 
+from .experiment import Experiment
 from .experiment_builder import ExperimentBuilder
 from .experiment_generators import (
     depth0_path_generator,
