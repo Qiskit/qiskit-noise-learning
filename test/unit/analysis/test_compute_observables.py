@@ -21,7 +21,13 @@ from qiskit_noise_learning.analysis.compute_observables import compute_expectati
 from qiskit_noise_learning.data import ObservableData, RawData
 from qiskit_noise_learning.experiment_builder.experiment_builder import ExperimentBuilder
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
-from qiskit_noise_learning.sequences import FidelityIndex, Path, PathPattern
+from qiskit_noise_learning.sequences import (
+    FidelityIndex,
+    InstructionSequence,
+    PartialPauliPermutation,
+    Path,
+    PathPattern,
+)
 
 
 @pytest.fixture()
@@ -575,3 +581,66 @@ class TestComputeObservables:
         )
         np.testing.assert_allclose(ds["observables"][idx1], sign1 * 1.0)
         np.testing.assert_allclose(ds["observables"][idx2], sign2 * 1.0)
+
+    def test_path_to_multiple_sequences(self, gate_set_1q):
+        """"""
+        # Clifford maps X -> -Y, Y -> Z, Z -> -X
+        path_pattern = PathPattern(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate=gate_set_1q["P"],
+                    in_pauli=QubitSparsePauli("I"),
+                    out_pauli=QubitSparsePauli("Z"),
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate=gate_set_1q["L0"],
+                    in_pauli=QubitSparsePauli("X"),
+                    out_pauli=QubitSparsePauli("Y"),
+                ),
+                FidelityIndex.from_transition(
+                    gate=gate_set_1q["L0"],
+                    in_pauli=QubitSparsePauli("Z"),
+                    out_pauli=QubitSparsePauli("X"),
+                ),
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate=gate_set_1q["M"],
+                    in_pauli=QubitSparsePauli("Z"),
+                    out_pauli=QubitSparsePauli("I"),
+                )
+            ],
+        )
+        inst_pattern0 = path_pattern.to_instruction_pattern().complete()
+
+        # copy it again, but we want different signs
+        inst_pattern1 = path_pattern.to_instruction_pattern().complete()
+        # the one in the standard construction is Y -> -Z
+        inst_pattern1.repeatable_fragment[1] = PartialPauliPermutation([2]).complete()
+
+        # compute sign flips and validate convention that they are different
+        sign_flips0 = path_pattern.sign_flips(inst_pattern0)
+        sign_flips1 = path_pattern.sign_flips(inst_pattern1)
+        assert sign_flips0 == (False, True)
+        assert sign_flips1 == (False, False)
+
+        result = _run_compute_observables(
+            paths=[Path(path_pattern, depth=1)],
+            instruction_sequences=[
+                InstructionSequence(inst_pattern0, depth=1),
+                InstructionSequence(inst_pattern1, depth=1),
+            ],
+            data=[np.array([[[True]]])] * 2,
+            measurement_flips=[np.zeros((1, 1), dtype=bool)] * 2,
+        )
+
+        obs = result.observable_data
+        ds = obs.dataset
+
+        # only one observable
+        assert ds.sizes["observable"] == 1
+
+        # value without sign flips is -1 for both, but inst_pattern0 requires a sign flip
+        np.testing.assert_allclose(ds["observables"], np.array([[1.0, -1.0]]))
