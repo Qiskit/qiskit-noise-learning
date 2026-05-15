@@ -184,7 +184,7 @@ class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramRe
         result without needing it passed separately.
 
         Args:
-            experiment: The fully-expanded experiment to generate circuits for.
+            experiment: The experiment to generate circuits for.
 
         Returns:
             A :class:`~.QuantumProgram` with embedded passthrough data.

@@ -43,7 +43,7 @@ class _StructureKey:
 
 
 class CircuitGenerator(abc.ABC, Generic[TaskT, ResultT]):
-    """Generate experimental tasks from a fully-expanded :class:`.Experiment`.
+    """Generate experimental tasks from an :class:`.Experiment`.
 
     In addition to generating experimental tasks, this class also provides an interface to collect
     results, that is, to convert the results from tasks to the standard :class:`.Fit` form.
@@ -61,7 +61,7 @@ class CircuitGenerator(abc.ABC, Generic[TaskT, ResultT]):
 
     @abc.abstractmethod
     def generate(self, experiment: Experiment) -> TaskT:
-        """Generate a new experimental task from a fully-expanded experiment."""
+        """Generate a new experimental task from an experiment."""
 
     @classmethod
     def partition(cls, sequences: Sequence[InstructionSequence]) -> list[list[InstructionSequence]]:

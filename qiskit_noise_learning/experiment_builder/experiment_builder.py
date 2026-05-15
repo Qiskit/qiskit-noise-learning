@@ -289,7 +289,7 @@ class ExperimentBuilder:
         return instruction_sequences
 
     def build(self, depths: list[int], shots: int) -> Experiment:
-        """Build a fully-expanded :class:`Experiment` from this builder.
+        """Build an :class:`Experiment` from this builder.
 
         Expands all instruction patterns at the given depths and constructs analysis paths as the
         Cartesian product of path patterns and depths, plus any fixed-depth paths.

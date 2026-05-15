@@ -22,7 +22,7 @@ from qiskit_noise_learning.sequences import InstructionSequence, Path
 
 @dataclass
 class Experiment:
-    """A fully-expanded experiment specification ready for circuit generation.
+    """An experiment specification ready for circuit generation.
 
     An :class:`Experiment` is the result of committing to a specific set of instruction sequences,
     analysis paths, fidelity model, and shot count. It is consumed by
