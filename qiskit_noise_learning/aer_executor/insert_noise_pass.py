@@ -115,7 +115,7 @@ class InsertNoisePass(TransformationPass):
 
         qc = QuantumCircuit(op_node.num_qubits)
         qc.append(op_node.op, qc.qubits)
-        plm_qubits = np.argsort([q._index for q in op_node.qargs])
+        plm_qubits = np.argsort([q._index for q in op_node.qargs])  # noqa: SLF001
         plm_qc_qubits = [qc.qubits[i] for i in plm_qubits]
         qc.append(op_node.op, qc.qubits)
         qc.append(pauli_lindblad_error, plm_qc_qubits)
