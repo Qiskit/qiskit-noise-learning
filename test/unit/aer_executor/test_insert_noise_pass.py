@@ -124,12 +124,18 @@ def test_noise_qubits_ordered_by_physical_index(noise_dict):
     assert result.count_ops().get("barrier", 0) == 1
 
 
-def test_noise_simulation_applies_rates_to_correct_physical_qubits(noise_dict):
-    # with asymmetric rates ("XI", 0.1) and ("IX", 0.2) and the barrier placed on qargs [2, 0],
-    # the higher rate (0.2, from "IX" on local qubit 0) should land on physical qubit 0, and the
-    # lower rate (0.1, from "XI" on local qubit 1) on physical qubit 2.
-    qc = QuantumCircuit(3)
-    qc.append(Barrier(2, label="R0@tag=r0"), [2, 0])
+@pytest.mark.parametrize("order", [[0, 1, 3], [3, 0, 1], [0, 3, 1]])
+def test_noise_simulation_applies_rates_to_correct_physical_qubits(order):
+    # We want to inject this noise on qubits {0, 1, 3}. We will set the barrier qubits to [3, 0, 1]
+    # just to prove that we ignore the barrier qubit order and instead use the order of the physical
+    # qubits. In this case we should get
+    #   "IIX" rate 0.20 -> X on physical qubit 0
+    #   "IXI" rate 0.10 -> X on physical qubit 1
+    #   "XII" rate 0.05 -> X on physical qubit 3
+    noise_dict = {"r0": PauliLindbladMap.from_list([("IIX", 0.20), ("IXI", 0.10), ("XII", 0.05)])}
+
+    qc = QuantumCircuit(4)
+    qc.append(Barrier(3, label="R0@tag=r0"), [3, 0, 1])
 
     noisy = PassManager([InsertNoisePass(noise_dict=noise_dict, noise_after=True)]).run(qc)
     noisy.save_density_matrix()
@@ -137,8 +143,7 @@ def test_noise_simulation_applies_rates_to_correct_physical_qubits(noise_dict):
     result = AerSimulator(method="density_matrix").run(noisy).result()
     dm = DensityMatrix(result.data(0)["density_matrix"])
 
-    p_q0_expected = (1 - np.exp(-2 * 0.2)) / 2
-    p_q2_expected = (1 - np.exp(-2 * 0.1)) / 2
-    np.testing.assert_allclose(dm.probabilities([0])[1], p_q0_expected, atol=1e-10)
-    np.testing.assert_allclose(dm.probabilities([1])[1], 0.0, atol=1e-10)
-    np.testing.assert_allclose(dm.probabilities([2])[1], p_q2_expected, atol=1e-10)
+    rates_per_physical_qubit = np.array([0.20, 0.10, 0.0, 0.05])
+    expected_p1 = (1 - np.exp(-2 * rates_per_physical_qubit)) / 2
+    actual_p1 = np.array([dm.probabilities([q])[1] for q in range(qc.num_qubits)])
+    np.testing.assert_allclose(actual_p1, expected_p1, atol=1e-10)
