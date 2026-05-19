@@ -118,7 +118,7 @@ class QiskitGateSet(GateSet[QiskitGate]):
             num_qubits=num_qubits or target.num_qubits, qubit_subset=qubit_subset, target=target
         )
 
-        self._name_iter = (f"L{idx}" for idx in count())
+        self._name_iter = tuple(f"L{idx}" for idx in count())
 
         if add_default_spam:
             self.add_measurement(name="M", qubit_idxs=qubit_subset)
