@@ -301,7 +301,7 @@ class ExperimentBuilder:
         Returns:
             An :class:`Experiment` ready to pass to :meth:`.CircuitGenerator.generate`.
         """
-        sequences = self.generate_instruction_sequences(depths=depths)
+        sequences = [x.complete() for x in self.generate_instruction_sequences(depths=depths)]
         paths = [Path(p, d) for p in self.path_patterns for d in depths]
         paths.extend(self.paths)
         return Experiment(

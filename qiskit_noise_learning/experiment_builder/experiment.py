@@ -29,7 +29,7 @@ class Experiment:
     :meth:`.CircuitGenerator.generate` to produce an executable task.
 
     Args:
-        sequences: The instruction sequences to run.
+        sequences: The complete instruction sequences to run.
         paths: The analysis paths.
         fidelity_model: The fidelity model describing the noise parameterization.
         shots: The number of shots per randomization.
