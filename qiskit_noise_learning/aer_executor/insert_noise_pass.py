@@ -14,13 +14,19 @@
 
 import re
 import warnings
+from collections.abc import Callable
+from functools import partial
 
-from qiskit import QuantumCircuit
+from qiskit.circuit import QuantumCircuit, Qubit
 from qiskit.converters import circuit_to_dag
 from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.quantum_info import PauliLindbladMap
 from qiskit.transpiler import TransformationPass
 from qiskit_aer.noise import PauliLindbladError
+
+
+def _find_qubit(dag: DAGCircuit, qubit: Qubit) -> int:
+    return dag.find_bit(qubit).index
 
 
 class InsertNoisePass(TransformationPass):
@@ -63,7 +69,7 @@ class InsertNoisePass(TransformationPass):
             if op_node.name != "barrier":
                 continue
 
-            if _new_subdag := self._new_subdag(op_node=op_node):
+            if _new_subdag := self._new_subdag(op_node, partial(_find_qubit, dag)):
                 dag.substitute_node_with_dag(
                     node=op_node,
                     input_dag=_new_subdag,
@@ -86,12 +92,14 @@ class InsertNoisePass(TransformationPass):
 
         return tag
 
-    def _new_subdag(self, op_node: DAGOpNode) -> DAGCircuit | None:
+    def _new_subdag(
+        self, op_node: DAGOpNode, find_qubit: Callable[[Qubit], int]
+    ) -> DAGCircuit | None:
         # Qiskit has no public API for reading barrier labels; _label is the only option.
-        if op_node.op._label is None:  # noqa: SLF001
+        label = op_node.op._label  # noqa: SLF001
+        if label is None:
             return None
-        noise_key = self._match_key(op_node.op._label)  # noqa: SLF001
-        if noise_key is None:
+        if (noise_key := self._match_key(label)) is None:
             return None
 
         pauli_lindblad_map = self._noise_dict.get(noise_key)
@@ -112,7 +120,13 @@ class InsertNoisePass(TransformationPass):
             rates=self._noise_scale * pauli_lindblad_map.rates,
         )
 
+        # The PauliLindbladMap's indices are interpreted in ascending physical-qubit order
+        # of the parent DAG, so we apply the resulting error to the local qc.qubits in the
+        # permutation that orders op_node.qargs by their physical index.
+        physical_indices = [find_qubit(q) for q in op_node.qargs]
+        plm_indices = sorted(range(len(physical_indices)), key=physical_indices.__getitem__)
+
         qc = QuantumCircuit(op_node.num_qubits)
         qc.append(op_node.op, qc.qubits)
-        qc.append(pauli_lindblad_error, qc.qubits)
+        qc.append(pauli_lindblad_error, [qc.qubits[i] for i in plm_indices])
         return circuit_to_dag(qc)
