@@ -6,8 +6,6 @@ from qiskit import QuantumCircuit
 from qiskit.quantum_info import PauliList
 from scipy.sparse import csr_array
 
-from qiskit_pandora.experimental.lindblad_legacy.circuit_parameters import conjugate_pauli_parameters
-
 from qiskit.quantum_info import QubitSparsePauliList,PauliLindbladMap
 
 from qiskit_noise_learning.analysis import Fit
