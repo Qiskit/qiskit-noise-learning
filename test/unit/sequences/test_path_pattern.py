@@ -963,6 +963,37 @@ def test_sign_flips_errors(gate_set_1q):
     with pytest.raises(ValueError, match="Path pattern does not begin with identity"):
         path_pattern.sign_flips(instruction_pattern)
 
+    path_pattern = PathPattern(
+        start_fragment=[
+            FidelityIndex.from_transition(
+                gate_set_1q["P"], QubitSparsePauli("I"), QubitSparsePauli("Z")
+            ),
+        ],
+        repeatable_fragment=[
+            FidelityIndex.from_transition(
+                gate_set_1q["L0"], QubitSparsePauli("X"), QubitSparsePauli("Y")
+            )
+        ],
+        end_fragment=[
+            FidelityIndex.from_transition(
+                gate_set_1q["M"], QubitSparsePauli("Z"), QubitSparsePauli("I")
+            )
+        ],
+    )
+    instruction_pattern = InstructionPattern(
+        start_fragment=[
+            ApplyGate(gate_set_1q["P"]),
+            PartialPauliPermutation.from_sets([{("Z", "X")}]),
+        ],
+        repeatable_fragment=[],
+        end_fragment=[
+            ApplyGate(gate_set_1q["M"]),
+        ],
+    ).complete()
+
+    with pytest.raises(ValueError, match="repeatable fragment"):
+        path_pattern.sign_flips(instruction_pattern)
+
 
 def test_hash():
     prep = ModelGate("P", [], qubit_idxs=range(2), prep_idxs=range(2))

@@ -17,8 +17,9 @@ import warnings
 import numpy as np
 import pytest
 from qiskit.circuit import Barrier, QuantumCircuit
-from qiskit.quantum_info import PauliLindbladMap
+from qiskit.quantum_info import DensityMatrix, PauliLindbladMap
 from qiskit.transpiler import PassManager
+from qiskit_aer import AerSimulator
 
 from qiskit_noise_learning.aer_executor.insert_noise_pass import InsertNoisePass
 
@@ -34,30 +35,32 @@ def _noise_error_ops(circuit: QuantumCircuit) -> list:
     return [instr.operation for instr in circuit.data if instr.operation.name == "quantum_channel"]
 
 
-_NOISE_DICT = {"r0": PauliLindbladMap.from_list([("XI", 0.1), ("IX", 0.2)])}
+@pytest.fixture
+def noise_dict():
+    return {"r0": PauliLindbladMap.from_list([("XI", 0.1), ("IX", 0.2)])}
 
 
-def test_noise_after_true_injects_at_r_barriers():
+def test_noise_after_true_injects_at_r_barriers(noise_dict):
     qc = _circuit_with_barrier(2, "R0@tag=r0")
-    result = PassManager([InsertNoisePass(noise_dict=_NOISE_DICT, noise_after=True)]).run(qc)
+    result = PassManager([InsertNoisePass(noise_dict=noise_dict, noise_after=True)]).run(qc)
     assert len(_noise_error_ops(result)) == 1
 
 
-def test_noise_after_false_injects_at_m_barriers():
+def test_noise_after_false_injects_at_m_barriers(noise_dict):
     qc = _circuit_with_barrier(2, "M0@tag=r0")
-    result = PassManager([InsertNoisePass(noise_dict=_NOISE_DICT, noise_after=False)]).run(qc)
+    result = PassManager([InsertNoisePass(noise_dict=noise_dict, noise_after=False)]).run(qc)
     assert len(_noise_error_ops(result)) == 1
 
 
-def test_noise_after_true_ignores_m_barriers():
+def test_noise_after_true_ignores_m_barriers(noise_dict):
     qc = _circuit_with_barrier(2, "M0@tag=r0")
-    result = PassManager([InsertNoisePass(noise_dict=_NOISE_DICT, noise_after=True)]).run(qc)
+    result = PassManager([InsertNoisePass(noise_dict=noise_dict, noise_after=True)]).run(qc)
     assert len(_noise_error_ops(result)) == 0
 
 
-def test_noise_after_false_ignores_r_barriers():
+def test_noise_after_false_ignores_r_barriers(noise_dict):
     qc = _circuit_with_barrier(2, "R0@tag=r0")
-    result = PassManager([InsertNoisePass(noise_dict=_NOISE_DICT, noise_after=False)]).run(qc)
+    result = PassManager([InsertNoisePass(noise_dict=noise_dict, noise_after=False)]).run(qc)
     assert len(_noise_error_ops(result)) == 0
 
 
@@ -104,3 +107,43 @@ def test_missing_tag_leaves_barrier_intact():
 
     assert len(_noise_error_ops(result)) == 0
     assert result.count_ops().get("barrier", 0) == 1
+
+
+def test_noise_qubits_ordered_by_physical_index(noise_dict):
+    # Barrier on a non-canonical qubit subset/order: qargs = [2, 0].  After substitution the
+    # PauliLindbladError must land on physical qubits [0, 2] (ascending), not [2, 0].
+    qc = QuantumCircuit(3)
+    qc.append(Barrier(2, label="R0@tag=r0"), [2, 0])
+
+    result = PassManager([InsertNoisePass(noise_dict=noise_dict, noise_after=True)]).run(qc)
+
+    noise_instrs = [instr for instr in result.data if instr.operation.name == "quantum_channel"]
+    assert len(noise_instrs) == 1
+    assert [result.find_bit(q).index for q in noise_instrs[0].qubits] == [0, 2]
+    # The original barrier should appear exactly once (regression: an earlier fix duplicated it).
+    assert result.count_ops().get("barrier", 0) == 1
+
+
+@pytest.mark.parametrize("order", [[0, 1, 3], [3, 0, 1], [0, 3, 1]])
+def test_noise_simulation_applies_rates_to_correct_physical_qubits(order):
+    # We want to inject this noise on qubits {0, 1, 3}. We will set the barrier qubits to [3, 0, 1]
+    # just to prove that we ignore the barrier qubit order and instead use the order of the physical
+    # qubits. In this case we should get
+    #   "IIX" rate 0.20 -> X on physical qubit 0
+    #   "IXI" rate 0.10 -> X on physical qubit 1
+    #   "XII" rate 0.05 -> X on physical qubit 3
+    noise_dict = {"r0": PauliLindbladMap.from_list([("IIX", 0.20), ("IXI", 0.10), ("XII", 0.05)])}
+
+    qc = QuantumCircuit(4)
+    qc.append(Barrier(3, label="R0@tag=r0"), [3, 0, 1])
+
+    noisy = PassManager([InsertNoisePass(noise_dict=noise_dict, noise_after=True)]).run(qc)
+    noisy.save_density_matrix()
+
+    result = AerSimulator(method="density_matrix").run(noisy).result()
+    dm = DensityMatrix(result.data(0)["density_matrix"])
+
+    rates_per_physical_qubit = np.array([0.20, 0.10, 0.0, 0.05])
+    expected_p1 = (1 - np.exp(-2 * rates_per_physical_qubit)) / 2
+    actual_p1 = np.array([dm.probabilities([q])[1] for q in range(qc.num_qubits)])
+    np.testing.assert_allclose(actual_p1, expected_p1, atol=1e-10)
