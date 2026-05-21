@@ -18,7 +18,7 @@ from qiskit.quantum_info import Clifford, QubitSparsePauli
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
 from qiskit_noise_learning.math import IndexedVector
 from qiskit_noise_learning.models import CompleteFidelityModel
-from qiskit_noise_learning.sequences import FidelityIndex, Path, PathPattern
+from qiskit_noise_learning.sequences import FidelityIndex, Path
 
 
 @pytest.fixture()
@@ -58,7 +58,8 @@ def test_row_from_unmixed_fidelity(gate_set_1q):
     assert complete_model.row_from_unmixed_fidelity(fidelity) == IndexedVector({fidelity: 1.0})
 
 
-def test_multiplicative_row_from_path_pattern(gate_set_1q):
+def test_row_from_unbound_path(gate_set_1q):
+    """Test row_from_path with an unbound path returns only the repeatable fragment row."""
     complete_model = CompleteFidelityModel(gate_set_1q)
     fidelityX = FidelityIndex(
         gate=gate_set_1q["L0"],
@@ -73,17 +74,18 @@ def test_multiplicative_row_from_path_pattern(gate_set_1q):
         out_bit_indices=frozenset(),
     )
 
-    path_pattern = PathPattern(
+    unbound_path = Path(
         start_fragment=[fidelityX],
         repeatable_fragment=[fidelityX, fidelityX, fidelityY],
         end_fragment=[fidelityY],
     )
-    assert complete_model.multiplicative_row_from_path_pattern(path_pattern) == IndexedVector(
+    assert complete_model.row_from_path(unbound_path) == IndexedVector(
         {fidelityX: 2.0, fidelityY: 1.0}
     )
 
 
-def test_row_from_path(gate_set_1q):
+def test_row_from_bound_path(gate_set_1q):
+    """Test row_from_path with a bound path returns the full row scaled by depth."""
     complete_model = CompleteFidelityModel(gate_set_1q)
     fidelityX = FidelityIndex(
         gate=gate_set_1q["L0"],
@@ -98,10 +100,10 @@ def test_row_from_path(gate_set_1q):
         out_bit_indices=frozenset(),
     )
 
-    path_pattern = PathPattern(
+    path = Path(
         start_fragment=[fidelityX],
         repeatable_fragment=[fidelityX, fidelityX, fidelityY],
         end_fragment=[fidelityY],
+        depth=5,
     )
-    path = Path(pattern=path_pattern, depth=5)
     assert complete_model.row_from_path(path) == IndexedVector({fidelityX: 11.0, fidelityY: 6.0})
