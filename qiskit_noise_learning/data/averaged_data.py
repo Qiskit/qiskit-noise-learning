@@ -15,7 +15,7 @@ from typing import Self
 import numpy as np
 import xarray as xr
 
-from qiskit_noise_learning.sequences import PathPattern
+from qiskit_noise_learning.sequences import Path
 
 from .leveled_data import LeveledData
 from .xarray_utils import filter_time
@@ -36,11 +36,10 @@ class AveragedData(LeveledData):
         - time_ubs: An upper bound on the data collection for observable, with dimensions
             ``("observable",)``.
     - Coordinates:
-        - ``path_pattern``: A 1d array of :class:`PathPattern` instances labelling each observable
-            with dimensions ``("observable",)``.
+        - ``unbound_path``: A 1d array of unbound :class:`Path` instances (with ``depth=None``)
+            labelling each observable, with dimensions ``("observable",)``.
         - ``depth``: A 1d array of type ``int`` specifying the depth associated to the observable. A
-            value of ``-1`` indicates an estimate of only the ``repeatable_fragment`` of the path
-            pattern.
+            value of ``-1`` indicates an estimate of only the ``repeatable_fragment`` of the path.
 
     Args:
         dataset: A ``Dataset`` with the above formatting.
@@ -57,7 +56,7 @@ class AveragedData(LeveledData):
     @classmethod
     def from_arrays(
         cls,
-        path_patterns: list[PathPattern],
+        unbound_paths: list[Path],
         depths: list[int],
         observables: np.ndarray[float],
         std: np.ndarray[float],
@@ -68,9 +67,9 @@ class AveragedData(LeveledData):
         """Instantiate from data specified as arrays in standard containers.
 
         Args:
-            path_patterns: A list of path patterns.
+            unbound_paths: A list of unbound paths (with ``depth=None``).
             depths: A list of depths, with ``-1`` indicating the corresponding observable is in
-                reference to only the repeatable fragment of the corresponding pattern.
+                reference to only the repeatable fragment of the corresponding path.
             observables: A 1d array of observable estimates.
             std: A 1d array of standard deviations.
             time_lbs: A 1d array of time lower bounds.
@@ -89,7 +88,7 @@ class AveragedData(LeveledData):
                 ),
             },
             coords={
-                "path_pattern": (("observable",), np.array(path_patterns, dtype=object)),
+                "unbound_path": (("observable",), np.array(unbound_paths, dtype=object)),
                 "depth": (("observable",), depths),
             },
         )

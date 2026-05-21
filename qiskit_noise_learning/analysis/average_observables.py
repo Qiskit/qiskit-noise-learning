@@ -15,7 +15,7 @@ import numpy as np
 from qiskit_noise_learning.analysis import AnalysisStage
 from qiskit_noise_learning.data import AveragedData, ObservableData
 from qiskit_noise_learning.data.xarray_utils import time_bound
-from qiskit_noise_learning.sequences import PathPattern
+from qiskit_noise_learning.sequences import Path
 
 
 class AverageObservables(AnalysisStage):
@@ -34,37 +34,37 @@ class AverageObservables(AnalysisStage):
 
 
 def average_observables(
-    observable_data: ObservableData, unique_path_patterns: set[PathPattern] | None = None
+    observable_data: ObservableData, unique_unbound_paths: set[Path] | None = None
 ) -> AveragedData:
-    """Compute averaged observables for the given set of path patterns.
+    """Compute averaged observables for the given set of unbound paths.
 
     Args:
         observable_data: The observable data.
-        unique_path_patterns: A collection of unique patterns to compute the averaged observables
-            for. Defaults to all of the patterns in the observable data.
+        unique_unbound_paths: A collection of unique unbound paths to compute the averaged
+            observables for. Defaults to all of the unbound paths in the observable data.
     """
 
     dataset = observable_data.dataset
-    if unique_path_patterns is None:
-        unique_path_patterns = set(dataset["path_pattern"].data)
+    if unique_unbound_paths is None:
+        unique_unbound_paths = set(dataset["unbound_path"].data)
 
-    obs_path_patterns = []
+    obs_unbound_paths = []
     obs_depths = []
     obs_means = []
     obs_stds = []
     obs_time_lbs = []
     obs_time_ubs = []
 
-    for pp in unique_path_patterns:
-        pp_mask = dataset["path_pattern"].data == pp
-        pp_dataset = dataset.sel({"observable": pp_mask})
+    for unbound_path in unique_unbound_paths:
+        path_mask = dataset["unbound_path"].data == unbound_path
+        path_dataset = dataset.sel({"observable": path_mask})
 
-        for depth in sorted(set(pp_dataset["depth"].data)):
-            depth_mask = pp_dataset["depth"].data == depth
-            values = pp_dataset["observables"].data[depth_mask].flatten()
+        for depth in sorted(set(path_dataset["depth"].data)):
+            depth_mask = path_dataset["depth"].data == depth
+            values = path_dataset["observables"].data[depth_mask].flatten()
             values = values[~np.isnan(values)]
 
-            obs_path_patterns.append(pp)
+            obs_unbound_paths.append(unbound_path)
             obs_depths.append(depth)
             obs_means.append(float(np.nanmean(values)))
             if values.size <= 1:
@@ -73,11 +73,11 @@ def average_observables(
             else:
                 obs_stds.append(float(np.std(values, ddof=1) / np.sqrt(values.size)))
 
-            obs_time_lbs.append(time_bound(pp_dataset["time_lbs"].data[depth_mask], "min"))
-            obs_time_ubs.append(time_bound(pp_dataset["time_ubs"].data[depth_mask], "max"))
+            obs_time_lbs.append(time_bound(path_dataset["time_lbs"].data[depth_mask], "min"))
+            obs_time_ubs.append(time_bound(path_dataset["time_ubs"].data[depth_mask], "max"))
 
     return AveragedData.from_arrays(
-        path_patterns=np.array(obs_path_patterns, dtype=object),
+        unbound_paths=np.array(obs_unbound_paths, dtype=object),
         depths=np.array(obs_depths, dtype=int),
         observables=np.array(obs_means, dtype=float),
         std=np.array(obs_stds, dtype=float),
