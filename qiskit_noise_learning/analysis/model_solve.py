@@ -58,18 +58,18 @@ class ModelSolve(AnalysisStage):
         decay_mask = averaged_data.dataset["depth"].data == -1
         decay_dataset = averaged_data.dataset.sel({"observable": decay_mask})
 
-        # Build design matrix from the fidelity model and the path patterns in the decay data
-        path_patterns = list(decay_dataset["path_pattern"].data)
-        rows = [fidelity_model.multiplicative_row_from_path_pattern(pp) for pp in path_patterns]
+        # Build design matrix from the fidelity model and the unbound paths in the decay data
+        unbound_paths = list(decay_dataset["unbound_path"].data)
+        rows = [fidelity_model.row_from_path(pp) for pp in unbound_paths]
         design_matrix = IndexedMatrix()
-        design_matrix.add_rows(row_indices=path_patterns, rows=rows)
+        design_matrix.add_rows(row_indices=unbound_paths, rows=rows)
 
         # Construct b from averaged_data taking the negative logarithm
         row_index_map = design_matrix.row_index_map
         b = np.empty(len(row_index_map), dtype=float)
         sigma_b = np.empty(len(row_index_map), dtype=float)
         for pp, row_idx in row_index_map.items():
-            pp_mask = decay_dataset["path_pattern"].data == pp
+            pp_mask = decay_dataset["unbound_path"].data == pp
             fidelity = float(decay_dataset["observables"].data[pp_mask][0])
             fidelity_std = float(decay_dataset["std"].data[pp_mask][0])
             b[row_idx] = -np.log(max(fidelity, 1e-300))

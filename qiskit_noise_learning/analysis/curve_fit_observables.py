@@ -37,7 +37,7 @@ class CurveFitObservables(AnalysisStage):
     def _run(self, fit):
         observable_data = fit.observable_data
         dataset = observable_data.dataset
-        unique_path_patterns = list(set(dataset["path_pattern"].data))
+        unique_path_patterns = list(set(dataset["unbound_path"].data))
 
         # for accumulating exponential fits
         decay_path_patterns = []
@@ -53,7 +53,7 @@ class CurveFitObservables(AnalysisStage):
         single_depth_patterns = set()
 
         for path_pattern in unique_path_patterns:
-            pp_mask = dataset["path_pattern"].data == path_pattern
+            pp_mask = dataset["unbound_path"].data == path_pattern
             pp_dataset = dataset.sel({"observable": pp_mask})
 
             unique_depths = sorted(set(pp_dataset["depth"].data))
@@ -98,7 +98,7 @@ class CurveFitObservables(AnalysisStage):
             decay_time_ubs_out.append(time_bound(pp_dataset["time_ubs"].data, "max"))
 
         decay_data = AveragedData.from_arrays(
-            path_patterns=decay_path_patterns,
+            unbound_paths=decay_path_patterns,
             depths=np.array([-1] * len(decay_path_patterns), dtype=int),
             observables=np.array(decay_fidelities),
             std=np.array(decay_fidelity_stds),
@@ -113,7 +113,7 @@ class CurveFitObservables(AnalysisStage):
         )
 
         single_depth_data = average_observables(
-            observable_data=observable_data, unique_path_patterns=single_depth_patterns
+            observable_data=observable_data, unique_unbound_paths=single_depth_patterns
         )
 
         fit[AveragedData] = decay_data.merge(single_depth_data)

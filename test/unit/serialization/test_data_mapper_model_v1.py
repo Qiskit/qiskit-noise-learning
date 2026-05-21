@@ -23,11 +23,9 @@ from qiskit_noise_learning.models import PauliLindbladModel
 from qiskit_noise_learning.sequences import (
     ApplyGate,
     FidelityIndex,
-    InstructionPattern,
     InstructionSequence,
     PartialPauliPermutation,
     Path,
-    PathPattern,
 )
 
 from .utils import assert_data_mappers_equal
@@ -46,21 +44,18 @@ def test_data_mapper_model_v1_round_trip(model_gate_set):
     """Test ExecutorDataMapper -> DataMapperModelV1 -> ExecutorDataMapper round-trip."""
     cz_gate = model_gate_set["CZ"].model_gate
     perm = PartialPauliPermutation(np.array([0, 3], dtype=np.int8))
-    pattern = InstructionPattern(
+    unbound = InstructionSequence(
         start_fragment=[ApplyGate(cz_gate)],
         repeatable_fragment=[perm, ApplyGate(cz_gate)],
         end_fragment=[],
     )
     sequences = [
-        InstructionSequence(pattern=pattern, depth=2),
-        InstructionSequence(pattern=pattern, depth=4),
+        unbound.bind_at(2),
+        unbound.bind_at(4),
     ]
 
     fi = FidelityIndex(gate=cz_gate, pauli=QubitSparsePauli("IX"))
-    path = Path(
-        pattern=PathPattern(start_fragment=[fi], repeatable_fragment=[fi], end_fragment=[]),
-        depth=2,
-    )
+    path = Path(start_fragment=[fi], repeatable_fragment=[fi], end_fragment=[], depth=2)
 
     generators = {
         "CZ": QubitSparsePauliList(["ZI", "IX", "XX"]),
@@ -87,18 +82,15 @@ def test_data_mapper_model_v1_round_trip(model_gate_set):
 def test_data_mapper_model_v1_passthrough_round_trip(model_gate_set):
     """Test the full passthrough_data path: serialize -> dict -> deserialize."""
     cz_gate = model_gate_set["CZ"].model_gate
-    pattern = InstructionPattern(
+    unbound = InstructionSequence(
         start_fragment=[ApplyGate(cz_gate)],
         repeatable_fragment=[],
         end_fragment=[],
     )
-    sequences = [InstructionSequence(pattern=pattern, depth=1)]
+    sequences = [unbound.bind_at(1)]
 
     fi = FidelityIndex(gate=cz_gate, pauli=QubitSparsePauli("ZI"))
-    path = Path(
-        pattern=PathPattern(start_fragment=[fi], repeatable_fragment=[], end_fragment=[]),
-        depth=1,
-    )
+    path = Path(start_fragment=[fi], repeatable_fragment=[], end_fragment=[], depth=1)
 
     generators = {
         "CZ": QubitSparsePauliList(["ZI", "IX"]),

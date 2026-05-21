@@ -23,10 +23,8 @@ from qiskit_noise_learning.experiment_builder.experiment_builder import Experime
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
 from qiskit_noise_learning.sequences import (
     FidelityIndex,
-    InstructionSequence,
     PartialPauliPermutation,
     Path,
-    PathPattern,
 )
 
 
@@ -57,8 +55,8 @@ def gate_set_cz():
 
 
 @pytest.fixture()
-def path_pattern_ix(gate_set_cz):
-    return PathPattern(
+def unbound_path_ix(gate_set_cz):
+    return Path(
         start_fragment=[
             FidelityIndex.from_transition(
                 gate=gate_set_cz["P"],
@@ -89,8 +87,8 @@ def path_pattern_ix(gate_set_cz):
 
 
 @pytest.fixture()
-def path_pattern_xi(gate_set_cz):
-    return PathPattern(
+def unbound_path_xi(gate_set_cz):
+    return Path(
         start_fragment=[
             FidelityIndex.from_transition(
                 gate=gate_set_cz["P"],
@@ -225,7 +223,7 @@ def _run_compute_observables(paths, instruction_sequences, data, measurement_fli
 class TestComputeObservables:
     def test_pattern_observables_basic_1q(self, gate_set_1q):
         """Basic 1-qubit test verifying ev computation and sign correction across depths."""
-        path_pattern = PathPattern(
+        unbound_path = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
                     gate_set_1q["P"], QubitSparsePauli("I"), QubitSparsePauli("Z")
@@ -244,16 +242,16 @@ class TestComputeObservables:
         )
 
         eb = ExperimentBuilder(gate_set_1q)
-        eb.add_path_patterns([(path_pattern, None)])
+        eb.add_paths([(unbound_path, None)])
         eb.complete()
 
-        ip = eb.instruction_patterns[0]
-        se_flip, r_flip = path_pattern.sign_flips(ip)
+        ip = eb.instruction_sequences[0]
+        se_flip, r_flip = unbound_path.fragment_sign_flips(ip)
 
         for depth in [1, 2, 3]:
             sign = (-1) ** (se_flip + depth * r_flip)
             inst_seqs = eb.generate_instruction_sequences([depth])
-            path = Path(pattern=path_pattern, depth=depth)
+            path = unbound_path.bind_at(depth)
             # All-zero data -> compute_expectation_value = 1.0
             result = _run_compute_observables(
                 paths=[path],
@@ -265,7 +263,7 @@ class TestComputeObservables:
             obs = result.observable_data
             assert isinstance(obs, ObservableData)
             assert obs.dataset.sizes["observable"] == 1
-            assert path.pattern in obs.dataset["path_pattern"]
+            assert path.without_depth() in obs.dataset["unbound_path"]
             np.testing.assert_allclose(obs.dataset["observables"][0], sign * 1.0)
 
             # All-one data -> compute_expectation_value = -1.0
@@ -278,12 +276,12 @@ class TestComputeObservables:
             obs = result.observable_data
             assert isinstance(obs, ObservableData)
             assert obs.dataset.sizes["observable"] == 1
-            assert path.pattern in obs.dataset["path_pattern"]
+            assert path.without_depth() in obs.dataset["unbound_path"]
             np.testing.assert_allclose(obs.dataset["observables"][0], sign * -1.0)
 
     def test_sequence_observables_basic_1q(self, gate_set_1q):
         """Basic 1-qubit test verifying ev computation for fixed depths."""
-        path_pattern = PathPattern(
+        unbound_path = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
                     gate_set_1q["P"], QubitSparsePauli("I"), QubitSparsePauli("Z")
@@ -302,15 +300,15 @@ class TestComputeObservables:
         )
 
         eb = ExperimentBuilder(gate_set_1q)
-        eb.add_path_patterns([(path_pattern, None)])
+        eb.add_paths([(unbound_path, None)])
         eb.complete()
 
-        ip = path_pattern.to_instruction_pattern().complete()
-        se_flip, r_flip = path_pattern.sign_flips(ip)
+        ip = unbound_path.to_instruction_sequence().complete()
+        se_flip, r_flip = unbound_path.fragment_sign_flips(ip)
 
         depths = [1, 2]
         inst_seqs = eb.generate_instruction_sequences(depths)
-        paths = [Path(pattern=path_pattern, depth=d) for d in depths]
+        paths = [unbound_path.bind_at(d) for d in depths]
         signs = [(-1) ** (se_flip + d * r_flip) for d in depths]
 
         # All-zero data -> compute_expectation_value = 1.0
@@ -327,14 +325,15 @@ class TestComputeObservables:
         for path, expected_sign in zip(paths, signs):
             idx = int(
                 np.argwhere(
-                    (ds["path_pattern"].values == path.pattern) & (ds["depth"].values == path.depth)
+                    (ds["unbound_path"].values == path.without_depth())
+                    & (ds["depth"].values == path.depth)
                 )[0, 0]
             )
             np.testing.assert_allclose(ds["observables"][idx], expected_sign * 1.0)
 
     def test_pattern_and_sequence_observables_basic_1q(self, gate_set_1q):
         """Test with both variable-depth and fixed-depth paths."""
-        path_pattern = PathPattern(
+        unbound_path = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
                     gate_set_1q["P"], QubitSparsePauli("I"), QubitSparsePauli("Z")
@@ -353,19 +352,19 @@ class TestComputeObservables:
         )
 
         eb = ExperimentBuilder(gate_set_1q)
-        eb.add_path_patterns([(path_pattern, None)])
-        fixed_paths = [Path(pattern=path_pattern, depth=x) for x in [1, 2]]
-        eb.add_paths([(x, None) for x in fixed_paths])
+        eb.add_paths([(unbound_path, None)])
+        fixed_paths = [unbound_path.bind_at(x) for x in [1, 2]]
+        eb.add_paths([(x, None) for x in fixed_paths], rank_reduce=False)
         eb.complete()
 
-        ip = path_pattern.to_instruction_pattern().complete()
-        se_flip, r_flip = path_pattern.sign_flips(ip)
+        ip = unbound_path.to_instruction_sequence().complete()
+        se_flip, r_flip = unbound_path.fragment_sign_flips(ip)
 
         depths = [3, 4, 5, 8]
         inst_seqs = eb.generate_instruction_sequences(depths)
 
         # Variable-depth paths + fixed-depth paths
-        variable_paths = [Path(pattern=path_pattern, depth=d) for d in depths]
+        variable_paths = [unbound_path.bind_at(d) for d in depths]
         all_paths = variable_paths + fixed_paths
 
         # 4 variable-depth sequences + 2 fixed-depth sequences = 6 total
@@ -385,7 +384,7 @@ class TestComputeObservables:
             sign = (-1) ** (se_flip + d * r_flip)
             idx = int(
                 np.argwhere(
-                    (ds["path_pattern"].values == path_pattern) & (ds["depth"].values == d)
+                    (ds["unbound_path"].values == unbound_path) & (ds["depth"].values == d)
                 )[0, 0]
             )
             np.testing.assert_allclose(ds["observables"][idx], sign * 1.0)
@@ -393,12 +392,12 @@ class TestComputeObservables:
         # Fixed-depth paths should also be matched (depths 1, 2 overlap)
         for fp in fixed_paths:
             assert np.any(
-                (ds["path_pattern"].values == fp.pattern) & (ds["depth"].values == fp.depth)
+                (ds["unbound_path"].values == fp.without_depth()) & (ds["depth"].values == fp.depth)
             )
 
     def test_sign_alternates_with_depth(self, gate_set_1q):
         """Verify the sign alternates with depth when r_flip is True."""
-        path_pattern = PathPattern(
+        unbound_path = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
                     gate_set_1q["P"], QubitSparsePauli("I"), QubitSparsePauli("Z")
@@ -417,15 +416,15 @@ class TestComputeObservables:
         )
 
         eb = ExperimentBuilder(gate_set_1q)
-        eb.add_path_patterns([(path_pattern, None)])
+        eb.add_paths([(unbound_path, None)])
         eb.complete()
 
-        ip = eb.instruction_patterns[0]
-        _, r_flip = path_pattern.sign_flips(ip)
+        ip = eb.instruction_sequences[0]
+        _, r_flip = unbound_path.fragment_sign_flips(ip)
         assert r_flip is True
 
         inst_seqs = eb.generate_instruction_sequences([1, 2])
-        paths = [Path(pattern=path_pattern, depth=d) for d in [1, 2]]
+        paths = [unbound_path.bind_at(d) for d in [1, 2]]
 
         result = _run_compute_observables(
             paths=paths,
@@ -437,12 +436,12 @@ class TestComputeObservables:
         obs = result.observable_data
         ds = obs.dataset
         idx1 = int(
-            np.argwhere((ds["path_pattern"].values == path_pattern) & (ds["depth"].values == 1))[
+            np.argwhere((ds["unbound_path"].values == unbound_path) & (ds["depth"].values == 1))[
                 0, 0
             ]
         )
         idx2 = int(
-            np.argwhere((ds["path_pattern"].values == path_pattern) & (ds["depth"].values == 2))[
+            np.argwhere((ds["unbound_path"].values == unbound_path) & (ds["depth"].values == 2))[
                 0, 0
             ]
         )
@@ -450,20 +449,20 @@ class TestComputeObservables:
         ev2 = ds["observables"][idx2].values
         assert ev1 == pytest.approx(-ev2)
 
-    def test_pattern_observables_mask_2q(self, gate_set_cz, path_pattern_ix):
+    def test_pattern_observables_mask_2q(self, gate_set_cz, unbound_path_ix):
         """Verify the observable mask selects only the correct qubits."""
-        assert path_pattern_ix.end_fragment[-1].observable_indices == [0]
+        assert unbound_path_ix.end_fragment[-1].observable_indices == [0]
 
         eb = ExperimentBuilder(gate_set_cz)
-        eb.add_path_patterns([(path_pattern_ix, None)])
+        eb.add_paths([(unbound_path_ix, None)])
         eb.complete()
 
-        ip = eb.instruction_patterns[0]
-        se_flip, r_flip = path_pattern_ix.sign_flips(ip)
+        ip = eb.instruction_sequences[0]
+        se_flip, r_flip = unbound_path_ix.fragment_sign_flips(ip)
         sign = (-1) ** (se_flip + 1 * r_flip)
 
         inst_seqs = eb.generate_instruction_sequences([1])
-        path = Path(pattern=path_pattern_ix, depth=1)
+        path = unbound_path_ix.bind_at(1)
 
         # Data: qubit 0 = False (zero), qubit 1 = True (one)
         # Mask = [True, False] -> only qubit 0 observed -> ev = 1
@@ -486,21 +485,21 @@ class TestComputeObservables:
         np.testing.assert_allclose(result.observable_data.dataset["observables"][0], sign * (-1.0))
 
     def test_pattern_observables_multiple_patterns(
-        self, gate_set_cz, path_pattern_ix, path_pattern_xi
+        self, gate_set_cz, unbound_path_ix, unbound_path_xi
     ):
         """Verify computation with multiple path patterns per instruction pattern."""
         eb = ExperimentBuilder(gate_set_cz)
-        eb.add_path_patterns([(path_pattern_ix, None), (path_pattern_xi, None)])
-        eb.merge_instruction_patterns()
+        eb.add_paths([(unbound_path_ix, None), (unbound_path_xi, None)])
+        eb.merge_instruction_sequences()
         eb.complete()
 
-        assert len(eb.instruction_patterns) == 1
-        ip = eb.instruction_patterns[0]
+        assert len(eb.instruction_sequences) == 1
+        ip = eb.instruction_sequences[0]
 
         inst_seqs = eb.generate_instruction_sequences([1])
         paths = [
-            Path(pattern=path_pattern_ix, depth=1),
-            Path(pattern=path_pattern_xi, depth=1),
+            unbound_path_ix.bind_at(1),
+            unbound_path_xi.bind_at(1),
         ]
 
         # All-zero data -> ev = 1.0 for both paths
@@ -516,18 +515,19 @@ class TestComputeObservables:
         assert ds.sizes["observable"] == 2
 
         for path in paths:
-            se_flip, r_flip = path.pattern.sign_flips(ip)
+            se_flip, r_flip = path.without_depth().fragment_sign_flips(ip)
             expected_sign = (-1) ** (se_flip + 1 * r_flip)
             idx = int(
                 np.argwhere(
-                    (ds["path_pattern"].values == path.pattern) & (ds["depth"].values == path.depth)
+                    (ds["unbound_path"].values == path.without_depth())
+                    & (ds["depth"].values == path.depth)
                 )[0, 0]
             )
             np.testing.assert_allclose(ds["observables"][idx], expected_sign * 1.0)
 
     def test_pattern_observables_multiple_depths(self, gate_set_1q):
         """Verify computation handles multiple depths correctly."""
-        path_pattern = PathPattern(
+        unbound_path = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
                     gate_set_1q["P"], QubitSparsePauli("I"), QubitSparsePauli("Z")
@@ -546,14 +546,14 @@ class TestComputeObservables:
         )
 
         eb = ExperimentBuilder(gate_set_1q)
-        eb.add_path_patterns([(path_pattern, None)])
+        eb.add_paths([(unbound_path, None)])
         eb.complete()
 
-        ip = eb.instruction_patterns[0]
-        se_flip, r_flip = path_pattern.sign_flips(ip)
+        ip = eb.instruction_sequences[0]
+        se_flip, r_flip = unbound_path.fragment_sign_flips(ip)
 
         inst_seqs = eb.generate_instruction_sequences([1, 2])
-        paths = [Path(pattern=path_pattern, depth=d) for d in [1, 2]]
+        paths = [unbound_path.bind_at(d) for d in [1, 2]]
 
         result = _run_compute_observables(
             paths=paths,
@@ -570,12 +570,12 @@ class TestComputeObservables:
         sign2 = (-1) ** (se_flip + 2 * r_flip)
 
         idx1 = int(
-            np.argwhere((ds["path_pattern"].values == path_pattern) & (ds["depth"].values == 1))[
+            np.argwhere((ds["unbound_path"].values == unbound_path) & (ds["depth"].values == 1))[
                 0, 0
             ]
         )
         idx2 = int(
-            np.argwhere((ds["path_pattern"].values == path_pattern) & (ds["depth"].values == 2))[
+            np.argwhere((ds["unbound_path"].values == unbound_path) & (ds["depth"].values == 2))[
                 0, 0
             ]
         )
@@ -588,7 +588,7 @@ class TestComputeObservables:
         for a single observable).
         """
         # Clifford maps X -> -Y, Y -> Z, Z -> -X
-        path_pattern = PathPattern(
+        unbound_path = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
                     gate=gate_set_1q["P"],
@@ -616,24 +616,24 @@ class TestComputeObservables:
                 )
             ],
         )
-        inst_pattern0 = path_pattern.to_instruction_pattern().complete()
+        inst_pattern0 = unbound_path.to_instruction_sequence().complete()
 
         # copy it again, but we want different signs
-        inst_pattern1 = path_pattern.to_instruction_pattern().complete()
+        inst_pattern1 = unbound_path.to_instruction_sequence().complete()
         # the one in the standard construction is Y -> -Z
         inst_pattern1.repeatable_fragment[1] = PartialPauliPermutation([2]).complete()
 
         # compute sign flips and validate convention that they are different
-        sign_flips0 = path_pattern.sign_flips(inst_pattern0)
-        sign_flips1 = path_pattern.sign_flips(inst_pattern1)
+        sign_flips0 = unbound_path.fragment_sign_flips(inst_pattern0)
+        sign_flips1 = unbound_path.fragment_sign_flips(inst_pattern1)
         assert sign_flips0 == (False, True)
         assert sign_flips1 == (False, False)
 
         result = _run_compute_observables(
-            paths=[Path(path_pattern, depth=1)],
+            paths=[unbound_path.bind_at(1)],
             instruction_sequences=[
-                InstructionSequence(inst_pattern0, depth=1),
-                InstructionSequence(inst_pattern1, depth=1),
+                inst_pattern0.bind_at(1),
+                inst_pattern1.bind_at(1),
             ],
             data=[np.array([[[True]]])] * 2,
             measurement_flips=[np.zeros((1, 1), dtype=bool)] * 2,

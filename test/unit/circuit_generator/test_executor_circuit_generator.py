@@ -26,11 +26,9 @@ from qiskit_noise_learning.models import PauliLindbladModel
 from qiskit_noise_learning.sequences import (
     ApplyGate,
     FidelityIndex,
-    InstructionPattern,
     InstructionSequence,
     PartialPauliPermutation,
     Path,
-    PathPattern,
 )
 
 
@@ -143,20 +141,19 @@ def collect_fixture():
 
     p_gate = mg["P"].model_gate
     m_gate = mg["M"].model_gate
-    pattern = InstructionPattern([ApplyGate(p_gate)], [], [ApplyGate(m_gate)])
-    sequences = [InstructionSequence(pattern=pattern, depth=d) for d in range(4)]
+    unbound = InstructionSequence(
+        start_fragment=[ApplyGate(p_gate)], repeatable_fragment=[], end_fragment=[ApplyGate(m_gate)]
+    )
+    sequences = [unbound.bind_at(d) for d in range(4)]
 
     fi = FidelityIndex(gate=mg["CZ"].model_gate, pauli=QubitSparsePauli("IX"))
-    path = Path(
-        pattern=PathPattern(start_fragment=[fi], repeatable_fragment=[], end_fragment=[]),
-        depth=1,
-    )
+    path = Path(start_fragment=[fi], repeatable_fragment=[], end_fragment=[], depth=1)
 
     return {
         "model_gate_set": mg,
         "fidelity_model": fidelity_model,
         "sequences": sequences,
-        "pattern": pattern,
+        "unbound_sequence": unbound,
         "path": path,
     }
 
@@ -166,12 +163,12 @@ def test_generate_samplex_item(gateset):
     """Test `ExecutorCircuitGenerator.generate_samplex_item()` works as expected."""
     circuit_generator = ExecutorCircuitGenerator(gateset)
     model_gateset = gateset.model_gate_set
-    pattern0 = InstructionPattern(
-        [ApplyGate(model_gateset["P"])],
-        [ApplyGate(model_gateset["L0"]), ApplyGate(model_gateset["L1"])],
-        [ApplyGate(model_gateset["M"])],
+    unbound0 = InstructionSequence(
+        start_fragment=[ApplyGate(model_gateset["P"])],
+        repeatable_fragment=[ApplyGate(model_gateset["L0"]), ApplyGate(model_gateset["L1"])],
+        end_fragment=[ApplyGate(model_gateset["M"])],
     )
-    seq0 = InstructionSequence(pattern0, 5)
+    seq0 = unbound0.bind_at(5)
     samplex_item, creg_names, measurement_map = circuit_generator.generate_samplex_item([seq0])
 
     assert len(samplex_item.samplex_arguments) == 12
@@ -188,19 +185,24 @@ def test_generate_samplex_item(gateset):
     array[gateset_idxs] = 1
 
     perm = PartialPauliPermutation(array)
-    pattern1 = InstructionPattern(
-        [ApplyGate(model_gateset["P"])],
-        [ApplyGate(model_gateset["L0"]), ApplyGate(model_gateset["L1"])],
-        [perm, ApplyGate(model_gateset["M"])],
+    unbound1 = InstructionSequence(
+        start_fragment=[ApplyGate(model_gateset["P"])],
+        repeatable_fragment=[ApplyGate(model_gateset["L0"]), ApplyGate(model_gateset["L1"])],
+        end_fragment=[perm, ApplyGate(model_gateset["M"])],
     )
-    seq1 = InstructionSequence(pattern1, 5)
+    seq1 = unbound1.bind_at(5)
 
-    pattern2 = InstructionPattern(
-        [ApplyGate(model_gateset["P"]), perm],
-        [ApplyGate(model_gateset["L0"]), perm, ApplyGate(model_gateset["L1"]), perm],
-        [ApplyGate(model_gateset["M"])],
+    unbound2 = InstructionSequence(
+        start_fragment=[ApplyGate(model_gateset["P"]), perm],
+        repeatable_fragment=[
+            ApplyGate(model_gateset["L0"]),
+            perm,
+            ApplyGate(model_gateset["L1"]),
+            perm,
+        ],
+        end_fragment=[ApplyGate(model_gateset["M"])],
     )
-    seq2 = InstructionSequence(pattern2, 5)
+    seq2 = unbound2.bind_at(5)
 
     other_samplex_item, other_creg_names, other_meas_map = circuit_generator.generate_samplex_item(
         [seq0, seq1, seq2]
@@ -238,22 +240,32 @@ def test_generate_samplex_item_permutation_composition(gateset):
     array[gateset_idxs] = 1
 
     perm0 = PartialPauliPermutation(array)
-    pattern0 = InstructionPattern(
-        [ApplyGate(model_gateset["P"]), perm0],
-        [ApplyGate(model_gateset["L0"]), perm0, ApplyGate(model_gateset["L1"]), perm0],
-        [ApplyGate(model_gateset["M"])],
+    unbound0 = InstructionSequence(
+        start_fragment=[ApplyGate(model_gateset["P"]), perm0],
+        repeatable_fragment=[
+            ApplyGate(model_gateset["L0"]),
+            perm0,
+            ApplyGate(model_gateset["L1"]),
+            perm0,
+        ],
+        end_fragment=[ApplyGate(model_gateset["M"])],
     )
-    seq0 = InstructionSequence(pattern0, 5)
+    seq0 = unbound0.bind_at(5)
 
     array = np.empty((gateset.num_qubits,), dtype=np.uint8)
     array[gateset_idxs] = 2
     perm1 = PartialPauliPermutation(array)
-    pattern1 = InstructionPattern(
-        [ApplyGate(model_gateset["P"]), perm1, perm0],
-        [ApplyGate(model_gateset["L0"]), perm0, ApplyGate(model_gateset["L1"]), perm0],
-        [ApplyGate(model_gateset["M"])],
+    unbound1 = InstructionSequence(
+        start_fragment=[ApplyGate(model_gateset["P"]), perm1, perm0],
+        repeatable_fragment=[
+            ApplyGate(model_gateset["L0"]),
+            perm0,
+            ApplyGate(model_gateset["L1"]),
+            perm0,
+        ],
+        end_fragment=[ApplyGate(model_gateset["M"])],
     )
-    seq1 = InstructionSequence(pattern1, 5)
+    seq1 = unbound1.bind_at(5)
 
     samplex_item0, creg_names0, meas_map0 = circuit_generator.generate_samplex_item([seq0])
     samplex_item1, creg_names1, meas_map1 = circuit_generator.generate_samplex_item([seq1])
@@ -271,12 +283,17 @@ def test_generate_samplex_item_permutation_composition(gateset):
         )
     )
 
-    pattern2 = InstructionPattern(
-        [ApplyGate(model_gateset["P"]), perm0.compose(perm1)],
-        [ApplyGate(model_gateset["L0"]), perm0, ApplyGate(model_gateset["L1"]), perm0],
-        [ApplyGate(model_gateset["M"])],
+    unbound2 = InstructionSequence(
+        start_fragment=[ApplyGate(model_gateset["P"]), perm0.compose(perm1)],
+        repeatable_fragment=[
+            ApplyGate(model_gateset["L0"]),
+            perm0,
+            ApplyGate(model_gateset["L1"]),
+            perm0,
+        ],
+        end_fragment=[ApplyGate(model_gateset["M"])],
     )
-    seq2 = InstructionSequence(pattern2, 5)
+    seq2 = unbound2.bind_at(5)
     samplex_item2, creg_names2, meas_map2 = circuit_generator.generate_samplex_item([seq2])
 
     assert creg_names2 == creg_names1
@@ -292,12 +309,17 @@ def test_generate_samplex_item_permutation_composition(gateset):
         )
     )
 
-    pattern3 = InstructionPattern(
-        [ApplyGate(model_gateset["P"]), perm1.compose(perm0)],
-        [ApplyGate(model_gateset["L0"]), perm0, ApplyGate(model_gateset["L1"]), perm0],
-        [ApplyGate(model_gateset["M"])],
+    unbound3 = InstructionSequence(
+        start_fragment=[ApplyGate(model_gateset["P"]), perm1.compose(perm0)],
+        repeatable_fragment=[
+            ApplyGate(model_gateset["L0"]),
+            perm0,
+            ApplyGate(model_gateset["L1"]),
+            perm0,
+        ],
+        end_fragment=[ApplyGate(model_gateset["M"])],
     )
-    seq3 = InstructionSequence(pattern3, 5)
+    seq3 = unbound3.bind_at(5)
     samplex_item3, creg_names3, meas_map3 = circuit_generator.generate_samplex_item([seq3])
 
     assert creg_names3 == creg_names1
@@ -313,20 +335,20 @@ def test_generate_samplex_item_permutation_composition(gateset):
     )
 
     # no repeatable fragment
-    pattern4 = InstructionPattern(
-        [ApplyGate(model_gateset["P"]), perm0],
-        [],
-        [perm1, ApplyGate(model_gateset["M"])],
+    unbound4 = InstructionSequence(
+        start_fragment=[ApplyGate(model_gateset["P"]), perm0],
+        repeatable_fragment=[],
+        end_fragment=[perm1, ApplyGate(model_gateset["M"])],
     )
-    seq4 = InstructionSequence(pattern4, 5)
+    seq4 = unbound4.bind_at(5)
     samplex_item4, creg_names4, meas_map4 = circuit_generator.generate_samplex_item([seq4])
 
-    pattern5 = InstructionPattern(
-        [ApplyGate(model_gateset["P"])],
-        [],
-        [perm1.compose(perm0), ApplyGate(model_gateset["M"])],
+    unbound5 = InstructionSequence(
+        start_fragment=[ApplyGate(model_gateset["P"])],
+        repeatable_fragment=[],
+        end_fragment=[perm1.compose(perm0), ApplyGate(model_gateset["M"])],
     )
-    seq5 = InstructionSequence(pattern5, 5)
+    seq5 = unbound5.bind_at(5)
     samplex_item5, creg_names5, meas_map5 = circuit_generator.generate_samplex_item([seq5])
 
     assert creg_names5 == creg_names4
@@ -352,19 +374,19 @@ def test_generate_samplex_item_raises():
 
     model_gateset = gateset.model_gate_set
 
-    pattern0 = InstructionPattern(
-        [ApplyGate(model_gateset["P"])],
-        [ApplyGate(model_gateset["L0"])],
-        [ApplyGate(model_gateset["M"])],
+    unbound0 = InstructionSequence(
+        start_fragment=[ApplyGate(model_gateset["P"])],
+        repeatable_fragment=[ApplyGate(model_gateset["L0"])],
+        end_fragment=[ApplyGate(model_gateset["M"])],
     )
-    pattern1 = InstructionPattern(
-        [ApplyGate(model_gateset["P"])],
-        [ApplyGate(model_gateset["L1"])],
-        [ApplyGate(model_gateset["M"])],
+    unbound1 = InstructionSequence(
+        start_fragment=[ApplyGate(model_gateset["P"])],
+        repeatable_fragment=[ApplyGate(model_gateset["L1"])],
+        end_fragment=[ApplyGate(model_gateset["M"])],
     )
-    seq0 = InstructionSequence(pattern0, 3)
-    seq1 = InstructionSequence(pattern1, 3)
-    seq2 = InstructionSequence(pattern1, 4)
+    seq0 = unbound0.bind_at(3)
+    seq1 = unbound1.bind_at(3)
+    seq2 = unbound1.bind_at(4)
 
     with pytest.raises(ValueError, match="require the same structure"):
         circuit_generator.generate_samplex_item([seq0, seq1])
@@ -373,10 +395,12 @@ def test_generate_samplex_item_raises():
         circuit_generator.generate_samplex_item([seq1, seq2])
 
     perm = PartialPauliPermutation.from_sets([{("X", "Y")}])
-    pattern2 = InstructionPattern(
-        [ApplyGate(model_gateset["P"])], [perm], [ApplyGate(model_gateset["M"])]
+    unbound2 = InstructionSequence(
+        start_fragment=[ApplyGate(model_gateset["P"])],
+        repeatable_fragment=[perm],
+        end_fragment=[ApplyGate(model_gateset["M"])],
     )
-    seq3 = InstructionSequence(pattern2, 1)
+    seq3 = unbound2.bind_at(1)
 
     with pytest.raises(ValueError, match="incomplete Pauli"):
         circuit_generator.generate_samplex_item([seq3])
@@ -387,15 +411,15 @@ def test_generate_samplex_items(gateset):
     """Test `ExecutorCircuitGenerator.generate_samplex_items()` works as expected."""
     circuit_generator = ExecutorCircuitGenerator(gateset)
     model_gateset = gateset.model_gate_set
-    pattern0 = InstructionPattern(
-        [ApplyGate(model_gateset["P"])],
-        [ApplyGate(model_gateset["L0"]), ApplyGate(model_gateset["L1"])],
-        [ApplyGate(model_gateset["M"])],
+    unbound0 = InstructionSequence(
+        start_fragment=[ApplyGate(model_gateset["P"])],
+        repeatable_fragment=[ApplyGate(model_gateset["L0"]), ApplyGate(model_gateset["L1"])],
+        end_fragment=[ApplyGate(model_gateset["M"])],
     )
 
-    # Single pattern with 3 depths => 3 sequences, each in its own partition
+    # Single unbound sequence with 3 depths => 3 sequences, each in its own partition
     builder = ExperimentBuilder(model_gateset)
-    builder._instruction_patterns = [pattern0]  # noqa: SLF001
+    builder._instruction_sequences = [unbound0]  # noqa: SLF001
     builder.complete()
 
     depths = [1, 3, 10]
@@ -406,47 +430,52 @@ def test_generate_samplex_items(gateset):
     assert data_mapper.creg_names == [["meas0"], ["meas0"], ["meas0"]]
     assert data_mapper.item_sequence_indices == [[0], [1], [2]]
 
-    # Two patterns with the same gate structure => same-depth sequences are grouped together
+    # Two unbound sequences with the same gate structure => same-depth sequences are grouped
     gateset_idxs = sorted(gateset.qubit_subset)
     array = np.empty((gateset.num_qubits,), dtype=np.uint8)
     array[gateset_idxs] = 1
     perm = PartialPauliPermutation(array)
 
-    pattern1 = InstructionPattern(
-        [ApplyGate(model_gateset["P"]), perm],
-        [perm, ApplyGate(model_gateset["L0"]), ApplyGate(model_gateset["L1"]), perm],
-        [ApplyGate(model_gateset["M"]), perm],
+    unbound1 = InstructionSequence(
+        start_fragment=[ApplyGate(model_gateset["P"]), perm],
+        repeatable_fragment=[
+            perm,
+            ApplyGate(model_gateset["L0"]),
+            ApplyGate(model_gateset["L1"]),
+            perm,
+        ],
+        end_fragment=[ApplyGate(model_gateset["M"]), perm],
     )
 
     builder = ExperimentBuilder(model_gateset)
-    builder._instruction_patterns = [pattern0, pattern1]  # noqa: SLF001
+    builder._instruction_sequences = [unbound0, unbound1]  # noqa: SLF001
     builder.complete()
 
     samplex_items, data_mapper = circuit_generator.generate_samplex_items(
         builder.generate_instruction_sequences(depths=depths), []
     )
-    # 2 patterns × 3 depths = 6 sequences; same-structure pairs grouped => 3 partitions
+    # 2 unbound × 3 depths = 6 sequences; same-structure pairs grouped => 3 partitions
     assert len(samplex_items) == 3
     assert all(len(indices) == 2 for indices in data_mapper.item_sequence_indices)
 
-    # Third pattern with different gate structure => creates additional partitions
-    pattern2 = InstructionPattern(
-        [ApplyGate(model_gateset["P"])],
-        [ApplyGate(model_gateset["L1"]), ApplyGate(model_gateset["L0"])],
-        [ApplyGate(model_gateset["M"])],
+    # Third unbound sequence with different gate structure => creates additional partitions
+    unbound2 = InstructionSequence(
+        start_fragment=[ApplyGate(model_gateset["P"])],
+        repeatable_fragment=[ApplyGate(model_gateset["L1"]), ApplyGate(model_gateset["L0"])],
+        end_fragment=[ApplyGate(model_gateset["M"])],
     )
 
     builder = ExperimentBuilder(model_gateset)
-    builder._instruction_patterns = [pattern0, pattern1, pattern2]  # noqa: SLF001
+    builder._instruction_sequences = [unbound0, unbound1, unbound2]  # noqa: SLF001
     builder.complete()
 
     depths = [1, 3]
     samplex_items, data_mapper = circuit_generator.generate_samplex_items(
         builder.generate_instruction_sequences(depths=depths), []
     )
-    # 3 patterns × 2 depths = 6 sequences
-    # pattern0 and pattern1 share gate structure, pattern2 is different
-    # => 4 partitions: (p0@1,p1@1), (p2@1), (p0@3,p1@3), (p2@3)
+    # 3 unbound × 2 depths = 6 sequences
+    # unbound0 and unbound1 share gate structure, unbound2 is different
+    # => 4 partitions: (u0@1,u1@1), (u2@1), (u0@3,u1@3), (u2@3)
     assert len(samplex_items) == 4
 
 
@@ -465,14 +494,14 @@ def test_generate_different_decomposition_mode():
     gateset.add_box_as_gate(box_circuit[0], name="my_gate")
 
     model_gateset = gateset.model_gate_set
-    pattern = InstructionPattern(
-        [ApplyGate(model_gateset["P"])],
-        [ApplyGate(model_gateset["my_gate"])],
-        [ApplyGate(model_gateset["M"])],
+    unbound = InstructionSequence(
+        start_fragment=[ApplyGate(model_gateset["P"])],
+        repeatable_fragment=[ApplyGate(model_gateset["my_gate"])],
+        end_fragment=[ApplyGate(model_gateset["M"])],
     )
 
     builder = ExperimentBuilder(model_gateset)
-    builder._instruction_patterns = [pattern]  # noqa: SLF001
+    builder._instruction_sequences = [unbound]  # noqa: SLF001
     builder.complete()
 
     samplex_items, _ = ExecutorCircuitGenerator(gateset, 10).generate_samplex_items(
@@ -519,7 +548,9 @@ def test_collect_single_sequence_no_measurement_flips(collect_fixture):
     fit = ExecutorCircuitGenerator.collect(result)
     raw_data = fit.raw_data
     dataset = raw_data.datatree["0"]
-    np.testing.assert_array_equal(dataset["instruction_pattern"].data, [collect_fixture["pattern"]])
+    np.testing.assert_array_equal(
+        dataset["unbound_instruction_sequence"].data, [collect_fixture["unbound_sequence"]]
+    )
     np.testing.assert_array_equal(dataset["depth"].data, [0])
     np.testing.assert_array_equal(dataset["data"].data, creg_data.reshape(1, 1, 3))
     np.testing.assert_array_equal(dataset["measurement_flips"].data, np.array([[False] * 3]))
@@ -571,7 +602,7 @@ def test_collect_multiple_sequences_same_item(collect_fixture):
     fit = ExecutorCircuitGenerator.collect(result)
     dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
-        dataset["instruction_pattern"].data, [collect_fixture["pattern"]] * 2
+        dataset["unbound_instruction_sequence"].data, [collect_fixture["unbound_sequence"]] * 2
     )
     np.testing.assert_array_equal(dataset["depth"].data, [0, 1])
     np.testing.assert_array_equal(dataset["data"].values, creg_data.reshape(2, 1, 2))
@@ -605,7 +636,7 @@ def test_collect_multiple_sequences_different_items(collect_fixture):
     fit = ExecutorCircuitGenerator.collect(result)
     dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
-        dataset["instruction_pattern"].data, [collect_fixture["pattern"]] * 2
+        dataset["unbound_instruction_sequence"].data, [collect_fixture["unbound_sequence"]] * 2
     )
     np.testing.assert_array_equal(dataset["depth"].data, [0, 1])
     np.testing.assert_array_equal(
@@ -645,7 +676,9 @@ def test_collect_multiple_cregs(collect_fixture):
 
     fit = ExecutorCircuitGenerator.collect(result)
     dataset = fit.raw_data.datatree["0"].dataset
-    np.testing.assert_array_equal(dataset["instruction_pattern"].data, [collect_fixture["pattern"]])
+    np.testing.assert_array_equal(
+        dataset["unbound_instruction_sequence"].data, [collect_fixture["unbound_sequence"]]
+    )
     np.testing.assert_array_equal(dataset["depth"].data, [0])
     np.testing.assert_array_equal(
         dataset["data"].values, np.append(creg0_data, creg1_data, axis=-1).reshape(1, 1, 5)
@@ -700,7 +733,7 @@ def test_collect_complex_mapping(collect_fixture):
     # Item 0 has meas0 with 2 bits — leaf "0"
     dataset = raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
-        dataset["instruction_pattern"].data, [collect_fixture["pattern"]] * 2
+        dataset["unbound_instruction_sequence"].data, [collect_fixture["unbound_sequence"]] * 2
     )
     np.testing.assert_array_equal(dataset["depth"].data, [0, 2])
     np.testing.assert_array_equal(dataset["data"].values, items[0]["meas0"].reshape(2, 1, 2))
@@ -712,7 +745,9 @@ def test_collect_complex_mapping(collect_fixture):
 
     # Item 1 has meas0 with 3 bits — different measurement_map, so new leaf "1"
     dataset = raw_data.datatree["1"].dataset
-    np.testing.assert_array_equal(dataset["instruction_pattern"].data, [collect_fixture["pattern"]])
+    np.testing.assert_array_equal(
+        dataset["unbound_instruction_sequence"].data, [collect_fixture["unbound_sequence"]]
+    )
     np.testing.assert_array_equal(dataset["depth"].data, [1])
     np.testing.assert_array_equal(dataset["data"].values, items[1]["meas0"].reshape(1, 1, 3))
     np.testing.assert_array_equal(
@@ -722,7 +757,9 @@ def test_collect_complex_mapping(collect_fixture):
 
     # Item 2 has meas0 + meas1 — leaf "2"
     dataset = raw_data.datatree["2"].dataset
-    np.testing.assert_array_equal(dataset["instruction_pattern"].data, [collect_fixture["pattern"]])
+    np.testing.assert_array_equal(
+        dataset["unbound_instruction_sequence"].data, [collect_fixture["unbound_sequence"]]
+    )
     np.testing.assert_array_equal(dataset["depth"].data, [3])
     np.testing.assert_array_equal(
         dataset["data"].values,
@@ -755,10 +792,10 @@ def test_generate_and_collect_with_pass_manager():
         gate_builder.circuit.noop(range(2))
 
     model_gateset = gateset.model_gate_set
-    pattern = InstructionPattern(
-        [ApplyGate(model_gateset["P"])],
-        [ApplyGate(model_gateset["L0"])],
-        [ApplyGate(model_gateset["M"])],
+    unbound = InstructionSequence(
+        start_fragment=[ApplyGate(model_gateset["P"])],
+        repeatable_fragment=[ApplyGate(model_gateset["L0"])],
+        end_fragment=[ApplyGate(model_gateset["M"])],
     )
 
     num_randomizations = 2
@@ -767,7 +804,7 @@ def test_generate_and_collect_with_pass_manager():
     )
 
     builder = ExperimentBuilder(model_gateset)
-    builder._instruction_patterns = [pattern]  # noqa: SLF001
+    builder._instruction_sequences = [unbound]  # noqa: SLF001
     builder.complete()
 
     fidelity_model = PauliLindbladModel.k_local(gateset, k=1)
@@ -830,10 +867,10 @@ def test_generate_with_pass_manager_multi_qubit_creg():
         gate_builder.circuit.noop(range(2))
 
     model_gateset = gateset.model_gate_set
-    pattern = InstructionPattern(
-        [ApplyGate(model_gateset["P"])],
-        [ApplyGate(model_gateset["L0"])],
-        [ApplyGate(model_gateset["M"])],
+    unbound = InstructionSequence(
+        start_fragment=[ApplyGate(model_gateset["P"])],
+        repeatable_fragment=[ApplyGate(model_gateset["L0"])],
+        end_fragment=[ApplyGate(model_gateset["M"])],
     )
 
     num_randomizations = 2
@@ -844,7 +881,7 @@ def test_generate_with_pass_manager_multi_qubit_creg():
     )
 
     builder = ExperimentBuilder(model_gateset)
-    builder._instruction_patterns = [pattern]  # noqa: SLF001
+    builder._instruction_sequences = [unbound]  # noqa: SLF001
     builder.complete()
 
     _, data_mapper = cg.generate_samplex_items(

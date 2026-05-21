@@ -85,19 +85,13 @@ InstructionSchema = Annotated[
 ]
 
 
-class InstructionPatternSchema(BaseModel):
-    """Serialization schema for an :class:`InstructionPattern`."""
+class InstructionSequenceSchema(BaseModel):
+    """Serialization schema for an :class:`~.InstructionSequence`."""
 
+    depth: int
     start_fragment: list[InstructionSchema]
     repeatable_fragment: list[InstructionSchema]
     end_fragment: list[InstructionSchema]
-
-
-class InstructionSequenceSchema(BaseModel):
-    """Serialization schema for an :class:`InstructionSequence`."""
-
-    depth: int
-    pattern: InstructionPatternSchema
 
 
 class FidelityIndexSchema(BaseModel):
@@ -109,19 +103,13 @@ class FidelityIndexSchema(BaseModel):
     out_bit_indices: list[int]
 
 
-class PathPatternSchema(BaseModel):
-    """Serialization schema for a :class:`PathPattern`."""
+class PathSchema(BaseModel):
+    """Serialization schema for a :class:`~.Path`."""
 
+    depth: int
     start_fragment: list[FidelityIndexSchema]
     repeatable_fragment: list[FidelityIndexSchema]
     end_fragment: list[FidelityIndexSchema]
-
-
-class PathSchema(BaseModel):
-    """Serialization schema for a :class:`Path`."""
-
-    depth: int
-    pattern: PathPatternSchema
 
 
 class PauliLindbladModelSchema(BaseModel):

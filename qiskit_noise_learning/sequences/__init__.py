@@ -17,7 +17,3 @@ from .fidelity_index import FidelityIndex
 from .instruction_sequence import InstructionSequence
 from .partial_pauli_permutation import PartialPauliPermutation
 from .path import Path
-
-# Temporary backwards-compat aliases until remaining consumers are updated.
-PathPattern = Path
-InstructionPattern = InstructionSequence

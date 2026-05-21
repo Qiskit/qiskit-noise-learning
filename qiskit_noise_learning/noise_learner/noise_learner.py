@@ -145,8 +145,8 @@ class NoiseLearner:
 
         # Build experiments
         builder = ExperimentBuilder(fidelity_model)
-        builder.add_path_patterns(chain.from_iterable(pattern_iterators))
-        builder.merge_instruction_patterns()
+        builder.add_paths(chain.from_iterable(pattern_iterators))
+        builder.merge_instruction_sequences()
         builder.complete()
 
         # Generate quantum program

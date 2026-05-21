@@ -32,6 +32,9 @@ class MockInstructionSequence:
     pattern: MockInstructionPattern
     depth: int
 
+    def without_depth(self):
+        return MockInstructionSequence(pattern=self.pattern, depth=None)
+
 
 def make_fit(raw_data, coupling_map):
     fit = Fit(model=SimpleNamespace(gate_set=SimpleNamespace(coupling_map=coupling_map)))

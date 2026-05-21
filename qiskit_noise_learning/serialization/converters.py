@@ -23,22 +23,18 @@ from ..models import PauliLindbladModel
 from ..sequences import (
     ApplyGate,
     FidelityIndex,
-    InstructionPattern,
     InstructionSequence,
     PartialPauliPermutation,
     Path,
-    PathPattern,
 )
 from .schemas import (
     ApplyGateSchema,
     CliffordComponentSchema,
     FidelityIndexSchema,
-    InstructionPatternSchema,
     InstructionSequenceSchema,
     ModelGateSchema,
     ModelGateSetSchema,
     PartialPauliPermutationSchema,
-    PathPatternSchema,
     PathSchema,
     PauliLindbladModelSchema,
     QubitSparsePauliListSchema,
@@ -134,11 +130,9 @@ def deserialize_gate_set(schema: ModelGateSetSchema) -> ModelGateSet:
 def serialize_instruction_sequence(seq: InstructionSequence) -> InstructionSequenceSchema:
     return InstructionSequenceSchema(
         depth=seq.depth,
-        pattern=InstructionPatternSchema(
-            start_fragment=[serialize_instruction(i) for i in seq.pattern.start_fragment],
-            repeatable_fragment=[serialize_instruction(i) for i in seq.pattern.repeatable_fragment],
-            end_fragment=[serialize_instruction(i) for i in seq.pattern.end_fragment],
-        ),
+        start_fragment=[serialize_instruction(i) for i in seq.start_fragment],
+        repeatable_fragment=[serialize_instruction(i) for i in seq.repeatable_fragment],
+        end_fragment=[serialize_instruction(i) for i in seq.end_fragment],
     )
 
 
@@ -155,16 +149,14 @@ def serialize_instruction(instr) -> ApplyGateSchema | PartialPauliPermutationSch
 def deserialize_instruction_sequence(
     schema: InstructionSequenceSchema, gate_set: ModelGateSet
 ) -> InstructionSequence:
-    pattern = InstructionPattern(
-        start_fragment=[
-            deserialize_instruction(i, gate_set) for i in schema.pattern.start_fragment
-        ],
+    return InstructionSequence(
+        start_fragment=[deserialize_instruction(i, gate_set) for i in schema.start_fragment],
         repeatable_fragment=[
-            deserialize_instruction(i, gate_set) for i in schema.pattern.repeatable_fragment
+            deserialize_instruction(i, gate_set) for i in schema.repeatable_fragment
         ],
-        end_fragment=[deserialize_instruction(i, gate_set) for i in schema.pattern.end_fragment],
+        end_fragment=[deserialize_instruction(i, gate_set) for i in schema.end_fragment],
+        depth=schema.depth,
     )
-    return InstructionSequence(pattern=pattern, depth=schema.depth)
 
 
 def deserialize_instruction(
@@ -180,13 +172,9 @@ def deserialize_instruction(
 def serialize_path(path: Path) -> PathSchema:
     return PathSchema(
         depth=path.depth,
-        pattern=PathPatternSchema(
-            start_fragment=[serialize_fidelity_index(fi) for fi in path.pattern.start_fragment],
-            repeatable_fragment=[
-                serialize_fidelity_index(fi) for fi in path.pattern.repeatable_fragment
-            ],
-            end_fragment=[serialize_fidelity_index(fi) for fi in path.pattern.end_fragment],
-        ),
+        start_fragment=[serialize_fidelity_index(fi) for fi in path.start_fragment],
+        repeatable_fragment=[serialize_fidelity_index(fi) for fi in path.repeatable_fragment],
+        end_fragment=[serialize_fidelity_index(fi) for fi in path.end_fragment],
     )
 
 
@@ -200,18 +188,14 @@ def serialize_fidelity_index(fi: FidelityIndex) -> FidelityIndexSchema:
 
 
 def deserialize_path(schema: PathSchema, gate_set: ModelGateSet) -> Path:
-    pattern = PathPattern(
-        start_fragment=[
-            deserialize_fidelity_index(fi, gate_set) for fi in schema.pattern.start_fragment
-        ],
+    return Path(
+        start_fragment=[deserialize_fidelity_index(fi, gate_set) for fi in schema.start_fragment],
         repeatable_fragment=[
-            deserialize_fidelity_index(fi, gate_set) for fi in schema.pattern.repeatable_fragment
+            deserialize_fidelity_index(fi, gate_set) for fi in schema.repeatable_fragment
         ],
-        end_fragment=[
-            deserialize_fidelity_index(fi, gate_set) for fi in schema.pattern.end_fragment
-        ],
+        end_fragment=[deserialize_fidelity_index(fi, gate_set) for fi in schema.end_fragment],
+        depth=schema.depth,
     )
-    return Path(pattern=pattern, depth=schema.depth)
 
 
 def deserialize_fidelity_index(

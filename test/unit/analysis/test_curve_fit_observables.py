@@ -57,7 +57,7 @@ def _make_observable_data(
     n = len(all_observables)
     observables = np.stack(all_observables)
     return ObservableData.from_arrays(
-        path_patterns=all_path_patterns,
+        unbound_paths=all_path_patterns,
         depths=all_depths,
         observables=observables,
         time_lbs=np.empty((n, n_rand), dtype="datetime64[us]"),
@@ -86,7 +86,7 @@ class TestCurveFitObservables:
         )
         result = _run_stage(obs)
         ds = result.averaged_data.dataset
-        mask = (ds["path_pattern"].data == patterns[pp]) & (ds["depth"].data == -1)
+        mask = (ds["unbound_path"].data == patterns[pp]) & (ds["depth"].data == -1)
         assert np.isclose(ds["metadata"].data[mask][0]["spam_fidelity"], a_true, atol=0.02)
         assert np.isclose(ds["observables"].data[mask][0], f_true, atol=0.02)
 
@@ -102,10 +102,10 @@ class TestCurveFitObservables:
         ds = result.averaged_data.dataset
         decay_mask = ds["depth"].data == -1
 
-        mask0 = (ds["path_pattern"].data == patterns[pp0]) & decay_mask
+        mask0 = (ds["unbound_path"].data == patterns[pp0]) & decay_mask
         assert np.isclose(ds["observables"].data[mask0][0], 0.9, atol=0.02)
 
-        mask1 = (ds["path_pattern"].data == patterns[pp1]) & decay_mask
+        mask1 = (ds["unbound_path"].data == patterns[pp1]) & decay_mask
         assert np.isclose(ds["observables"].data[mask1][0], 0.7, atol=0.02)
 
     def test_decay_fidelity_value(self):
@@ -118,7 +118,7 @@ class TestCurveFitObservables:
         )
         result = _run_stage(obs)
         ds = result.averaged_data.dataset
-        mask = (ds["path_pattern"].data == patterns[pp]) & (ds["depth"].data == -1)
+        mask = (ds["unbound_path"].data == patterns[pp]) & (ds["depth"].data == -1)
         fidelity = ds["observables"].data[mask][0]
         assert np.isclose(fidelity, 0.8, atol=0.02)
 

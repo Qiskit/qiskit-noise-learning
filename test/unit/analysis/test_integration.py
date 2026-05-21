@@ -33,8 +33,8 @@ class MockFidelityModel:
     def __init__(self, rows: dict):
         self._rows = rows
 
-    def multiplicative_row_from_path_pattern(self, path_pattern):
-        return self._rows[path_pattern]
+    def row_from_path(self, path):
+        return self._rows[path]
 
 
 def _make_observable_data(
@@ -65,7 +65,7 @@ def _make_observable_data(
     n = len(all_observables)
     observables = np.stack(all_observables)
     return ObservableData.from_arrays(
-        path_patterns=all_path_patterns,
+        unbound_paths=all_path_patterns,
         depths=all_depths,
         observables=observables,
         time_lbs=np.empty((n, n_rand), dtype="datetime64[us]"),

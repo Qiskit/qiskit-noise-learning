@@ -22,11 +22,9 @@ from qiskit_noise_learning.models import PauliLindbladModel
 from qiskit_noise_learning.sequences import (
     ApplyGate,
     FidelityIndex,
-    InstructionPattern,
     InstructionSequence,
     PartialPauliPermutation,
     Path,
-    PathPattern,
 )
 from qiskit_noise_learning.serialization import (
     deserialize_fidelity_index,
@@ -98,12 +96,12 @@ def test_instruction_partial_pauli_permutation(model_gate_set):
 def test_instruction_sequence(model_gate_set):
     cz_gate = model_gate_set["CZ"].model_gate
     perm = PartialPauliPermutation(np.array([0, 3], dtype=np.int8))
-    pattern = InstructionPattern(
+    original = InstructionSequence(
         start_fragment=[ApplyGate(cz_gate)],
         repeatable_fragment=[perm, ApplyGate(cz_gate)],
         end_fragment=[],
+        depth=3,
     )
-    original = InstructionSequence(pattern=pattern, depth=3)
     schema = serialize_instruction_sequence(original)
     restored = deserialize_instruction_sequence(schema, model_gate_set)
     assert original == restored
@@ -122,12 +120,12 @@ def test_path(model_gate_set):
     cz_gate = model_gate_set["CZ"].model_gate
     fi1 = FidelityIndex(gate=cz_gate, pauli=QubitSparsePauli("IX"))
     fi2 = FidelityIndex(gate=cz_gate, pauli=QubitSparsePauli("ZI"))
-    pattern = PathPattern(
+    original = Path(
         start_fragment=[fi1],
         repeatable_fragment=[fi2],
         end_fragment=[fi1],
+        depth=2,
     )
-    original = Path(pattern=pattern, depth=2)
     schema = serialize_path(original)
     restored = deserialize_path(schema, model_gate_set)
     assert original == restored

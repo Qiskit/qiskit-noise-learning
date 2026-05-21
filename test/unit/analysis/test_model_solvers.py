@@ -24,8 +24,8 @@ class MockFidelityModel:
     def __init__(self, rows: dict):
         self._rows = rows
 
-    def multiplicative_row_from_path_pattern(self, path_pattern):
-        return self._rows[path_pattern]
+    def row_from_path(self, path):
+        return self._rows[path]
 
 
 def _make_decay_data(f_values, f_std_values=None):
@@ -37,7 +37,7 @@ def _make_decay_data(f_values, f_std_values=None):
     n = len(keys)
 
     return AveragedData.from_arrays(
-        path_patterns=keys,
+        unbound_paths=keys,
         depths=[-1] * n,
         observables=np.array([f_values[pp] for pp in keys]),
         std=np.array([f_std_values[pp] for pp in keys]),
