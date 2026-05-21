@@ -70,6 +70,11 @@ class BaseSequence(ABC, Generic[T]):
         return self._depth
 
     @property
+    def is_unbound(self) -> bool:
+        """Whether this is a variable-depth sequence (depth is ``None``)."""
+        return self._depth is None
+
+    @property
     def _fragment_chain(self) -> Iterable[T]:
         return chain(self._start_fragment, self._repeatable_fragment, self._end_fragment)
 
