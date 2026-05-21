@@ -182,7 +182,7 @@ def even_depth_path_generator(
                 )
 
 
-def even_depth_vanilla_pattern_generator(
+def even_depth_vanilla_path_generator(
     prep_gate: ModelGate,
     meas_gate: ModelGate,
     gate: ModelGate,
@@ -316,6 +316,6 @@ def standard_vanilla_path_generator(
         An iterator over paths and instruction sequences of two applications of the gate.
     """
     yield from yield_matching_paths(
-        even_depth_vanilla_pattern_generator(prep_gate, meas_gate, gate, input_paulis),
+        even_depth_vanilla_path_generator(prep_gate, meas_gate, gate, input_paulis),
         generate_vanilla_instruction_sequences(prep_gate, meas_gate, gate, coupling_map),
     )

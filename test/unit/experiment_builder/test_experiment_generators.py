@@ -22,7 +22,7 @@ from qiskit_noise_learning.experiment_builder import (
     depth0_path_generator,
     depth1_path_generator,
     even_depth_path_generator,
-    even_depth_vanilla_pattern_generator,
+    even_depth_vanilla_path_generator,
     standard_vanilla_path_generator,
 )
 from qiskit_noise_learning.experiment_builder.experiment_generators import (
@@ -336,8 +336,8 @@ def test_even_depth_path_generator(gate_set_cz):
     assert list(path_iterator) == list(expected_iterator)
 
 
-def test_even_depth_vanilla_pattern_generator(gate_set_cz):
-    pattern_iterator = even_depth_vanilla_pattern_generator(
+def test_even_depth_vanilla_path_generator(gate_set_cz):
+    path_iterator = even_depth_vanilla_path_generator(
         prep_gate=gate_set_cz["P"],
         meas_gate=gate_set_cz["M"],
         gate=gate_set_cz["CZ"],
@@ -441,7 +441,7 @@ def test_even_depth_vanilla_pattern_generator(gate_set_cz):
             None,
         ),
     ]
-    assert list(pattern_iterator) == list(expected_iterator)
+    assert list(path_iterator) == list(expected_iterator)
 
 
 def test_sufficient_bases_ring():
@@ -459,7 +459,7 @@ def test_sufficient_bases_ring():
     meas = ModelGate("M", [(tuple(range(11)), Clifford(QuantumCircuit(11)))], meas_idxs=range(11))
 
     instruction_sequences = generate_vanilla_instruction_sequences(prep, meas, gate, coupling_map)
-    paths = list(even_depth_vanilla_pattern_generator(prep, meas, gate, input_paulis))
+    paths = list(even_depth_vanilla_path_generator(prep, meas, gate, input_paulis))
     matched_paths = list(yield_matching_paths(paths, instruction_sequences))
 
     assert len(instruction_sequences) == 9

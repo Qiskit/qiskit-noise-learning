@@ -19,7 +19,7 @@ from qiskit_noise_learning.sequences import Path
 
 
 class AverageObservables(AnalysisStage):
-    """Average observables over randomizations for each unique (path_pattern, depth) pair."""
+    """Average observables over randomizations for each unique (unbound_path, depth) pair."""
 
     @property
     def input_level(self):
