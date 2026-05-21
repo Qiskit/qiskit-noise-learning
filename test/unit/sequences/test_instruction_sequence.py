@@ -436,3 +436,30 @@ def test_has_same_structure_as_depth(model_gate_set_1q):
         depth=3,
     )
     assert seq0.has_same_structure_as(seq2)
+
+
+def test_bind_at(gate_set):
+    """Test bind_at returns a new instance with the specified depth."""
+
+    start_fragment = [ApplyGate(gate_set["P"])]
+    repeatable_fragment = [ApplyGate(gate_set["L0"]), ApplyGate(gate_set["L1"])]
+    end_fragment = [ApplyGate(gate_set["M"])]
+
+    seq = InstructionSequence(
+        start_fragment=start_fragment,
+        repeatable_fragment=repeatable_fragment,
+        end_fragment=end_fragment,
+    )
+    assert seq.depth is None
+
+    bound = seq.bind_at(5)
+    assert bound.depth == 5
+    assert bound.start_fragment == start_fragment
+    assert bound.repeatable_fragment == repeatable_fragment
+    assert bound.end_fragment == end_fragment
+    assert isinstance(bound, InstructionSequence)
+
+    # bind_at with None gives variable-depth
+    unbound = bound.without_depth()
+    assert unbound.depth is None
+    assert unbound == seq

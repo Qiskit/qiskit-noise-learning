@@ -1192,3 +1192,34 @@ def test_hash():
     assert isinstance(hash(path_with_depth), int)
     # different depth should give different hash
     assert hash(path) != hash(path_with_depth)
+
+
+def test_bind_at(gate_set_1q):
+    """Test bind_at returns a new Path with the specified depth."""
+    ident = [((0,), Clifford(QuantumCircuit(1)))]
+    prep = ModelGate("P", ident, qubit_idxs=range(1), prep_idxs=range(1))
+    gate = ModelGate("L0", ident, qubit_idxs=range(1))
+    meas = ModelGate("M", ident, qubit_idxs=range(1), meas_idxs=range(1))
+
+    start_fragment = [FidelityIndex(prep, pauli=QubitSparsePauli("I"))]
+    repeatable_fragment = [FidelityIndex(gate, pauli=QubitSparsePauli("X"))]
+    end_fragment = [FidelityIndex(meas, pauli=QubitSparsePauli("I"))]
+
+    path = Path(
+        start_fragment=start_fragment,
+        repeatable_fragment=repeatable_fragment,
+        end_fragment=end_fragment,
+    )
+    assert path.depth is None
+
+    bound = path.bind_at(3)
+    assert bound.depth == 3
+    assert bound.start_fragment == start_fragment
+    assert bound.repeatable_fragment == repeatable_fragment
+    assert bound.end_fragment == end_fragment
+    assert isinstance(bound, Path)
+
+    # without_depth reverses it
+    unbound = bound.without_depth()
+    assert unbound.depth is None
+    assert unbound == path

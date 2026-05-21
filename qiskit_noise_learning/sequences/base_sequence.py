@@ -119,6 +119,30 @@ class BaseSequence(ABC, Generic[T]):
         s += ")"
         return s
 
+    def bind_at(self, depth: int | None) -> Self:
+        """Return a new instance with the same fragments but the given depth.
+
+        Args:
+            depth: The depth to set on the returned instance.
+
+        Returns:
+            A new instance with the specified depth.
+        """
+        return type(self)(
+            start_fragment=self._start_fragment,
+            repeatable_fragment=self._repeatable_fragment,
+            end_fragment=self._end_fragment,
+            depth=depth,
+        )
+
+    def without_depth(self) -> Self:
+        """Return a new instance with the same fragments but depth set to ``None``.
+
+        Returns:
+            A new variable-depth instance.
+        """
+        return self.bind_at(None)
+
     def __eq__(self, other: Self) -> bool:
         return (
             isinstance(other, self.__class__)
