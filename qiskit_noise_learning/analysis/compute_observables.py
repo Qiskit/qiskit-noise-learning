@@ -91,15 +91,15 @@ class ComputeObservables(AnalysisStage):
                     if depth not in path_pattern_depths[path_pattern]:
                         continue
 
-                    # get the dictionary for this path pattern, bit count, and depth
-                    path_pattern_bit_count_depth_dict = (
+                    # get the dictionary for this path pattern, data tree key, and depth
+                    path_pattern_dt_depth_dict = (
                         path_pattern_to_data.setdefault(path_pattern, dict())
                         .setdefault(dt_key, dict())
                         .setdefault(depth, {"array_indices": [], "signs": []})
                     )
-                    path_pattern_bit_count_depth_dict["array_indices"].append(array_idx)
-                    path_pattern_bit_count_depth_dict["signs"] = (-1) ** (
-                        signs[0] + depth * signs[1]
+                    path_pattern_dt_depth_dict["array_indices"].append(array_idx)
+                    path_pattern_dt_depth_dict["signs"].append(
+                        (-1) ** (signs[0] + depth * signs[1])
                     )
 
         # determine dimension sizes for observable data
