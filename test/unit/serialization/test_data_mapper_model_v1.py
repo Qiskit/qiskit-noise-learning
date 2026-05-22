@@ -29,6 +29,7 @@ from qiskit_noise_learning.sequences import (
     Path,
     PathPattern,
 )
+from qiskit_noise_learning.serialization import DataMapperModelV1
 
 from .utils import assert_data_mappers_equal
 
@@ -79,8 +80,8 @@ def test_data_mapper_model_v1_round_trip(model_gate_set):
         paths=[path],
     )
 
-    v1_model = original.to_data_mapper_model()
-    restored = ExecutorDataMapper.from_data_mapper_model(v1_model)
+    v1_model = DataMapperModelV1.from_executor_data_mapper(original)
+    restored = v1_model.to_executor_data_mapper()
     assert_data_mappers_equal(original, restored)
 
 
@@ -117,6 +118,6 @@ def test_data_mapper_model_v1_passthrough_round_trip(model_gate_set):
         paths=[path],
     )
 
-    passthrough_data = original.to_data_mapper_model().to_passthrough_data()
+    passthrough_data = original.to_passthrough_data()
     restored = ExecutorDataMapper.from_passthrough_data(passthrough_data)
     assert_data_mappers_equal(original, restored)

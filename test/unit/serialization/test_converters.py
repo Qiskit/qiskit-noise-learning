@@ -29,22 +29,15 @@ from qiskit_noise_learning.sequences import (
     PathPattern,
 )
 from qiskit_noise_learning.serialization import (
-    deserialize_fidelity_index,
-    deserialize_gate_set,
-    deserialize_instruction,
-    deserialize_instruction_sequence,
-    deserialize_path,
-    deserialize_pauli_lindblad_model,
-    deserialize_qubit_sparse_pauli,
-    deserialize_qubit_sparse_pauli_list,
-    serialize_fidelity_index,
-    serialize_gate_set,
-    serialize_instruction,
-    serialize_instruction_sequence,
-    serialize_path,
-    serialize_pauli_lindblad_model,
-    serialize_qubit_sparse_pauli,
-    serialize_qubit_sparse_pauli_list,
+    ApplyGateSchema,
+    FidelityIndexSchema,
+    InstructionSequenceSchema,
+    ModelGateSetSchema,
+    PartialPauliPermutationSchema,
+    PathSchema,
+    PauliLindbladModelSchema,
+    QubitSparsePauliListSchema,
+    QubitSparsePauliSchema,
 )
 
 from .utils import assert_gate_sets_equal, assert_pauli_lindblad_models_equal
@@ -61,37 +54,37 @@ def model_gate_set():
 
 def test_qubit_sparse_pauli():
     original = QubitSparsePauli("IX")
-    schema = serialize_qubit_sparse_pauli(original)
-    restored = deserialize_qubit_sparse_pauli(schema)
+    schema = QubitSparsePauliSchema.serialize(original)
+    restored = schema.deserialize()
     assert original == restored
 
 
 def test_qubit_sparse_pauli_list():
     original = QubitSparsePauliList(["ZI", "IX", "XX"])
-    schema = serialize_qubit_sparse_pauli_list(original)
-    restored = deserialize_qubit_sparse_pauli_list(schema)
+    schema = QubitSparsePauliListSchema.serialize(original)
+    restored = schema.deserialize()
     assert len(original) == len(restored)
     for p1, p2 in zip(original, restored):
         assert p1 == p2
 
 
 def test_gate_set(model_gate_set):
-    schema = serialize_gate_set(model_gate_set)
-    restored = deserialize_gate_set(schema)
+    schema = ModelGateSetSchema.serialize(model_gate_set)
+    restored = schema.deserialize()
     assert_gate_sets_equal(model_gate_set, restored)
 
 
 def test_instruction_apply_gate(model_gate_set):
     original = ApplyGate(model_gate_set["CZ"].model_gate)
-    schema = serialize_instruction(original)
-    restored = deserialize_instruction(schema, model_gate_set)
+    schema = ApplyGateSchema.serialize(original)
+    restored = schema.deserialize(model_gate_set)
     assert original == restored
 
 
 def test_instruction_partial_pauli_permutation(model_gate_set):
     original = PartialPauliPermutation(np.array([0, 3], dtype=np.int8))
-    schema = serialize_instruction(original)
-    restored = deserialize_instruction(schema, model_gate_set)
+    schema = PartialPauliPermutationSchema.serialize(original)
+    restored = schema.deserialize(model_gate_set)
     assert original == restored
 
 
@@ -104,8 +97,8 @@ def test_instruction_sequence(model_gate_set):
         end_fragment=[],
     )
     original = InstructionSequence(pattern=pattern, depth=3)
-    schema = serialize_instruction_sequence(original)
-    restored = deserialize_instruction_sequence(schema, model_gate_set)
+    schema = InstructionSequenceSchema.serialize(original)
+    restored = schema.deserialize(model_gate_set)
     assert original == restored
 
 
@@ -113,8 +106,8 @@ def test_fidelity_index(model_gate_set):
     cz_gate = model_gate_set["CZ"].model_gate
     pauli = QubitSparsePauli("IX")
     original = FidelityIndex(gate=cz_gate, pauli=pauli)
-    schema = serialize_fidelity_index(original)
-    restored = deserialize_fidelity_index(schema, model_gate_set)
+    schema = FidelityIndexSchema.serialize(original)
+    restored = schema.deserialize(model_gate_set)
     assert original == restored
 
 
@@ -128,8 +121,8 @@ def test_path(model_gate_set):
         end_fragment=[fi1],
     )
     original = Path(pattern=pattern, depth=2)
-    schema = serialize_path(original)
-    restored = deserialize_path(schema, model_gate_set)
+    schema = PathSchema.serialize(original)
+    restored = schema.deserialize(model_gate_set)
     assert original == restored
 
 
@@ -140,6 +133,6 @@ def test_pauli_lindblad_model(model_gate_set):
         "M": QubitSparsePauliList(["XI", "IX"]),
     }
     original = PauliLindbladModel(model_gate_set, generators)
-    schema = serialize_pauli_lindblad_model(original)
-    restored = deserialize_pauli_lindblad_model(schema, model_gate_set)
+    schema = PauliLindbladModelSchema.serialize(original)
+    restored = schema.deserialize(model_gate_set)
     assert_pauli_lindblad_models_equal(original, restored)

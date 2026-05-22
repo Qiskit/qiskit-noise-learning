@@ -191,7 +191,7 @@ class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramRe
         samplex_items, data_mapper = self.generate_samplex_items(
             experiment.sequences, experiment.paths, experiment.fidelity_model
         )
-        passthrough_data = data_mapper.to_data_mapper_model().to_passthrough_data()
+        passthrough_data = data_mapper.to_passthrough_data()
         return QuantumProgram(
             shots=experiment.shots, items=samplex_items, passthrough_data=passthrough_data
         )

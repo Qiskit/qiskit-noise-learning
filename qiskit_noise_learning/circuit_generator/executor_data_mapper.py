@@ -16,19 +16,9 @@ from typing import Self
 
 import numpy as np
 
-from ..models import FidelityModel, PauliLindbladModel
+from ..models import FidelityModel
 from ..sequences import InstructionSequence, Path
-from ..serialization import (
-    DataMapperModelV1,
-    deserialize_gate_set,
-    deserialize_instruction_sequence,
-    deserialize_path,
-    deserialize_pauli_lindblad_model,
-    serialize_gate_set,
-    serialize_instruction_sequence,
-    serialize_path,
-    serialize_pauli_lindblad_model,
-)
+from ..serialization import DataMapperModelV1
 
 
 class ExecutorDataMapper:
@@ -112,57 +102,14 @@ class ExecutorDataMapper:
         """The analysis paths associated with the data."""
         return self._paths
 
-    def to_data_mapper_model(self) -> DataMapperModelV1:
-        """Serialize this data mapper to a :class:`DataMapperModelV1`.
-
-        Requires :attr:`fidelity_model` and :attr:`paths` to be set.
+    def to_passthrough_data(self) -> dict:
+        """Serialize to a DataTree-compatible dict for QuantumProgram.passthrough_data.
 
         Raises:
             ValueError: If ``fidelity_model`` or ``paths`` is ``None``.
             ValueError: If ``fidelity_model`` is not a ``PauliLindbladModel``.
         """
-        if self._fidelity_model is None or self._paths is None:
-            raise ValueError("Cannot serialize: fidelity_model and paths must be set.")
-        if not isinstance(self._fidelity_model, PauliLindbladModel):
-            raise ValueError("Serialization is only supported for PauliLindbladModel instances.")
-
-        gate_set = self._fidelity_model.gate_set
-        return DataMapperModelV1(
-            gate_set=serialize_gate_set(gate_set),
-            item_sequence_indices=self._item_sequence_indices,
-            creg_names=self._creg_names,
-            measurement_maps=[
-                {k: v.tolist() for k, v in m.items()} for m in self._measurement_maps
-            ],
-            num_randomizations=self._num_randomizations,
-            instruction_sequences=[
-                serialize_instruction_sequence(seq) for seq in self._instruction_sequences
-            ],
-            paths=[serialize_path(p) for p in self._paths],
-            model=serialize_pauli_lindblad_model(self._fidelity_model),
-        )
-
-    @classmethod
-    def from_data_mapper_model(cls, model: DataMapperModelV1) -> Self:
-        """Reconstruct an :class:`ExecutorDataMapper` from a :class:`DataMapperModelV1`."""
-        gate_set = deserialize_gate_set(model.gate_set)
-        fidelity_model = deserialize_pauli_lindblad_model(model.model, gate_set)
-        paths = [deserialize_path(p, gate_set) for p in model.paths]
-        instruction_sequences = [
-            deserialize_instruction_sequence(seq, gate_set) for seq in model.instruction_sequences
-        ]
-        measurement_maps = [
-            {k: np.array(v, dtype=int) for k, v in m.items()} for m in model.measurement_maps
-        ]
-        return cls(
-            item_sequence_indices=model.item_sequence_indices,
-            creg_names=model.creg_names,
-            measurement_maps=measurement_maps,
-            instruction_sequences=instruction_sequences,
-            num_randomizations=model.num_randomizations,
-            fidelity_model=fidelity_model,
-            paths=paths,
-        )
+        return DataMapperModelV1.from_executor_data_mapper(self).to_passthrough_data()
 
     @classmethod
     def from_passthrough_data(cls, data: dict) -> Self:
@@ -177,6 +124,5 @@ class ExecutorDataMapper:
         raw = data["noise_learning_data_mapper"]
         version = raw.get("version")
         if version == 1:
-            model = DataMapperModelV1.model_validate(raw)
-            return cls.from_data_mapper_model(model)
+            return DataMapperModelV1.from_passthrough_data(data).to_executor_data_mapper()
         raise ValueError(f"Unsupported data mapper model version: {version}")

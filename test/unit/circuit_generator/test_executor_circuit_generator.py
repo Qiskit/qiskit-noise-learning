@@ -495,7 +495,7 @@ def test_collect_empty(collect_fixture):
         fidelity_model=collect_fixture["fidelity_model"],
         paths=[],
     )
-    passthrough_data = data_mapper.to_data_mapper_model().to_passthrough_data()
+    passthrough_data = data_mapper.to_passthrough_data()
     result = make_result([], passthrough_data=passthrough_data)
     fit = ExecutorCircuitGenerator.collect(result)
     assert len(fit.raw_data.datatree) == 0
@@ -513,7 +513,7 @@ def test_collect_single_sequence_no_measurement_flips(collect_fixture):
         fidelity_model=collect_fixture["fidelity_model"],
         paths=[collect_fixture["path"]],
     )
-    passthrough_data = data_mapper.to_data_mapper_model().to_passthrough_data()
+    passthrough_data = data_mapper.to_passthrough_data()
     result = make_result([{"meas0": creg_data}], passthrough_data=passthrough_data)
 
     fit = ExecutorCircuitGenerator.collect(result)
@@ -539,7 +539,7 @@ def test_collect_single_sequence_with_measurement_flips(collect_fixture):
         fidelity_model=collect_fixture["fidelity_model"],
         paths=[collect_fixture["path"]],
     )
-    passthrough_data = data_mapper.to_data_mapper_model().to_passthrough_data()
+    passthrough_data = data_mapper.to_passthrough_data()
     result = make_result(
         [{"meas0": creg_data, "measurement_flips.meas0": flip_data}],
         passthrough_data=passthrough_data,
@@ -565,7 +565,7 @@ def test_collect_multiple_sequences_same_item(collect_fixture):
         fidelity_model=collect_fixture["fidelity_model"],
         paths=[collect_fixture["path"]],
     )
-    passthrough_data = data_mapper.to_data_mapper_model().to_passthrough_data()
+    passthrough_data = data_mapper.to_passthrough_data()
     result = make_result([{"meas0": creg_data}], passthrough_data=passthrough_data)
 
     fit = ExecutorCircuitGenerator.collect(result)
@@ -593,7 +593,7 @@ def test_collect_multiple_sequences_different_items(collect_fixture):
         fidelity_model=collect_fixture["fidelity_model"],
         paths=[collect_fixture["path"]],
     )
-    passthrough_data = data_mapper.to_data_mapper_model().to_passthrough_data()
+    passthrough_data = data_mapper.to_passthrough_data()
     result = make_result(
         [
             {"meas0": data0},
@@ -631,7 +631,7 @@ def test_collect_multiple_cregs(collect_fixture):
         fidelity_model=collect_fixture["fidelity_model"],
         paths=[collect_fixture["path"]],
     )
-    passthrough_data = data_mapper.to_data_mapper_model().to_passthrough_data()
+    passthrough_data = data_mapper.to_passthrough_data()
     result = make_result(
         [
             {
@@ -691,7 +691,7 @@ def test_collect_complex_mapping(collect_fixture):
         fidelity_model=collect_fixture["fidelity_model"],
         paths=[collect_fixture["path"]],
     )
-    passthrough_data = data_mapper.to_data_mapper_model().to_passthrough_data()
+    passthrough_data = data_mapper.to_passthrough_data()
     result = make_result(items, passthrough_data=passthrough_data)
 
     fit = ExecutorCircuitGenerator.collect(result)
@@ -786,7 +786,7 @@ def test_generate_and_collect_with_pass_manager():
     assert "pass_meas" in [c.name for c in samplex_items[0].circuit.cregs]
 
     # Now test collect with spoofed data, embedding the data_mapper via passthrough_data
-    passthrough_data = data_mapper.to_data_mapper_model().to_passthrough_data()
+    passthrough_data = data_mapper.to_passthrough_data()
     num_shots = 3
     meas0_data = np.ones((1, num_randomizations, num_shots, 2), dtype=np.uint8)
     pass_meas_data = np.zeros((1, num_randomizations, num_shots, 1), dtype=np.uint8)
