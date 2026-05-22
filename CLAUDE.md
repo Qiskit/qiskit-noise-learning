@@ -35,6 +35,7 @@ Tests include doctests (`--doctest-modules` is set in `pyproject.toml`).
   Sphinx cross-reference (`:class:`~.AerExecutor``).  Use bare backtick-quoted names
   (``AerExecutor``) only when the docstring is known never to be rendered by Sphinx (e.g.
   internal helpers, test code).
+- Avoid `from __future__ import annotations` and other `__future__` imports wherever possible.
 
 ## CI
 
