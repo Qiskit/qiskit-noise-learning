@@ -328,6 +328,27 @@ class PathSchema(BaseModel):
         return Path(pattern=pattern, depth=self.depth)
 
 
+class PathPatternCompactSchema(BaseModel):
+    """Compact serialization schema for a :class:`PathPattern`.
+
+    Stores fragment entries as indices into an external FidelityIndex table.
+    """
+
+    start_fragment: list[int]
+    repeatable_fragment: list[int]
+    end_fragment: list[int]
+
+
+class PathCompactSchema(BaseModel):
+    """Compact serialization schema for a :class:`Path`.
+
+    References a PathPattern by index and stores only the depth.
+    """
+
+    pattern_index: int
+    depth: int
+
+
 class PauliLindbladModelSchema(BaseModel):
     """Serialization schema for a :class:`PauliLindbladModel`."""
 

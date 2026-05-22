@@ -20,9 +20,11 @@ import numpy as np
 from pydantic import BaseModel
 
 from .schemas import (
+    FidelityIndexSchema,
     InstructionSequenceSchema,
     ModelGateSetSchema,
-    PathSchema,
+    PathCompactSchema,
+    PathPatternCompactSchema,
     PauliLindbladModelSchema,
 )
 
@@ -44,7 +46,9 @@ class DataMapperModelV1(BaseModel):
     measurement_maps: list[dict[str, list[int]]]
     num_randomizations: int
     instruction_sequences: list[InstructionSequenceSchema]
-    paths: list[PathSchema]
+    fidelity_indices: list[FidelityIndexSchema]
+    path_patterns: list[PathPatternCompactSchema]
+    paths: list[PathCompactSchema]
     model: PauliLindbladModelSchema
 
     def to_passthrough_data(self) -> dict:
@@ -74,6 +78,43 @@ class DataMapperModelV1(BaseModel):
             raise ValueError("Serialization is only supported for PauliLindbladModel instances.")
 
         gate_set = data_mapper.fidelity_model.gate_set
+
+        fi_to_index: dict = {}
+        fi_list: list[FidelityIndexSchema] = []
+
+        def _get_fi_index(fi) -> int:
+            # Return the existing index for fi, or append it to fi_list and return the new index.
+            if fi in fi_to_index:
+                return fi_to_index[fi]
+            idx = len(fi_list)
+            fi_to_index[fi] = idx
+            fi_list.append(FidelityIndexSchema.serialize(fi))
+            return idx
+
+        pattern_to_index: dict = {}
+        pattern_list: list[PathPatternCompactSchema] = []
+
+        def _get_pattern_index(pattern) -> int:
+            # Return the existing index for pattern, or append it to pattern_list and return
+            # the new index.
+            if pattern in pattern_to_index:
+                return pattern_to_index[pattern]
+            idx = len(pattern_list)
+            pattern_to_index[pattern] = idx
+            pattern_list.append(
+                PathPatternCompactSchema(
+                    start_fragment=[_get_fi_index(fi) for fi in pattern.start_fragment],
+                    repeatable_fragment=[_get_fi_index(fi) for fi in pattern.repeatable_fragment],
+                    end_fragment=[_get_fi_index(fi) for fi in pattern.end_fragment],
+                )
+            )
+            return idx
+
+        compact_paths = []
+        for path in data_mapper.paths:
+            pattern_index = _get_pattern_index(path.pattern)
+            compact_paths.append(PathCompactSchema(pattern_index=pattern_index, depth=path.depth))
+
         return cls(
             gate_set=ModelGateSetSchema.serialize(gate_set),
             item_sequence_indices=data_mapper.item_sequence_indices,
@@ -86,17 +127,34 @@ class DataMapperModelV1(BaseModel):
                 InstructionSequenceSchema.serialize(seq)
                 for seq in data_mapper.instruction_sequences
             ],
-            paths=[PathSchema.serialize(p) for p in data_mapper.paths],
+            fidelity_indices=fi_list,
+            path_patterns=pattern_list,
+            paths=compact_paths,
             model=PauliLindbladModelSchema.serialize(data_mapper.fidelity_model),
         )
 
     def to_executor_data_mapper(self) -> ExecutorDataMapper:
         """Deserialize to an :class:`~.ExecutorDataMapper`."""
         from ..circuit_generator.executor_data_mapper import ExecutorDataMapper
+        from ..sequences import Path, PathPattern
 
         gate_set = self.gate_set.deserialize()
         fidelity_model = self.model.deserialize(gate_set)
-        paths = [p.deserialize(gate_set) for p in self.paths]
+
+        fi_table = [fi.deserialize(gate_set) for fi in self.fidelity_indices]
+
+        pattern_table = []
+        for pattern_schema in self.path_patterns:
+            pattern_table.append(
+                PathPattern(
+                    start_fragment=[fi_table[i] for i in pattern_schema.start_fragment],
+                    repeatable_fragment=[fi_table[i] for i in pattern_schema.repeatable_fragment],
+                    end_fragment=[fi_table[i] for i in pattern_schema.end_fragment],
+                )
+            )
+
+        paths = [Path(pattern=pattern_table[p.pattern_index], depth=p.depth) for p in self.paths]
+
         instruction_sequences = [seq.deserialize(gate_set) for seq in self.instruction_sequences]
         measurement_maps = [
             {k: np.array(v, dtype=int) for k, v in m.items()} for m in self.measurement_maps

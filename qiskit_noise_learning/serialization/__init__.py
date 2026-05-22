@@ -22,6 +22,8 @@ from .schemas import (
     ModelGateSchema,
     ModelGateSetSchema,
     PartialPauliPermutationSchema,
+    PathCompactSchema,
+    PathPatternCompactSchema,
     PathPatternSchema,
     PathSchema,
     PauliLindbladModelSchema,
