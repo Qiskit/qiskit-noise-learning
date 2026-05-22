@@ -12,8 +12,6 @@
 
 """Experiment dataclass."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 from qiskit_noise_learning.models import FidelityModel

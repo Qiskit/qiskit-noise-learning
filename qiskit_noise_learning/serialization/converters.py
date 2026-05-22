@@ -12,8 +12,6 @@
 
 """Converters between runtime domain objects and pydantic serialization schemas."""
 
-from __future__ import annotations
-
 import numpy as np
 from qiskit.quantum_info import Clifford, QubitSparsePauli, QubitSparsePauliList
 from qiskit.transpiler import CouplingMap

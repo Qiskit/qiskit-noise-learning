@@ -12,9 +12,7 @@
 
 """Versioned top-level serialization schema for the executor data mapper and analysis context."""
 
-from __future__ import annotations
-
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import BaseModel
 
@@ -48,6 +46,6 @@ class DataMapperModelV1(BaseModel):
         return {"noise_learning_data_mapper": self.model_dump()}
 
     @classmethod
-    def from_passthrough_data(cls, data: dict) -> DataMapperModelV1:
+    def from_passthrough_data(cls, data: dict) -> Self:
         """Reconstruct from a passthrough_data dict."""
         return cls.model_validate(data["noise_learning_data_mapper"])

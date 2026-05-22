@@ -12,7 +12,7 @@
 
 """ExecutorDataMapper class."""
 
-from __future__ import annotations
+from typing import Self
 
 import numpy as np
 
@@ -143,7 +143,7 @@ class ExecutorDataMapper:
         )
 
     @classmethod
-    def from_data_mapper_model(cls, model: DataMapperModelV1) -> ExecutorDataMapper:
+    def from_data_mapper_model(cls, model: DataMapperModelV1) -> Self:
         """Reconstruct an :class:`ExecutorDataMapper` from a :class:`DataMapperModelV1`."""
         gate_set = deserialize_gate_set(model.gate_set)
         fidelity_model = deserialize_pauli_lindblad_model(model.model, gate_set)
@@ -165,7 +165,7 @@ class ExecutorDataMapper:
         )
 
     @classmethod
-    def from_passthrough_data(cls, data: dict) -> ExecutorDataMapper:
+    def from_passthrough_data(cls, data: dict) -> Self:
         """Reconstruct from passthrough_data, dispatching on version.
 
         Args:

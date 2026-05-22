@@ -12,8 +12,6 @@
 
 """Reusable pydantic serialization schemas for noise learning types."""
 
-from __future__ import annotations
-
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
