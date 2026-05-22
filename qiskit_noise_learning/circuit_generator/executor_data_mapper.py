@@ -62,8 +62,8 @@ class ExecutorDataMapper:
         measurement_maps: list[dict[str, np.ndarray[int]]],
         instruction_sequences: list[InstructionSequence],
         num_randomizations: int,
-        fidelity_model: FidelityModel | None = None,
-        paths: list[Path] | None = None,
+        fidelity_model: FidelityModel,
+        paths: list[Path],
     ):
         self._item_sequence_indices = item_sequence_indices
         self._creg_names = creg_names
@@ -103,13 +103,13 @@ class ExecutorDataMapper:
         return self._num_randomizations
 
     @property
-    def fidelity_model(self) -> FidelityModel | None:
-        """The fidelity model associated with the data, if available."""
+    def fidelity_model(self) -> FidelityModel:
+        """The fidelity model associated with the data."""
         return self._fidelity_model
 
     @property
-    def paths(self) -> list[Path] | None:
-        """The analysis paths associated with the data, if available."""
+    def paths(self) -> list[Path]:
+        """The analysis paths associated with the data."""
         return self._paths
 
     def to_data_mapper_model(self) -> DataMapperModelV1:
