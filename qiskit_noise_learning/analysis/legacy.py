@@ -1,61 +1,116 @@
+# This code is a Qiskit project.
+#
+# (C) Copyright IBM 2026.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
+
+"""Legacy noise-model fitter retained as a cross-check reference."""
+
 from collections import defaultdict
 from typing import Literal
+
 import numpy as np
 import scipy.optimize as opt
-from qiskit import QuantumCircuit
-from qiskit.quantum_info import PauliList
+from numpy.typing import ArrayLike
+from qiskit.quantum_info import PauliLindbladMap, PauliList, QubitSparsePauliList
 from scipy.sparse import csr_array
 
-from qiskit.quantum_info import QubitSparsePauliList,PauliLindbladMap
-
-from qiskit_noise_learning.analysis import Fit
+from qiskit_noise_learning.analysis import AnalysisStage, Fit
 from qiskit_noise_learning.data import AveragedData, ModelData
-
-from qiskit_noise_learning.analysis.model_solve import ModelSolve
 from qiskit_noise_learning.data.xarray_utils import time_bound
+from qiskit_noise_learning.models.pauli_lindblad_model import GeneratorIndex
+
+from ..optionals import HAS_CVXPY
 
 OptimizerLiteral = Literal["nnls", "lsq_linear_sparse", "cvxpy"]
 NoiseAssumptionLiteral = Literal["symmetric_fidelities", "symmetric_generators"]
 
-def get_fid_pairs(fit):
-    """extracts the first and second paulis from the 'repeatable fragments' of the path patterns (i.e. pauli and conjugate pauli)"""
+
+def get_fid_pairs(fit: Fit) -> tuple[QubitSparsePauliList, QubitSparsePauliList]:
+    """Extract the first and second Paulis from the repeatable fragment of each path pattern.
+
+    Args:
+        fit: A :class:`~.Fit` container holding :class:`~.AveragedData`.
+
+    Returns:
+        A pair ``(fid_ps_1, fid_ps_2)`` of ``QubitSparsePauliList`` objects holding,
+        respectively, the first and second Pauli of each repeatable fragment.
+
+    Raises:
+        ValueError: If any path pattern's ``repeatable_fragment`` does not have exactly 2 entries.
+    """
     fid_pairs = []
 
     for pp in fit.averaged_data.dataset.observables.path_pattern.data:
-        fid_pairs.append([rf.pauli for rf in pp.repeatable_fragment])
+        fragment = pp.repeatable_fragment
+        if len(fragment) != 2:
+            raise ValueError(
+                "Expected each path pattern's repeatable_fragment to have exactly 2 entries, "
+                f"but got {len(fragment)}."
+            )
+        fid_pairs.append([fragment[0].pauli, fragment[1].pauli])
 
     # Convert to QubitSparsePauliList
-    fid_ps_1 = QubitSparsePauliList(np.array(fid_pairs)[:,0].tolist())
-    fid_ps_2 = QubitSparsePauliList(np.array(fid_pairs)[:,1].tolist())
+    fid_ps_1 = QubitSparsePauliList(np.array(fid_pairs)[:, 0].tolist())
+    fid_ps_2 = QubitSparsePauliList(np.array(fid_pairs)[:, 1].tolist())
     return fid_ps_1, fid_ps_2
 
 
-def make_canonical_fid_dict(fid_ps_1,fid_ps_2,fid_pairs_data):
-    """
-    Args: fid_ps_1, fid_ps2 are lists of dense Pauli strings, representing the first and second elements
-            of the repeatable fragments in the path patterns
+def make_canonical_fid_dict(
+    fid_ps_1: list[str], fid_ps_2: list[str], fid_pairs_data: ArrayLike
+) -> dict[str, float]:
+    """Build a dict mapping each weight-<3 Pauli label to its mean pair fidelity.
+
+    Paulis with weight >= 3 are excluded. When a Pauli appears in both *fid_ps_1* and
+    *fid_ps_2*, its fidelity values from both positions are averaged.
+
+    Args:
+        fid_ps_1: Pauli labels for the first element of each repeatable fragment.
+        fid_ps_2: Pauli labels for the second element of each repeatable fragment.
+        fid_pairs_data: Fidelity values indexed parallel to *fid_ps_1* and *fid_ps_2*.
+
     Returns:
-            dict with keys being the canoncial fidelities (unique fidelities with weight < 3)
-            values being the pair fidelity. This is the input to the legacy fitter
+        A dict whose keys are weight-<3 Pauli labels and whose values are the
+        corresponding mean fidelities.
     """
-    from collections import defaultdict
-    # this converts the the data of fidelity pairs to a data set of fidelities (with values of fidelity decay per pair depth) 
+    # collect each weight-<3 Pauli's fidelity values (one per occurrence in either list)
     fid_pair_p_dict = defaultdict(list)
-    for i,p in enumerate(fid_ps_1):
-        if len(p.replace('I','')) < 3:
+    for i, p in enumerate(fid_ps_1):
+        if len(p.replace("I", "")) < 3:
             fid_pair_p_dict[p].append(fid_pairs_data[i])
-    for i,p in enumerate(fid_ps_2):
-        if len(p.replace('I','')) < 3:
+    for i, p in enumerate(fid_ps_2):
+        if len(p.replace("I", "")) < 3:
             fid_pair_p_dict[p].append(fid_pairs_data[i])
-    len(fid_pair_p_dict)
 
     fid_pair_p_dict_mean = {}
     for p, evlist in fid_pair_p_dict.items():
         fid_pair_p_dict_mean[p] = np.mean(evlist)
     return fid_pair_p_dict_mean
 
-def make_conj_pauli_list(pauli_list, fid_ps_1, fid_ps_2):
-    """Given the input pauli list, return the conjugate pauli list"""
+
+def make_conj_pauli_list(
+    pauli_list: list[str], fid_ps_1: list[str], fid_ps_2: list[str]
+) -> list[str]:
+    """Return the conjugate Pauli for each entry in ``pauli_list``.
+
+    For each ``p`` in ``pauli_list``: if ``p`` appears in ``fid_ps_1`` at index ``i``, the
+    conjugate is ``fid_ps_2[i]``; if ``p`` appears in *fid_ps_2* at index ``i``, the
+    conjugate is ``fid_ps_1[i]``. Paulis present in neither list are silently omitted.
+
+    Args:
+        pauli_list: Pauli labels to look up.
+        fid_ps_1: First-element Pauli labels from the repeatable fragments.
+        fid_ps_2: Second-element Pauli labels from the repeatable fragments.
+
+    Returns:
+        A list of conjugate Pauli labels, one per entry of *pauli_list* that was found.
+    """
     pconj_list = []
     for p in pauli_list:
         if p in fid_ps_1:
@@ -66,24 +121,58 @@ def make_conj_pauli_list(pauli_list, fid_ps_1, fid_ps_2):
             pconj_list.append(p_conj)
     return pconj_list
 
-def fit_noise_model_legacy(fit,
-                            noise_assumption = 'symmetric_fidelities',
-                            decimals: int | None = None,
-                            optimizer_name = "nnls",
-                            constrained: bool = True):
-    """Do the legacy noise model fit"""
+
+def fit_noise_model_legacy(
+    fit: Fit,
+    noise_assumption: NoiseAssumptionLiteral = "symmetric_fidelities",
+    decimals: int | None = None,
+    optimizer_name: OptimizerLiteral = "nnls",
+    constrained: bool = True,
+) -> PauliLindbladMap:
+    """Fit a ``PauliLindbladMap`` from pair-fidelity data using the legacy method.
+
+    This is a reference implementation ported from a prior codebase. The non-commuting
+    (``M``) array is built directly from pair-fidelity data rather than from a
+    :class:`~.FidelityModel`, so the algorithm shape intentionally differs from
+    :class:`~.NNLSSolve` and friends.
+
+    Args:
+        fit: A :class:`~.Fit` container holding :class:`~.AveragedData`.
+        noise_assumption: How to treat Clifford conjugation of generators.
+            ``"symmetric_fidelities"`` uses the square root of each pair fidelity as a
+            single-layer fidelity. ``"symmetric_generators"`` assumes conjugate generator
+            pairs share equal rates.
+        decimals: If given, round fitted rates to this many decimal places.
+        optimizer_name: Least-squares solver to use. ``"nnls"`` requires
+            ``constrained=True``; ``"lsq_linear_sparse"`` and ``"cvxpy"`` support both
+            constrained and unconstrained fitting.
+        constrained: Whether to enforce non-negativity on the fitted rates.
+
+    Returns:
+        A ``PauliLindbladMap`` whose generators are the basis Paulis and whose rates are
+        the fitted coefficients.
+
+    Raises:
+        ValueError: If *noise_assumption* or *optimizer_name* is not recognized, or if
+            ``optimizer_name="nnls"`` and ``constrained=False``.
+        MissingOptionalLibraryError: If ``optimizer_name="cvxpy"`` and ``cvxpy`` is not
+            installed.
+    """
     fid_ps_1, fid_ps_2 = get_fid_pairs(fit)
     fid_pair_data = fit.averaged_data.dataset.observables
-    fidelities_canonical = make_canonical_fid_dict(fid_ps_1.to_pauli_list().to_labels(),
-                                                                  fid_ps_2.to_pauli_list().to_labels(),
-                                                                  fid_pair_data)
+    fidelities_canonical = make_canonical_fid_dict(
+        fid_ps_1.to_pauli_list().to_labels(), fid_ps_2.to_pauli_list().to_labels(), fid_pair_data
+    )
     pauli_fidelities = np.array(list(fidelities_canonical.values()))
-    basis_paulis=PauliList(list(fidelities_canonical.keys()))
-    conjugated_basis_paulis = PauliList(make_conj_pauli_list(list(fidelities_canonical.keys()),
-                                                        fid_ps_1.to_pauli_list().to_labels(),
-                                                        fid_ps_2.to_pauli_list().to_labels()))
+    basis_paulis = PauliList(list(fidelities_canonical.keys()))
+    conjugated_basis_paulis = PauliList(
+        make_conj_pauli_list(
+            list(fidelities_canonical.keys()),
+            fid_ps_1.to_pauli_list().to_labels(),
+            fid_ps_2.to_pauli_list().to_labels(),
+        )
+    )
 
-    
     sparse_model_paulis = basis_paulis.copy()
     # Form the non-commuting array (``M`` as in the PEC paper)
     nc_array_basis = np.logical_not([p.commutes(sparse_model_paulis) for p in basis_paulis]).astype(
@@ -132,19 +221,18 @@ def fit_noise_model_legacy(fit,
     if optimizer_name == "lsq_linear_sparse":
         nc_array_shaped = csr_array(nc_array_shaped)
         sparse_model_coeffs = opt.lsq_linear(
-            nc_array_shaped, fit_vector, bounds=(0, np.inf) if constrained else (-np.inf,np.inf)
+            nc_array_shaped, fit_vector, bounds=(0, np.inf) if constrained else (-np.inf, np.inf)
         ).x
     elif optimizer_name == "nnls":
         if not constrained:
-            raise ValueError("...")
+            raise ValueError(
+                "optimizer_name='nnls' does not support constrained=False; "
+                "use 'lsq_linear_sparse' or 'cvxpy'."
+            )
         sparse_model_coeffs, _ = opt.nnls(nc_array_shaped, fit_vector)
     elif optimizer_name == "cvxpy":
-        try:
-            import cvxpy
-        except ImportError as err:
-            raise ValueError(
-                "Attempted to use `cvxpy` for sparse model fitting, but it is not installed."
-            ) from err
+        HAS_CVXPY.require_now("legacy noise-model fitting with cvxpy")
+        import cvxpy
 
         nc_array_shaped = csr_array(nc_array_shaped)
         cvxpy_fit_var = cvxpy.Variable(nc_array_shaped.shape[1])
@@ -172,41 +260,42 @@ def fit_noise_model_legacy(fit,
     if decimals is not None:
         sparse_model_coeffs = np.round(sparse_model_coeffs, decimals)
 
-    sparse_model_coeffs_residuals = (nc_array @ sparse_model_coeffs) - (
-        -np.log(np.abs(pauli_fidelities)) / 2
+    noise_map_pecr = PauliLindbladMap.from_list(
+        list(zip(sparse_model_paulis.to_labels(), sparse_model_coeffs))
     )
-    sparse_model_noncommuting = nc_array
-
-    # Check that the arrays have the appropriate shape
-    assert len(sparse_model_paulis) == len(sparse_model_coeffs)
-    assert sparse_model_noncommuting.shape[1] == len(sparse_model_paulis)
-
-    noise_map_pecr = PauliLindbladMap.from_list(list(zip(sparse_model_paulis.to_labels(),sparse_model_coeffs)))
     return noise_map_pecr
 
-class LegacySolve(ModelSolve):
-    def _linear_solve(self, a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, dict]:
-            # this is required but I don't use it (should I use it somehow?)
-            return True
-            # opt_res = opt.lsq_linear(a_mat, b_vec, verbose=2,bounds=(0, np.inf),method='bvls')
-            # return opt_res.x, {"opt_res": opt_res}
-    def _run(self, fit: Fit):
 
+class LegacySolve(AnalysisStage):
+    """Solves for the :class:`~.ModelData` using the legacy pair-fidelity method.
+
+    Delegates to :func:`fit_noise_model_legacy` with ``noise_assumption="symmetric_fidelities"``,
+    ``optimizer_name="nnls"``, and ``constrained=True``.
+    """
+
+    input_level = AveragedData
+    output_level = ModelData
+
+    def _run(self, fit: Fit) -> None:
         averaged_data = fit[AveragedData]
 
-        noise_map = fit_noise_model_legacy(fit,
-                            
-                            noise_assumption = 'symmetric_fidelities',
-                            decimals = None,
-                            optimizer_name = "nnls",
-                            constrained = True)
+        noise_map = fit_noise_model_legacy(
+            fit,
+            noise_assumption="symmetric_fidelities",
+            decimals=None,
+            optimizer_name="nnls",
+            constrained=True,
+        )
 
-        from qiskit_noise_learning.models.pauli_lindblad_model import GeneratorIndex
-        layer_name = fit.averaged_data.dataset.path_pattern[0].item().repeatable_fragment[0].gate.name
+        layer_name = (
+            fit.averaged_data.dataset.path_pattern[0].item().repeatable_fragment[0].gate.name
+        )
 
-        param_labels = [GeneratorIndex(gate_name=layer_name,generator=g) for g in noise_map.generators()]
+        param_labels = [
+            GeneratorIndex(gate_name=layer_name, generator=g) for g in noise_map.generators()
+        ]
         x = np.array(noise_map.rates)
-        cov_x = np.zeros(shape=(len(x),len(x)))
+        cov_x = np.zeros(shape=(len(x), len(x)))
         metadata = {}
         # Filter to decay data (depth == -1)
         decay_mask = averaged_data.dataset["depth"].data == -1
@@ -215,7 +304,6 @@ class LegacySolve(ModelSolve):
         time_lb = time_bound(decay_dataset["time_lbs"].data, "min")
         time_ub = time_bound(decay_dataset["time_ubs"].data, "max")
 
-        
         fit[ModelData] = ModelData.from_arrays(
             parameter_indices=param_labels,
             parameter_values=x,
