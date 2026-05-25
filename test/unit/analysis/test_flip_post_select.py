@@ -23,17 +23,12 @@ from qiskit_noise_learning.data import RawData
 
 
 @dataclass(frozen=True)
-class MockInstructionPattern:
-    name: str
-
-
-@dataclass(frozen=True)
 class MockInstructionSequence:
-    pattern: MockInstructionPattern
+    name: str
     depth: int
 
     def without_depth(self):
-        return MockInstructionSequence(pattern=self.pattern, depth=None)
+        return MockInstructionSequence(name=self.name, depth=None)
 
 
 def make_fit(raw_data, coupling_map):
@@ -44,7 +39,7 @@ def make_fit(raw_data, coupling_map):
 
 def make_raw_data(creg_names, measurement_map, data):
     """Build a RawData from a single data array (1 sequence)."""
-    seq = MockInstructionSequence(pattern=MockInstructionPattern("p0"), depth=1)
+    seq = MockInstructionSequence(name="p0", depth=1)
     num_rand = data.shape[0]
     num_bits = data.shape[2]
     return RawData.from_arrays(
