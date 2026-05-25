@@ -21,7 +21,6 @@ from qiskit.circuit import QuantumRegister
 from qiskit.providers import BackendV2
 from qiskit_ibm_runtime import Executor
 from qiskit_ibm_runtime.quantum_program import QuantumProgram
-from qiskit_ibm_runtime.quantum_program.quantum_program import SamplexItem
 from samplomatic import InjectNoise
 from samplomatic.utils import get_annotation
 
@@ -38,9 +37,8 @@ from ..experiment_builder import (
 )
 from ..gate_sets import QiskitGateSet
 from ..models import PauliLindbladModel
-from ..sequences import Path
 from .learning_options import LearningOptions
-from .noise_learner_job import ExperimentSchema, NoiseLearnerJob
+from .noise_learner_job import NoiseLearnerJob
 
 _ANALYZERS = {
     "standard": AnalysisPipeline(ComputeObservables(), CurveFitObservables(), NNLSSolve())
@@ -98,21 +96,18 @@ class NoiseLearner:
             if instr.operation.name != "box":
                 raise ValueError(f"All instructions must be BoxOps, got '{instr.operation.name}'.")
 
-        samplex_items, experiment_schema = self._generate(instructions)
-        job = self._execute(samplex_items)
-        job.experiment_schema = experiment_schema
-        return NoiseLearnerJob(job, experiment_schema, self._analyzer)
+        program = self._generate(instructions)
+        job = self._execute(program)
+        return NoiseLearnerJob(job, self._analyzer)
 
-    def _generate(
-        self, instructions: Sequence[CircuitInstruction]
-    ) -> tuple[list[SamplexItem], ExperimentSchema]:
-        """Generate samplex items from the given instructions.
+    def _generate(self, instructions: Sequence[CircuitInstruction]) -> QuantumProgram:
+        """Generate a :class:`~.QuantumProgram` from the given instructions.
 
         Args:
             instructions: The BoxOp instructions to learn.
 
         Returns:
-            A tuple of samplex items and an experiment schema.
+            A :class:`~.QuantumProgram` with embedded passthrough data.
         """
         # Build gate set from backend target
         qreg = QuantumRegister(self.backend.num_qubits, name="q")
@@ -154,29 +149,23 @@ class NoiseLearner:
         builder.merge_instruction_patterns()
         builder.complete()
 
-        paths = [Path(p, d) for p in builder.path_patterns for d in self._options.depths]
-        paths.extend(builder.paths)
-
-        # Generate instruction sequences
-        sequences = builder.generate_instruction_sequences(depths=self._options.depths)
-
-        # Generate circuits
+        # Generate quantum program
         circuit_gen = ExecutorCircuitGenerator(
             gate_set, num_randomizations=self._options.num_randomizations
         )
-        samplex_items, executor_data_mapper = circuit_gen.generate(sequences)
+        experiment = builder.build(
+            depths=self._options.depths, shots=self._options.shots_per_randomizations
+        )
+        return circuit_gen.generate(experiment)
 
-        return samplex_items, ExperimentSchema(executor_data_mapper, paths, fidelity_model)
-
-    def _execute(self, samplex_items: list[SamplexItem]):
-        """Submit a job to execute samplex items on the backend.
+    def _execute(self, program: QuantumProgram):
+        """Submit a :class:`~.QuantumProgram` to the backend.
 
         Args:
-            samplex_items: The samplex items to execute.
+            program: The quantum program to execute.
 
         Returns:
             The job.
         """
-        program = QuantumProgram(shots=self._options.shots_per_randomizations, items=samplex_items)
         executor = Executor(mode=self._backend)
         return executor.run(program)

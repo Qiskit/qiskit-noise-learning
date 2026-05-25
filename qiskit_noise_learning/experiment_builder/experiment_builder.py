@@ -29,6 +29,8 @@ from qiskit_noise_learning.sequences import (
     PathPattern,
 )
 
+from .experiment import Experiment
+
 # the parameter in the fidelity model
 ParameterIndex = TypeVar("ParameterIndex")
 
@@ -285,6 +287,29 @@ class ExperimentBuilder:
         instruction_sequences.extend(sequence for sequence in self.instruction_sequences)
 
         return instruction_sequences
+
+    def build(self, depths: list[int], shots: int) -> Experiment:
+        """Build an :class:`Experiment` from this builder.
+
+        Expands all instruction patterns at the given depths and constructs analysis paths as the
+        Cartesian product of path patterns and depths, plus any fixed-depth paths.
+
+        Args:
+            depths: The depths at which to expand instruction patterns.
+            shots: The number of shots per randomization.
+
+        Returns:
+            An :class:`Experiment` ready to pass to :meth:`.CircuitGenerator.generate`.
+        """
+        sequences = [x.complete() for x in self.generate_instruction_sequences(depths=depths)]
+        paths = [Path(p, d) for p in self.path_patterns for d in depths]
+        paths.extend(self.paths)
+        return Experiment(
+            sequences=sequences,
+            paths=paths,
+            fidelity_model=self._fidelity_model,
+            shots=shots,
+        )
 
     def identify_pattern_relations(
         self, attempt_instruction_extension: bool = True

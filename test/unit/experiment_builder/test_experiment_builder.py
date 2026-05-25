@@ -17,6 +17,7 @@ from qiskit.circuit import QuantumCircuit
 from qiskit.circuit.library import CZGate, XGate
 from qiskit.quantum_info import Clifford, QubitSparsePauli
 
+from qiskit_noise_learning.experiment_builder.experiment import Experiment
 from qiskit_noise_learning.experiment_builder.experiment_builder import (
     ExperimentBuilder,
     minimize_instruction_patterns,
@@ -1354,6 +1355,31 @@ class TestExperimentBuilder:
 
         path_pattern_indices = {pp_idx for pp_idx, _ in eb.pattern_relations}
         assert path_pattern_indices == {0, 1, 2}
+
+    def test_build(self, gate_set_cz, path_pattern_ix, path_pattern_xi):
+        eb = ExperimentBuilder(gate_set_cz)
+        eb.add_path_patterns([(path_pattern_ix, None), (path_pattern_xi, None)])
+
+        fixed_path = Path(path_pattern_ix, depth=7)
+        eb.add_paths([(fixed_path, None)])
+
+        depths = [2, 4]
+        shots = 1024
+        experiment = eb.build(depths=depths, shots=shots)
+
+        assert isinstance(experiment, Experiment)
+        assert experiment.shots == shots
+        assert experiment.fidelity_model is eb.fidelity_model
+
+        expected_sequences = [
+            InstructionSequence(ip, d).complete() for d in depths for ip in eb.instruction_patterns
+        ]
+        expected_sequences.extend(seq.complete() for seq in eb.instruction_sequences)
+        assert experiment.sequences == expected_sequences
+
+        expected_paths = [Path(pp, d) for pp in eb.path_patterns for d in depths]
+        expected_paths.append(fixed_path)
+        assert experiment.paths == expected_paths
 
 
 class TestMinimizePatterns:

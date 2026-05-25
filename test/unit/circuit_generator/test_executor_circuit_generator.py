@@ -15,22 +15,28 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from qiskit import QuantumCircuit
-from qiskit_ibm_runtime.results import QuantumProgramResult
+from qiskit.circuit.library import CZGate
+from qiskit.quantum_info import Clifford, QubitSparsePauli, QubitSparsePauliList
 from samplomatic import Twirl
 
-from qiskit_noise_learning.circuit_generator import ExecutorCircuitGenerator
-from qiskit_noise_learning.circuit_generator.executor_circuit_generator import ExecutorDataMapper
-from qiskit_noise_learning.gate_sets import QiskitGateSet
+from qiskit_noise_learning.circuit_generator import ExecutorCircuitGenerator, ExecutorDataMapper
+from qiskit_noise_learning.experiment_builder import ExperimentBuilder
+from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet, QiskitGateSet
+from qiskit_noise_learning.models import PauliLindbladModel
 from qiskit_noise_learning.sequences import (
     ApplyGate,
+    FidelityIndex,
     InstructionPattern,
     InstructionSequence,
     PartialPauliPermutation,
+    Path,
+    PathPattern,
 )
 
 
-def make_result(items, chunk_timing=None):
-    """Create mock ``QuantumProgramResult`` for use with ``ExecutorCircuitGenerator.collect``.
+def make_result(items, chunk_timing=None, passthrough_data=None):
+    """Create a stub object mimicking QuantumProgramResult for use with
+    ExecutorCircuitGenerator.collect.
 
     Args:
         items: A list of dicts mapping creg names (and optionally "measurement_flips.<creg>")
@@ -39,6 +45,8 @@ def make_result(items, chunk_timing=None):
         chunk_timing: Optional list of (start, stop, parts) tuples, where parts is a list of
             (idx_item, size) tuples. If None, a single chunk is generated with dummy timestamps
             that produces the correct number of time entries per item.
+        passthrough_data: The passthrough_data dict to embed in the result, containing a
+            serialized ExecutorDataMapper for use by ExecutorCircuitGenerator.collect.
 
     Returns:
         A stub result object with the interface expected by ``ExecutorCircuitGenerator.collect``.
@@ -72,6 +80,7 @@ def make_result(items, chunk_timing=None):
     class _Result:
         def __init__(self):
             self.metadata = SimpleNamespace(chunk_timing=chunk_timing)
+            self.passthrough_data = passthrough_data
 
         def __len__(self):
             return len(items)
@@ -112,6 +121,44 @@ def gateset_subset():
         builder.circuit.noop(range(2, 12))
 
     return gateset
+
+
+@pytest.fixture
+def collect_fixture():
+    """Minimal serializable fixture for collect tests.
+
+    Provides a 2-qubit ModelGateSet with CZ/P/M gates, a compatible PauliLindbladModel,
+    four instruction sequences at depths 0–3, and a single analysis path.
+    """
+    mg = ModelGateSet(2)
+    mg.add_gate(ModelGate("CZ", [((0, 1), Clifford(CZGate()))]))
+    mg.add_gate(ModelGate("P", qubit_idxs=range(2), prep_idxs=range(2)))
+    mg.add_gate(ModelGate("M", qubit_idxs=range(2), meas_idxs=range(2)))
+    generators = {
+        "CZ": QubitSparsePauliList(["ZI", "IX"]),
+        "P": QubitSparsePauliList(["XI"]),
+        "M": QubitSparsePauliList(["IX"]),
+    }
+    fidelity_model = PauliLindbladModel(mg, generators)
+
+    p_gate = mg["P"].model_gate
+    m_gate = mg["M"].model_gate
+    pattern = InstructionPattern([ApplyGate(p_gate)], [], [ApplyGate(m_gate)])
+    sequences = [InstructionSequence(pattern=pattern, depth=d) for d in range(4)]
+
+    fi = FidelityIndex(gate=mg["CZ"].model_gate, pauli=QubitSparsePauli("IX"))
+    path = Path(
+        pattern=PathPattern(start_fragment=[fi], repeatable_fragment=[], end_fragment=[]),
+        depth=1,
+    )
+
+    return {
+        "model_gate_set": mg,
+        "fidelity_model": fidelity_model,
+        "sequences": sequences,
+        "pattern": pattern,
+        "path": path,
+    }
 
 
 @pytest.mark.parametrize("gateset", [gateset_full(), gateset_subset()])
@@ -336,8 +383,8 @@ def test_generate_samplex_item_raises():
 
 
 @pytest.mark.parametrize("gateset", [gateset_full(), gateset_subset()])
-def test_generate(gateset):
-    """Test `ExecutorCircuitGenerator.generate()` works as expected."""
+def test_generate_samplex_items(gateset):
+    """Test `ExecutorCircuitGenerator.generate_samplex_items()` works as expected."""
     circuit_generator = ExecutorCircuitGenerator(gateset)
     model_gateset = gateset.model_gate_set
     pattern0 = InstructionPattern(
@@ -346,14 +393,21 @@ def test_generate(gateset):
         [ApplyGate(model_gateset["M"])],
     )
 
-    sequences = [InstructionSequence(pattern0, d) for d in [1, 3, 10]]
-    samplex_items, data_mapper = circuit_generator.generate(sequences)
+    # Single pattern with 3 depths => 3 sequences, each in its own partition
+    builder = ExperimentBuilder(model_gateset)
+    builder._instruction_patterns = [pattern0]  # noqa: SLF001
+    builder.complete()
+
+    depths = [1, 3, 10]
+    samplex_items, data_mapper = circuit_generator.generate_samplex_items(
+        builder.generate_instruction_sequences(depths=depths), []
+    )
     assert len(samplex_items) == 3
     assert data_mapper.creg_names == [["meas0"], ["meas0"], ["meas0"]]
     assert data_mapper.item_sequence_indices == [[0], [1], [2]]
 
-    gateset_idxs = [idx for idx in gateset.qubit_subset]
-    gateset_idxs.sort()
+    # Two patterns with the same gate structure => same-depth sequences are grouped together
+    gateset_idxs = sorted(gateset.qubit_subset)
     array = np.empty((gateset.num_qubits,), dtype=np.uint8)
     array[gateset_idxs] = 1
     perm = PartialPauliPermutation(array)
@@ -364,24 +418,42 @@ def test_generate(gateset):
         [ApplyGate(model_gateset["M"]), perm],
     )
 
-    sequences.extend(InstructionSequence(pattern1, d) for d in [1, 10, 20])
-    samplex_items, data_mapper = circuit_generator.generate(sequences)
-    assert len(samplex_items) == 4
-    assert data_mapper.creg_names == [["meas0"], ["meas0"], ["meas0"], ["meas0"]]
-    assert data_mapper.item_sequence_indices == [[0, 3], [1], [2, 4], [5]]
+    builder = ExperimentBuilder(model_gateset)
+    builder._instruction_patterns = [pattern0, pattern1]  # noqa: SLF001
+    builder.complete()
 
+    samplex_items, data_mapper = circuit_generator.generate_samplex_items(
+        builder.generate_instruction_sequences(depths=depths), []
+    )
+    # 2 patterns × 3 depths = 6 sequences; same-structure pairs grouped => 3 partitions
+    assert len(samplex_items) == 3
+    assert all(len(indices) == 2 for indices in data_mapper.item_sequence_indices)
+
+    # Third pattern with different gate structure => creates additional partitions
     pattern2 = InstructionPattern(
         [ApplyGate(model_gateset["P"])],
         [ApplyGate(model_gateset["L1"]), ApplyGate(model_gateset["L0"])],
         [ApplyGate(model_gateset["M"])],
     )
-    sequences.append(InstructionSequence(pattern2, 1))
-    samplex_items, data_mapper = circuit_generator.generate(sequences)
-    assert len(samplex_items) == 5
+
+    builder = ExperimentBuilder(model_gateset)
+    builder._instruction_patterns = [pattern0, pattern1, pattern2]  # noqa: SLF001
+    builder.complete()
+
+    depths = [1, 3]
+    samplex_items, data_mapper = circuit_generator.generate_samplex_items(
+        builder.generate_instruction_sequences(depths=depths), []
+    )
+    # 3 patterns × 2 depths = 6 sequences
+    # pattern0 and pattern1 share gate structure, pattern2 is different
+    # => 4 partitions: (p0@1,p1@1), (p2@1), (p0@3,p1@3), (p2@3)
+    assert len(samplex_items) == 4
 
 
 def test_generate_different_decomposition_mode():
-    """Test `ExecutorCircuitGenerator.generate()` works with different decomposition modes."""
+    """Test `ExecutorCircuitGenerator.generate_samplex_items()` works with different decomposition
+    modes.
+    """
     gateset = QiskitGateSet(5)
 
     box_circuit = QuantumCircuit(5)
@@ -392,11 +464,19 @@ def test_generate_different_decomposition_mode():
 
     gateset.add_box_as_gate(box_circuit[0], name="my_gate")
 
+    model_gateset = gateset.model_gate_set
     pattern = InstructionPattern(
-        [ApplyGate(gateset["P"])], [ApplyGate(gateset["my_gate"])], [ApplyGate(gateset["M"])]
+        [ApplyGate(model_gateset["P"])],
+        [ApplyGate(model_gateset["my_gate"])],
+        [ApplyGate(model_gateset["M"])],
     )
-    samplex_items, _ = ExecutorCircuitGenerator(gateset, 10).generate(
-        [InstructionSequence(pattern, depth := 5)]
+
+    builder = ExperimentBuilder(model_gateset)
+    builder._instruction_patterns = [pattern]  # noqa: SLF001
+    builder.complete()
+
+    samplex_items, _ = ExecutorCircuitGenerator(gateset, 10).generate_samplex_items(
+        builder.generate_instruction_sequences(depths=[5]), []
     )
 
     ops = samplex_items[0].circuit.count_ops()
@@ -404,7 +484,7 @@ def test_generate_different_decomposition_mode():
     assert ops["rx"] == 25  # 5 in each of the 5 layers
 
 
-def test_collect_empty():
+def test_collect_empty(collect_fixture):
     """Test `ExecutorCircuitGenerator.collect()` with no sequences."""
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[],
@@ -412,79 +492,86 @@ def test_collect_empty():
         measurement_maps=[],
         instruction_sequences=[],
         num_randomizations=0,
+        fidelity_model=collect_fixture["fidelity_model"],
+        paths=[],
     )
-    result = QuantumProgramResult([])
-    seq_data = ExecutorCircuitGenerator.collect(result, data_mapper)
-    assert len(seq_data.datatree) == 0
+    passthrough_data = data_mapper.to_passthrough_data()
+    result = make_result([], passthrough_data=passthrough_data)
+    fit = ExecutorCircuitGenerator.collect(result)
+    assert len(fit.raw_data.datatree) == 0
 
 
-def test_collect_single_sequence_no_measurement_flips():
+def test_collect_single_sequence_no_measurement_flips(collect_fixture):
     """Test `ExecutorCircuitGenerator.collect()` with a single sequence and no measurement flips."""
     creg_data = np.array([[[[1, 0, 1]]]], dtype=np.uint8)
-    result = make_result([{"meas0": creg_data}])
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0]],
         creg_names=[["meas0"]],
         measurement_maps=[{"meas0": np.array([0, 1, 2])}],
-        instruction_sequences=[
-            InstructionSequence(pattern=InstructionPattern([], [], []), depth=0)
-        ],
+        instruction_sequences=[collect_fixture["sequences"][0]],
         num_randomizations=1,
+        fidelity_model=collect_fixture["fidelity_model"],
+        paths=[collect_fixture["path"]],
     )
+    passthrough_data = data_mapper.to_passthrough_data()
+    result = make_result([{"meas0": creg_data}], passthrough_data=passthrough_data)
 
-    raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
+    fit = ExecutorCircuitGenerator.collect(result)
+    raw_data = fit.raw_data
     dataset = raw_data.datatree["0"]
-    np.testing.assert_array_equal(
-        dataset["instruction_pattern"].data, [InstructionPattern([], [], [])]
-    )
+    np.testing.assert_array_equal(dataset["instruction_pattern"].data, [collect_fixture["pattern"]])
     np.testing.assert_array_equal(dataset["depth"].data, [0])
     np.testing.assert_array_equal(dataset["data"].data, creg_data.reshape(1, 1, 3))
     np.testing.assert_array_equal(dataset["measurement_flips"].data, np.array([[False] * 3]))
     assert dataset.dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 3)}
 
 
-def test_collect_single_sequence_with_measurement_flips():
+def test_collect_single_sequence_with_measurement_flips(collect_fixture):
     """Test `ExecutorCircuitGenerator.collect()` with measurement flips present."""
     creg_data = np.array([[[[1, 0, 1]]]], dtype=np.uint8)
     flip_data = np.array([[[[1, 1, 0]]]], dtype=np.uint8)
-    result = make_result([{"meas0": creg_data, "measurement_flips.meas0": flip_data}])
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0]],
         creg_names=[["meas0"]],
         measurement_maps=[{"meas0": np.array([0, 1, 2])}],
-        instruction_sequences=[
-            InstructionSequence(pattern=InstructionPattern([], [], []), depth=0)
-        ],
+        instruction_sequences=[collect_fixture["sequences"][0]],
         num_randomizations=1,
+        fidelity_model=collect_fixture["fidelity_model"],
+        paths=[collect_fixture["path"]],
+    )
+    passthrough_data = data_mapper.to_passthrough_data()
+    result = make_result(
+        [{"meas0": creg_data, "measurement_flips.meas0": flip_data}],
+        passthrough_data=passthrough_data,
     )
 
-    raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
-    dataset = raw_data.datatree["0"].dataset
+    fit = ExecutorCircuitGenerator.collect(result)
+    dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(dataset["data"].values, creg_data.reshape(1, 1, 3))
     np.testing.assert_array_equal(dataset["measurement_flips"].values, flip_data.reshape(1, 3))
     assert dataset["depth"].values == [0]
     assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 3)}
 
 
-def test_collect_multiple_sequences_same_item():
+def test_collect_multiple_sequences_same_item(collect_fixture):
     """Test `ExecutorCircuitGenerator.collect()` with multiple sequences in the same item."""
     creg_data = np.array([[[[1, 0]]], [[[0, 1]]]], dtype=np.uint8)
-    result = make_result([{"meas0": creg_data}])
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0, 1]],
         creg_names=[["meas0"]],
         measurement_maps=[{"meas0": np.array([0, 1])}],
-        instruction_sequences=[
-            InstructionSequence(pattern=InstructionPattern([], [], []), depth=0),
-            InstructionSequence(pattern=InstructionPattern([], [], []), depth=1),
-        ],
+        instruction_sequences=collect_fixture["sequences"][:2],
         num_randomizations=1,
+        fidelity_model=collect_fixture["fidelity_model"],
+        paths=[collect_fixture["path"]],
     )
+    passthrough_data = data_mapper.to_passthrough_data()
+    result = make_result([{"meas0": creg_data}], passthrough_data=passthrough_data)
 
-    raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
-    dataset = raw_data.datatree["0"].dataset
+    fit = ExecutorCircuitGenerator.collect(result)
+    dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
-        dataset["instruction_pattern"].data, [InstructionPattern([], [], [])] * 2
+        dataset["instruction_pattern"].data, [collect_fixture["pattern"]] * 2
     )
     np.testing.assert_array_equal(dataset["depth"].data, [0, 1])
     np.testing.assert_array_equal(dataset["data"].values, creg_data.reshape(2, 1, 2))
@@ -492,32 +579,33 @@ def test_collect_multiple_sequences_same_item():
     assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 2)}
 
 
-def test_collect_multiple_sequences_different_items():
+def test_collect_multiple_sequences_different_items(collect_fixture):
     """Test `ExecutorCircuitGenerator.collect()` with sequences across different items."""
     data0 = np.array([[[[1, 1]]]], dtype=np.uint8)
     data1 = np.array([[[[0, 0]]]], dtype=np.uint8)
     flips1 = np.array([[[[1, 0]]]], dtype=bool)
-    result = make_result(
-        [
-            {"meas0": data0},
-            {"meas0": data1, "measurement_flips.meas0": flips1},
-        ]
-    )
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0], [1]],
         creg_names=[["meas0"], ["meas0"]],
         measurement_maps=[{"meas0": np.array([0, 1])}, {"meas0": np.array([0, 1])}],
-        instruction_sequences=[
-            InstructionSequence(pattern=InstructionPattern([], [], []), depth=0),
-            InstructionSequence(pattern=InstructionPattern([], [], []), depth=1),
-        ],
+        instruction_sequences=collect_fixture["sequences"][:2],
         num_randomizations=1,
+        fidelity_model=collect_fixture["fidelity_model"],
+        paths=[collect_fixture["path"]],
+    )
+    passthrough_data = data_mapper.to_passthrough_data()
+    result = make_result(
+        [
+            {"meas0": data0},
+            {"meas0": data1, "measurement_flips.meas0": flips1},
+        ],
+        passthrough_data=passthrough_data,
     )
 
-    raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
-    dataset = raw_data.datatree["0"].dataset
+    fit = ExecutorCircuitGenerator.collect(result)
+    dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
-        dataset["instruction_pattern"].data, [InstructionPattern([], [], [])] * 2
+        dataset["instruction_pattern"].data, [collect_fixture["pattern"]] * 2
     )
     np.testing.assert_array_equal(dataset["depth"].data, [0, 1])
     np.testing.assert_array_equal(
@@ -529,11 +617,21 @@ def test_collect_multiple_sequences_different_items():
     assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 2)}
 
 
-def test_collect_multiple_cregs():
+def test_collect_multiple_cregs(collect_fixture):
     """Test `ExecutorCircuitGenerator.collect()` with multiple classical registers per item."""
     creg0_data = np.array([[[[1, 0]]]], dtype=np.uint8)
     creg1_data = np.array([[[[0, 1, 1]]]], dtype=np.uint8)
     creg0_flips = np.array([[[[1, 1]]]], dtype=bool)
+    data_mapper = ExecutorDataMapper(
+        item_sequence_indices=[[0]],
+        creg_names=[["meas0", "meas1"]],
+        measurement_maps=[{"meas0": np.array([0, 1]), "meas1": np.array([2, 3, 4])}],
+        instruction_sequences=[collect_fixture["sequences"][0]],
+        num_randomizations=1,
+        fidelity_model=collect_fixture["fidelity_model"],
+        paths=[collect_fixture["path"]],
+    )
+    passthrough_data = data_mapper.to_passthrough_data()
     result = make_result(
         [
             {
@@ -541,24 +639,13 @@ def test_collect_multiple_cregs():
                 "meas1": creg1_data,
                 "measurement_flips.meas0": creg0_flips,
             }
-        ]
-    )
-    data_mapper = ExecutorDataMapper(
-        item_sequence_indices=[[0]],
-        creg_names=[["meas0", "meas1"]],
-        measurement_maps=[{"meas0": np.array([0, 1]), "meas1": np.array([2, 3, 4])}],
-        instruction_sequences=[
-            InstructionSequence(pattern=InstructionPattern([], [], []), depth=0)
         ],
-        num_randomizations=1,
+        passthrough_data=passthrough_data,
     )
 
-    raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
-
-    dataset = raw_data.datatree["0"].dataset
-    np.testing.assert_array_equal(
-        dataset["instruction_pattern"].data, [InstructionPattern([], [], [])]
-    )
+    fit = ExecutorCircuitGenerator.collect(result)
+    dataset = fit.raw_data.datatree["0"].dataset
+    np.testing.assert_array_equal(dataset["instruction_pattern"].data, [collect_fixture["pattern"]])
     np.testing.assert_array_equal(dataset["depth"].data, [0])
     np.testing.assert_array_equal(
         dataset["data"].values, np.append(creg0_data, creg1_data, axis=-1).reshape(1, 1, 5)
@@ -569,29 +656,28 @@ def test_collect_multiple_cregs():
     assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 2), "meas1": (2, 5)}
 
 
-def test_collect_complex_mapping():
-    """Test `ExecutorCircuitGenerator.collect()` with a mapping similar to what `generate` produces.
+def test_collect_complex_mapping(collect_fixture):
+    """Test `ExecutorCircuitGenerator.collect()` with a mapping similar to what
+    `generate_samplex_items` produces.
 
     Simulates three items where some sequences share an item (different d_idx) and others
     are in separate items, with a mix of measurement flips present and absent.
     Items 0 and 1 share the same creg structure (["meas0"] only) so they merge into one leaf.
     Item 2 has a different structure (["meas0", "meas1"]) so it gets its own leaf.
     """
-    result = make_result(
-        [
-            {
-                "meas0": np.array([[[[1, 0]]], [[[0, 1]]]], dtype=np.uint8),
-                "measurement_flips.meas0": np.array([[[[1, 1]]], [[[0, 0]]]], dtype=bool),
-            },
-            {
-                "meas0": np.array([[[[1, 1, 1]]]], dtype=np.uint8),
-            },
-            {
-                "meas0": np.array([[[[0, 0, 0]]]], dtype=np.uint8),
-                "meas1": np.array([[[[1]]]], dtype=np.uint8),
-            },
-        ]
-    )
+    items = [
+        {
+            "meas0": np.array([[[[1, 0]]], [[[0, 1]]]], dtype=np.uint8),
+            "measurement_flips.meas0": np.array([[[[1, 1]]], [[[0, 0]]]], dtype=bool),
+        },
+        {
+            "meas0": np.array([[[[1, 1, 1]]]], dtype=np.uint8),
+        },
+        {
+            "meas0": np.array([[[[0, 0, 0]]]], dtype=np.uint8),
+            "meas1": np.array([[[[1]]]], dtype=np.uint8),
+        },
+    ]
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0, 2], [1], [3]],
         creg_names=[["meas0"], ["meas0"], ["meas0", "meas1"]],
@@ -600,34 +686,35 @@ def test_collect_complex_mapping():
             {"meas0": np.array([0, 1, 2])},
             {"meas0": np.array([0, 1, 2]), "meas1": np.array([3])},
         ],
-        instruction_sequences=[
-            InstructionSequence(pattern=InstructionPattern([], [], []), depth=depth)
-            for depth in range(4)
-        ],
+        instruction_sequences=collect_fixture["sequences"],
         num_randomizations=1,
+        fidelity_model=collect_fixture["fidelity_model"],
+        paths=[collect_fixture["path"]],
     )
+    passthrough_data = data_mapper.to_passthrough_data()
+    result = make_result(items, passthrough_data=passthrough_data)
 
-    raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
+    fit = ExecutorCircuitGenerator.collect(result)
+    raw_data = fit.raw_data
 
     # Item 0 has meas0 with 2 bits — leaf "0"
     dataset = raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
-        dataset["instruction_pattern"].data, [InstructionPattern([], [], [])] * 2
+        dataset["instruction_pattern"].data, [collect_fixture["pattern"]] * 2
     )
     np.testing.assert_array_equal(dataset["depth"].data, [0, 2])
-    np.testing.assert_array_equal(dataset["data"].values, result[0]["meas0"].reshape(2, 1, 2))
+    np.testing.assert_array_equal(dataset["data"].values, items[0]["meas0"].reshape(2, 1, 2))
     np.testing.assert_array_equal(
-        dataset["measurement_flips"].values, result[0]["measurement_flips.meas0"].reshape(2, 2)
+        dataset["measurement_flips"].values,
+        items[0]["measurement_flips.meas0"].reshape(2, 2),
     )
     assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 2)}
 
     # Item 1 has meas0 with 3 bits — different measurement_map, so new leaf "1"
     dataset = raw_data.datatree["1"].dataset
-    np.testing.assert_array_equal(
-        dataset["instruction_pattern"].data, [InstructionPattern([], [], [])]
-    )
+    np.testing.assert_array_equal(dataset["instruction_pattern"].data, [collect_fixture["pattern"]])
     np.testing.assert_array_equal(dataset["depth"].data, [1])
-    np.testing.assert_array_equal(dataset["data"].values, result[1]["meas0"].reshape(1, 1, 3))
+    np.testing.assert_array_equal(dataset["data"].values, items[1]["meas0"].reshape(1, 1, 3))
     np.testing.assert_array_equal(
         dataset["measurement_flips"].values, np.array([[False, False, False]])
     )
@@ -635,13 +722,11 @@ def test_collect_complex_mapping():
 
     # Item 2 has meas0 + meas1 — leaf "2"
     dataset = raw_data.datatree["2"].dataset
-    np.testing.assert_array_equal(
-        dataset["instruction_pattern"].data, [InstructionPattern([], [], [])]
-    )
+    np.testing.assert_array_equal(dataset["instruction_pattern"].data, [collect_fixture["pattern"]])
     np.testing.assert_array_equal(dataset["depth"].data, [3])
     np.testing.assert_array_equal(
         dataset["data"].values,
-        np.append(result[2]["meas0"], result[2]["meas1"], axis=-1).reshape(1, 1, 4),
+        np.append(items[2]["meas0"], items[2]["meas1"], axis=-1).reshape(1, 1, 4),
     )
     np.testing.assert_array_equal(
         dataset["measurement_flips"].values, np.array([[False, False, False, False]])
@@ -650,7 +735,9 @@ def test_collect_complex_mapping():
 
 
 def test_generate_and_collect_with_pass_manager():
-    """Test generate and collect with a pass manager that adds an extra measurement."""
+    """Test generate_samplex_items and collect with a pass manager that adds an extra
+    measurement.
+    """
     from qiskit.circuit import ClassicalRegister
     from qiskit.circuit.library import Measure
     from qiskit.transpiler import PassManager, TransformationPass
@@ -663,9 +750,9 @@ def test_generate_and_collect_with_pass_manager():
             return dag
 
     gateset = QiskitGateSet(2)
-    with gateset.build_new_gate() as builder:
-        builder.circuit.cz(0, 1)
-        builder.circuit.noop(range(2))
+    with gateset.build_new_gate() as gate_builder:
+        gate_builder.circuit.cz(0, 1)
+        gate_builder.circuit.noop(range(2))
 
     model_gateset = gateset.model_gate_set
     pattern = InstructionPattern(
@@ -673,15 +760,22 @@ def test_generate_and_collect_with_pass_manager():
         [ApplyGate(model_gateset["L0"])],
         [ApplyGate(model_gateset["M"])],
     )
-    seq = InstructionSequence(pattern, 1)
 
     num_randomizations = 2
     cg = ExecutorCircuitGenerator(
         gateset, num_randomizations=num_randomizations, pass_manager=PassManager([AddMeasPass()])
     )
-    samplex_items, data_mapper = cg.generate([seq])
 
-    # Verify generate produces the expected data mapper
+    builder = ExperimentBuilder(model_gateset)
+    builder._instruction_patterns = [pattern]  # noqa: SLF001
+    builder.complete()
+
+    fidelity_model = PauliLindbladModel.k_local(gateset, k=1)
+    samplex_items, data_mapper = cg.generate_samplex_items(
+        builder.generate_instruction_sequences(depths=[1]), [], fidelity_model
+    )
+
+    # Verify generate_samplex_items produces the expected data mapper
     assert data_mapper.item_sequence_indices == [[0]]
     assert data_mapper.creg_names == [["meas0", "pass_meas"]]
     assert list(data_mapper.measurement_maps[0].keys()) == ["meas0", "pass_meas"]
@@ -691,14 +785,17 @@ def test_generate_and_collect_with_pass_manager():
     # Verify the template circuit has both cregs
     assert "pass_meas" in [c.name for c in samplex_items[0].circuit.cregs]
 
-    # Now test collect with spoofed data
+    # Now test collect with spoofed data, embedding the data_mapper via passthrough_data
+    passthrough_data = data_mapper.to_passthrough_data()
     num_shots = 3
     meas0_data = np.ones((1, num_randomizations, num_shots, 2), dtype=np.uint8)
     pass_meas_data = np.zeros((1, num_randomizations, num_shots, 1), dtype=np.uint8)
-    result = make_result([{"meas0": meas0_data, "pass_meas": pass_meas_data}])
-    raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
+    result = make_result(
+        [{"meas0": meas0_data, "pass_meas": pass_meas_data}], passthrough_data=passthrough_data
+    )
+    fit = ExecutorCircuitGenerator.collect(result)
 
-    dataset = raw_data.datatree["0"].dataset
+    dataset = fit.raw_data.datatree["0"].dataset
     assert dataset.attrs["creg_names"] == ["meas0", "pass_meas"]
     assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 2), "pass_meas": (2, 3)}
     np.testing.assert_array_equal(
@@ -728,9 +825,9 @@ def test_generate_with_pass_manager_multi_qubit_creg():
             return dag
 
     gateset = QiskitGateSet(2)
-    with gateset.build_new_gate() as builder:
-        builder.circuit.cz(0, 1)
-        builder.circuit.noop(range(2))
+    with gateset.build_new_gate() as gate_builder:
+        gate_builder.circuit.cz(0, 1)
+        gate_builder.circuit.noop(range(2))
 
     model_gateset = gateset.model_gate_set
     pattern = InstructionPattern(
@@ -738,7 +835,6 @@ def test_generate_with_pass_manager_multi_qubit_creg():
         [ApplyGate(model_gateset["L0"])],
         [ApplyGate(model_gateset["M"])],
     )
-    seq = InstructionSequence(pattern, 1)
 
     num_randomizations = 2
     cg = ExecutorCircuitGenerator(
@@ -746,7 +842,14 @@ def test_generate_with_pass_manager_multi_qubit_creg():
         num_randomizations=num_randomizations,
         pass_manager=PassManager([AddMultiMeasPass()]),
     )
-    samplex_items, data_mapper = cg.generate([seq])
+
+    builder = ExperimentBuilder(model_gateset)
+    builder._instruction_patterns = [pattern]  # noqa: SLF001
+    builder.complete()
+
+    _, data_mapper = cg.generate_samplex_items(
+        builder.generate_instruction_sequences(depths=[1]), []
+    )
 
     assert data_mapper.creg_names == [["meas0", "extra"]]
     assert list(data_mapper.measurement_maps[0].keys()) == ["meas0", "extra"]
