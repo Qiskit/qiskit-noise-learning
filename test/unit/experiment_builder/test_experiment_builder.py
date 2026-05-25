@@ -842,7 +842,7 @@ class TestExperimentBuilder:
         assert experiment_builder.relations == {(0, 0), (1, 1), (2, 2), (0, 2), (1, 2)}
 
     def test_merge_instruction_sequences_basic(self, gate_set_cz, unbound_path_ix, unbound_path_xi):
-        """Verify two mergeable patterns are combined into one."""
+        """Verify two mergeable instruction sequences are combined into one."""
         eb = ExperimentBuilder(gate_set_cz)
         eb.add_paths(
             [(unbound_path_ix, None), (unbound_path_xi, None)], attempt_instruction_merge=False
@@ -856,12 +856,12 @@ class TestExperimentBuilder:
         assert len(eb.instruction_sequences) == 1
         assert eb.relations == {(0, 0), (1, 0)}
 
-        merged_pattern = eb.instruction_sequences[0]
-        assert unbound_path_ix.is_traversed_by(merged_pattern)
-        assert unbound_path_xi.is_traversed_by(merged_pattern)
+        merged_sequence = eb.instruction_sequences[0]
+        assert unbound_path_ix.is_traversed_by(merged_sequence)
+        assert unbound_path_xi.is_traversed_by(merged_sequence)
 
     def test_merge_instruction_sequences_groups(self, gate_set_cz):
-        """Verify patterns are grouped and merged."""
+        """Verify sequences are grouped and merged."""
         unbound_path_ix = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
@@ -967,8 +967,8 @@ class TestExperimentBuilder:
         assert len(eb.relations) == 4
 
     def test_merge_instruction_sequences_no_merge(self, gate_set_1q):
-        """Verify that when all patterns are incompatible, no merging occurs."""
-        pattern1 = Path(
+        """Verify that when all sequences are incompatible, no merging occurs."""
+        path1 = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
                     gate_set_1q["P"], QubitSparsePauli("I"), QubitSparsePauli("Z")
@@ -992,7 +992,7 @@ class TestExperimentBuilder:
             ],
         )
 
-        pattern2 = Path(
+        path2 = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
                     gate_set_1q["P"], QubitSparsePauli("I"), QubitSparsePauli("Z")
@@ -1016,7 +1016,7 @@ class TestExperimentBuilder:
             ],
         )
 
-        pattern3 = Path(
+        path3 = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
                     gate_set_1q["P"], QubitSparsePauli("I"), QubitSparsePauli("Z")
@@ -1041,18 +1041,18 @@ class TestExperimentBuilder:
         )
 
         eb = ExperimentBuilder(gate_set_1q)
-        eb.add_paths([(pattern1, None), (pattern2, None), (pattern3, None)])
+        eb.add_paths([(path1, None), (path2, None), (path3, None)])
 
-        n_patterns_before = len(eb.instruction_sequences)
+        n_sequences_before = len(eb.instruction_sequences)
         relations_before = eb.relations.copy()
         eb.merge_instruction_sequences()
 
-        assert len(eb.instruction_sequences) == n_patterns_before
+        assert len(eb.instruction_sequences) == n_sequences_before
         assert eb.relations == relations_before
 
     def test_merge_instruction_sequences_relation_remapping(self, gate_set_cz):
-        """Verify that pattern relations are correctly remapped after merging."""
-        pp0 = Path(
+        """Verify that relations are correctly remapped after merging."""
+        path0 = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
                     gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("IZ")
@@ -1073,7 +1073,7 @@ class TestExperimentBuilder:
             ],
         )
 
-        pp1 = Path(
+        path1 = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
                     gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("IZ")
@@ -1094,7 +1094,7 @@ class TestExperimentBuilder:
             ],
         )
 
-        pp2 = Path(
+        path2 = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
                     gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("ZI")
@@ -1116,17 +1116,17 @@ class TestExperimentBuilder:
         )
 
         eb = ExperimentBuilder(gate_set_cz)
-        eb.add_paths([(pp0, None), (pp1, None), (pp2, None)], attempt_instruction_merge=False)
+        eb.add_paths([(path0, None), (path1, None), (path2, None)], attempt_instruction_merge=False)
         eb.merge_instruction_sequences()
 
         assert len(eb.instruction_sequences) == 2
 
-        pattern_to_inst = {pp_idx: ip_idx for pp_idx, ip_idx in eb.relations}
-        assert len(set(pattern_to_inst.values())) == 2
-        assert set(pattern_to_inst.keys()) == {0, 1, 2}
+        path_to_inst = {pp_idx: ip_idx for pp_idx, ip_idx in eb.relations}
+        assert len(set(path_to_inst.values())) == 2
+        assert set(path_to_inst.keys()) == {0, 1, 2}
 
     def test_merge_instruction_sequences_single(self, gate_set_cz, unbound_path_ix):
-        """Verify behavior with only one instruction pattern."""
+        """Verify behavior with only one instruction sequence."""
         eb = ExperimentBuilder(gate_set_cz)
         eb.add_paths([(unbound_path_ix, None)])
 
@@ -1140,8 +1140,8 @@ class TestExperimentBuilder:
         assert unbound_path_ix.is_traversed_by(eb.instruction_sequences[0])
 
     def test_merge_instruction_sequences_three_way_merge(self, gate_set_cz):
-        """Verify that three patterns can be merged into one when all are mutually compatible."""
-        pp0 = Path(
+        """Verify that three sequences can be merged into one when all are mutually compatible."""
+        path0 = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
                     gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("IZ")
@@ -1162,7 +1162,7 @@ class TestExperimentBuilder:
             ],
         )
 
-        pp1 = Path(
+        path1 = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
                     gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("ZI")
@@ -1183,7 +1183,7 @@ class TestExperimentBuilder:
             ],
         )
 
-        pp2 = Path(
+        path2 = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
                     gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("ZZ")
@@ -1205,7 +1205,7 @@ class TestExperimentBuilder:
         )
 
         eb = ExperimentBuilder(gate_set_cz)
-        eb.add_paths([(pp0, None), (pp1, None), (pp2, None)], attempt_instruction_merge=False)
+        eb.add_paths([(path0, None), (path1, None), (path2, None)], attempt_instruction_merge=False)
 
         assert len(eb.instruction_sequences) == 3
 
@@ -1215,9 +1215,9 @@ class TestExperimentBuilder:
         assert eb.relations == {(0, 0), (1, 0), (2, 0)}
 
         merged = eb.instruction_sequences[0]
-        assert pp0.is_traversed_by(merged)
-        assert pp1.is_traversed_by(merged)
-        assert pp2.is_traversed_by(merged)
+        assert path0.is_traversed_by(merged)
+        assert path1.is_traversed_by(merged)
+        assert path2.is_traversed_by(merged)
 
     def test_merge_instruction_sequences_traversal(
         self, gate_set_cz, unbound_path_ix, unbound_path_xi
@@ -1238,9 +1238,9 @@ class TestExperimentBuilder:
             ), f"Path {path_idx} cannot be traversed by instruction sequence {inst_idx}"
 
     def test_merge_instruction_sequences_existing_relations(self, gate_set_cz):
-        """Verify that merging works correctly when patterns already have multiple relations."""
-        # Create path patterns
-        pp0 = Path(
+        """Verify that merging works correctly when sequences already have multiple relations."""
+        # Create paths
+        path0 = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
                     gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("IZ")
@@ -1261,7 +1261,7 @@ class TestExperimentBuilder:
             ],
         )
 
-        pp1 = Path(
+        path1 = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
                     gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("ZI")
@@ -1282,7 +1282,7 @@ class TestExperimentBuilder:
             ],
         )
 
-        pp2 = Path(
+        path2 = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
                     gate_set_cz["P"], QubitSparsePauli("II"), QubitSparsePauli("ZZ")
@@ -1305,7 +1305,7 @@ class TestExperimentBuilder:
 
         eb = ExperimentBuilder(gate_set_cz)
 
-        eb.add_paths([(pp0, None), (pp1, None), (pp2, None)], attempt_instruction_merge=False)
+        eb.add_paths([(path0, None), (path1, None), (path2, None)], attempt_instruction_merge=False)
         eb.identify_relations()
         eb.rank_reduce()
 
@@ -1326,37 +1326,37 @@ class TestMinimizeInstructionSequences:
 
     def test_basic(self):
         """Test a basic use case."""
-        patterns = []
+        sequences = []
         for perm in [("Z", "Z"), ("X", "Z"), ("Y", "Z")]:
             partial_perm = PartialPauliPermutation.from_sets([{perm}])
-            patterns.append(InstructionSequence([], [], [partial_perm]))
+            sequences.append(InstructionSequence([], [], [partial_perm]))
 
-        minimized_patterns, _ = minimize_instruction_sequences(patterns)
-        assert len(minimized_patterns) == 3
+        minimized_sequences, _ = minimize_instruction_sequences(sequences)
+        assert len(minimized_sequences) == 3
 
-        patterns.append(
+        sequences.append(
             InstructionSequence([], [], [PartialPauliPermutation.from_sets([{("Z", "Z")}])])
         )
-        minimized_patterns, reorg_dict = minimize_instruction_sequences(patterns)
-        assert len(minimized_patterns) == 3
+        minimized_sequences, reorg_dict = minimize_instruction_sequences(sequences)
+        assert len(minimized_sequences) == 3
         assert reorg_dict[0] == reorg_dict[3]
 
-    def test_single_qubit_basis_patterns(self):
-        """Test that the optimal number of single-qubit patterns is found.."""
-        patterns = []
+    def test_single_qubit_basis_sequences(self):
+        """Test that the optimal number of single-qubit sequences is found.."""
+        sequences = []
         for basis in "IZXY":
             for i in range(num_qubits := 10):
                 in_pauli = QubitSparsePauli.from_sparse_label(("Z", (i,)), num_qubits=num_qubits)
                 out_pauli = QubitSparsePauli.from_sparse_label((basis, (i,)), num_qubits=num_qubits)
                 partial_perm = PartialPauliPermutation.from_qubit_sparse_paulis(in_pauli, out_pauli)
-                patterns.append(InstructionSequence([], [], [partial_perm]))
+                sequences.append(InstructionSequence([], [], [partial_perm]))
 
-        minimized_patterns, _ = minimize_instruction_sequences(patterns)
-        assert len(minimized_patterns) == 3
+        minimized_sequences, _ = minimize_instruction_sequences(sequences)
+        assert len(minimized_sequences) == 3
 
-    def test_two_qubit_basis_patterns(self):
-        """Test that the optimal number of two-qubit patterns is found on a ring."""
-        patterns = []
+    def test_two_qubit_basis_sequences(self):
+        """Test that the optimal number of two-qubit sequences is found on a ring."""
+        sequences = []
         num_qubits = 10
         for basis_0, basis_1 in product("IXYZ", repeat=2):
             in_basis = basis_0 + basis_1
@@ -1370,7 +1370,7 @@ class TestMinimizeInstructionSequences:
                     (out_basis, subs), num_qubits=num_qubits
                 )
                 partial_perm = PartialPauliPermutation.from_qubit_sparse_paulis(in_pauli, out_pauli)
-                patterns.append(InstructionSequence([], [], [partial_perm]))
+                sequences.append(InstructionSequence([], [], [partial_perm]))
 
-        minimized_patterns, _ = minimize_instruction_sequences(patterns)
-        assert len(minimized_patterns) == 9
+        minimized_sequences, _ = minimize_instruction_sequences(sequences)
+        assert len(minimized_sequences) == 9
