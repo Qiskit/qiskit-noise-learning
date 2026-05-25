@@ -38,7 +38,6 @@ from ..experiment_builder import (
 )
 from ..gate_sets import QiskitGateSet
 from ..models import PauliLindbladModel
-from ..sequences import Path
 from .learning_options import LearningOptions
 from .noise_learner_job import ExperimentSchema, NoiseLearnerJob
 
@@ -152,7 +151,7 @@ class NoiseLearner:
         builder.merge_instruction_sequences()
         builder.complete()
 
-        paths = [Path(p, d) for p in builder.paths for d in self._options.depths]
+        paths = [p.bind_at(d) for p in builder.paths for d in self._options.depths]
         paths.extend(builder.paths)
 
         # Generate instruction sequences
