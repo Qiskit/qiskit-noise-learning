@@ -23,8 +23,6 @@ from qiskit_noise_learning.math import IndexedMatrix
 from qiskit_noise_learning.models import CompleteFidelityModel, FidelityModel
 from qiskit_noise_learning.sequences import InstructionSequence, Path
 
-from .experiment import Experiment
-
 # the parameter in the fidelity model
 ParameterIndex = TypeVar("ParameterIndex")
 
@@ -191,35 +189,6 @@ class ExperimentBuilder:
                 instruction_sequences.append(seq)
 
         return instruction_sequences
-
-    def build(self, depths: list[int], shots: int) -> Experiment:
-        """Build an :class:`Experiment` from this builder.
-
-        Expands all unbound instruction sequences at the given depths and constructs analysis paths
-        as the Cartesian product of unbound paths and depths, plus any bound paths.
-
-        Args:
-            depths: The depths at which to expand unbound sequences and paths.
-            shots: The number of shots per randomization.
-
-        Returns:
-            An :class:`Experiment` ready to pass to :meth:`.CircuitGenerator.generate`.
-        """
-        sequences = [x.complete() for x in self.generate_instruction_sequences(depths=depths)]
-
-        paths = []
-        for path in self.paths:
-            if path.is_unbound:
-                paths.extend(path.bind_at(d) for d in depths)
-            else:
-                paths.append(path)
-
-        return Experiment(
-            sequences=sequences,
-            paths=paths,
-            fidelity_model=self._fidelity_model,
-            shots=shots,
-        )
 
     def identify_relations(
         self, attempt_instruction_extension: bool = True
