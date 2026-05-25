@@ -21,6 +21,7 @@ from qiskit.circuit import QuantumRegister
 from qiskit.providers import BackendV2
 from qiskit_ibm_runtime import Executor
 from qiskit_ibm_runtime.quantum_program import QuantumProgram
+from qiskit_ibm_runtime.quantum_program.quantum_program import SamplexItem
 from samplomatic import InjectNoise
 from samplomatic.utils import get_annotation
 
@@ -37,14 +38,15 @@ from ..experiment_builder import (
 )
 from ..gate_sets import QiskitGateSet
 from ..models import PauliLindbladModel
+from ..sequences import Path
 from .learning_options import LearningOptions
-from .noise_learner_job import NoiseLearnerJob
+from .noise_learner_job import ExperimentSchema, NoiseLearnerJob
 
 _ANALYZERS = {
     "standard": AnalysisPipeline(ComputeObservables(), CurveFitObservables(), NNLSSolve())
 }
 
-_PATH_GENERATORS = {
+_PATTERN_GENERATORS = {
     "even_depth": even_depth_vanilla_path_generator,
 }
 
@@ -67,7 +69,7 @@ class NoiseLearner:
         self._backend = backend
         self._options = options or LearningOptions()
         self._analyzer = _ANALYZERS[self._options.analyzer]
-        self._path_generator = _PATH_GENERATORS[self._options.path_generator]
+        self._pattern_generator = _PATTERN_GENERATORS[self._options.path_generator]
 
     @property
     def backend(self) -> BackendV2:
@@ -96,18 +98,21 @@ class NoiseLearner:
             if instr.operation.name != "box":
                 raise ValueError(f"All instructions must be BoxOps, got '{instr.operation.name}'.")
 
-        program = self._generate(instructions)
-        job = self._execute(program)
-        return NoiseLearnerJob(job, self._analyzer)
+        samplex_items, experiment_schema = self._generate(instructions)
+        job = self._execute(samplex_items)
+        job.experiment_schema = experiment_schema
+        return NoiseLearnerJob(job, experiment_schema, self._analyzer)
 
-    def _generate(self, instructions: Sequence[CircuitInstruction]) -> QuantumProgram:
-        """Generate a :class:`~.QuantumProgram` from the given instructions.
+    def _generate(
+        self, instructions: Sequence[CircuitInstruction]
+    ) -> tuple[list[SamplexItem], ExperimentSchema]:
+        """Generate samplex items from the given instructions.
 
         Args:
             instructions: The BoxOp instructions to learn.
 
         Returns:
-            A :class:`~.QuantumProgram` with embedded passthrough data.
+            A tuple of samplex items and an experiment schema.
         """
         # Build gate set from backend target
         qreg = QuantumRegister(self.backend.num_qubits, name="q")
@@ -133,37 +138,45 @@ class NoiseLearner:
             elif gate.meas_idxs:
                 meas_gate = gate
 
-        # Generate paths for each non-SPAM gate
-        path_iterators = []
+        # Generate path patterns for each non-SPAM gate
+        pattern_iterators = []
         for name, gate in model_gate_set.items():
             if gate.prep_idxs or gate.meas_idxs:
                 continue
             input_paulis = fidelity_model.generators[name]
-            path_iterators.append(self._path_generator(prep_gate, meas_gate, gate, input_paulis))
+            pattern_iterators.append(
+                self._pattern_generator(prep_gate, meas_gate, gate, input_paulis)
+            )
 
         # Build experiments
         builder = ExperimentBuilder(fidelity_model)
-        builder.add_paths(chain.from_iterable(path_iterators))
-        builder.merge_instruction_sequences()
+        builder.add_path_patterns(chain.from_iterable(pattern_iterators))
+        builder.merge_instruction_patterns()
         builder.complete()
 
-        # Generate quantum program
+        paths = [Path(p, d) for p in builder.path_patterns for d in self._options.depths]
+        paths.extend(builder.paths)
+
+        # Generate instruction sequences
+        sequences = builder.generate_instruction_sequences(depths=self._options.depths)
+
+        # Generate circuits
         circuit_gen = ExecutorCircuitGenerator(
             gate_set, num_randomizations=self._options.num_randomizations
         )
-        experiment = builder.build(
-            depths=self._options.depths, shots=self._options.shots_per_randomizations
-        )
-        return circuit_gen.generate(experiment)
+        samplex_items, executor_data_mapper = circuit_gen.generate(sequences)
 
-    def _execute(self, program: QuantumProgram):
-        """Submit a :class:`~.QuantumProgram` to the backend.
+        return samplex_items, ExperimentSchema(executor_data_mapper, paths, fidelity_model)
+
+    def _execute(self, samplex_items: list[SamplexItem]):
+        """Submit a job to execute samplex items on the backend.
 
         Args:
-            program: The quantum program to execute.
+            samplex_items: The samplex items to execute.
 
         Returns:
             The job.
         """
+        program = QuantumProgram(shots=self._options.shots_per_randomizations, items=samplex_items)
         executor = Executor(mode=self._backend)
         return executor.run(program)
