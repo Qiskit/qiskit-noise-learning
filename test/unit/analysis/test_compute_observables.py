@@ -221,7 +221,7 @@ def _run_compute_observables(paths, instruction_sequences, data, measurement_fli
 
 
 class TestComputeObservables:
-    def test_pattern_observables_basic_1q(self, gate_set_1q):
+    def test_unbound_path_observables_basic_1q(self, gate_set_1q):
         """Basic 1-qubit test verifying ev computation and sign correction across depths."""
         unbound_path = Path(
             start_fragment=[
@@ -279,7 +279,7 @@ class TestComputeObservables:
             assert path.without_depth() in obs.dataset["unbound_path"]
             np.testing.assert_allclose(obs.dataset["observables"][0], sign * -1.0)
 
-    def test_sequence_observables_basic_1q(self, gate_set_1q):
+    def test_observables_basic_1q(self, gate_set_1q):
         """Basic 1-qubit test verifying ev computation for fixed depths."""
         unbound_path = Path(
             start_fragment=[
@@ -331,7 +331,7 @@ class TestComputeObservables:
             )
             np.testing.assert_allclose(ds["observables"][idx], expected_sign * 1.0)
 
-    def test_pattern_and_sequence_observables_basic_1q(self, gate_set_1q):
+    def test_unbound_and_bound_observables_basic_1q(self, gate_set_1q):
         """Test with both variable-depth and fixed-depth paths."""
         unbound_path = Path(
             start_fragment=[
@@ -449,7 +449,7 @@ class TestComputeObservables:
         ev2 = ds["observables"][idx2].values
         assert ev1 == pytest.approx(-ev2)
 
-    def test_pattern_observables_mask_2q(self, gate_set_cz, unbound_path_ix):
+    def test_unbound_path_observables_mask_2q(self, gate_set_cz, unbound_path_ix):
         """Verify the observable mask selects only the correct qubits."""
         assert unbound_path_ix.end_fragment[-1].observable_indices == [0]
 
@@ -484,10 +484,8 @@ class TestComputeObservables:
         )
         np.testing.assert_allclose(result.observable_data.dataset["observables"][0], sign * (-1.0))
 
-    def test_pattern_observables_multiple_patterns(
-        self, gate_set_cz, unbound_path_ix, unbound_path_xi
-    ):
-        """Verify computation with multiple path patterns per instruction pattern."""
+    def test_unbound_path_observables_multiway(self, gate_set_cz, unbound_path_ix, unbound_path_xi):
+        """Verify computation with multiple unbound paths per instruction sequence."""
         eb = ExperimentBuilder(gate_set_cz)
         eb.add_paths([(unbound_path_ix, None), (unbound_path_xi, None)])
         eb.merge_instruction_sequences()
@@ -525,7 +523,7 @@ class TestComputeObservables:
             )
             np.testing.assert_allclose(ds["observables"][idx], expected_sign * 1.0)
 
-    def test_pattern_observables_multiple_depths(self, gate_set_1q):
+    def test_unbound_path_observables_multiple_depths(self, gate_set_1q):
         """Verify computation handles multiple depths correctly."""
         unbound_path = Path(
             start_fragment=[
@@ -583,8 +581,8 @@ class TestComputeObservables:
         np.testing.assert_allclose(ds["observables"][idx2], sign2 * 1.0)
 
     def test_path_to_multiple_sequences(self, gate_set_1q):
-        """Test computation of an observablef or a single path measured by two different instruction
-        patterns with different sign flips (so there are different sign corrections across raw data
+        """Test computation of an observable for a single path measured by two different instruction
+        sequences with different sign flips (so there are different sign corrections across raw data
         for a single observable).
         """
         # Clifford maps X -> -Y, Y -> Z, Z -> -X
@@ -616,24 +614,24 @@ class TestComputeObservables:
                 )
             ],
         )
-        inst_pattern0 = unbound_path.to_instruction_sequence().complete()
+        unbound_inst_seq0 = unbound_path.to_instruction_sequence().complete()
 
         # copy it again, but we want different signs
-        inst_pattern1 = unbound_path.to_instruction_sequence().complete()
+        unbound_inst_seq1 = unbound_path.to_instruction_sequence().complete()
         # the one in the standard construction is Y -> -Z
-        inst_pattern1.repeatable_fragment[1] = PartialPauliPermutation([2]).complete()
+        unbound_inst_seq1.repeatable_fragment[1] = PartialPauliPermutation([2]).complete()
 
         # compute sign flips and validate convention that they are different
-        sign_flips0 = unbound_path.fragment_sign_flips(inst_pattern0)
-        sign_flips1 = unbound_path.fragment_sign_flips(inst_pattern1)
+        sign_flips0 = unbound_path.fragment_sign_flips(unbound_inst_seq0)
+        sign_flips1 = unbound_path.fragment_sign_flips(unbound_inst_seq1)
         assert sign_flips0 == (False, True)
         assert sign_flips1 == (False, False)
 
         result = _run_compute_observables(
             paths=[unbound_path.bind_at(1)],
             instruction_sequences=[
-                inst_pattern0.bind_at(1),
-                inst_pattern1.bind_at(1),
+                unbound_inst_seq0.bind_at(1),
+                unbound_inst_seq1.bind_at(1),
             ],
             data=[np.array([[[True]]])] * 2,
             measurement_flips=[np.zeros((1, 1), dtype=bool)] * 2,
@@ -645,5 +643,5 @@ class TestComputeObservables:
         # only one observable
         assert ds.sizes["observable"] == 1
 
-        # value without sign flips is -1 for both, but inst_pattern0 requires a sign flip
+        # value without sign flips is -1 for both, but unbound_inst_seq0 requires a sign flip
         np.testing.assert_allclose(ds["observables"], np.array([[1.0, -1.0]]))

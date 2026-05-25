@@ -10,7 +10,6 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from dataclasses import dataclass
 
 import numpy as np
 import pytest
@@ -23,17 +22,6 @@ from qiskit_noise_learning.analysis import (
 )
 from qiskit_noise_learning.analysis.fit import AbsentType, SkippedType
 from qiskit_noise_learning.data import AveragedData, ModelData, ObservableData, RawData
-
-
-@dataclass(frozen=True)
-class MockPathPattern:
-    name: str
-
-
-@dataclass(frozen=True)
-class MockPath:
-    pattern: MockPathPattern
-    depth: int
 
 
 class MockFidelityModel:
