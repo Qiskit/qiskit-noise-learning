@@ -46,7 +46,7 @@ _ANALYZERS = {
     "standard": AnalysisPipeline(ComputeObservables(), CurveFitObservables(), NNLSSolve())
 }
 
-_PATTERN_GENERATORS = {
+_PATH_GENERATORS = {
     "even_depth": even_depth_vanilla_path_generator,
 }
 
@@ -69,7 +69,7 @@ class NoiseLearner:
         self._backend = backend
         self._options = options or LearningOptions()
         self._analyzer = _ANALYZERS[self._options.analyzer]
-        self._pattern_generator = _PATTERN_GENERATORS[self._options.path_generator]
+        self._path_generator = _PATH_GENERATORS[self._options.path_generator]
 
     @property
     def backend(self) -> BackendV2:
@@ -138,23 +138,21 @@ class NoiseLearner:
             elif gate.meas_idxs:
                 meas_gate = gate
 
-        # Generate path patterns for each non-SPAM gate
-        pattern_iterators = []
+        # Generate paths for each non-SPAM gate
+        path_iterators = []
         for name, gate in model_gate_set.items():
             if gate.prep_idxs or gate.meas_idxs:
                 continue
             input_paulis = fidelity_model.generators[name]
-            pattern_iterators.append(
-                self._pattern_generator(prep_gate, meas_gate, gate, input_paulis)
-            )
+            path_iterators.append(self._path_generator(prep_gate, meas_gate, gate, input_paulis))
 
         # Build experiments
         builder = ExperimentBuilder(fidelity_model)
-        builder.add_path_patterns(chain.from_iterable(pattern_iterators))
-        builder.merge_instruction_patterns()
+        builder.add_paths(chain.from_iterable(path_iterators))
+        builder.merge_instruction_sequences()
         builder.complete()
 
-        paths = [Path(p, d) for p in builder.path_patterns for d in self._options.depths]
+        paths = [Path(p, d) for p in builder.paths for d in self._options.depths]
         paths.extend(builder.paths)
 
         # Generate instruction sequences

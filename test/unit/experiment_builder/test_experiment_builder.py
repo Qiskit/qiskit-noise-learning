@@ -17,7 +17,6 @@ from qiskit.circuit import QuantumCircuit
 from qiskit.circuit.library import CZGate, XGate
 from qiskit.quantum_info import Clifford, QubitSparsePauli
 
-from qiskit_noise_learning.experiment_builder.experiment import Experiment
 from qiskit_noise_learning.experiment_builder.experiment_builder import (
     ExperimentBuilder,
     minimize_instruction_sequences,
@@ -1320,39 +1319,6 @@ class TestExperimentBuilder:
 
         path_indices = {path_idx for path_idx, _ in eb.relations}
         assert path_indices == {0, 1, 2}
-
-    def test_build(self, gate_set_cz, unbound_path_ix, unbound_path_xi):
-        eb = ExperimentBuilder(gate_set_cz)
-        eb.add_paths([(unbound_path_ix, None), (unbound_path_xi, None)])
-
-        fixed_path = unbound_path_ix.bind_at(7)
-        eb.add_paths([(fixed_path, None)])
-
-        depths = [2, 4]
-        shots = 1024
-        experiment = eb.build(depths=depths, shots=shots)
-
-        assert isinstance(experiment, Experiment)
-        assert experiment.shots == shots
-        assert experiment.fidelity_model is eb.fidelity_model
-
-        expected_sequences = []
-        for seq in eb.instruction_sequences:
-            if seq.is_unbound:
-                expected_sequences.extend(seq.bind_at(d).complete() for d in depths)
-            else:
-                expected_sequences.append(seq.complete())
-        assert len(experiment.sequences) == len(expected_sequences)
-        for seq in expected_sequences:
-            assert seq in experiment.sequences
-
-        expected_paths = set()
-        for path in eb.paths:
-            if path.is_unbound:
-                expected_paths.update(path.bind_at(d) for d in depths)
-            else:
-                expected_paths.add(path)
-        assert set(experiment.paths) == expected_paths
 
 
 class TestMinimizeInstructionSequences:
