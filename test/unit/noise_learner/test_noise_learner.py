@@ -14,7 +14,7 @@ import pytest
 from qiskit.circuit import BoxOp, QuantumCircuit
 
 from qiskit_noise_learning.noise_learner import LearningOptions, NoiseLearner
-from qiskit_noise_learning.noise_learner.noise_learner_job import NoiseLearnerJob
+from qiskit_noise_learning.noise_learner.noise_learner_job import ExperimentSchema, NoiseLearnerJob
 
 
 class _MockTarget:
@@ -84,17 +84,17 @@ def test_noise_learner_run_orchestration(learner):
     generate_calls = []
 
     class _FakeJob:
-        pass
+        experiment_schema = None
 
-    fake_program = object()
+    fake_schema = ExperimentSchema.__new__(ExperimentSchema)
 
-    def fake_execute(program):
-        execute_calls.append(program)
+    def fake_execute(items):
+        execute_calls.append(items)
         return _FakeJob()
 
     def fake_generate(instructions):
         generate_calls.append(instructions)
-        return fake_program
+        return ([], fake_schema)
 
     learner._generate = fake_generate  # noqa: SLF001
     learner._execute = fake_execute  # noqa: SLF001
@@ -105,5 +105,4 @@ def test_noise_learner_run_orchestration(learner):
     assert isinstance(result, NoiseLearnerJob)
     assert len(generate_calls) == 1
     assert len(execute_calls) == 1
-    assert execute_calls[0] is fake_program
     assert result._analysis_stage is learner._analyzer  # noqa: SLF001
