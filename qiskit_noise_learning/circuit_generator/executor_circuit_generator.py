@@ -10,35 +10,95 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from __future__ import annotations
-
 from itertools import count
 
 import numpy as np
 import xarray as xr
 from qiskit.circuit import BoxOp, CircuitInstruction, ClassicalRegister, QuantumCircuit
 from qiskit.transpiler import PassManager
-from qiskit_ibm_runtime.quantum_program import QuantumProgram
 from qiskit_ibm_runtime.quantum_program.quantum_program import SamplexItem
 from qiskit_ibm_runtime.results import QuantumProgramResult
 from samplomatic import build
 from samplomatic.annotations import InjectLocalClifford, Tag, Twirl
 
-from qiskit_noise_learning.analysis import Fit
 from qiskit_noise_learning.data import RawData
 
-from ..experiment_builder import Experiment
 from ..gate_sets import QiskitGateSet
-from ..models import FidelityModel
-from ..sequences import ApplyGate, InstructionSequence, PartialPauliPermutation, Path
+from ..sequences import ApplyGate, InstructionSequence, PartialPauliPermutation
 from .circuit_generator import CircuitGenerator
-from .executor_data_mapper import ExecutorDataMapper
 
 TO_SAMPLOMATIC_C1 = np.array([0, 7, 9, 13, 18, 22], dtype=np.uint8)
 """An array elements of :const:`~C1_TO_TABLEAU` to corresponding value in samplomatic."""
 
 
-class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramResult]):
+class ExecutorDataMapper:
+    """Map executor results into standard results.
+
+    As instruction sequences with similar structure are generated together with a single template
+    circuit and different samplex arguments, the order of input sequences to
+    :meth:`.ExecutorCircuitGenerator.generate` is not preserved during execution. This class
+    contains properties to format the results of a
+    :class:`qiskit_ibm_runtime.results.QuantumProgramResult` to the order of the input sequences.
+
+    Args:
+        item_sequence_indices: For each program item, an ordered list of instruction sequence
+            indices. Position in the list corresponds to the configuration index within the result
+            item.
+        creg_names: The name of classical registers in each program item.
+        measurement_maps: For each program item, a dictionary from creg names to an ordered array
+            of measured qubit indices.
+        instruction_sequences: The instruction sequences associated with the data.
+        num_randomizations: The number of randomizations used per experiment.
+
+    """
+
+    def __init__(
+        self,
+        item_sequence_indices: list[list[int]],
+        creg_names: list[list[str]],
+        measurement_maps: list[dict[str, np.ndarray[int]]],
+        instruction_sequences: list[InstructionSequence],
+        num_randomizations: int,
+    ):
+        self._item_sequence_indices = item_sequence_indices
+        self._creg_names = creg_names
+        self._measurement_maps = measurement_maps
+        self._instruction_sequences = instruction_sequences
+        self._num_randomizations = num_randomizations
+
+    @property
+    def item_sequence_indices(self) -> list[list[int]]:
+        """Per program item, the instruction sequence indices corresponding to each config."""
+        return self._item_sequence_indices
+
+    @property
+    def creg_names(self) -> list[list[str]]:
+        """List of names of the classical registers contained in the results.
+
+        The list at a given index corresponds to names expected in the data of the
+        :class:`qiskit_ibm_runtime.results.QuantumProgramResult` at the same index.
+        """
+        return self._creg_names
+
+    @property
+    def measurement_maps(self) -> list[dict[str, np.ndarray[int]]]:
+        """A per-program-item map from creg name to an ordered array of measured qubit indices."""
+        return self._measurement_maps
+
+    @property
+    def instruction_sequences(self) -> list:
+        """The instruction sequences corresponding to the sequence indices in the sequence map."""
+        return self._instruction_sequences
+
+    @property
+    def num_randomizations(self) -> int:
+        """The number of randomizations used per experiment."""
+        return self._num_randomizations
+
+
+class ExecutorCircuitGenerator(
+    CircuitGenerator[list[SamplexItem], ExecutorDataMapper, QuantumProgramResult]
+):
     """A circuit generator that converts sequences of Qiskit gates into a samplex items.
 
     Args:
@@ -71,18 +131,7 @@ class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramRe
         return self._gate_set
 
     @staticmethod
-    def collect(result: QuantumProgramResult) -> Fit:
-        """Collect results into a :class:`~.Fit` object.
-
-        Args:
-            result: The :class:`~.QuantumProgramResult`. Must have ``passthrough_data``
-                containing a serialized :class:`~.ExecutorDataMapper`.
-
-        Returns:
-            A :class:`~.Fit` populated with raw data, model, and paths.
-        """
-        data_mapper = ExecutorDataMapper.from_passthrough_data(result.passthrough_data)
-
+    def collect(result, data_mapper):
         # extract time bounds on a program item basis
         if hasattr(result.metadata, "chunk_timing"):
             program_item_time_lbs = [
@@ -170,51 +219,9 @@ class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramRe
             )
             raw_data = raw_data.merge(item_raw_data)
 
-        fit = Fit(
-            model=data_mapper.fidelity_model,
-            paths=data_mapper.paths or [],
-        )
-        fit[RawData] = raw_data
-        return fit
+        return raw_data
 
-    def generate(self, experiment: Experiment) -> QuantumProgram:
-        """Generate a :class:`~.QuantumProgram` from an :class:`.Experiment`.
-
-        The returned program embeds a serialized :class:`~.ExecutorDataMapper` in its
-        ``passthrough_data``, enabling :meth:`collect` to reconstruct the data mapper from the
-        result without needing it passed separately.
-
-        Args:
-            experiment: The experiment to generate circuits for.
-
-        Returns:
-            A :class:`~.QuantumProgram` with embedded passthrough data.
-        """
-        samplex_items, data_mapper = self.generate_samplex_items(
-            experiment.sequences, experiment.paths, experiment.fidelity_model
-        )
-        passthrough_data = data_mapper.to_data_mapper_model().to_passthrough_data()
-        return QuantumProgram(
-            shots=experiment.shots, items=samplex_items, passthrough_data=passthrough_data
-        )
-
-    def generate_samplex_items(
-        self,
-        sequences: list[InstructionSequence],
-        paths: list[Path],
-        fidelity_model: FidelityModel | None = None,
-    ) -> tuple[list[SamplexItem], ExecutorDataMapper]:
-        """Generate samplex items from instruction sequences.
-
-        Args:
-            sequences: The instruction sequences to generate circuits for.
-            paths: The analysis paths associated with the sequences.
-            fidelity_model: The fidelity model associated with the data.
-
-        Returns:
-            A tuple of samplex items and an :class:`ExecutorDataMapper` containing the data
-            mapper, fidelity model, and analysis paths.
-        """
+    def generate(self, sequences):
         samplex_items = []
         item_sequence_indices = []
         creg_names = []
@@ -240,8 +247,6 @@ class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramRe
             measurement_maps=measurement_maps,
             instruction_sequences=sequences,
             num_randomizations=self._num_randomizations,
-            fidelity_model=fidelity_model,
-            paths=paths,
         )
 
     def generate_samplex_item(

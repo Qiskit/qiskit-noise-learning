@@ -10,22 +10,19 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from __future__ import annotations
-
 import abc
 from collections import defaultdict
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import Generic, TypeVar
+
+from qiskit_noise_learning.data import RawData
 
 from ..gate_sets import GateSet
 from ..sequences import InstructionSequence
 
-if TYPE_CHECKING:
-    from ..analysis import Fit
-    from ..experiment_builder import Experiment
-
 TaskT = TypeVar("TaskT")
 ResultT = TypeVar("ResultT")
+DataMapperT = TypeVar("DataMapperT")
 
 
 class _StructureKey:
@@ -42,11 +39,11 @@ class _StructureKey:
         return hash(self.sequence.depth)
 
 
-class CircuitGenerator(abc.ABC, Generic[TaskT, ResultT]):
-    """Generate experimental tasks from an :class:`.Experiment`.
+class CircuitGenerator(abc.ABC, Generic[TaskT, DataMapperT, ResultT]):
+    """Generate experimental tasks from given instruction sequences.
 
-    In addition to generating experimental tasks, this class also provides an interface to collect
-    results, that is, to convert the results from tasks to the standard :class:`.Fit` form.
+    In addition to generating experimental tasks, this class also provides an interface to designate
+    data, that is, to convert the results from tasks to the standard results.
     """
 
     @property
@@ -56,12 +53,12 @@ class CircuitGenerator(abc.ABC, Generic[TaskT, ResultT]):
 
     @staticmethod
     @abc.abstractmethod
-    def collect(result: ResultT) -> Fit:
-        """Coerce data from a specific execution framework into a canonical :class:`.Fit`."""
+    def collect(result: ResultT, data_mapper: DataMapperT) -> RawData:
+        """Coerce data from a specific execution framework into a canonical form."""
 
     @abc.abstractmethod
-    def generate(self, experiment: Experiment) -> TaskT:
-        """Generate a new experimental task from an experiment."""
+    def generate(self, sequences: list[InstructionSequence]) -> tuple[TaskT, DataMapperT]:
+        """Generate a new experimental task from the provided instruction sequences."""
 
     @classmethod
     def partition(cls, sequences: Sequence[InstructionSequence]) -> list[list[InstructionSequence]]:
