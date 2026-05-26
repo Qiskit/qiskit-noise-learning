@@ -13,7 +13,7 @@
 """Legacy noise-model fitter retained as a cross-check reference."""
 
 from collections import defaultdict
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 import scipy.optimize as opt
@@ -32,11 +32,11 @@ OptimizerLiteral = Literal["nnls", "lsq_linear_sparse", "cvxpy"]
 NoiseAssumptionLiteral = Literal["symmetric_fidelities", "symmetric_generators"]
 
 
-def get_fid_pairs(fit: Fit) -> tuple[QubitSparsePauliList, QubitSparsePauliList]:
+def get_fid_pairs(path_patterns) -> tuple[QubitSparsePauliList, QubitSparsePauliList]:
     """Extract the first and second Paulis from the repeatable fragment of each path pattern.
 
     Args:
-        fit: A :class:`~.Fit` container holding :class:`~.AveragedData`.
+        path_patterns.
 
     Returns:
         A pair ``(fid_ps_1, fid_ps_2)`` of ``QubitSparsePauliList`` objects holding,
@@ -47,13 +47,16 @@ def get_fid_pairs(fit: Fit) -> tuple[QubitSparsePauliList, QubitSparsePauliList]
     """
     fid_pairs = []
 
-    for pp in fit.averaged_data.dataset.observables.path_pattern.data:
-        fragment = pp.repeatable_fragment
+    for pp in path_patterns:
+        fragment: Any = pp.repeatable_fragment
         if len(fragment) != 2:
             raise ValueError(
                 "Expected each path pattern's repeatable_fragment to have exactly 2 entries, "
                 f"but got {len(fragment)}."
             )
+        if (pp.repeatable_fragment[0].transition[1] != pp.repeatable_fragment[1].transition[0]) or (pp.repeatable_fragment[1].transition[0] != pp.repeatable_fragment[0].transition[1]):
+            raise ValueError(
+                "Path patterns not repeatable")
         fid_pairs.append([fragment[0].pauli, fragment[1].pauli])
 
     # Convert to QubitSparsePauliList
@@ -158,7 +161,7 @@ def fit_noise_model_legacy(
         MissingOptionalLibraryError: If ``optimizer_name="cvxpy"`` and ``cvxpy`` is not
             installed.
     """
-    fid_ps_1, fid_ps_2 = get_fid_pairs(fit)
+    fid_ps_1, fid_ps_2 = get_fid_pairs(fit.averaged_data.dataset.observables.path_pattern.data)
     fid_pair_data = fit.averaged_data.dataset.observables
     fidelities_canonical = make_canonical_fid_dict(
         fid_ps_1.to_pauli_list().to_labels(), fid_ps_2.to_pauli_list().to_labels(), fid_pair_data
