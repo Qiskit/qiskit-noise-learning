@@ -134,7 +134,7 @@ def fit_noise_model_legacy(
     This is a reference implementation ported from a prior codebase. The non-commuting
     (``M``) array is built directly from pair-fidelity data rather than from a
     :class:`~.FidelityModel`, so the algorithm shape intentionally differs from
-    :class:`~.NNLSSolve` and friends.
+    :class:`~.ModelSolve` and friends.
 
     Args:
         fit: A :class:`~.Fit` container holding :class:`~.AveragedData`.
