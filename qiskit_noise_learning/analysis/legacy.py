@@ -277,6 +277,9 @@ def fit_noise_model_legacy(
 class LegacySolve(AnalysisStage):
     """Solves for the :class:`~.ModelData` using the legacy pair-fidelity method.
 
+    This solver assumes that the gate set only has a single unitary gate, and that the paths
+    are of a vanilla-learning type (i.e. even depth with no single-qubit Cliffords required).
+
     Delegates to :func:`fit_noise_model_legacy` with ``noise_assumption="symmetric_fidelities"``,
     ``optimizer_name="nnls"``, and ``constrained=True``.
     """
