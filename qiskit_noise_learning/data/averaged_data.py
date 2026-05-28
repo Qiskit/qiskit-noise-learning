@@ -36,8 +36,8 @@ class AveragedData(LeveledData):
         - time_ubs: An upper bound on the data collection for observable, with dimensions
             ``("observable",)``.
     - Coordinates:
-        - ``unbound_path``: A 1d array of unbound :class:`Path` instances (with ``depth=None``)
-            labelling each observable, with dimensions ``("observable",)``.
+        - ``unbound_path``: A 1d array of unbound :class:`Path` instances labelling each observable,
+            with dimensions ``("observable",)``.
         - ``depth``: A 1d array of type ``int`` specifying the depth associated to the observable. A
             value of ``-1`` indicates an estimate of only the ``repeatable_fragment`` of the path.
 
