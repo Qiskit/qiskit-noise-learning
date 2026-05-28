@@ -18,15 +18,15 @@ from qiskit_noise_learning.data import ObservableData
 
 
 @dataclass(frozen=True)
-class MockPathPattern:
+class MockPath:
     name: str
 
 
 def test_from_arrays():
     """Test constructing ObservableData with a single observable."""
-    pp = MockPathPattern("pp0")
+    p = MockPath("p0")
     obs = ObservableData.from_arrays(
-        path_patterns=[pp],
+        unbound_paths=[p],
         depths=[3],
         observables=np.array([[0.9, 0.85, 0.92]]),
         time_lbs=np.array([["2026-01-01", "2026-01-01", "2026-01-01"]], dtype="datetime64[us]"),
@@ -34,17 +34,17 @@ def test_from_arrays():
     )
     ds = obs.dataset
     assert ds["observables"].shape == (1, 3)
-    assert ds["path_pattern"].values[0] == pp
+    assert ds["unbound_path"].values[0] == p
     assert ds["depth"].values[0] == 3
 
 
 def test_filter_time():
     """Test that filter_time keeps only data within the time window."""
-    pp = MockPathPattern("pp0")
+    p = MockPath("p0")
     t_lbs = np.array([["2026-01-01", "2026-01-03", "2026-01-05"]], dtype="datetime64[us]")
     t_ubs = np.array([["2026-01-02", "2026-01-04", "2026-01-06"]], dtype="datetime64[us]")
     obs = ObservableData.from_arrays(
-        path_patterns=[pp],
+        unbound_paths=[p],
         depths=[1],
         observables=np.array([[0.9, 0.8, 0.7]]),
         time_lbs=t_lbs,

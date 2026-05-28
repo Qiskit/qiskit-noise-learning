@@ -13,7 +13,6 @@
 """Experiment Builder."""
 
 from collections.abc import Iterable, Sequence
-from itertools import chain
 from typing import TypeVar
 
 import numpy as np
@@ -22,12 +21,7 @@ from rustworkx import PyGraph, graph_greedy_color
 from qiskit_noise_learning.gate_sets import ModelGateSet
 from qiskit_noise_learning.math import IndexedMatrix
 from qiskit_noise_learning.models import CompleteFidelityModel, FidelityModel
-from qiskit_noise_learning.sequences import (
-    InstructionPattern,
-    InstructionSequence,
-    Path,
-    PathPattern,
-)
+from qiskit_noise_learning.sequences import InstructionSequence, Path
 
 # the parameter in the fidelity model
 ParameterIndex = TypeVar("ParameterIndex")
@@ -39,18 +33,16 @@ RANK_TOLERANCE = 1e-8
 class ExperimentBuilder:
     r"""A description of a collection of experiments.
 
-    This class describes, and can be used to build, sets of fixed-depth and variable-depth learning
-    experiments for a :class:`ModelGateSet`. Fixed-depth experiments are represented as a collection
-    of :class:`Path` instances, a collection of :class:`InstructionSequence` instances, and a
-    many-to-many relation indicating which paths are traversed by which instruction sequences.
+    This class describes, and can be used to build, sets of learning experiments for a
+    :class:`ModelGateSet`. Experiments are represented as a collection of :class:`Path` instances, a
+    collection of :class:`InstructionSequence` instances, and a many-to-many relation indicating
+    which paths are traversed by which instruction sequences.
 
-    Similarly, variable-depth experiments are represented by a collection of :class:`PathPattern`
-    instances, a collection of :class:`InstructionPattern` sequences, and a many-to-many relation
-    indicating which path patterns are traversed by which instruction patterns.
+    Paths can be either bound (with an integer ``depth``) or unbound (with ``depth=None``). Unbound
+    paths represent variable-depth experiments that are expanded at each depth when building.
 
-    This class builds design matrices for both fixed depth and variable depth experiments, and
-    methods for extending the collection can optionally choose to not add new paths or path patterns
-    that do not increase the rank of these matrices.
+    This class builds a design matrix, and methods for extending the collection can optionally
+    choose to not add new paths that do not increase the rank of the matrix.
 
     Args:
         fidelity_model: A fidelity model for the gate set or a gate set. If it's a gate set, uses a
@@ -62,25 +54,20 @@ class ExperimentBuilder:
             fidelity_model = CompleteFidelityModel(fidelity_model)
 
         self._fidelity_model = fidelity_model
-
-        # initialize pattern fields
-        self._multiplicative_design_matrix = IndexedMatrix[PathPattern, ParameterIndex]()
-        self._instruction_patterns = []
-        self._pattern_relations = set()
-
-        # initialize sequence fields
-        self._additive_design_matrix = IndexedMatrix[Path, ParameterIndex]()
-        self._instruction_sequences = []
-        self._sequence_relations = set()
+        self._design_matrix = IndexedMatrix[Path, ParameterIndex]()
+        self._instruction_sequences: list[InstructionSequence] = []
+        self._relations: set[tuple[int, int]] = set()
 
     @property
-    def additive_design_matrix(self) -> IndexedMatrix[Path, ParameterIndex]:
-        """The additive precision design matrix.
+    def design_matrix(self) -> IndexedMatrix[Path, ParameterIndex]:
+        """The design matrix.
 
         The row at index ``idx`` indicates how the sum of log fidelities traversed by
-        ``self.paths[idx]`` is expressed as a linear combination of model parameters.
+        ``self.paths[idx]`` is expressed as a linear combination of model parameters. For unbound
+        paths, only the repeatable fragment is considered. For bound paths, the full path including
+        start and end fragments scaled by depth is used.
         """
-        return self._additive_design_matrix
+        return self._design_matrix
 
     @property
     def fidelity_model(self) -> FidelityModel[ParameterIndex]:
@@ -93,72 +80,34 @@ class ExperimentBuilder:
         return self._fidelity_model.gate_set
 
     @property
-    def instruction_patterns(self) -> list[InstructionPattern]:
-        """The list of instruction patterns stored in this collection."""
-        return self._instruction_patterns
-
-    @property
     def instruction_sequences(self) -> list[InstructionSequence]:
         """The list of instruction sequences stored in this collection."""
         return self._instruction_sequences
 
     @property
     def is_complete(self) -> bool:
-        """Whether all instruction patterns and sequences are complete."""
-        return all(
-            x.is_complete for x in chain(self._instruction_patterns, self._instruction_sequences)
-        )
-
-    @property
-    def multiplicative_design_matrix(self) -> IndexedMatrix[PathPattern, ParameterIndex]:
-        """The multiplicative precision design matrix.
-
-        The row at index ``idx`` indicates how the sum of log fidelities traversed by the repeatable
-        fragment of ``self.path_patterns[idx]`` is expressed as a linear combination of model
-        parameters.
-        """
-        return self._multiplicative_design_matrix
+        """Whether all instruction sequences are complete."""
+        return all(x.is_complete for x in self._instruction_sequences)
 
     @property
     def paths(self) -> list[Path]:
-        """The list of path patterns stored in this collection."""
+        """The list of paths stored in this collection."""
         return sorted(self.path_index_map, key=lambda k: self.path_index_map[k])
 
     @property
     def path_index_map(self) -> dict[Path, int]:
         """Dictionary mapping of paths to their index in ``self.paths``."""
-        return self._additive_design_matrix.row_index_map
+        return self._design_matrix.row_index_map
 
     @property
-    def path_patterns(self) -> list[PathPattern]:
-        """The list of path patterns stored in this collection."""
-        index_map = self.path_pattern_index_map
-        return sorted(index_map, key=lambda k: index_map[k])
-
-    @property
-    def path_pattern_index_map(self) -> dict[PathPattern, int]:
-        """Dictionary mapping of path patterns to their index in ``self.path_patterns``."""
-        return self._multiplicative_design_matrix.row_index_map
-
-    @property
-    def pattern_relations(self) -> set[tuple[int, int]]:
-        """The relations between the path patterns and instruction patterns in this collection.
-
-        The relations are stored as a set of tuples of indices of the form
-        ``(path_idx, inst_idx)``, which indicate the statement: ``self.path_patterns[path_idx]`` is
-        traversed by ``self.instruction_patterns[inst_idx]`` (assuming the right post-processing).
-        """
-        return self._pattern_relations
-
-    @property
-    def sequence_relations(self) -> set[tuple[int, int]]:
+    def relations(self) -> set[tuple[int, int]]:
         """The relations between the paths and instruction sequences in this collection.
 
         The relations are stored as a set of tuples of indices of the form
-        ``(path_idx, inst_idx)``, which indicate the statement: ``self.path[path_idx]`` is
+        ``(path_idx, inst_idx)``, which indicate the statement: ``self.paths[path_idx]`` is
         traversed by ``self.instruction_sequences[inst_idx]`` (assuming the right post-processing).
         """
-        return self._sequence_relations
+        return self._relations
 
     def add_paths(
         self,
@@ -167,6 +116,8 @@ class ExperimentBuilder:
         attempt_instruction_merge: bool = True,
     ):
         r"""Iteratively add paths to the builder.
+
+        Handles both bound paths (with integer ``depth``) and unbound paths (with ``depth=None``).
 
         Args:
             sequence_iterator: An iterator over :class:`Path`\s and :class:`InstructionSequence`\s
@@ -182,81 +133,30 @@ class ExperimentBuilder:
         rows = []
         new_instruction_sequences = []
         for path, instruction_sequence in sequence_iterator:
-            # skip already present patterns
             if path not in self.path_index_map:
                 new_paths.append(path)
                 rows.append(self.fidelity_model.row_from_path(path))
                 new_instruction_sequences.append(
-                    instruction_sequence if instruction_sequence else path.to_instruction_sequence()
+                    instruction_sequence
+                    if instruction_sequence is not None
+                    else path.to_instruction_sequence()
                 )
 
-        # add rows and rank reduce
-        self._additive_design_matrix.add_rows(row_indices=new_paths, rows=rows, tol=RANK_TOLERANCE)
+        self._design_matrix.add_rows(row_indices=new_paths, rows=rows, tol=RANK_TOLERANCE)
         if rank_reduce:
-            self.rank_reduce_paths()
+            self.rank_reduce()
 
-        # add new instruction sequences and new relations
         for path, instruction_sequence in zip(new_paths, new_instruction_sequences):
             if path in self.path_index_map:
                 inst_idx = _add_instruction_to_list(
-                    instruction_like_list=self.instruction_sequences,
-                    instruction_like=instruction_sequence,
+                    instruction_list=self.instruction_sequences,
+                    instruction_sequence=instruction_sequence,
                     attempt_instruction_merge=attempt_instruction_merge,
                 )
-                self._sequence_relations.add((self.path_index_map[path], inst_idx))
-
-    def add_path_patterns(
-        self,
-        pattern_iterator: Iterable[tuple[PathPattern, InstructionPattern | None]],
-        rank_reduce: bool = True,
-        attempt_instruction_merge: bool = False,
-    ):
-        r"""Iteratively add patterns to the builder.
-
-        Args:
-            pattern_iterator: An iterator over :class:`PathPattern`\s and
-                :class:`InstructionPattern`\s that traverse them. If the :class:`InstructionPattern`
-                is ``None``, it is generated automatically from the path.
-            rank_reduce: Whether to remove linearly dependent path patterns from ``self`` after
-                adding the new patterns.
-            attempt_instruction_merge: Whether to attempt to merge the instruction pattern with a
-                pre-existing instruction pattern.
-        """
-
-        new_path_patterns = []
-        rows = []
-        new_instruction_patterns = []
-        for path_pattern, instruction_pattern in pattern_iterator:
-            # skip already present patterns
-            if path_pattern not in self.path_pattern_index_map:
-                new_path_patterns.append(path_pattern)
-                rows.append(self.fidelity_model.multiplicative_row_from_path_pattern(path_pattern))
-                new_instruction_patterns.append(
-                    instruction_pattern
-                    if instruction_pattern
-                    else path_pattern.to_instruction_pattern()
-                )
-
-        # add rows and rank reduce
-        self._multiplicative_design_matrix.add_rows(
-            row_indices=new_path_patterns, rows=rows, tol=RANK_TOLERANCE
-        )
-        if rank_reduce:
-            self.rank_reduce_path_patterns()
-
-        # add new instruction patterns and new relations
-        for path_pattern, instruction_pattern in zip(new_path_patterns, new_instruction_patterns):
-            if path_pattern in self.path_pattern_index_map:
-                inst_idx = _add_instruction_to_list(
-                    instruction_like_list=self.instruction_patterns,
-                    instruction_like=instruction_pattern,
-                    attempt_instruction_merge=attempt_instruction_merge,
-                )
-                self._pattern_relations.add((self.path_pattern_index_map[path_pattern], inst_idx))
+                self._relations.add((self.path_index_map[path], inst_idx))
 
     def complete(self):
-        """Complete all internal instruction patterns and sequences."""
-        self._instruction_patterns = [x.complete() for x in self._instruction_patterns]
+        """Complete all internal instruction sequences."""
         self._instruction_sequences = [x.complete() for x in self._instruction_sequences]
 
     def generate_instruction_sequences(
@@ -264,48 +164,33 @@ class ExperimentBuilder:
     ) -> list[InstructionSequence]:
         r"""Generate a list of instruction sequences from this experiment builder.
 
+        Unbound instruction sequences are expanded at each depth. Bound instruction sequences are
+        included as-is.
+
         Args:
-            depths: A list of depths to generate sequences for.
+            depths: A list of depths to generate sequences for. Required if there are any unbound
+                instruction sequences.
 
         Returns:
             A list of instruction sequences.
 
         Raises:
-            ValueError: If there are any instruction patterns in this builder and no depths are
-                specified.
+            ValueError: If there are any unbound instruction sequences and no depths are specified.
         """
-        if self.instruction_patterns and depths is None:
-            raise ValueError("At least one depth is required for path patterns.")
+        has_unbound = any(seq.is_unbound for seq in self._instruction_sequences)
+        if has_unbound and depths is None:
+            raise ValueError("At least one depth is required for unbound instruction sequences.")
 
-        instruction_sequences = [
-            InstructionSequence(inst_pattern, d)
-            for d in depths
-            for inst_pattern in self.instruction_patterns
-        ]
-        instruction_sequences.extend(sequence for sequence in self.instruction_sequences)
+        instruction_sequences = []
+        for seq in self._instruction_sequences:
+            if seq.is_unbound:
+                instruction_sequences.extend(seq.bind_at(d) for d in depths)
+            else:
+                instruction_sequences.append(seq)
 
         return instruction_sequences
 
-    def identify_pattern_relations(
-        self, attempt_instruction_extension: bool = True
-    ) -> set[tuple[int, int]]:
-        """Identify new relations amongst the existing path patterns and instruction patterns.
-
-        Args:
-            attempt_instruction_extension: Whether or not to extend the definition of compatible
-                instruction patterns to traverse new paths.
-
-        Returns:
-            A set containing the newly added pattern relations.
-        """
-        return _identify_relations(
-            path_like_index_map=self.path_pattern_index_map,
-            instruction_like_list=self.instruction_patterns,
-            relations=self.pattern_relations,
-            attempt_instruction_extension=attempt_instruction_extension,
-        )
-
-    def identify_sequence_relations(
+    def identify_relations(
         self, attempt_instruction_extension: bool = True
     ) -> set[tuple[int, int]]:
         """Identify new relations amongst the existing paths and instruction sequences.
@@ -315,111 +200,45 @@ class ExperimentBuilder:
                 instruction sequences to traverse new paths.
 
         Returns:
-            A set containing the newly added sequence relations.
+            A set containing the newly added relations.
         """
         return _identify_relations(
-            path_like_index_map=self.path_index_map,
-            instruction_like_list=self.instruction_sequences,
-            relations=self.sequence_relations,
+            path_index_map=self.path_index_map,
+            instruction_list=self.instruction_sequences,
+            relations=self.relations,
             attempt_instruction_extension=attempt_instruction_extension,
         )
 
-    def identify_relations(
-        self, attempt_instruction_extension: bool = True
-    ) -> tuple[set[tuple[int, int]], set[tuple[int, int]]]:
-        """Identify new pattern and sequence relations.
+    def merge_instruction_sequences(self):
+        """Merge instruction sequences."""
+        new_sequences, colors = minimize_instruction_sequences(self._instruction_sequences)
+        self._instruction_sequences = new_sequences
+        self._relations = {(path_idx, colors[inst_idx]) for path_idx, inst_idx in self._relations}
 
-        Args:
-            attempt_instruction_extension: Whether or not to extend the definitions of instruction
-                patterns and sequences to traverse additional path patterns and paths, respectively.
-
-        Returns:
-            A tuple of sets giving, respectively, the newly generated pattern and sequence
-            relations.
-        """
-
-        return (
-            self.identify_pattern_relations(attempt_instruction_extension),
-            self.identify_sequence_relations(attempt_instruction_extension),
-        )
-
-    def merge_instruction_patterns(self):
-        """Merge instruction patterns."""
-        new_patterns, colors = minimize_instruction_patterns(self._instruction_patterns)
-        self._instruction_patterns = new_patterns
-        self._pattern_relations = {
-            (pp_idx, colors[ip_idx]) for pp_idx, ip_idx in self._pattern_relations
-        }
-
-    def rank_reduce_paths(self):
+    def rank_reduce(self):
         """Reduce the collection of paths to a maximal linearly independent set."""
-        new_matrix = self._additive_design_matrix.linearly_independent_rows(tol=RANK_TOLERANCE)
+        new_matrix = self._design_matrix.linearly_independent_rows(tol=RANK_TOLERANCE)
 
-        # re-index existing relations - previously existing experiments may have been dropped
         old_to_new_map = {}
         for path, data_idx in new_matrix.row_index_map.items():
-            old_to_new_map[self._additive_design_matrix.row_index_map[path]] = data_idx
+            old_to_new_map[self._design_matrix.row_index_map[path]] = data_idx
 
         new_relations = set()
-        for path_idx, inst_idx in self._sequence_relations:
+        for path_idx, inst_idx in self._relations:
             if path_idx in old_to_new_map:
                 new_relations.add((old_to_new_map[path_idx], inst_idx))
 
-        self._sequence_relations = new_relations
-        self._additive_design_matrix = new_matrix
+        self._relations = new_relations
+        self._design_matrix = new_matrix
         self.remove_unused_instruction_sequences()
 
-    def rank_reduce_path_patterns(self):
-        """Reduce the collection of path patterns to a maximal linearly independent set."""
-        new_matrix = self._multiplicative_design_matrix.linearly_independent_rows(
-            tol=RANK_TOLERANCE
-        )
-
-        # re-index existing relations - previously existing experiments may have been dropped
-        old_to_new_map = {}
-        for path_pattern, data_idx in new_matrix.row_index_map.items():
-            old_to_new_map[self._multiplicative_design_matrix.row_index_map[path_pattern]] = (
-                data_idx
-            )
-
-        new_relations = set()
-        for path_idx, inst_idx in self._pattern_relations:
-            if path_idx in old_to_new_map:
-                new_relations.add((old_to_new_map[path_idx], inst_idx))
-
-        self._pattern_relations = new_relations
-        self._multiplicative_design_matrix = new_matrix
-        self.remove_unused_instruction_patterns()
-
-    def remove_unused_instruction_patterns(self):
-        """Remove any instruction patterns not referenced in the pattern relations.
-
-        Note that this method may result in re-indexing of instruction patterns.
-        """
-
-        idxs_to_keep = set(idx for _, idx in self._pattern_relations)
-
-        new_instruction_patterns = []
-        index_map = {}
-        for idx, instruction_pattern in enumerate(self.instruction_patterns):
-            if idx in idxs_to_keep:
-                index_map[idx] = len(new_instruction_patterns)
-                new_instruction_patterns.append(instruction_pattern)
-
-        new_relations = set(
-            (path_idx, index_map[inst_idx]) for path_idx, inst_idx in self.pattern_relations
-        )
-
-        self._pattern_relations = new_relations
-        self._instruction_patterns = new_instruction_patterns
-
     def remove_unused_instruction_sequences(self):
-        """Remove any instruction sequences not referenced in the sequence relations.
+        """Remove any instruction sequences not referenced in the relations.
 
         Note that this method may result in re-indexing of instruction sequences.
         """
 
-        idxs_to_keep = set(idx for _, idx in self._sequence_relations)
+        idxs_to_keep = set(idx for _, idx in self._relations)
 
         new_instruction_sequences = []
         index_map = {}
@@ -429,53 +248,51 @@ class ExperimentBuilder:
                 new_instruction_sequences.append(instruction_sequence)
 
         new_relations = set(
-            (path_idx, index_map[inst_idx]) for path_idx, inst_idx in self.sequence_relations
+            (path_idx, index_map[inst_idx]) for path_idx, inst_idx in self.relations
         )
 
-        self._sequence_relations = new_relations
+        self._relations = new_relations
         self._instruction_sequences = new_instruction_sequences
 
 
 def _identify_relations(
-    path_like_index_map: dict[PathPattern | Path, int],
-    instruction_like_list: list[InstructionPattern] | list[InstructionSequence],
+    path_index_map: dict[Path, int],
+    instruction_list: list[InstructionSequence],
     relations: set[tuple[int, int]],
     attempt_instruction_extension: bool = True,
 ) -> set[tuple[int, int]]:
-    """A generalized relation identification function for either patterns or sequences.
+    """A generalized relation identification function.
 
-    Note that this function modifies ``instruction_like_list`` and ``relations`` in place.
+    Note that this function modifies ``instruction_list`` and ``relations`` in place.
 
     Args:
-        path_like_index_map: A dict of :class:`PathPattern` or :class:`Path` instances mapped to an
-            index.
-        instruction_like_list: A list of :class:`InstructionPattern` or :class:`InstructionSequence`
-            instances. The pattern or sequence type must match that of ``path_like_list``.
-        relations: A set of pairs of indices indicating which "path"s are traversed by which
-            "instruction"s.
+        path_index_map: A dict of :class:`Path` instances mapped to an index.
+        instruction_list: A list of :class:`InstructionSequence` instances.
+        relations: A set of pairs of indices indicating which paths are traversed by which
+            instruction sequences.
         attempt_instruction_extension: Whether or not to extend the definition of compatible
-            "instruction"s to traverse new "path"s.
+            instruction sequences to traverse new paths.
 
     Returns:
         A set of newly identified relations.
     """
 
     new_relations = set()
-    for path_like, path_idx in path_like_index_map.items():
-        for inst_idx, instruction_like in enumerate(instruction_like_list):
+    for path, path_idx in path_index_map.items():
+        for inst_idx, instruction_sequence in enumerate(instruction_list):
             if (new_relation := (path_idx, inst_idx)) in relations:
                 continue
 
             if attempt_instruction_extension:
-                new_instruction = path_like.extend_permutations(instruction_like)
+                new_instruction = path.extend_permutations(instruction_sequence)
                 if new_instruction is None:
                     continue
 
                 new_relations.add(new_relation)
                 relations.add(new_relation)
-                instruction_like_list[inst_idx] = new_instruction
+                instruction_list[inst_idx] = new_instruction
             else:
-                if path_like.is_traversed_by(instruction_like):
+                if path.is_traversed_by(instruction_sequence):
                     new_relations.add(new_relation)
                     relations.add(new_relation)
 
@@ -483,74 +300,67 @@ def _identify_relations(
 
 
 def _add_instruction_to_list(
-    instruction_like_list: list[InstructionPattern] | list[InstructionSequence],
-    instruction_like: InstructionPattern | InstructionSequence,
+    instruction_list: list[InstructionSequence],
+    instruction_sequence: InstructionSequence,
     attempt_instruction_merge: bool = True,
 ) -> int:
-    """A generalized method for adding an instruction pattern or sequence to a list.
+    """Add an instruction sequence to a list, optionally merging with an existing entry.
 
-    This method works for instruction patterns or instruction sequences. If
-    ``attempt_instruction_merge``, it will greedily attempt to merge ``instruction_like`` into a
-    pre-existing entry in ``instruction_like_list``.
-
-    Note that this method modifies ``instruction_like_list`` in place.
+    Note that this method modifies ``instruction_list`` in place.
 
     Args:
-        instruction_like_list: A list of :class:`InstructionPattern` or :class:`InstructionSequence`
-            instances.
-        instruction_like: A :class:`InstructionPattern` or :class:`InstructionSequence` instance.
-            The type should match the elements of ``instruction_like_list``.
+        instruction_list: A list of :class:`InstructionSequence` instances.
+        instruction_sequence: The :class:`InstructionSequence` instance to add.
         attempt_instruction_merge: Whether to attempt to merge.
 
     Returns:
-        The index ``instruction_like`` is inserted into ``instruction_like_list``, either through
+        The index ``instruction_sequence`` is inserted into ``instruction_list``, either through
         merging or appending.
     """
     if attempt_instruction_merge:
-        for idx, existing_instruction in enumerate(instruction_like_list):
-            if existing_instruction.is_mergeable_with(instruction_like):
-                instruction_like_list[idx] = existing_instruction.merge(instruction_like)
+        for idx, existing_instruction in enumerate(instruction_list):
+            if existing_instruction.is_mergeable_with(instruction_sequence):
+                instruction_list[idx] = existing_instruction.merge(instruction_sequence)
                 return idx
 
-    # if no merge, add to the end
-    instruction_like_list.append(instruction_like)
-    return len(instruction_like_list) - 1
+    instruction_list.append(instruction_sequence)
+    return len(instruction_list) - 1
 
 
-def minimize_instruction_patterns(
-    patterns: Sequence[InstructionPattern],
-) -> tuple[list[InstructionPattern], dict[int, int]]:
-    """Return a minimal list of instruction patterns by coloring mergeable instruction patterns.
+def minimize_instruction_sequences(
+    sequences: Sequence[InstructionSequence],
+) -> tuple[list[InstructionSequence], dict[int, int]]:
+    """Return a minimal list of instruction sequences by coloring mergeable instruction sequences.
 
-    Given ``patterns``, this function constructs a matrix such that the entry at ``(i, j)``
-    is ``False`` if ``patterns[i]`` is mergeable with ``patterns[j]``. By constructing and
-    coloring a graph from this matrix, the ``patterns`` are partitioned into mutually mergeable
-    groups. The groups are then merged into a single pattern ordered by color.
+    Given ``sequences``, this function constructs a matrix such that the entry at ``(i, j)``
+    is ``False`` if ``sequences[i]`` is mergeable with ``sequences[j]``. By constructing and
+    coloring a graph from this matrix, the ``sequences`` are partitioned into mutually mergeable
+    groups. The groups are then merged into a single sequence ordered by color.
 
     This method also returns a dictionary from original index to color.
 
     Args:
-        patterns: The patterns to merge.
+        sequences: The sequences to merge.
 
     Returns:
-        A minimal list of instruction patterns sorted by color and a dictionary from original index
-        in ``patterns`` to the color it was assigned.
+        A minimal list of instruction sequences sorted by color and a dictionary from original index
+        in ``sequences`` to the color it was assigned.
     """
-    adjacency_mat = np.ones((len(patterns), len(patterns)), dtype=np.bool_)
+    adjacency_mat = np.ones((len(sequences), len(sequences)), dtype=np.bool_)
     np.fill_diagonal(adjacency_mat, np.False_)
-    for i in range(len(patterns)):
-        for j in range(i + 1, len(patterns)):
-            is_not_mergeable = not patterns[i].is_mergeable_with(patterns[j])
+    for i in range(len(sequences)):
+        for j in range(i + 1, len(sequences)):
+            is_not_mergeable = not sequences[i].is_mergeable_with(sequences[j])
             adjacency_mat[(i, j)] = is_not_mergeable
             adjacency_mat[(j, i)] = is_not_mergeable
 
     colors = graph_greedy_color(PyGraph.from_adjacency_matrix(adjacency_mat.astype(np.float64)))
 
-    minimized_patterns = {}
+    minimized_sequences = {}
     for idx, color in colors.items():
-        if (this_pattern := minimized_patterns.get(color)) is None:
-            minimized_patterns[color] = patterns[idx]
+        if (this_sequence := minimized_sequences.get(color)) is None:
+            minimized_sequences[color] = sequences[idx]
             continue
-        minimized_patterns[color] = this_pattern.merge(patterns[idx])
+        minimized_sequences[color] = this_sequence.merge(sequences[idx])
 
-    return [v for _, v in sorted(minimized_patterns.items())], colors
+    return [v for _, v in sorted(minimized_sequences.items())], colors

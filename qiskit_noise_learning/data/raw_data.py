@@ -43,8 +43,8 @@ class RawData(LeveledData):
         - ``time_ubs``: Upper bound on data acquisition times, with dimensions
           ``("randomization",)``, of type ``"datetime64[us]"``.
     - Coordinates:
-        - ``instruction_pattern``: The instruction pattern for the data, along dimension
-          ``("randomization",)``, of type :class:`InstructionPattern`.
+        - ``unbound_instruction_sequence``: The unbound instruction sequence for the data, along
+          dimension ``("randomization",)``, of type :class:`InstructionSequence`.
         - ``depth``: Integer array of depths along dimension ``("randomization",)``.
     - Attrs:
         - ``creg_names``: Ordered list of classical register names.
@@ -124,9 +124,9 @@ class RawData(LeveledData):
                     "time_ubs": xr.DataArray(inst_time_ubs, dims=["randomization"]),
                 },
                 coords={
-                    "instruction_pattern": (
+                    "unbound_instruction_sequence": (
                         ("randomization",),
-                        np.array([inst_sequence.pattern] * len(inst_data), dtype=object),
+                        np.array([inst_sequence.without_depth()] * len(inst_data), dtype=object),
                     ),
                     "depth": (
                         ("randomization",),

@@ -17,7 +17,7 @@ import xarray as xr
 
 from qiskit_noise_learning.analysis import AnalysisStage
 from qiskit_noise_learning.data import ObservableData, RawData
-from qiskit_noise_learning.sequences import InstructionPattern, PathPattern
+from qiskit_noise_learning.sequences import InstructionSequence, Path
 
 
 class ComputeObservables(AnalysisStage):
@@ -38,74 +38,74 @@ class ComputeObservables(AnalysisStage):
     def _run(self, fit):
         if any(
             fidelity_index.gate.meas_idxs
-            for path_pattern in [p.pattern for p in fit.paths]
+            for path in fit.paths
             for fidelity_index in chain(
-                path_pattern.start_fragment,
-                path_pattern.repeatable_fragment,
-                path_pattern.end_fragment[:-1],
+                path.start_fragment,
+                path.repeatable_fragment,
+                path.end_fragment[:-1],
             )
         ):
             raise NotImplementedError("Encountered a path with a midcircuit measurement.")
 
         raw_data = fit.raw_data
 
-        # map from unique path patterns to depths
-        path_pattern_depths: dict[PathPattern, list[int]] = dict()
+        # map from unique unbound paths to depths
+        unbound_path_depths: dict[Path, set[int]] = dict()
         for path in fit.paths:
-            path_pattern_depths.setdefault(path.pattern, set()).add(path.depth)
+            unbound_path_depths.setdefault(path.without_depth(), set()).add(path.depth)
 
-        # mapping from path patterns into data
-        # nested mapping: path pattern -> dt_key -> depth ->
+        # mapping from unbound paths into data
+        # nested mapping: unbound_path -> dt_key -> depth ->
         # {"array_indices": list[int], "signs": list[int]}
-        path_pattern_to_data = dict()
+        unbound_path_to_data = dict()
 
-        # mapping from path patterns to the instruction sequences that measure them, and signs
+        # mapping from unbound instruction sequences to the paths they traverse with sign info;
         # just used in the process of constructing the above
-        unique_instruction_patterns: list[InstructionPattern] = []
-        instruction_pattern_path_signs: list[dict[PathPattern, tuple[bool, bool]]] = []
+        unique_unbound_instruction_sequences: list[InstructionSequence] = []
+        unbound_instruction_sequence_path_signs: list[dict[Path, tuple[bool, bool]]] = []
 
         for dt_key, datasubtree in raw_data.datatree.items():
-            for array_idx, (ip, depth) in enumerate(
+            for array_idx, (uis, depth) in enumerate(
                 zip(
-                    datasubtree.dataset["instruction_pattern"].data,
+                    datasubtree.dataset["unbound_instruction_sequence"].data,
                     datasubtree.dataset["depth"].data,
                 )
             ):
-                # get the path patterns traversed by this path and the sign information,
+                # get the unbound paths traversed by this instruction sequence and sign info,
                 # constructing if not yet encountered
-                ip_path_signs = None
-                if ip not in unique_instruction_patterns:
-                    unique_instruction_patterns.append(ip)
-                    ip_path_signs = dict()
-                    for path_pattern in path_pattern_depths:
-                        if path_pattern.is_traversed_by(ip):
-                            ip_path_signs[path_pattern] = path_pattern.sign_flips(ip)
-                    instruction_pattern_path_signs.append(ip_path_signs)
+                uis_path_signs = None
+                if uis not in unique_unbound_instruction_sequences:
+                    unique_unbound_instruction_sequences.append(uis)
+                    uis_path_signs = dict()
+                    for unbound_path in unbound_path_depths:
+                        if unbound_path.is_traversed_by(uis):
+                            uis_path_signs[unbound_path] = unbound_path.fragment_sign_flips(uis)
+                    unbound_instruction_sequence_path_signs.append(uis_path_signs)
                 else:
-                    ip_path_signs = instruction_pattern_path_signs[
-                        unique_instruction_patterns.index(ip)
+                    uis_path_signs = unbound_instruction_sequence_path_signs[
+                        unique_unbound_instruction_sequences.index(uis)
                     ]
 
-                for path_pattern, signs in ip_path_signs.items():
+                for unbound_path, signs in uis_path_signs.items():
                     # if depth not relevant, continue
-                    if depth not in path_pattern_depths[path_pattern]:
+                    if depth not in unbound_path_depths[unbound_path]:
                         continue
 
-                    # get the dictionary for this path pattern, bit count, and depth
-                    path_pattern_bit_count_depth_dict = (
-                        path_pattern_to_data.setdefault(path_pattern, dict())
+                    # get the dictionary for this unbound path, data tree key, and depth
+                    unbound_path_dt_depth_dict = (
+                        unbound_path_to_data.setdefault(unbound_path, dict())
                         .setdefault(dt_key, dict())
                         .setdefault(depth, {"array_indices": [], "signs": []})
                     )
-                    path_pattern_bit_count_depth_dict["array_indices"].append(array_idx)
-                    path_pattern_bit_count_depth_dict["signs"] = (-1) ** (
-                        signs[0] + depth * signs[1]
+                    unbound_path_dt_depth_dict["array_indices"].append(array_idx)
+                    unbound_path_dt_depth_dict["signs"].append(
+                        (-1) ** (signs[0] + depth * signs[1])
                     )
 
         # determine dimension sizes for observable data
         observable_count = 0
         max_num_randomizations = 0
-        for path_pattern, datatree_mapping in path_pattern_to_data.items():
+        for unbound_path, datatree_mapping in unbound_path_to_data.items():
             for dt_key, depth_mapping in datatree_mapping.items():
                 for depth, dataset_mapping in depth_mapping.items():
                     observable_count += 1
@@ -120,12 +120,12 @@ class ComputeObservables(AnalysisStage):
         time_lbs[:] = np.datetime64("NaT")
         time_ubs = np.empty((observable_count, max_num_randomizations), dtype="datetime64[us]")
         time_ubs[:] = np.datetime64("NaT")
-        path_pattern_coord = np.empty(observable_count, dtype=object)
+        unbound_path_coord = np.empty(observable_count, dtype=object)
         depth_coord = np.empty(observable_count, dtype=int)
 
         observable_idx = 0
-        for path_pattern, datatree_mapping in path_pattern_to_data.items():
-            bit_mask = path_pattern.end_fragment[-1].mask
+        for unbound_path, datatree_mapping in unbound_path_to_data.items():
+            bit_mask = unbound_path.end_fragment[-1].mask
             for dt_key, depth_mapping in datatree_mapping.items():
                 raw_dataset = raw_data.datatree[dt_key].dataset
                 for depth, dataset_mapping in depth_mapping.items():
@@ -144,7 +144,7 @@ class ComputeObservables(AnalysisStage):
                     observable_array[observable_idx, 0 : len(new_observables)] = new_observables
                     time_lbs[observable_idx, 0 : len(new_observables)] = new_time_lbs
                     time_ubs[observable_idx, 0 : len(new_observables)] = new_time_ubs
-                    path_pattern_coord[observable_idx] = path_pattern
+                    unbound_path_coord[observable_idx] = unbound_path
                     depth_coord[observable_idx] = depth
                     observable_idx += 1
 
@@ -158,7 +158,7 @@ class ComputeObservables(AnalysisStage):
                     "time_ubs": xr.DataArray(data=time_ubs, dims=["observable", "randomization"]),
                 },
                 coords={
-                    "path_pattern": (("observable",), path_pattern_coord),
+                    "unbound_path": (("observable",), unbound_path_coord),
                     "depth": (("observable",), depth_coord),
                 },
             )
@@ -193,15 +193,15 @@ def compute_expectation_value(
     return signs * per_sample.mean(axis=-1)
 
 
-def observable_bit_mask(path_pattern: PathPattern, depth: int) -> np.ndarray[bool]:
-    """Return the observable bit mask corresponding to the path pattern at the given depth."""
+def observable_bit_mask(unbound_path: Path, depth: int) -> np.ndarray[bool]:
+    """Return the observable bit mask corresponding to the unbound path at the given depth."""
     mask_array = np.array([], dtype=bool)
 
-    start_masks = [x.mask for x in path_pattern.start_fragment]
+    start_masks = [x.mask for x in unbound_path.start_fragment]
     for mask_fragment in start_masks:
         mask_array = np.append(mask_array, mask_fragment)
 
-    repeatable_masks = [x.mask for x in path_pattern.repeatable_fragment]
+    repeatable_masks = [x.mask for x in unbound_path.repeatable_fragment]
     repeatable_mask = np.array([], dtype=bool)
     for mask_fragment in repeatable_masks:
         repeatable_mask = np.append(repeatable_mask, mask_fragment)
@@ -209,7 +209,7 @@ def observable_bit_mask(path_pattern: PathPattern, depth: int) -> np.ndarray[boo
         mask_array, np.repeat(np.array([repeatable_mask]), depth, axis=0).flatten()
     )
 
-    end_masks = [x.mask for x in path_pattern.end_fragment]
+    end_masks = [x.mask for x in unbound_path.end_fragment]
     for mask_fragment in end_masks:
         mask_array = np.append(mask_array, mask_fragment)
 

@@ -15,7 +15,7 @@ from typing import Self
 import numpy as np
 import xarray as xr
 
-from qiskit_noise_learning.sequences import PathPattern
+from qiskit_noise_learning.sequences import Path
 
 from .leveled_data import LeveledData
 from .xarray_utils import filter_time, ragged_concat
@@ -26,8 +26,8 @@ class ObservableData(LeveledData):
 
     This class is a wrapper around an XArray ``Dataset``, containing the following data:
     - Data variables:
-        - ``observables``: Observables computed from single :class:`InstructionPattern`
-        and :class:`PathPattern` pairs at a given depth, separated by randomizations. Has dimensions
+        - ``observables``: Observables computed from single :class:`InstructionSequence`
+        and :class:`Path` pairs at a given depth, separated by randomizations. Has dimensions
         ``("observable", "randomization")``. ``np.nan`` values are assumed to be due to raggedness
         of the ``"randomization"`` dimension for different observables.
         - ``time_lbs``: Lower bound on data acquisition times, with dimensions
@@ -35,8 +35,8 @@ class ObservableData(LeveledData):
         - ``time_ubs``: Upper bound on data acquisition times, with dimensions
           ``("randomization", "randomization")``, and of type ``"datetime64[us]"``.
     - Coordinates:
-        - ``path_pattern``: The path pattern for each observable, along dimension
-            ``("observable",)``, of type :class:`PathPattern`.
+        - ``unbound_path``: The unbound path (with ``depth=None``) for each observable, along
+            dimension ``("observable",)``, of type :class:`Path`.
         - ``depth``: Integer array of depths along dimension ``("observable",)``.
 
     Args:
@@ -53,7 +53,7 @@ class ObservableData(LeveledData):
     @classmethod
     def from_arrays(
         cls,
-        path_patterns: list[PathPattern],
+        unbound_paths: list[Path],
         depths: np.ndarray[int],
         observables: np.ndarray[np.float64],
         time_lbs: np.ndarray[np.datetime64],
@@ -62,7 +62,7 @@ class ObservableData(LeveledData):
         """Instantiate from data specified as arrays.
 
         Args:
-            path_patterns: The path pattern for each observable.
+            unbound_paths: The unbound paths corresponding to the observables.
             depths: The depths for each observable.
             observables: A 2d numpy array of ``floats`` with axes
                 ``("observable", "randomization")``.
@@ -79,7 +79,7 @@ class ObservableData(LeveledData):
                 "time_ubs": xr.DataArray(data=time_ubs, dims=["observable", "randomization"]),
             },
             coords={
-                "path_pattern": (("observable",), np.array(path_patterns, dtype=object)),
+                "unbound_path": (("observable",), np.array(unbound_paths, dtype=object)),
                 "depth": (("observable",), depths),
             },
         )
