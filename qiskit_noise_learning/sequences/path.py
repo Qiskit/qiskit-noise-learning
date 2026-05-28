@@ -55,7 +55,7 @@ class Path(BaseSequence[FidelityIndex]):
     ) -> InstructionSequence | None:
         r"""Return an instruction sequence with extended permutations to traverse self.
 
-        Given an ``instruction_sequence``, this method attempts to "extend" its definition by
+        Given an ``instruction_sequence``, this method attempts to extend its definition by
         constructing a new instruction sequence with the same structure as the input, but for which
         the :class:`PartialPauliPermutation`\s are extended to specify the minimal superset of
         mappings required to traverse this path. If this is not possible, the function will return
