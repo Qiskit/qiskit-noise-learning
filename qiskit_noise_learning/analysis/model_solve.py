@@ -25,7 +25,7 @@ class ModelSolve(AnalysisStage):
     """Base class for finding model parameters.
 
     Constructs the design matrix from the :class:`~.FidelityModel` stored on the
-    :class:`~.Fit` container and the unbound path keys in the :class:`~.AveragedData` (depth==-1
+    :class:`~.Fit` container and the unbound paths in the :class:`~.AveragedData` (depth==-1
     entries). Then solves ``A @ x = b`` using a specified method, where ``A`` is the
     design matrix and ``b`` is the vector of decay rates ``-log(f)``.
     """
