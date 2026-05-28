@@ -73,8 +73,7 @@ class InstructionSequence(BaseSequence[Instruction]):
     def has_same_structure_as(self, other: "InstructionSequence") -> bool:
         """Return whether this instruction sequence shares the same circuit structure as another.
 
-        Here, sharing the same structure means that the depths are the same (including both being
-        ``None``), and all fragments have the same gate applications in the same order, but
+        Here, sharing the same structure means that the depths are the same, and all fragments have the same gate applications in the same order, but
         possibly differing in other instructions.
 
         Args:
