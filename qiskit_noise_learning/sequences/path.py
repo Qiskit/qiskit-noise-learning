@@ -25,9 +25,6 @@ from .partial_pauli_permutation import PartialPauliPermutation
 class Path(BaseSequence[FidelityIndex]):
     """A sequence of fidelity indices.
 
-    When ``depth`` is ``None``, represents a variable-depth path whose structure is defined but
-    whose concrete length is not yet determined.
-
     Args:
         start_fragment: The start of the sequence.
         repeatable_fragment: The repeatable middle of the sequence.
