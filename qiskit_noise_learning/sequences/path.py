@@ -37,7 +37,7 @@ class Path(BaseSequence[FidelityIndex]):
 
     @property
     def start_fragment_observable_indices(self) -> list[list[int]]:
-        """Return a list of observable indices for the start fragment."""
+        """The observable indices of the start fragment."""
         return [x.observable_indices for x in self.start_fragment]
 
     @property
