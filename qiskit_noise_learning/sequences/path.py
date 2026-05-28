@@ -47,7 +47,7 @@ class Path(BaseSequence[FidelityIndex]):
 
     @property
     def end_fragment_observable_indices(self) -> list[list[int]]:
-        """Return a list of observable indices for the end fragment."""
+        """The observable indices of the end fragment."""
         return [x.observable_indices for x in self.end_fragment]
 
     def extend_permutations(
