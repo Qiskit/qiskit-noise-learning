@@ -125,7 +125,7 @@ class InstructionSequence(BaseSequence[Instruction]):
             and len(self.end_fragment) == len(other.end_fragment)
             and all(
                 instr0.is_mergeable_with(instr1)
-                for instr0, instr1 in zip(self._fragment_chain, other._fragment_chain)  # noqa: SLF001
+                for instr0, instr1 in zip(self._fragment_chain, other._fragment_chain)
             )
         )
 
