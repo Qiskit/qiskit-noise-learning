@@ -144,20 +144,22 @@ class InstructionSequence(BaseSequence[Instruction]):
         """
         if self.depth != other.depth:
             raise ValueError("Cannot merge InstructionSequences with different depths.")
-        if len(self.start_fragment) != len(other.start_fragment):
+        if (self_len := len(self.start_fragment)) != (other_len := len(other.start_fragment)):
             raise ValueError(
-                f"Cannot merge InstructionSequences {self} and {other} due to "
-                "start_fragments of different lengths."
+                f"Cannot merge InstructionSequences with start fragments of different "
+                f"lengths: {self_len} and {other_len}."
             )
-        if len(self.repeatable_fragment) != len(other.repeatable_fragment):
+        if (self_len := len(self.repeatable_fragment)) != (
+            other_len := len(other.repeatable_fragment)
+        ):
             raise ValueError(
-                f"Cannot merge InstructionSequences {self} and {other} due to "
-                "repeatable_fragments of different lengths."
+                f"Cannot merge InstructionSequences with repeatable fragments of different "
+                f"lengths: {self_len} and {other_len}."
             )
-        if len(self.end_fragment) != len(other.end_fragment):
+        if (self_len := len(self.end_fragment)) != (other_len := len(other.end_fragment)):
             raise ValueError(
-                f"Cannot merge InstructionSequences {self} and {other} due to "
-                "end_fragments of different lengths."
+                f"Cannot merge InstructionSequences with end fragments of different "
+                f"lengths: {self_len} and {other_len}."
             )
 
         return InstructionSequence(
