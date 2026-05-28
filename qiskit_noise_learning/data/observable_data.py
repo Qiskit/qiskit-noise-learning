@@ -62,7 +62,7 @@ class ObservableData(LeveledData):
         """Instantiate from data specified as arrays.
 
         Args:
-            unbound_paths: The unbound path (with ``depth=None``) for each observable.
+            unbound_paths: The unbound paths corresponding to the observables.
             depths: The depths for each observable.
             observables: A 2d numpy array of ``floats`` with axes
                 ``("observable", "randomization")``.
