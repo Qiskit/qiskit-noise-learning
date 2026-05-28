@@ -108,8 +108,7 @@ class InstructionSequence(BaseSequence[Instruction]):
     def is_mergeable_with(self, other: Self) -> bool:
         r"""Check if this instruction sequence is mergeable with another instruction sequence.
 
-        Two instruction sequences are mergeable if they have compatible depths (both ``None``, or
-        equal integers), and if their fragments are element-wise mergeable.
+        Two instruction sequences are mergeable if they have compatible depths and their fragments are element-wise mergeable.
 
         Args:
             other: The other :class:`.InstructionSequence`.
