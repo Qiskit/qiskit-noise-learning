@@ -31,8 +31,7 @@ class BaseSequence(ABC, Generic[T]):
         start_fragment: The start of the sequence.
         repeatable_fragment: The repeatable middle of the sequence.
         end_fragment: The end of the sequence.
-        depth: The number of repetitions of the repeatable fragment. If ``None``, the sequence
-            represents a variable-depth sequence.
+        depth: The number of repetitions of the repeatable fragment.
     """
 
     def __init__(
