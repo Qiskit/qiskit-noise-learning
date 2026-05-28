@@ -127,19 +127,10 @@ class Path(BaseSequence[FidelityIndex]):
     def is_traversed_by(self, instruction_sequence: InstructionSequence) -> bool:
         """Whether or not this path is traversed by the instruction sequence.
 
-        Requires the path starts and ends at the identity.
+        Whether or not a :class:`Path` is traversed by an :class:`InstructionSequence` is determined
+        on a fragment-by-fragment basis.
 
-        A limitation of this function is that, to recognize that ``self`` is traversed by
-        ``instruction_sequence``, they must have similar structure, in the sense that every
-        :class:`FidelityIndex` in a fragment of ``self`` has a corresponding :class:`ApplyGate`
-        instruction in the corresponding fragment of ``instruction_sequence``. This precludes this
-        method from recognizing, for example, that a fixed-depth path with all
-        :class:`FidelityIndex` instances in ``start_fragment`` is traversed by a fixed-depth
-        :class:`InstructionSequence` with all instructions in the ``end_fragment``, even if the
-        experiment specified by the :class:`InstructionSequence` does in fact traverse the path.
-        This limitation is purposefully chosen to simplify the logic of the function, under the
-        assumption that these circumstances are unlikely to arise in any algorithm written to
-        construct paths and instruction sequences.
+        Requires the path starts and ends at the identity.
 
         Args:
             instruction_sequence: The instruction sequence.
