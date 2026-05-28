@@ -43,7 +43,7 @@ class RawData(LeveledData):
         - ``time_ubs``: Upper bound on data acquisition times, with dimensions
           ``("randomization",)``, of type ``"datetime64[us]"``.
     - Coordinates:
-        - ``unbound_instruction_sequence``: The unbound instruction sequence (with ``depth=None``)
+        - ``unbound_instruction_sequence``: The unbound instruction sequence
           for the data, along dimension ``("randomization",)``, of type
           :class:`InstructionSequence`.
         - ``depth``: Integer array of depths along dimension ``("randomization",)``.
