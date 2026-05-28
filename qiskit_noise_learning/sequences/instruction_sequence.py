@@ -136,7 +136,7 @@ class InstructionSequence(BaseSequence[Instruction]):
         merging each corresponding fragment element-wise.
 
         Args:
-            other: The other :class:`.InstructionSequence`.
+            other: The instruction sequence to merge this with.
 
         Returns:
             The merged sequence of self and other.
