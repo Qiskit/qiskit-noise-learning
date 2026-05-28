@@ -76,7 +76,7 @@ class BaseSequence(ABC, Generic[T]):
         return chain(self._start_fragment, self._repeatable_fragment, self._end_fragment)
 
     def bind_at(self, depth: int | None) -> Self:
-        """Return a new instance with the same fragments but the given depth.
+        """Return a new instance with the same fragments bound to the depth.
 
         Args:
             depth: The depth to set on the returned instance.
