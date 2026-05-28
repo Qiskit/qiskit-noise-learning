@@ -13,10 +13,20 @@
 """Instruction"""
 
 from abc import abstractmethod
+from typing import Self
 
 
 class Instruction:
     """Abstract base class for instructions in instruction sequences."""
+
+    @abstractmethod
+    @property
+    def is_complete(self) -> bool:
+        """Whether or not this instruction is completely specified."""
+
+    @abstractmethod
+    def complete(self) -> Self:
+        """Return a completely specified instruction that also implement self."""
 
     @abstractmethod
     def is_mergeable_with(self, other: "Instruction") -> bool:
@@ -40,7 +50,7 @@ class Instruction:
         """
 
     @abstractmethod
-    def merge(self, other: "Instruction") -> "Instruction":
+    def merge(self, other: Self) -> Self:
         """Merge self and other into a single instruction.
 
         Args:

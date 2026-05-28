@@ -30,6 +30,13 @@ class ApplyGate(Instruction):
         """The gate to apply."""
         return self._gate
 
+    @property
+    def is_complete(self) -> bool:
+        return True
+
+    def complete(self) -> Self:
+        return self
+
     def is_mergeable_with(self, other: "Instruction") -> bool:
         """Whether or not this apply gate is mergeable with another one.
 
