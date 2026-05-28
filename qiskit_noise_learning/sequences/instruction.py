@@ -19,8 +19,8 @@ from typing import Self
 class Instruction:
     """Abstract base class for instructions in instruction sequences."""
 
-    @abstractmethod
     @property
+    @abstractmethod
     def is_complete(self) -> bool:
         """Whether or not this instruction is completely specified."""
 
