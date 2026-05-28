@@ -18,15 +18,15 @@ from qiskit_noise_learning.data import AveragedData
 
 
 @dataclass(frozen=True)
-class MockPathPattern:
+class MockPath:
     name: str
 
 
 def test_from_arrays():
     """Test constructing AveragedData from arrays."""
-    pp = MockPathPattern("pp0")
+    p = MockPath("p0")
     avg = AveragedData.from_arrays(
-        path_patterns=[pp],
+        unbound_paths=[p],
         depths=[-1],
         observables=np.array([0.8]),
         std=np.array([0.01]),
@@ -35,7 +35,7 @@ def test_from_arrays():
     )
     ds = avg.dataset
     assert ds["observables"].shape == (1,)
-    assert ds["path_pattern"].values[0] == pp
+    assert ds["unbound_path"].values[0] == p
     assert ds["depth"].values[0] == -1
     assert float(ds["observables"].values[0]) == 0.8
     assert float(ds["std"].values[0]) == 0.01
@@ -43,10 +43,10 @@ def test_from_arrays():
 
 def test_filter_time():
     """Test that filter_time keeps only data within the time window."""
-    pp0 = MockPathPattern("pp0")
-    pp1 = MockPathPattern("pp1")
+    p0 = MockPath("p0")
+    p1 = MockPath("p1")
     avg = AveragedData.from_arrays(
-        path_patterns=[pp0, pp1],
+        unbound_paths=[p0, p1],
         depths=[-1, -1],
         observables=np.array([0.8, 0.7]),
         std=np.array([0.01, 0.02]),

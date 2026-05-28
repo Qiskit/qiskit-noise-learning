@@ -16,7 +16,7 @@ from .experiment_builder import ExperimentBuilder
 from .experiment_generators import (
     depth0_path_generator,
     depth1_path_generator,
-    even_depth_pattern_generator,
-    even_depth_vanilla_pattern_generator,
-    standard_vanilla_pattern_generator,
+    even_depth_path_generator,
+    even_depth_vanilla_path_generator,
+    standard_vanilla_path_generator,
 )

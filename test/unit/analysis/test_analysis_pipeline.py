@@ -10,7 +10,6 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from dataclasses import dataclass
 
 import numpy as np
 import pytest
@@ -25,23 +24,12 @@ from qiskit_noise_learning.analysis.fit import AbsentType, SkippedType
 from qiskit_noise_learning.data import AveragedData, ModelData, ObservableData, RawData
 
 
-@dataclass(frozen=True)
-class MockPathPattern:
-    name: str
-
-
-@dataclass(frozen=True)
-class MockPath:
-    pattern: MockPathPattern
-    depth: int
-
-
 class MockFidelityModel:
     def __init__(self, rows: dict):
         self._rows = rows
 
-    def multiplicative_row_from_path_pattern(self, path_pattern):
-        return self._rows[path_pattern]
+    def row_from_path(self, path):
+        return self._rows[path]
 
 
 class _StubRawToObs(AnalysisStage):
@@ -55,7 +43,7 @@ class _StubRawToObs(AnalysisStage):
 
     def _run(self, fit):
         fit[ObservableData] = ObservableData.from_arrays(
-            path_patterns=[],
+            unbound_paths=[],
             depths=[],
             observables=np.empty((0, 0)),
             time_lbs=np.empty((0, 0), dtype="datetime64[us]"),
@@ -74,7 +62,7 @@ class _StubObsToAveraged(AnalysisStage):
 
     def _run(self, fit):
         fit[AveragedData] = AveragedData.from_arrays(
-            path_patterns=[],
+            unbound_paths=[],
             depths=[],
             observables=np.array([]),
             std=np.array([]),
@@ -113,7 +101,7 @@ class _StubRawToAveraged(AnalysisStage):
 
     def _run(self, fit):
         fit[AveragedData] = AveragedData.from_arrays(
-            path_patterns=[],
+            unbound_paths=[],
             depths=[],
             observables=np.array([]),
             std=np.array([]),
@@ -162,7 +150,7 @@ class TestAnalysisPipeline:
         """Test that returns a new fit and does not mutate the input fit."""
         pipeline = AnalysisPipeline(_StubObsToAveraged(), _StubAveragedToModel())
         obs = ObservableData.from_arrays(
-            path_patterns=[],
+            unbound_paths=[],
             depths=[],
             observables=np.empty((0, 0)),
             time_lbs=np.empty((0, 0), dtype="datetime64[us]"),
@@ -181,7 +169,7 @@ class TestAnalysisPipeline:
         """Test that the data history is set appropriately."""
         pipeline = AnalysisPipeline(_StubObsToAveraged(), _StubAveragedToModel())
         obs = ObservableData.from_arrays(
-            path_patterns=[],
+            unbound_paths=[],
             depths=[],
             observables=np.empty((0, 0)),
             time_lbs=np.empty((0, 0), dtype="datetime64[us]"),
@@ -205,7 +193,7 @@ class TestAnalysisPipeline:
         """Test that the history contains the input data."""
         pipeline = AnalysisPipeline(_StubObsToAveraged(), _StubAveragedToModel())
         obs = ObservableData.from_arrays(
-            path_patterns=[],
+            unbound_paths=[],
             depths=[],
             observables=np.empty((0, 0)),
             time_lbs=np.empty((0, 0), dtype="datetime64[us]"),
@@ -289,7 +277,7 @@ class TestAnalysisPipeline:
         """Test that the run method on leveled data returns a fit with the right data."""
         pipeline = AnalysisPipeline(_StubObsToAveraged(), _StubAveragedToModel())
         obs = ObservableData.from_arrays(
-            path_patterns=[],
+            unbound_paths=[],
             depths=[],
             observables=np.empty((0, 0)),
             time_lbs=np.empty((0, 0), dtype="datetime64[us]"),

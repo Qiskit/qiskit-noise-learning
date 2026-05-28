@@ -24,8 +24,8 @@ class MockFidelityModel:
     def __init__(self, rows: dict):
         self._rows = rows
 
-    def multiplicative_row_from_path_pattern(self, path_pattern):
-        return self._rows[path_pattern]
+    def row_from_path(self, path):
+        return self._rows[path]
 
 
 def _make_decay_data(f_values, f_std_values=None):
@@ -37,7 +37,7 @@ def _make_decay_data(f_values, f_std_values=None):
     n = len(keys)
 
     return AveragedData.from_arrays(
-        path_patterns=keys,
+        unbound_paths=keys,
         depths=[-1] * n,
         observables=np.array([f_values[pp] for pp in keys]),
         std=np.array([f_std_values[pp] for pp in keys]),
@@ -47,8 +47,8 @@ def _make_decay_data(f_values, f_std_values=None):
 
 
 @pytest.mark.parametrize("solver", _SOLVERS)
-def test_single_pattern(solver):
-    """Test solving a single pattern with a 1x1 design matrix."""
+def test_single_unbound_path(solver):
+    """Test solving a single unbound_path with a 1x1 design matrix."""
     f_true = 0.8
     pp = "pp0"
 
@@ -68,8 +68,8 @@ def test_single_pattern(solver):
 
 
 @pytest.mark.parametrize("solver", _SOLVERS)
-def test_multiple_patterns(solver):
-    """Test solving two path patterns mapped to different parameters."""
+def test_multiple_unbound_paths(solver):
+    """Test solving two unbound paths mapped to different parameters."""
     pp0, pp1 = "pp0", "pp1"
     f0, f1 = 0.9, 0.7
 

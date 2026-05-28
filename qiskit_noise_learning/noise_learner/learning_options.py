@@ -35,7 +35,7 @@ class LearningOptions(BaseModel):
     path_generator: Literal["even_depth"] = "even_depth"
     """The path generator to use.
 
-    By default, the generator produces even depth patterns for each gate for which to learn the
+    By default, the generator produces even depth paths for each gate for which to learn the
     noise.
     """
 

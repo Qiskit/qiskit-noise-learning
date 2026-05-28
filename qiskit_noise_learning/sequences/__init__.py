@@ -14,8 +14,6 @@
 
 from .apply_gate import ApplyGate
 from .fidelity_index import FidelityIndex
-from .instruction_pattern import InstructionPattern
 from .instruction_sequence import InstructionSequence
 from .partial_pauli_permutation import PartialPauliPermutation
 from .path import Path
-from .path_pattern import PathPattern

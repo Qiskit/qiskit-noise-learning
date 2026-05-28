@@ -20,49 +20,49 @@ from qiskit_noise_learning.data import ObservableData
 
 
 @dataclass(frozen=True)
-class MockPathPattern:
+class MockPath:
     name: str
 
 
 def _make_observable_data(
-    pattern_depths: dict,
+    unbound_path_depths: dict,
     a_values: dict,
     f_values: dict,
     n_rand: int = 20,
     noise_std: float = 0.005,
     seed: int = 42,
-) -> tuple[ObservableData, dict[str, MockPathPattern]]:
-    """Build synthetic ObservableData with MockPathPattern keys.
+) -> tuple[ObservableData, dict[str, MockPath]]:
+    """Build synthetic ObservableData with MockPath keys.
 
-    Returns the ObservableData and a dict mapping pattern name to MockPathPattern.
+    Returns the ObservableData and a dict mapping path name to MockPath.
     """
     rng = np.random.default_rng(seed)
 
     all_observables = []
-    all_path_patterns = []
+    all_unbound_paths = []
     all_depths = []
-    patterns = {}
+    unbound_paths = {}
 
-    for pp_name, depths in pattern_depths.items():
-        pp = MockPathPattern(pp_name)
-        patterns[pp_name] = pp
+    for pp_name, depths in unbound_path_depths.items():
+        pp = MockPath(pp_name)
+        unbound_paths[pp_name] = pp
         for d in depths:
             true_val = a_values[pp_name] * f_values[pp_name] ** d
             noise = rng.normal(0, noise_std, size=n_rand)
             values = true_val + noise
             all_observables.append(values)
-            all_path_patterns.append(pp)
+            all_unbound_paths.append(pp)
             all_depths.append(d)
 
     n = len(all_observables)
     observables = np.stack(all_observables)
     return ObservableData.from_arrays(
-        path_patterns=all_path_patterns,
+        unbound_paths=all_unbound_paths,
         depths=all_depths,
         observables=observables,
         time_lbs=np.empty((n, n_rand), dtype="datetime64[us]"),
         time_ubs=np.empty((n, n_rand), dtype="datetime64[us]"),
-    ), patterns
+    ), unbound_paths
 
 
 def _run_stage(obs_data):
@@ -75,26 +75,26 @@ def _run_stage(obs_data):
 class TestCurveFitObservables:
     """Tests for the CurveFitObservables analysis stage."""
 
-    def test_single_pattern(self):
-        """Test fitting a single pattern."""
+    def test_single_unbound_path(self):
+        """Test fitting a single unbound path."""
         a_true, f_true = 0.9, 0.8
         pp = "pp0"
-        obs, patterns = _make_observable_data(
-            pattern_depths={pp: [1, 2, 3, 4, 5]},
+        obs, unbound_paths = _make_observable_data(
+            unbound_path_depths={pp: [1, 2, 3, 4, 5]},
             a_values={pp: a_true},
             f_values={pp: f_true},
         )
         result = _run_stage(obs)
         ds = result.averaged_data.dataset
-        mask = (ds["path_pattern"].data == patterns[pp]) & (ds["depth"].data == -1)
+        mask = (ds["unbound_path"].data == unbound_paths[pp]) & (ds["depth"].data == -1)
         assert np.isclose(ds["metadata"].data[mask][0]["spam_fidelity"], a_true, atol=0.02)
         assert np.isclose(ds["observables"].data[mask][0], f_true, atol=0.02)
 
-    def test_multiple_patterns(self):
-        """Test fitting multiple patterns."""
+    def test_multiple_unbound_paths(self):
+        """Test fitting multiple unbound paths."""
         pp0, pp1 = "pp0", "pp1"
-        obs, patterns = _make_observable_data(
-            pattern_depths={pp0: [1, 2, 3, 4, 5], pp1: [1, 2, 3, 4, 5]},
+        obs, unbound_paths = _make_observable_data(
+            unbound_path_depths={pp0: [1, 2, 3, 4, 5], pp1: [1, 2, 3, 4, 5]},
             a_values={pp0: 0.95, pp1: 0.85},
             f_values={pp0: 0.9, pp1: 0.7},
         )
@@ -102,23 +102,23 @@ class TestCurveFitObservables:
         ds = result.averaged_data.dataset
         decay_mask = ds["depth"].data == -1
 
-        mask0 = (ds["path_pattern"].data == patterns[pp0]) & decay_mask
+        mask0 = (ds["unbound_path"].data == unbound_paths[pp0]) & decay_mask
         assert np.isclose(ds["observables"].data[mask0][0], 0.9, atol=0.02)
 
-        mask1 = (ds["path_pattern"].data == patterns[pp1]) & decay_mask
+        mask1 = (ds["unbound_path"].data == unbound_paths[pp1]) & decay_mask
         assert np.isclose(ds["observables"].data[mask1][0], 0.7, atol=0.02)
 
     def test_decay_fidelity_value(self):
         """Test the decay fidelity is close to the true value."""
         pp = "pp0"
-        obs, patterns = _make_observable_data(
-            pattern_depths={pp: [1, 2, 3, 4, 5]},
+        obs, unbound_paths = _make_observable_data(
+            unbound_path_depths={pp: [1, 2, 3, 4, 5]},
             a_values={pp: 0.9},
             f_values={pp: 0.8},
         )
         result = _run_stage(obs)
         ds = result.averaged_data.dataset
-        mask = (ds["path_pattern"].data == patterns[pp]) & (ds["depth"].data == -1)
+        mask = (ds["unbound_path"].data == unbound_paths[pp]) & (ds["depth"].data == -1)
         fidelity = ds["observables"].data[mask][0]
         assert np.isclose(fidelity, 0.8, atol=0.02)
 

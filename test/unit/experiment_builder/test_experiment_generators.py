@@ -21,16 +21,16 @@ from qiskit.transpiler import CouplingMap
 from qiskit_noise_learning.experiment_builder import (
     depth0_path_generator,
     depth1_path_generator,
-    even_depth_pattern_generator,
-    even_depth_vanilla_pattern_generator,
-    standard_vanilla_pattern_generator,
+    even_depth_path_generator,
+    even_depth_vanilla_path_generator,
+    standard_vanilla_path_generator,
 )
 from qiskit_noise_learning.experiment_builder.experiment_generators import (
-    generate_vanilla_instruction_patterns,
-    yield_matching_patterns,
+    generate_vanilla_instruction_sequences,
+    yield_matching_paths,
 )
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
-from qiskit_noise_learning.sequences import FidelityIndex, Path, PathPattern
+from qiskit_noise_learning.sequences import FidelityIndex, Path
 
 
 @pytest.fixture()
@@ -56,46 +56,42 @@ def test_depth0_path_generator(gate_set_cz):
     expected_iterator = [
         (
             Path(
-                PathPattern(
-                    start_fragment=[
-                        FidelityIndex(
-                            gate=gate_set_cz["P"],
-                            pauli=QubitSparsePauli("II"),
-                            out_bit_indices=frozenset([0]),
-                        )
-                    ],
-                    repeatable_fragment=[],
-                    end_fragment=[
-                        FidelityIndex(
-                            gate=gate_set_cz["M"],
-                            pauli=QubitSparsePauli("II"),
-                            in_bit_indices=frozenset([0]),
-                        )
-                    ],
-                ),
+                start_fragment=[
+                    FidelityIndex(
+                        gate=gate_set_cz["P"],
+                        pauli=QubitSparsePauli("II"),
+                        out_bit_indices=frozenset([0]),
+                    )
+                ],
+                repeatable_fragment=[],
+                end_fragment=[
+                    FidelityIndex(
+                        gate=gate_set_cz["M"],
+                        pauli=QubitSparsePauli("II"),
+                        in_bit_indices=frozenset([0]),
+                    )
+                ],
                 depth=0,
             ),
             None,
         ),
         (
             Path(
-                PathPattern(
-                    start_fragment=[
-                        FidelityIndex(
-                            gate=gate_set_cz["P"],
-                            pauli=QubitSparsePauli("II"),
-                            out_bit_indices=frozenset([1]),
-                        )
-                    ],
-                    repeatable_fragment=[],
-                    end_fragment=[
-                        FidelityIndex(
-                            gate=gate_set_cz["M"],
-                            pauli=QubitSparsePauli("II"),
-                            in_bit_indices=frozenset([1]),
-                        )
-                    ],
-                ),
+                start_fragment=[
+                    FidelityIndex(
+                        gate=gate_set_cz["P"],
+                        pauli=QubitSparsePauli("II"),
+                        out_bit_indices=frozenset([1]),
+                    )
+                ],
+                repeatable_fragment=[],
+                end_fragment=[
+                    FidelityIndex(
+                        gate=gate_set_cz["M"],
+                        pauli=QubitSparsePauli("II"),
+                        in_bit_indices=frozenset([1]),
+                    )
+                ],
                 depth=0,
             ),
             None,
@@ -115,72 +111,66 @@ def test_depth1_path_generator(gate_set_cz):
     expected_iterator = [
         (
             Path(
-                PathPattern(
-                    start_fragment=[
-                        FidelityIndex(
-                            gate=gate_set_cz["P"],
-                            pauli=QubitSparsePauli("II"),
-                            out_bit_indices=frozenset([0]),
-                        ),
-                        FidelityIndex(gate=gate_set_cz["CZ"], pauli=QubitSparsePauli("IZ")),
-                    ],
-                    repeatable_fragment=[],
-                    end_fragment=[
-                        FidelityIndex(
-                            gate=gate_set_cz["M"],
-                            pauli=QubitSparsePauli("II"),
-                            in_bit_indices=frozenset([0]),
-                        )
-                    ],
-                ),
+                start_fragment=[
+                    FidelityIndex(
+                        gate=gate_set_cz["P"],
+                        pauli=QubitSparsePauli("II"),
+                        out_bit_indices=frozenset([0]),
+                    ),
+                    FidelityIndex(gate=gate_set_cz["CZ"], pauli=QubitSparsePauli("IZ")),
+                ],
+                repeatable_fragment=[],
+                end_fragment=[
+                    FidelityIndex(
+                        gate=gate_set_cz["M"],
+                        pauli=QubitSparsePauli("II"),
+                        in_bit_indices=frozenset([0]),
+                    )
+                ],
                 depth=0,
             ),
             None,
         ),
         (
             Path(
-                PathPattern(
-                    start_fragment=[
-                        FidelityIndex(
-                            gate=gate_set_cz["P"],
-                            pauli=QubitSparsePauli("II"),
-                            out_bit_indices=frozenset([0]),
-                        ),
-                        FidelityIndex(gate=gate_set_cz["CZ"], pauli=QubitSparsePauli("ZX")),
-                    ],
-                    repeatable_fragment=[],
-                    end_fragment=[
-                        FidelityIndex(
-                            gate=gate_set_cz["M"],
-                            pauli=QubitSparsePauli("II"),
-                            in_bit_indices=frozenset([0, 1]),
-                        )
-                    ],
-                ),
+                start_fragment=[
+                    FidelityIndex(
+                        gate=gate_set_cz["P"],
+                        pauli=QubitSparsePauli("II"),
+                        out_bit_indices=frozenset([0]),
+                    ),
+                    FidelityIndex(gate=gate_set_cz["CZ"], pauli=QubitSparsePauli("ZX")),
+                ],
+                repeatable_fragment=[],
+                end_fragment=[
+                    FidelityIndex(
+                        gate=gate_set_cz["M"],
+                        pauli=QubitSparsePauli("II"),
+                        in_bit_indices=frozenset([0, 1]),
+                    )
+                ],
                 depth=0,
             ),
             None,
         ),
         (
             Path(
-                PathPattern(
-                    start_fragment=[
-                        FidelityIndex(
-                            gate=gate_set_cz["P"],
-                            pauli=QubitSparsePauli("II"),
-                            out_bit_indices=frozenset([0, 1]),
-                        ),
-                        FidelityIndex(gate=gate_set_cz["CZ"], pauli=QubitSparsePauli("YY")),
-                    ],
-                    repeatable_fragment=[],
-                    end_fragment=[
-                        FidelityIndex(
-                            gate=gate_set_cz["M"],
-                            pauli=QubitSparsePauli("II"),
-                            in_bit_indices=frozenset([0, 1]),
-                        )
-                    ],
-                ),
+                start_fragment=[
+                    FidelityIndex(
+                        gate=gate_set_cz["P"],
+                        pauli=QubitSparsePauli("II"),
+                        out_bit_indices=frozenset([0, 1]),
+                    ),
+                    FidelityIndex(gate=gate_set_cz["CZ"], pauli=QubitSparsePauli("YY")),
+                ],
+                repeatable_fragment=[],
+                end_fragment=[
+                    FidelityIndex(
+                        gate=gate_set_cz["M"],
+                        pauli=QubitSparsePauli("II"),
+                        in_bit_indices=frozenset([0, 1]),
+                    )
+                ],
                 depth=0,
             ),
             None,
@@ -190,8 +180,8 @@ def test_depth1_path_generator(gate_set_cz):
     assert list(path_iterator) == list(expected_iterator)
 
 
-def test_even_depth_pattern_generator(gate_set_cz):
-    pattern_iterator = even_depth_pattern_generator(
+def test_even_depth_path_generator(gate_set_cz):
+    path_iterator = even_depth_path_generator(
         prep_gate=gate_set_cz["P"],
         meas_gate=gate_set_cz["M"],
         gate=gate_set_cz["CZ"],
@@ -200,7 +190,7 @@ def test_even_depth_pattern_generator(gate_set_cz):
     expected_iterator = [
         # IZ -> IZ
         (
-            PathPattern(
+            Path(
                 start_fragment=[
                     FidelityIndex(
                         gate=gate_set_cz["P"],
@@ -224,7 +214,7 @@ def test_even_depth_pattern_generator(gate_set_cz):
         ),
         # IX -> IX
         (
-            PathPattern(
+            Path(
                 start_fragment=[
                     FidelityIndex(
                         gate=gate_set_cz["P"],
@@ -248,7 +238,7 @@ def test_even_depth_pattern_generator(gate_set_cz):
         ),
         # IX -> IY
         (
-            PathPattern(
+            Path(
                 start_fragment=[
                     FidelityIndex(
                         gate=gate_set_cz["P"],
@@ -272,7 +262,7 @@ def test_even_depth_pattern_generator(gate_set_cz):
         ),
         # IY -> IX
         (
-            PathPattern(
+            Path(
                 start_fragment=[
                     FidelityIndex(
                         gate=gate_set_cz["P"],
@@ -296,7 +286,7 @@ def test_even_depth_pattern_generator(gate_set_cz):
         ),
         # IY -> IY
         (
-            PathPattern(
+            Path(
                 start_fragment=[
                     FidelityIndex(
                         gate=gate_set_cz["P"],
@@ -320,7 +310,7 @@ def test_even_depth_pattern_generator(gate_set_cz):
         ),
         # XX -> XX
         (
-            PathPattern(
+            Path(
                 start_fragment=[
                     FidelityIndex(
                         gate=gate_set_cz["P"],
@@ -343,11 +333,11 @@ def test_even_depth_pattern_generator(gate_set_cz):
             None,
         ),
     ]
-    assert list(pattern_iterator) == list(expected_iterator)
+    assert list(path_iterator) == list(expected_iterator)
 
 
-def test_even_depth_vanilla_pattern_generator(gate_set_cz):
-    pattern_iterator = even_depth_vanilla_pattern_generator(
+def test_even_depth_vanilla_path_generator(gate_set_cz):
+    path_iterator = even_depth_vanilla_path_generator(
         prep_gate=gate_set_cz["P"],
         meas_gate=gate_set_cz["M"],
         gate=gate_set_cz["CZ"],
@@ -356,7 +346,7 @@ def test_even_depth_vanilla_pattern_generator(gate_set_cz):
     expected_iterator = [
         # IZ -> IZ
         (
-            PathPattern(
+            Path(
                 start_fragment=[
                     FidelityIndex(
                         gate=gate_set_cz["P"],
@@ -380,7 +370,7 @@ def test_even_depth_vanilla_pattern_generator(gate_set_cz):
         ),
         # IX -> IX
         (
-            PathPattern(
+            Path(
                 start_fragment=[
                     FidelityIndex(
                         gate=gate_set_cz["P"],
@@ -404,7 +394,7 @@ def test_even_depth_vanilla_pattern_generator(gate_set_cz):
         ),
         # IY -> IY
         (
-            PathPattern(
+            Path(
                 start_fragment=[
                     FidelityIndex(
                         gate=gate_set_cz["P"],
@@ -428,7 +418,7 @@ def test_even_depth_vanilla_pattern_generator(gate_set_cz):
         ),
         # XX -> XX
         (
-            PathPattern(
+            Path(
                 start_fragment=[
                     FidelityIndex(
                         gate=gate_set_cz["P"],
@@ -451,7 +441,7 @@ def test_even_depth_vanilla_pattern_generator(gate_set_cz):
             None,
         ),
     ]
-    assert list(pattern_iterator) == list(expected_iterator)
+    assert list(path_iterator) == list(expected_iterator)
 
 
 def test_sufficient_bases_ring():
@@ -468,22 +458,26 @@ def test_sufficient_bases_ring():
     prep = ModelGate("P", [(tuple(range(11)), Clifford(QuantumCircuit(11)))], prep_idxs=range(11))
     meas = ModelGate("M", [(tuple(range(11)), Clifford(QuantumCircuit(11)))], meas_idxs=range(11))
 
-    instruction_patterns = generate_vanilla_instruction_patterns(prep, meas, gate, coupling_map)
-    path_patterns = list(even_depth_vanilla_pattern_generator(prep, meas, gate, input_paulis))
-    matched_patterns = list(yield_matching_patterns(path_patterns, instruction_patterns))
+    instruction_sequences = generate_vanilla_instruction_sequences(prep, meas, gate, coupling_map)
+    paths = list(even_depth_vanilla_path_generator(prep, meas, gate, input_paulis))
+    matched_paths = list(yield_matching_paths(paths, instruction_sequences))
 
-    assert len(instruction_patterns) == 9
-    assert len(matched_patterns) == len(path_patterns)
+    assert len(instruction_sequences) == 9
+    assert len(matched_paths) == len(paths)
 
-    other_matched_patterns = list(
-        standard_vanilla_pattern_generator(prep, meas, gate, input_paulis, coupling_map)
+    other_matched_paths = list(
+        standard_vanilla_path_generator(prep, meas, gate, input_paulis, coupling_map)
     )
 
-    assert other_matched_patterns == matched_patterns
+    assert other_matched_paths == matched_paths
 
 
-def test_yield_matching_patterns_errors(gate_set_cz):
-    path_pattern = PathPattern([], [gate_set_cz["CZ"]], [])
+def test_yield_matching_paths_errors(gate_set_cz):
+    path = Path(
+        start_fragment=[],
+        repeatable_fragment=[FidelityIndex(gate=gate_set_cz["CZ"], pauli=QubitSparsePauli("IZ"))],
+        end_fragment=[],
+    )
 
-    with pytest.raises(match="a path that is not traversed"):
-        list(yield_matching_patterns([(path_pattern, None)], []))
+    with pytest.raises(ValueError, match="a path that is not traversed"):
+        list(yield_matching_paths([(path, None)], []))

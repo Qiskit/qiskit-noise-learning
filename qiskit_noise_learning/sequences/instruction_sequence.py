@@ -12,36 +12,66 @@
 
 """InstructionSequence"""
 
+from collections.abc import Iterator
 from typing import Self
 
+from .apply_gate import ApplyGate
 from .base_sequence import BaseSequence
 from .instruction import Instruction
-from .instruction_pattern import InstructionPattern
+from .partial_pauli_permutation import PartialPauliPermutation
 
 
-class InstructionSequence(BaseSequence[InstructionPattern, Instruction]):
-    """A sequence of instructions for a given gate set."""
+def _complete_fragment(fragment: list[Instruction]) -> Iterator[Instruction]:
+    for instruction in fragment:
+        if isinstance(instruction, PartialPauliPermutation):
+            yield instruction.complete()
+        else:
+            yield instruction
+
+
+def _filter_to_gates(fragment: list[Instruction]) -> Iterator[ApplyGate]:
+    for instruction in fragment:
+        if isinstance(instruction, ApplyGate):
+            yield instruction
+
+
+class InstructionSequence(BaseSequence[Instruction]):
+    """A sequence of instructions.
+
+    Args:
+        start_fragment: The start of the sequence.
+        repeatable_fragment: The repeatable middle of the sequence.
+        end_fragment: The end of the sequence.
+        depth: The number of repetitions of the repeatable fragment.
+    """
 
     @property
     def is_complete(self) -> bool:
         r"""Whether all contained :class:`PartialPauliPermutation`\s are complete."""
-        return self.pattern.is_complete
+        return not any(
+            isinstance(instr, PartialPauliPermutation) and not instr.is_complete
+            for instr in self._fragment_chain
+        )
 
     def complete(self) -> Self:
         """Return a new instance whose data is the same as ``self`` except that all contained
         :class:`PartialPauliPermutation` instances are completed.
 
         Returns:
-            A new :class:`InstructionPattern` instance.
+            A new :class:`InstructionSequence` instance.
         """
-        return InstructionSequence(pattern=self.pattern.complete(), depth=self.depth)
+        return InstructionSequence(
+            start_fragment=_complete_fragment(self.start_fragment),
+            repeatable_fragment=_complete_fragment(self.repeatable_fragment),
+            end_fragment=_complete_fragment(self.end_fragment),
+            depth=self.depth,
+        )
 
     def has_same_structure_as(self, other: "InstructionSequence") -> bool:
         """Return whether this instruction sequence shares the same circuit structure as another.
 
-        Here, sharing the same structure means that this instruction sequence has the same depth
-        as the other instruction sequence, and that the patterns they own also have the same
-        structure, see :meth:`.InstructionPattern.has_same_structure_as`.
+        Here, sharing the same structure means that the depths are the same, and all fragments have
+        the same gate applications in the same order, but possibly differing in other instructions.
 
         Args:
             other: Another :class:`.InstructionSequence`.
@@ -49,13 +79,34 @@ class InstructionSequence(BaseSequence[InstructionPattern, Instruction]):
         Returns:
             Whether this instruction sequence shares the same structure as the other.
         """
-        return self.depth == other.depth and self.pattern.has_same_structure_as(other.pattern)
+        if self.depth != other.depth:
+            return False
+
+        self_gates = (
+            list(_filter_to_gates(self.start_fragment)),
+            list(_filter_to_gates(self.repeatable_fragment)),
+            list(_filter_to_gates(self.end_fragment)),
+        )
+        other_gates = (
+            list(_filter_to_gates(other.start_fragment)),
+            list(_filter_to_gates(other.repeatable_fragment)),
+            list(_filter_to_gates(other.end_fragment)),
+        )
+
+        return all(
+            len(self_fragment) == len(other_fragment)
+            and all(
+                gate0.is_mergeable_with(gate1)
+                for gate0, gate1 in zip(self_fragment, other_fragment)
+            )
+            for self_fragment, other_fragment in zip(self_gates, other_gates)
+        )
 
     def is_mergeable_with(self, other: Self) -> bool:
         r"""Check if this instruction sequence is mergeable with another instruction sequence.
 
-        Two instruction sequences are mergeable if they have the same depth, and if their
-        patterns are mergable, see :meth:`~InstructionPattern.is_mergeable_with`.
+        Two instruction sequences are mergeable if they have compatible depths and their fragments
+        are element-wise mergeable.
 
         Args:
             other: The other :class:`.InstructionSequence`.
@@ -63,21 +114,59 @@ class InstructionSequence(BaseSequence[InstructionPattern, Instruction]):
         Returns:
             Whether this instance is mergeable with another.
         """
-        return self.pattern.is_mergeable_with(other.pattern) and self.depth == other.depth
+        if self.depth != other.depth:
+            return False
+
+        return (
+            len(self.start_fragment) == len(other.start_fragment)
+            and len(self.repeatable_fragment) == len(other.repeatable_fragment)
+            and len(self.end_fragment) == len(other.end_fragment)
+            and all(
+                instr0.is_mergeable_with(instr1)
+                for instr0, instr1 in zip(self._fragment_chain, other._fragment_chain)  # noqa: SLF001
+            )
+        )
 
     def merge(self, other: Self) -> Self:
         r"""Merge this instruction sequence with another instruction sequence.
 
+        Assuming this instance is mergeable with ``other``, the returned merged sequence is
+        constructed by merging each corresponding fragment element-wise.
+
         Args:
-            other: The other :class:`.InstructionSequence`.
+            other: The instruction sequence to merge this with.
 
         Returns:
             The merged sequence of self and other.
 
         Raises:
-            ValueError: If the patterns are not mergeable, or if ``self.depth != other.depth``.
+            ValueError: If the sequences are not mergeable.
         """
         if self.depth != other.depth:
-            raise ValueError("self is not mergeable with other due to depth mismatch.")
+            raise ValueError("Cannot merge InstructionSequences with different depths.")
+        if (self_len := len(self.start_fragment)) != (other_len := len(other.start_fragment)):
+            raise ValueError(
+                f"Cannot merge InstructionSequences with start fragments of different "
+                f"lengths: {self_len} and {other_len}."
+            )
+        if (self_len := len(self.repeatable_fragment)) != (
+            other_len := len(other.repeatable_fragment)
+        ):
+            raise ValueError(
+                f"Cannot merge InstructionSequences with repeatable fragments of different "
+                f"lengths: {self_len} and {other_len}."
+            )
+        if (self_len := len(self.end_fragment)) != (other_len := len(other.end_fragment)):
+            raise ValueError(
+                f"Cannot merge InstructionSequences with end fragments of different "
+                f"lengths: {self_len} and {other_len}."
+            )
 
-        return InstructionSequence(pattern=self.pattern.merge(other.pattern), depth=self.depth)
+        return InstructionSequence(
+            start_fragment=[x.merge(y) for x, y in zip(self.start_fragment, other.start_fragment)],
+            repeatable_fragment=[
+                x.merge(y) for x, y in zip(self.repeatable_fragment, other.repeatable_fragment)
+            ],
+            end_fragment=[x.merge(y) for x, y in zip(self.end_fragment, other.end_fragment)],
+            depth=self.depth,
+        )

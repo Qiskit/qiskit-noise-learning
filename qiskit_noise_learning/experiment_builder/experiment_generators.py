@@ -10,10 +10,9 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Generators for paths and path patterns.
+"""Generators for paths.
 
-The returned iterators should be of a form usable by :meth:`ExperimentBuilder.add_path_patterns`
-or :meth:`ExperimentBuilder.add_paths`.
+The returned iterators should be of a form usable by :meth:`ExperimentBuilder.add_paths`.
 """
 
 from collections.abc import Iterator
@@ -27,10 +26,9 @@ from qiskit_noise_learning.gate_sets import ModelGate
 from qiskit_noise_learning.sequences import (
     ApplyGate,
     FidelityIndex,
-    InstructionPattern,
+    InstructionSequence,
     PartialPauliPermutation,
     Path,
-    PathPattern,
 )
 
 
@@ -54,25 +52,23 @@ def depth0_path_generator(
     for indices in indices_list:
         yield (
             Path(
-                pattern=PathPattern(
-                    start_fragment=[
-                        FidelityIndex(
-                            gate=prep_gate,
-                            pauli=QubitSparsePauli.identity(num_qubits),
-                            in_bit_indices=frozenset(),
-                            out_bit_indices=frozenset(indices),
-                        )
-                    ],
-                    repeatable_fragment=[],
-                    end_fragment=[
-                        FidelityIndex(
-                            gate=meas_gate,
-                            pauli=QubitSparsePauli.identity(num_qubits),
-                            in_bit_indices=frozenset(indices),
-                            out_bit_indices=frozenset(),
-                        )
-                    ],
-                ),
+                start_fragment=[
+                    FidelityIndex(
+                        gate=prep_gate,
+                        pauli=QubitSparsePauli.identity(num_qubits),
+                        in_bit_indices=frozenset(),
+                        out_bit_indices=frozenset(indices),
+                    )
+                ],
+                repeatable_fragment=[],
+                end_fragment=[
+                    FidelityIndex(
+                        gate=meas_gate,
+                        pauli=QubitSparsePauli.identity(num_qubits),
+                        in_bit_indices=frozenset(indices),
+                        out_bit_indices=frozenset(),
+                    )
+                ],
                 depth=0,
             ),
             None,
@@ -102,39 +98,35 @@ def depth1_path_generator(
         out_pauli = gate.clifford_propagate(pauli)
         yield (
             Path(
-                pattern=PathPattern(
-                    start_fragment=[
-                        FidelityIndex(
-                            prep_gate, pauli=ident, out_bit_indices=frozenset(pauli.indices)
-                        ),
-                        FidelityIndex(gate, pauli=out_pauli),
-                    ],
-                    repeatable_fragment=[],
-                    end_fragment=[
-                        FidelityIndex(
-                            meas_gate, pauli=ident, in_bit_indices=frozenset(out_pauli.indices)
-                        )
-                    ],
-                ),
+                start_fragment=[
+                    FidelityIndex(prep_gate, pauli=ident, out_bit_indices=frozenset(pauli.indices)),
+                    FidelityIndex(gate, pauli=out_pauli),
+                ],
+                repeatable_fragment=[],
+                end_fragment=[
+                    FidelityIndex(
+                        meas_gate, pauli=ident, in_bit_indices=frozenset(out_pauli.indices)
+                    )
+                ],
                 depth=0,
             ),
             None,
         )
 
 
-def even_depth_pattern_generator(
+def even_depth_path_generator(
     prep_gate: ModelGate,
     meas_gate: ModelGate,
     gate: ModelGate,
     input_paulis: QubitSparsePauliList,
     output_paulis: QubitSparsePauliList | None = None,
-) -> Iterator[tuple[PathPattern, None]]:
-    """Generator for path patterns with repetitions of two applications of the given gate.
+) -> Iterator[tuple[Path, None]]:
+    """Generator for unbound paths with repetitions of two applications of the given gate.
 
-    Iterates over all well-defined path patterns with repeatable fragments consisting of two
+    Iterates over all well-defined unbound paths with repeatable fragments consisting of two
     applications of the gate, in which an element of ``input_paulis`` is transformed into an element
     of ``output_paulis`` (with a possible layer of single qubit Cliffords between the two gate
-    applications). Such a pair ``(input_pauli, output_pauli)`` generates a "well-defined" pattern if
+    applications). Such a pair ``(input_pauli, output_pauli)`` generates a "well-defined" path if
     ``gate.clifford_propagate(input_pauli).indices ==
     gate.clifford_propagate(output_pauli, inverse=True).indices``
     and ``input_pauli.indices == output_pauli.indices``.
@@ -148,7 +140,7 @@ def even_depth_pattern_generator(
             ``None``, defaults to ``input_paulis``.
 
     Returns:
-        An iterator over all well-defined path patterns for the given preparation and measurement
+        An iterator over all well-defined unbound paths for the given preparation and measurement
         paulis.
     """
 
@@ -169,7 +161,7 @@ def even_depth_pattern_generator(
                 input_fidelity.transition[1].indices, output_fidelity.transition[0].indices
             ):
                 yield (
-                    PathPattern(
+                    Path(
                         start_fragment=[
                             FidelityIndex(
                                 prep_gate,
@@ -190,13 +182,13 @@ def even_depth_pattern_generator(
                 )
 
 
-def even_depth_vanilla_pattern_generator(
+def even_depth_vanilla_path_generator(
     prep_gate: ModelGate,
     meas_gate: ModelGate,
     gate: ModelGate,
     input_paulis: QubitSparsePauliList,
-) -> Iterator[tuple[PathPattern, InstructionPattern | None]]:
-    """Generator for path patterns with repetitions of two applications of the given gate.
+) -> Iterator[tuple[Path, InstructionSequence | None]]:
+    """Generator for unbound paths with repetitions of two applications of the given gate.
 
     Args:
         prep_gate: The preparation gate.
@@ -205,7 +197,7 @@ def even_depth_vanilla_pattern_generator(
         input_paulis: The list of Paulis to be fed into the first application of the gate.
 
     Returns:
-        An iterator over path patterns of two applications of the gate.
+        An iterator over unbound paths of two applications of the gate.
     """
 
     ident = QubitSparsePauli.identity(num_qubits=input_paulis.num_qubits)
@@ -219,7 +211,7 @@ def even_depth_vanilla_pattern_generator(
         input_fidelity = FidelityIndex(gate, pauli=output_pauli)
         output_fidelity = FidelityIndex(gate, pauli=input_pauli)
         yield (
-            PathPattern(
+            Path(
                 start_fragment=[
                     FidelityIndex(
                         prep_gate,
@@ -240,13 +232,14 @@ def even_depth_vanilla_pattern_generator(
         )
 
 
-def generate_vanilla_instruction_patterns(
+def generate_vanilla_instruction_sequences(
     prep_gate: ModelGate, meas_gate: ModelGate, gate: ModelGate, coupling_map: CouplingMap
-) -> list[InstructionPattern]:
-    """Return instruction patterns with repetitions of two applications of the given gate.
+) -> list[InstructionSequence]:
+    """Return unbound instruction sequences with repetitions of two applications of the given gate.
 
-    This method uses :func:`~generate_bases` to construct 9 instruction patterns that are sufficient
-    to measure any single- and two-qubit Pauli on a given coupling map provided it is triangle free.
+    This method uses :func:`~generate_bases` to construct 9 instruction sequences that are
+    sufficient to measure any single- and two-qubit Pauli on a given coupling map provided it is
+    triangle free.
 
     Args:
         prep_gate: The preparation gate.
@@ -255,7 +248,7 @@ def generate_vanilla_instruction_patterns(
         coupling_map: The coupling map.
 
     Returns:
-        A list of instruction patterns.
+        A list of unbound instruction sequences.
     """
     ret = []
     all_zs = QubitSparsePauli.from_label("Z" * len(coupling_map.graph.nodes()))
@@ -264,7 +257,7 @@ def generate_vanilla_instruction_patterns(
         basis = QubitSparsePauli.from_label(basis)
         permutation = PartialPauliPermutation.from_qubit_sparse_paulis(all_zs, basis)
         ret.append(
-            InstructionPattern(
+            InstructionSequence(
                 [ApplyGate(prep_gate), permutation],
                 repeatable_fragment,
                 [permutation.inverse, ApplyGate(meas_gate)],
@@ -273,25 +266,26 @@ def generate_vanilla_instruction_patterns(
     return ret
 
 
-def yield_matching_patterns(
-    path_patterns: Iterator[PathPattern], instr_patterns: list[InstructionPattern]
-) -> Iterator[tuple[PathPattern, InstructionPattern]]:
-    """Yields pairs of path patterns and instruction patterns that traverse them.
+def yield_matching_paths(
+    path_iterator: Iterator[tuple[Path, None]],
+    instruction_sequences: list[InstructionSequence],
+) -> Iterator[tuple[Path, InstructionSequence]]:
+    """Yields pairs of paths and instruction sequences that traverse them.
 
     Args:
-        path_patterns: An iterable of path patterns.
-        instruction_patterns: A list of instruction patterns.
+        path_iterator: An iterable of ``(path, None)`` tuples (as produced by path generators).
+        instruction_sequences: A list of instruction sequences.
 
     Yields:
-       Tuples of path pattern and instruction patterns.
+       Tuples of path and instruction sequence.
 
     Raises:
-        ValueError: If any of the path patterns is not traversed by one of instructed patters.
+        ValueError: If any of the paths is not traversed by one of the instruction sequences.
     """
-    for path_pattern, _ in path_patterns:
-        for instr_pattern in instr_patterns:
-            if path_pattern.is_traversed_by(instr_pattern):
-                yield (path_pattern, instr_pattern)
+    for path, _ in path_iterator:
+        for instruction_sequence in instruction_sequences:
+            if path.is_traversed_by(instruction_sequence):
+                yield (path, instruction_sequence)
                 break
         else:
             raise ValueError(
@@ -299,17 +293,17 @@ def yield_matching_patterns(
             )
 
 
-def standard_vanilla_pattern_generator(
+def standard_vanilla_path_generator(
     prep_gate: ModelGate,
     meas_gate: ModelGate,
     gate: ModelGate,
     input_paulis: QubitSparsePauliList,
     coupling_map: CouplingMap,
-) -> Iterator[tuple[PathPattern, InstructionPattern]]:
-    """Generator for path and instruction patterns with two applications of the given gate.
+) -> Iterator[tuple[Path, InstructionSequence]]:
+    """Generator for unbound paths and instruction sequences with two applications of the gate.
 
-    This function makes use of :func:`~generate_vanilla_instruction_patterns` which ensures that
-    all single- and two-qubit Pauli fidelities can be estimated in 9 instruction patterns.
+    This function makes use of :func:`~generate_vanilla_instruction_sequences` which ensures that
+    all single- and two-qubit Pauli fidelities can be estimated in 9 instruction sequences.
 
     Args:
         prep_gate: The preparation gate.
@@ -319,9 +313,9 @@ def standard_vanilla_pattern_generator(
         coupling_map: The coupling map.
 
     Returns:
-        An iterator over path and instruction patterns of two applications of the gate.
+        An iterator over paths and instruction sequences of two applications of the gate.
     """
-    yield from yield_matching_patterns(
-        even_depth_vanilla_pattern_generator(prep_gate, meas_gate, gate, input_paulis),
-        generate_vanilla_instruction_patterns(prep_gate, meas_gate, gate, coupling_map),
+    yield from yield_matching_paths(
+        even_depth_vanilla_path_generator(prep_gate, meas_gate, gate, input_paulis),
+        generate_vanilla_instruction_sequences(prep_gate, meas_gate, gate, coupling_map),
     )

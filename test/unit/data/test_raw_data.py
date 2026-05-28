@@ -18,19 +18,22 @@ from qiskit_noise_learning.data import RawData
 
 
 @dataclass(frozen=True)
-class MockInstructionPattern:
+class MockUnboundInstructionSequence:
     name: str
 
 
 @dataclass(frozen=True)
 class MockInstructionSequence:
-    pattern: MockInstructionPattern
+    _unbound: MockUnboundInstructionSequence
     depth: int
+
+    def without_depth(self):
+        return self._unbound
 
 
 def test_from_arrays():
     """Test constructing RawData from arrays."""
-    seq = MockInstructionSequence(pattern=MockInstructionPattern("ip0"), depth=1)
+    seq = MockInstructionSequence(_unbound=MockUnboundInstructionSequence("uis0"), depth=1)
     num_randomizations = 3
     num_shots = 10
     num_bits = 2
@@ -55,7 +58,7 @@ def test_from_arrays():
 
 def test_filter_time():
     """Test that filter_time keeps only randomizations within the time window."""
-    seq = MockInstructionSequence(pattern=MockInstructionPattern("ip0"), depth=1)
+    seq = MockInstructionSequence(_unbound=MockUnboundInstructionSequence("uis0"), depth=1)
     num_shots = 5
     num_bits = 2
     t_lbs = np.array(["2026-01-01", "2026-01-03", "2026-01-05"], dtype="datetime64[us]")
