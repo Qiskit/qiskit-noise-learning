@@ -24,10 +24,8 @@ class BaseSequence(ABC, Generic[T]):
     """Abstract base class representing a sequence of generic elements.
 
     Specified as a starting fragment, a repeatable middle fragment, an ending fragment, and an
-    optional depth indicating the number of repetitions of the middle fragment. When ``depth`` is
-    ``None``, the instance represents a variable-depth sequence whose structure is defined but whose
-    concrete length is not yet determined. Variable-depth sequences cannot be iterated, indexed, or
-    queried for length.
+    optional depth indicating the number of repetitions of the middle fragment.
+    An instance with ``depth=None`` represents a variable-depth sequence with fixed structure.
 
     Args:
         start_fragment: The start of the sequence.
