@@ -24,7 +24,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install ".[dev,vis]"
+        python -m pip install ".[dev,vis,cvxpy]"
     - name: Pre-commit checks (linting)
       if: matrix.python-version == '3.12'
       run: |
