@@ -230,7 +230,7 @@ def test_merge_failures(gate_set):
         repeatable_fragment=[],
         end_fragment=[ApplyGate(gate_set["M"])],
     )
-    with pytest.raises(ValueError, match="start_fragments of different lengths"):
+    with pytest.raises(ValueError, match="start fragments of different lengths"):
         seq0.merge(seq1)
 
     # inconsistent gate labels
