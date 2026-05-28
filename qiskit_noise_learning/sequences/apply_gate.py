@@ -32,9 +32,11 @@ class ApplyGate(Instruction):
 
     @property
     def is_complete(self) -> bool:
+        """Apply gate instructions are always complete."""
         return True
 
     def complete(self) -> Self:
+        """Returns self."""
         return self
 
     def is_mergeable_with(self, other: "Instruction") -> bool:

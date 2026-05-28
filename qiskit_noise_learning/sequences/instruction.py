@@ -26,7 +26,7 @@ class Instruction:
 
     @abstractmethod
     def complete(self) -> Self:
-        """Return a completely specified instruction that also implement self."""
+        """Return a completely specified instruction that also implements self."""
 
     @abstractmethod
     def is_mergeable_with(self, other: "Instruction") -> bool:
