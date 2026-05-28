@@ -36,7 +36,7 @@ class AverageObservables(AnalysisStage):
 def average_observables(
     observable_data: ObservableData, unique_unbound_paths: set[Path] | None = None
 ) -> AveragedData:
-    """Compute averaged observables for the given set of unbound paths.
+    """Compute averaged observables for the paths.
 
     Args:
         observable_data: The observable data.
