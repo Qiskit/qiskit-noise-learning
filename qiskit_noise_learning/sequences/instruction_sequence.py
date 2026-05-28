@@ -36,7 +36,7 @@ def _filter_to_gates(fragment: list[Instruction]) -> Iterator[ApplyGate]:
 
 
 class InstructionSequence(BaseSequence[Instruction]):
-    """A sequence of instructions for a given gate set.
+    """A sequence of instructions.
 
     When ``depth`` is ``None``, represents a variable-depth instruction sequence whose structure is
     defined but whose concrete length is not yet determined.
