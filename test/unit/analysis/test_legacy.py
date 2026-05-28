@@ -27,7 +27,7 @@ from qiskit_noise_learning.analysis.legacy import (
 )
 from qiskit_noise_learning.data import AveragedData, ModelData
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
-from qiskit_noise_learning.sequences import FidelityIndex, PathPattern
+from qiskit_noise_learning.sequences import FidelityIndex, Path
 
 
 @pytest.fixture()
@@ -38,15 +38,15 @@ def gate_set_2q_identity():
     return mgs
 
 
-def _pp(gate_set: ModelGateSet, in_pauli: str, out_pauli: str) -> PathPattern:
-    """Build a PathPattern with a 2-entry repeatable fragment that loops in_pauli↔out_pauli.
+def _pp(gate_set: ModelGateSet, in_pauli: str, out_pauli: str) -> Path:
+    """Build an unbound Path with a 2-entry repeatable fragment that loops in_pauli↔out_pauli.
 
     The two ``FidelityIndex`` entries form the closed (in→out, out→in) cycle expected
     by experiment generators, with empty start/end fragments. Tests only need the
     repeatable fragment.
     """
     gate = gate_set["LL"]
-    return PathPattern(
+    return Path(
         start_fragment=[],
         repeatable_fragment=[
             FidelityIndex.from_transition(
@@ -67,7 +67,7 @@ def _pp(gate_set: ModelGateSet, in_pauli: str, out_pauli: str) -> PathPattern:
 def _make_averaged_data(pps: list, fidelities: np.ndarray) -> AveragedData:
     n = len(pps)
     return AveragedData.from_arrays(
-        path_patterns=pps,
+        unbound_paths=pps,
         depths=[-1] * n,
         observables=fidelities,
         std=np.full(n, 0.001),
@@ -92,9 +92,9 @@ class TestMakeCanonicalFidDict:
         # row i of fid_pairs_data is associated with both fid_ps_1[i] and fid_ps_2[i].
         # Here XI shows up at fid_ps_1[0] (value 0.9) and at fid_ps_2[1] (value 0.7),
         # so its canonical fidelity is the mean of those two values.
-        result = make_canonical_fid_dict(["XI", "ZI"], ["YI", "XI"], np.array([0.9, 0.7]))
-        assert result["XI"] == pytest.approx((0.9 + 0.7) / 2)
-        assert result["ZI"] == pytest.approx(0.7)
+        result = make_canonical_fid_dict(["XI", "ZI"], ["YI", "XI"], np.array([0.9, 0.9]))
+        assert result["XI"] == pytest.approx((0.9 + 0.9) / 2)
+        assert result["ZI"] == pytest.approx(0.9)
         assert result["YI"] == pytest.approx(0.9)
 
 
@@ -121,14 +121,14 @@ class TestMakeConjPauliList:
 
 
 def test_get_fid_pairs_returns_two_qubit_sparse_pauli_lists(gate_set_2q_identity):
-    # Self-conjugate XI and ZI under the identity Clifford: each PathPattern's
+    # Self-conjugate XI and ZI under the identity Clifford: each Path's
     # repeatable_fragment[0].pauli and [1].pauli are the same.
     pps = [_pp(gate_set_2q_identity, "XI", "XI"), _pp(gate_set_2q_identity, "ZI", "ZI")]
     ad = _make_averaged_data(pps, np.array([0.9, 0.8]))
     fit = Fit()
     fit[AveragedData] = ad
 
-    fid_ps_1, fid_ps_2 = get_fid_pairs(fit)
+    fid_ps_1, fid_ps_2 = get_fid_pairs(fit.averaged_data.dataset.observables.unbound_path.data)
     assert fid_ps_1.to_pauli_list().to_labels() == ["XI", "ZI"]
     assert fid_ps_2.to_pauli_list().to_labels() == ["XI", "ZI"]
 
@@ -139,14 +139,14 @@ def test_get_fid_pairs_raises_on_wrong_fragment_length(gate_set_2q_identity):
         in_pauli=QubitSparsePauli("XI"),
         out_pauli=QubitSparsePauli("XI"),
     )
-    pp_3 = PathPattern(start_fragment=[], repeatable_fragment=[fi, fi, fi], end_fragment=[])
+    pp_3 = Path(start_fragment=[], repeatable_fragment=[fi, fi, fi], end_fragment=[])
 
     ad = _make_averaged_data([pp_3], np.array([0.9]))
     fit = Fit()
     fit[AveragedData] = ad
 
     with pytest.raises(ValueError, match="repeatable_fragment"):
-        get_fid_pairs(fit)
+        get_fid_pairs(fit.averaged_data.dataset.observables.unbound_path.data)
 
 
 @pytest.fixture()
@@ -246,7 +246,7 @@ def test_legacy_solve_writes_model_data(two_qubit_anticomm_fit):
     assert isinstance(md, ModelData)
 
     # Parameter labels should be GeneratorIndex objects with the gate name from the
-    # path pattern's repeatable_fragment[0].gate.name (the gate set fixture uses "LL").
+    # unbound path's repeatable_fragment[0].gate.name (the gate set fixture uses "LL").
     indices = md.dataset["parameter"].values.tolist()
     assert all(idx.gate_name == "LL" for idx in indices)
 

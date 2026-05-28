@@ -10,8 +10,8 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Legacy noise-model fitter retained as a cross-check reference. Accepts only a single layer 
-   in a gate set.
+"""Legacy noise-model fitter retained as a cross-check reference. Accepts only a single layer
+in a gate set.
 """
 
 from collections import defaultdict
@@ -34,31 +34,87 @@ OptimizerLiteral = Literal["nnls", "lsq_linear_sparse", "cvxpy"]
 NoiseAssumptionLiteral = Literal["symmetric_fidelities", "symmetric_generators"]
 
 
-def get_fid_pairs(path_patterns) -> tuple[QubitSparsePauliList, QubitSparsePauliList]:
-    """Extract the first and second Paulis from the repeatable fragment of each path pattern.
+class LegacySolve(AnalysisStage):
+    """Solves for the :class:`~.ModelData` using the legacy pair-fidelity method.
+
+    This solver assumes that the gate set only has a single unitary gate, and that the paths
+    are of a vanilla-learning type (i.e. even depth with no single-qubit Cliffords required).
+
+    Delegates to :func:`fit_noise_model_legacy` with ``noise_assumption="symmetric_fidelities"``,
+    ``optimizer_name="nnls"``, and ``constrained=True``.
+    """
+
+    input_level = AveragedData
+    output_level = ModelData
+
+    def _run(self, fit: Fit) -> None:
+        averaged_data = fit[AveragedData]
+
+        noise_map = fit_noise_model_legacy(
+            fit,
+            noise_assumption="symmetric_fidelities",
+            decimals=None,
+            optimizer_name="nnls",
+            constrained=True,
+        )
+
+        layer_name = (
+            fit.averaged_data.dataset.unbound_path[0].item().repeatable_fragment[0].gate.name
+        )
+
+        param_labels = [
+            GeneratorIndex(gate_name=layer_name, generator=g) for g in noise_map.generators()
+        ]
+        x = np.array(noise_map.rates)
+        cov_x = np.zeros(shape=(len(x), len(x)))
+        metadata = {}
+        # Filter to decay data (depth == -1)
+        decay_mask = averaged_data.dataset["depth"].data == -1
+        decay_dataset = averaged_data.dataset.sel({"observable": decay_mask})
+
+        time_lb = time_bound(decay_dataset["time_lbs"].data, "min")
+        time_ub = time_bound(decay_dataset["time_ubs"].data, "max")
+
+        fit[ModelData] = ModelData.from_arrays(
+            parameter_indices=param_labels,
+            parameter_values=x,
+            covariance=cov_x,
+            time_lbs=np.full(len(x), time_lb, dtype="datetime64[us]"),
+            time_ubs=np.full(len(x), time_ub, dtype="datetime64[us]"),
+            metadata=metadata,
+        )
+
+
+def get_fid_pairs(unbound_paths) -> tuple[QubitSparsePauliList, QubitSparsePauliList]:
+    """Extract the first and second Paulis from the repeatable fragment of each unbound path.
 
     Args:
-        path_patterns.
+        unbound_paths.
 
     Returns:
         A pair ``(fid_ps_1, fid_ps_2)`` of ``QubitSparsePauliList`` objects holding,
         respectively, the first and second Pauli of each repeatable fragment.
 
     Raises:
-        ValueError: If any path pattern's ``repeatable_fragment`` does not have exactly 2 entries.
+        ValueError: If any unbound path's ``repeatable_fragment`` does not have exactly 2 entries.
     """
     fid_pairs = []
 
-    for pp in path_patterns:
-        fragment: Any = pp.repeatable_fragment
+    for path in unbound_paths:
+        fragment: Any = path.repeatable_fragment
         if len(fragment) != 2:
             raise ValueError(
-                "Expected each path pattern's repeatable_fragment to have exactly 2 entries, "
+                "Expected each unbound path's repeatable_fragment to have exactly 2 entries, "
                 f"but got {len(fragment)}."
             )
-        if (pp.repeatable_fragment[0].transition[1] != pp.repeatable_fragment[1].transition[0]) or (pp.repeatable_fragment[1].transition[0] != pp.repeatable_fragment[0].transition[1]):
+        if (
+            path.repeatable_fragment[0].transition[1] != path.repeatable_fragment[1].transition[0]
+        ) or (
+            path.repeatable_fragment[1].transition[0] != path.repeatable_fragment[0].transition[1]
+        ):
             raise ValueError(
-                "Encountered path whose repeatable fragment requires single qubit Cliffords to traverse."
+                "Encountered path whose repeatable fragment requires single qubit Cliffords to "
+                "traverse."
             )
         fid_pairs.append([fragment[0].pauli, fragment[1].pauli])
 
@@ -97,7 +153,7 @@ def make_canonical_fid_dict(
     fid_pair_p_dict_mean = {}
     for p, evlist in fid_pair_p_dict.items():
         if np.std(evlist) != 0:
-            raise ValueError('fid_pairs_data does not meet legacy learner assumptions!')
+            raise ValueError("fid_pairs_data does not meet legacy learner assumptions!")
         fid_pair_p_dict_mean[p] = np.mean(evlist)
     return fid_pair_p_dict_mean
 
@@ -166,7 +222,7 @@ def fit_noise_model_legacy(
         MissingOptionalLibraryError: If ``optimizer_name="cvxpy"`` and ``cvxpy`` is not
             installed.
     """
-    fid_ps_1, fid_ps_2 = get_fid_pairs(fit.averaged_data.dataset.observables.path_pattern.data)
+    fid_ps_1, fid_ps_2 = get_fid_pairs(fit.averaged_data.dataset.observables.unbound_path.data)
     fid_pair_data = fit.averaged_data.dataset.observables
     fidelities_canonical = make_canonical_fid_dict(
         fid_ps_1.to_pauli_list().to_labels(), fid_ps_2.to_pauli_list().to_labels(), fid_pair_data
@@ -272,54 +328,3 @@ def fit_noise_model_legacy(
         list(zip(sparse_model_paulis.to_labels(), sparse_model_coeffs))
     )
     return noise_map_pecr
-
-
-class LegacySolve(AnalysisStage):
-    """Solves for the :class:`~.ModelData` using the legacy pair-fidelity method.
-
-    This solver assumes that the gate set only has a single unitary gate, and that the paths
-    are of a vanilla-learning type (i.e. even depth with no single-qubit Cliffords required).
-
-    Delegates to :func:`fit_noise_model_legacy` with ``noise_assumption="symmetric_fidelities"``,
-    ``optimizer_name="nnls"``, and ``constrained=True``.
-    """
-
-    input_level = AveragedData
-    output_level = ModelData
-
-    def _run(self, fit: Fit) -> None:
-        averaged_data = fit[AveragedData]
-
-        noise_map = fit_noise_model_legacy(
-            fit,
-            noise_assumption="symmetric_fidelities",
-            decimals=None,
-            optimizer_name="nnls",
-            constrained=True,
-        )
-
-        layer_name = (
-            fit.averaged_data.dataset.path_pattern[0].item().repeatable_fragment[0].gate.name
-        )
-
-        param_labels = [
-            GeneratorIndex(gate_name=layer_name, generator=g) for g in noise_map.generators()
-        ]
-        x = np.array(noise_map.rates)
-        cov_x = np.zeros(shape=(len(x), len(x)))
-        metadata = {}
-        # Filter to decay data (depth == -1)
-        decay_mask = averaged_data.dataset["depth"].data == -1
-        decay_dataset = averaged_data.dataset.sel({"observable": decay_mask})
-
-        time_lb = time_bound(decay_dataset["time_lbs"].data, "min")
-        time_ub = time_bound(decay_dataset["time_ubs"].data, "max")
-
-        fit[ModelData] = ModelData.from_arrays(
-            parameter_indices=param_labels,
-            parameter_values=x,
-            covariance=cov_x,
-            time_lbs=np.full(len(x), time_lb, dtype="datetime64[us]"),
-            time_ubs=np.full(len(x), time_ub, dtype="datetime64[us]"),
-            metadata=metadata,
-        )
