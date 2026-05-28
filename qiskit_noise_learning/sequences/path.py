@@ -211,8 +211,8 @@ class Path(BaseSequence[FidelityIndex]):
             fragment flips the sign.
 
         Raises:
-            ValueError: If the path doesn't satisfy the assumptions, or the instruction sequence
-                does not actually traverse the path.
+            ValueError: If the path does not satisfy the assumptions.
+            ValueError: If the instruction sequence does not traverse the path.
         """
         # validate and turn into phased pauli
         current_pauli = self._validate_starts_and_ends_with_identity()
