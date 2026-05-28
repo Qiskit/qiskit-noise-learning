@@ -10,7 +10,9 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Legacy noise-model fitter retained as a cross-check reference."""
+"""Legacy noise-model fitter retained as a cross-check reference. Accepts only a single layer 
+   in a gate set.
+"""
 
 from collections import defaultdict
 from typing import Any, Literal
@@ -56,7 +58,8 @@ def get_fid_pairs(path_patterns) -> tuple[QubitSparsePauliList, QubitSparsePauli
             )
         if (pp.repeatable_fragment[0].transition[1] != pp.repeatable_fragment[1].transition[0]) or (pp.repeatable_fragment[1].transition[0] != pp.repeatable_fragment[0].transition[1]):
             raise ValueError(
-                "Path patterns not repeatable")
+                "Encountered path whose repeatable fragment requires single qubit Cliffords to traverse."
+            )
         fid_pairs.append([fragment[0].pauli, fragment[1].pauli])
 
     # Convert to QubitSparsePauliList
@@ -93,6 +96,8 @@ def make_canonical_fid_dict(
 
     fid_pair_p_dict_mean = {}
     for p, evlist in fid_pair_p_dict.items():
+        if np.std(evlist) != 0:
+            raise ValueError('fid_pairs_data does not meet legacy learner assumptions!')
         fid_pair_p_dict_mean[p] = np.mean(evlist)
     return fid_pair_p_dict_mean
 
