@@ -25,7 +25,7 @@ class BaseSequence(ABC, Generic[T]):
 
     Specified as a starting fragment, a repeatable middle fragment, an ending fragment, and an
     optional depth indicating the number of repetitions of the middle fragment.
-    An instance with ``depth=None`` represents a variable-depth sequence with fixed structure.
+    An instance with ``depth=None`` represents an "unbound" sequence with a fixed structure.
 
     Args:
         start_fragment: The start of the sequence.
@@ -63,12 +63,12 @@ class BaseSequence(ABC, Generic[T]):
 
     @property
     def depth(self) -> int | None:
-        """The number of repetitions of the repeatable fragment, or ``None`` for variable-depth."""
+        """The number of repetitions of the repeatable fragment."""
         return self._depth
 
     @property
     def is_unbound(self) -> bool:
-        """Whether this is a variable-depth sequence (depth is ``None``)."""
+        """Whether the depth is bound."""
         return self._depth is None
 
     @property
@@ -95,13 +95,13 @@ class BaseSequence(ABC, Generic[T]):
         """Return a new instance with the same fragments but depth set to ``None``.
 
         Returns:
-            A new variable-depth instance.
+            A new unbound instance.
         """
         return self.bind_at(None)
 
     def __iter__(self) -> Iterator[T]:
         if self._depth is None:
-            raise ValueError("Cannot iterate over a variable-depth sequence (depth is None).")
+            raise ValueError("Cannot iterate over an unbound sequence.")
         yield from self._start_fragment
         for _ in range(self._depth):
             yield from self._repeatable_fragment
@@ -109,7 +109,7 @@ class BaseSequence(ABC, Generic[T]):
 
     def __getitem__(self, idx) -> T:
         if self._depth is None:
-            raise ValueError("Cannot index a variable-depth sequence (depth is None).")
+            raise ValueError("Cannot index an unbound sequence.")
         if idx < 0:
             raise IndexError("No negative indices allowed.")
 
@@ -128,7 +128,7 @@ class BaseSequence(ABC, Generic[T]):
 
     def __len__(self) -> int:
         if self._depth is None:
-            raise ValueError("Cannot compute length of a variable-depth sequence (depth is None).")
+            raise ValueError("Cannot compute length of an unbound sequence.")
         return (
             len(self._start_fragment)
             + len(self._repeatable_fragment) * self._depth
