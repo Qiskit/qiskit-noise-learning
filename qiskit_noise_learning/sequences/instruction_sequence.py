@@ -132,7 +132,7 @@ class InstructionSequence(BaseSequence[Instruction]):
     def merge(self, other: Self) -> Self:
         r"""Merge this instruction sequence with another instruction sequence.
 
-        Assuming ``self.is_mergeable_with(other)``, the returned merged sequence is constructed by
+        Assuming this instance is mergeable with ``other``, the returned merged sequence is constructed by
         merging each corresponding fragment element-wise.
 
         Args:
