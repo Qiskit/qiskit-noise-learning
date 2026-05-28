@@ -40,8 +40,8 @@ def average_observables(
 
     Args:
         observable_data: The observable data.
-        unique_unbound_paths: A collection of unique unbound paths to compute the averaged
-            observables for. Defaults to all of the unbound paths in the observable data.
+        unique_unbound_paths: A set of unbound paths to compute the averaged
+            observables for. Defaults to all unbound paths in the observable data.
     """
 
     dataset = observable_data.dataset
