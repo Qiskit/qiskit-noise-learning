@@ -75,9 +75,7 @@ class InstructionSequence(BaseSequence[Instruction]):
 
         Here, sharing the same structure means that the depths are the same (including both being
         ``None``), and all fragments have the same gate applications in the same order, but
-        possibly differing in other instructions. The "structure" implied here is that, if the
-        sequences agree on :class:`ApplyGate` instructions, then they can be implemented within
-        the same template circuit.
+        possibly differing in other instructions.
 
         Args:
             other: Another :class:`.InstructionSequence`.
