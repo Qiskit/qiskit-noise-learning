@@ -42,7 +42,7 @@ class Path(BaseSequence[FidelityIndex]):
 
     @property
     def repeatable_fragment_observable_indices(self) -> list[list[int]]:
-        """Return a list of observable indices for the repeatable fragment."""
+        """The observable indices of the repeatable fragment."""
         return [x.observable_indices for x in self.repeatable_fragment]
 
     @property
