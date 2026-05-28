@@ -73,8 +73,8 @@ class InstructionSequence(BaseSequence[Instruction]):
     def has_same_structure_as(self, other: "InstructionSequence") -> bool:
         """Return whether this instruction sequence shares the same circuit structure as another.
 
-        Here, sharing the same structure means that the depths are the same, and all fragments have the same gate applications in the same order, but
-        possibly differing in other instructions.
+        Here, sharing the same structure means that the depths are the same, and all fragments have
+        the same gate applications in the same order, but possibly differing in other instructions.
 
         Args:
             other: Another :class:`.InstructionSequence`.
@@ -108,7 +108,8 @@ class InstructionSequence(BaseSequence[Instruction]):
     def is_mergeable_with(self, other: Self) -> bool:
         r"""Check if this instruction sequence is mergeable with another instruction sequence.
 
-        Two instruction sequences are mergeable if they have compatible depths and their fragments are element-wise mergeable.
+        Two instruction sequences are mergeable if they have compatible depths and their fragments
+        are element-wise mergeable.
 
         Args:
             other: The other :class:`.InstructionSequence`.
@@ -125,15 +126,15 @@ class InstructionSequence(BaseSequence[Instruction]):
             and len(self.end_fragment) == len(other.end_fragment)
             and all(
                 instr0.is_mergeable_with(instr1)
-                for instr0, instr1 in zip(self._fragment_chain, other._fragment_chain)
+                for instr0, instr1 in zip(self._fragment_chain, other._fragment_chain)  # noqa: SLF001
             )
         )
 
     def merge(self, other: Self) -> Self:
         r"""Merge this instruction sequence with another instruction sequence.
 
-        Assuming this instance is mergeable with ``other``, the returned merged sequence is constructed by
-        merging each corresponding fragment element-wise.
+        Assuming this instance is mergeable with ``other``, the returned merged sequence is
+        constructed by merging each corresponding fragment element-wise.
 
         Args:
             other: The instruction sequence to merge this with.
