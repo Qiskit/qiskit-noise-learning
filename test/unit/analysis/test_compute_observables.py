@@ -19,7 +19,6 @@ from qiskit.quantum_info import Clifford, QubitSparsePauli
 from qiskit_noise_learning.analysis import ComputeObservables, Fit
 from qiskit_noise_learning.analysis.compute_observables import compute_expectation_value
 from qiskit_noise_learning.data import ObservableData, RawData
-from qiskit_noise_learning.experiment_builder.experiment_builder import ExperimentBuilder
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
 from qiskit_noise_learning.sequences import (
     FidelityIndex,
@@ -245,16 +244,12 @@ class TestComputeObservables:
             ],
         )
 
-        eb = ExperimentBuilder(gate_set_1q)
-        eb.add_paths([(unbound_path, None)])
-        eb.complete()
-
-        ip = eb.instruction_sequences[0]
-        se_flip, r_flip = unbound_path.fragment_sign_flips(ip)
+        unbound_seq = unbound_path.to_instruction_sequence().complete()
+        se_flip, r_flip = unbound_path.fragment_sign_flips(unbound_seq)
 
         for depth in [1, 2, 3]:
             sign = (-1) ** (se_flip + depth * r_flip)
-            inst_seqs = eb.generate_instruction_sequences([depth])
+            inst_seqs = [unbound_seq.bind_at(depth)]
             path = unbound_path.bind_at(depth)
             # All-zero data -> compute_expectation_value = 1.0
             result = _run_compute_observables(
@@ -303,15 +298,11 @@ class TestComputeObservables:
             ],
         )
 
-        eb = ExperimentBuilder(gate_set_1q)
-        eb.add_paths([(unbound_path, None)])
-        eb.complete()
-
-        ip = unbound_path.to_instruction_sequence().complete()
-        se_flip, r_flip = unbound_path.fragment_sign_flips(ip)
+        unbound_seq = unbound_path.to_instruction_sequence().complete()
+        se_flip, r_flip = unbound_path.fragment_sign_flips(unbound_seq)
 
         depths = [1, 2]
-        inst_seqs = eb.generate_instruction_sequences(depths)
+        inst_seqs = [unbound_seq.bind_at(d) for d in depths]
         paths = [unbound_path.bind_at(d) for d in depths]
         signs = [(-1) ** (se_flip + d * r_flip) for d in depths]
 
@@ -355,23 +346,20 @@ class TestComputeObservables:
             ],
         )
 
-        eb = ExperimentBuilder(gate_set_1q)
-        eb.add_paths([(unbound_path, None)])
-        fixed_paths = [unbound_path.bind_at(x) for x in [1, 2]]
-        eb.add_paths([(x, None) for x in fixed_paths], rank_reduce=False)
-        eb.complete()
-
-        ip = unbound_path.to_instruction_sequence().complete()
-        se_flip, r_flip = unbound_path.fragment_sign_flips(ip)
+        unbound_seq = unbound_path.to_instruction_sequence().complete()
+        se_flip, r_flip = unbound_path.fragment_sign_flips(unbound_seq)
 
         depths = [3, 4, 5, 8]
-        inst_seqs = eb.generate_instruction_sequences(depths)
+        fixed_paths = [unbound_path.bind_at(x) for x in [1, 2]]
 
-        # Variable-depth paths + fixed-depth paths
+        # 4 variable-depth sequences + 2 fixed-depth sequences = 6 total
+        inst_seqs = [unbound_seq.bind_at(d) for d in depths] + [
+            unbound_seq.bind_at(d) for d in [1, 2]
+        ]
+
         variable_paths = [unbound_path.bind_at(d) for d in depths]
         all_paths = variable_paths + fixed_paths
 
-        # 4 variable-depth sequences + 2 fixed-depth sequences = 6 total
         result = _run_compute_observables(
             paths=all_paths,
             instruction_sequences=inst_seqs,
@@ -419,15 +407,11 @@ class TestComputeObservables:
             ],
         )
 
-        eb = ExperimentBuilder(gate_set_1q)
-        eb.add_paths([(unbound_path, None)])
-        eb.complete()
-
-        ip = eb.instruction_sequences[0]
-        _, r_flip = unbound_path.fragment_sign_flips(ip)
+        unbound_seq = unbound_path.to_instruction_sequence().complete()
+        _, r_flip = unbound_path.fragment_sign_flips(unbound_seq)
         assert r_flip is True
 
-        inst_seqs = eb.generate_instruction_sequences([1, 2])
+        inst_seqs = [unbound_seq.bind_at(d) for d in [1, 2]]
         paths = [unbound_path.bind_at(d) for d in [1, 2]]
 
         result = _run_compute_observables(
@@ -457,15 +441,11 @@ class TestComputeObservables:
         """Verify the observable mask selects only the correct qubits."""
         assert unbound_path_ix.end_fragment[-1].observable_indices == [0]
 
-        eb = ExperimentBuilder(gate_set_cz)
-        eb.add_paths([(unbound_path_ix, None)])
-        eb.complete()
-
-        ip = eb.instruction_sequences[0]
-        se_flip, r_flip = unbound_path_ix.fragment_sign_flips(ip)
+        unbound_seq = unbound_path_ix.to_instruction_sequence().complete()
+        se_flip, r_flip = unbound_path_ix.fragment_sign_flips(unbound_seq)
         sign = (-1) ** (se_flip + 1 * r_flip)
 
-        inst_seqs = eb.generate_instruction_sequences([1])
+        inst_seqs = [unbound_seq.bind_at(1)]
         path = unbound_path_ix.bind_at(1)
 
         # Data: qubit 0 = False (zero), qubit 1 = True (one)
@@ -490,15 +470,11 @@ class TestComputeObservables:
 
     def test_unbound_path_observables_multiway(self, gate_set_cz, unbound_path_ix, unbound_path_xi):
         """Verify computation with multiple unbound paths per instruction sequence."""
-        eb = ExperimentBuilder(gate_set_cz)
-        eb.add_paths([(unbound_path_ix, None), (unbound_path_xi, None)])
-        eb.merge_instruction_sequences()
-        eb.complete()
+        seq_ix = unbound_path_ix.to_instruction_sequence()
+        seq_xi = unbound_path_xi.to_instruction_sequence()
+        merged_seq = seq_ix.merge(seq_xi).complete()
 
-        assert len(eb.instruction_sequences) == 1
-        ip = eb.instruction_sequences[0]
-
-        inst_seqs = eb.generate_instruction_sequences([1])
+        inst_seqs = [merged_seq.bind_at(1)]
         paths = [
             unbound_path_ix.bind_at(1),
             unbound_path_xi.bind_at(1),
@@ -517,7 +493,7 @@ class TestComputeObservables:
         assert ds.sizes["observable"] == 2
 
         for path in paths:
-            se_flip, r_flip = path.without_depth().fragment_sign_flips(ip)
+            se_flip, r_flip = path.without_depth().fragment_sign_flips(merged_seq)
             expected_sign = (-1) ** (se_flip + 1 * r_flip)
             idx = int(
                 np.argwhere(
@@ -547,14 +523,10 @@ class TestComputeObservables:
             ],
         )
 
-        eb = ExperimentBuilder(gate_set_1q)
-        eb.add_paths([(unbound_path, None)])
-        eb.complete()
+        unbound_seq = unbound_path.to_instruction_sequence().complete()
+        se_flip, r_flip = unbound_path.fragment_sign_flips(unbound_seq)
 
-        ip = eb.instruction_sequences[0]
-        se_flip, r_flip = unbound_path.fragment_sign_flips(ip)
-
-        inst_seqs = eb.generate_instruction_sequences([1, 2])
+        inst_seqs = [unbound_seq.bind_at(d) for d in [1, 2]]
         paths = [unbound_path.bind_at(d) for d in [1, 2]]
 
         result = _run_compute_observables(
