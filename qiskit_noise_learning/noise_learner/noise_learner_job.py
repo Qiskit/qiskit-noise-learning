@@ -12,27 +12,12 @@
 
 """Noise learner job."""
 
-from dataclasses import dataclass
-
 from qiskit_ibm_runtime import RuntimeJobV2
 
-from qiskit_noise_learning.data import RawData
-
-from ..analysis import AnalysisStage, Fit
+from ..analysis import AnalysisStage
 from ..circuit_generator.executor_circuit_generator import ExecutorCircuitGenerator
 from ..circuit_generator.executor_data_mapper import ExecutorDataMapper
-from ..models import PauliLindbladModel
-from ..sequences import Path
 from .noise_learner_result import NoiseLearnerResult
-
-
-@dataclass
-class ExperimentSchema:
-    """A schema of the experiment."""
-
-    data_mapper: ExecutorDataMapper
-    paths: list[Path]
-    model: PauliLindbladModel
 
 
 class NoiseLearnerJob:
@@ -43,18 +28,18 @@ class NoiseLearnerJob:
 
     Args:
         runtime_job: The runtime job.
-        experiment_schema: A description of the noise learning experiment.
+        data_mapper: The data mapper describing the experiment layout.
         analysis_stage: The analysis stage to process the data.
     """
 
     def __init__(
         self,
         runtime_job: RuntimeJobV2,
-        experiment_schema: ExperimentSchema,
+        data_mapper: ExecutorDataMapper,
         analysis_stage: AnalysisStage,
     ):
         self._runtime_job = runtime_job
-        self._experiment_schema = experiment_schema
+        self._data_mapper = data_mapper
         self._analysis_stage = analysis_stage
 
     @property
@@ -68,7 +53,5 @@ class NoiseLearnerJob:
         This method forwards arguments to :meth:`~qiskit_ibm_runtime.RuntimeJobV2.result`.
         """
         raw_result = self._runtime_job.result(*args, **kwargs)
-        raw_data = ExecutorCircuitGenerator.collect(raw_result, self._experiment_schema.data_mapper)
-        fit = Fit(model=self._experiment_schema.model, paths=self._experiment_schema.paths)
-        fit[RawData] = raw_data
+        fit = ExecutorCircuitGenerator.collect(raw_result, self._data_mapper)
         return NoiseLearnerResult(self._analysis_stage.run(fit))
