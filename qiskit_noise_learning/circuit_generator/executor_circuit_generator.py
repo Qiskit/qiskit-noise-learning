@@ -16,94 +16,31 @@ import numpy as np
 import xarray as xr
 from qiskit.circuit import BoxOp, CircuitInstruction, ClassicalRegister, QuantumCircuit
 from qiskit.transpiler import PassManager
+from qiskit_ibm_runtime.quantum_program import QuantumProgram
 from qiskit_ibm_runtime.quantum_program.quantum_program import SamplexItem
 from qiskit_ibm_runtime.results import QuantumProgramResult
 from samplomatic import build
 from samplomatic.annotations import InjectLocalClifford, Tag, Twirl
 
+from qiskit_noise_learning.analysis.fit import Fit
 from qiskit_noise_learning.data import RawData
 
 from ..gate_sets import QiskitGateSet
 from ..sequences import ApplyGate, InstructionSequence, PartialPauliPermutation
 from .circuit_generator import CircuitGenerator
+from .executor_data_mapper import ExecutorDataMapper
 
 TO_SAMPLOMATIC_C1 = np.array([0, 7, 9, 13, 18, 22], dtype=np.uint8)
 """An array elements of :const:`~C1_TO_TABLEAU` to corresponding value in samplomatic."""
 
 
-class ExecutorDataMapper:
-    """Map executor results into standard results.
-
-    As instruction sequences with similar structure are generated together with a single template
-    circuit and different samplex arguments, the order of input sequences to
-    :meth:`.ExecutorCircuitGenerator.generate` is not preserved during execution. This class
-    contains properties to format the results of a
-    :class:`qiskit_ibm_runtime.results.QuantumProgramResult` to the order of the input sequences.
-
-    Args:
-        item_sequence_indices: For each program item, an ordered list of instruction sequence
-            indices. Position in the list corresponds to the configuration index within the result
-            item.
-        creg_names: The name of classical registers in each program item.
-        measurement_maps: For each program item, a dictionary from creg names to an ordered array
-            of measured qubit indices.
-        instruction_sequences: The instruction sequences associated with the data.
-        num_randomizations: The number of randomizations used per experiment.
-
-    """
-
-    def __init__(
-        self,
-        item_sequence_indices: list[list[int]],
-        creg_names: list[list[str]],
-        measurement_maps: list[dict[str, np.ndarray[int]]],
-        instruction_sequences: list[InstructionSequence],
-        num_randomizations: int,
-    ):
-        self._item_sequence_indices = item_sequence_indices
-        self._creg_names = creg_names
-        self._measurement_maps = measurement_maps
-        self._instruction_sequences = instruction_sequences
-        self._num_randomizations = num_randomizations
-
-    @property
-    def item_sequence_indices(self) -> list[list[int]]:
-        """Per program item, the instruction sequence indices corresponding to each config."""
-        return self._item_sequence_indices
-
-    @property
-    def creg_names(self) -> list[list[str]]:
-        """List of names of the classical registers contained in the results.
-
-        The list at a given index corresponds to names expected in the data of the
-        :class:`qiskit_ibm_runtime.results.QuantumProgramResult` at the same index.
-        """
-        return self._creg_names
-
-    @property
-    def measurement_maps(self) -> list[dict[str, np.ndarray[int]]]:
-        """A per-program-item map from creg name to an ordered array of measured qubit indices."""
-        return self._measurement_maps
-
-    @property
-    def instruction_sequences(self) -> list:
-        """The instruction sequences corresponding to the sequence indices in the sequence map."""
-        return self._instruction_sequences
-
-    @property
-    def num_randomizations(self) -> int:
-        """The number of randomizations used per experiment."""
-        return self._num_randomizations
-
-
 class ExecutorCircuitGenerator(
-    CircuitGenerator[list[SamplexItem], ExecutorDataMapper, QuantumProgramResult]
+    CircuitGenerator[QuantumProgram, ExecutorDataMapper, QuantumProgramResult]
 ):
     """A circuit generator that converts sequences of Qiskit gates into a samplex items.
 
     Args:
         gate_set: The Qiskit gate set that this generator constructs against.
-        num_randomizations: The number of randomizations to use.
         creg_prefix: The prefix assigned to all creg names used in instruction sequence
             measurements. Defaults to ``"meas"``.
         local_clifford_ref_prefix: The prefix assigned to all local Clifford parameter references
@@ -115,13 +52,11 @@ class ExecutorCircuitGenerator(
     def __init__(
         self,
         gate_set: QiskitGateSet,
-        num_randomizations: int = 50,
         creg_prefix: str = "meas",
         local_clifford_ref_prefix: str = "c",
         pass_manager: PassManager | None = None,
     ):
         self._gate_set = gate_set
-        self._num_randomizations = num_randomizations
         self._creg_prefix = creg_prefix
         self._local_clifford_ref_prefix = local_clifford_ref_prefix
         self._pass_manager = pass_manager
@@ -219,21 +154,62 @@ class ExecutorCircuitGenerator(
             )
             raw_data = raw_data.merge(item_raw_data)
 
-        return raw_data
+        fit = Fit(
+            model=data_mapper.fidelity_model,
+            paths=data_mapper.paths,
+            instruction_sequences=data_mapper.instruction_sequences,
+            relations=data_mapper.relations,
+        )
+        fit[RawData] = raw_data
+        return fit
 
-    def generate(self, sequences):
+    def generate(self, experiment):
+        sequences = experiment.instruction_sequences
+        num_randomizations = experiment.randomizations
+        samplex_items, data_mapper = self.generate_samplex_items(
+            sequences, num_randomizations=num_randomizations
+        )
+        program = QuantumProgram(
+            shots=experiment.shots,
+            items=samplex_items,
+        )
+        return program, ExecutorDataMapper(
+            item_sequence_indices=data_mapper.item_sequence_indices,
+            creg_names=data_mapper.creg_names,
+            measurement_maps=data_mapper.measurement_maps,
+            instruction_sequences=sequences,
+            num_randomizations=num_randomizations,
+            fidelity_model=experiment.fidelity_model,
+            paths=experiment.paths,
+            relations=experiment.relations,
+        )
+
+    def generate_samplex_items(
+        self,
+        instruction_sequences: list[InstructionSequence],
+        num_randomizations: int,
+    ) -> tuple[list[SamplexItem], ExecutorDataMapper]:
+        """Generate samplex items from instruction sequences.
+
+        Args:
+            instruction_sequences: The instruction sequences to generate circuits for.
+            num_randomizations: The number of randomizations per sequence.
+
+        Returns:
+            A tuple of samplex items and a data mapper.
+        """
         samplex_items = []
         item_sequence_indices = []
         creg_names = []
         measurement_maps = []
-        for partition in self.partition(sequences):
+        for partition in self.partition(instruction_sequences):
             current_sequences = []
             current_indices = []
             for seq_idx, seq in partition:
                 current_indices.append(seq_idx)
                 current_sequences.append(seq)
             samplex_item, current_creg_names, current_meas_map = self.generate_samplex_item(
-                current_sequences
+                current_sequences, num_randomizations=num_randomizations
             )
 
             samplex_items.append(samplex_item)
@@ -245,29 +221,32 @@ class ExecutorCircuitGenerator(
             item_sequence_indices=item_sequence_indices,
             creg_names=creg_names,
             measurement_maps=measurement_maps,
-            instruction_sequences=sequences,
-            num_randomizations=self._num_randomizations,
+            instruction_sequences=instruction_sequences,
+            num_randomizations=num_randomizations,
         )
 
     def generate_samplex_item(
-        self, sequences: list[InstructionSequence]
+        self,
+        instruction_sequences: list[InstructionSequence],
+        num_randomizations: int,
     ) -> tuple[SamplexItem, list[str], dict[str, np.ndarray[int]]]:
         """Generate a samplex item from instruction sequences with the same structure.
 
         Args:
-            sequence: The similar instruction sequences to generate.
+            instruction_sequences: The similar instruction sequences to generate.
+            num_randomizations: The number of randomizations per sequence.
 
         Returns:
             A samplex item where the order of the arguments correspond to the order of
-            ``sequences``, an ordered list of creg names, and a dictionary mapping creg names to
-            the ordered list of qubit indices they measure.
+            ``instruction_sequences``, an ordered list of creg names, and a dictionary mapping
+            creg names to the ordered list of qubit indices they measure.
 
         Raises:
-            ValueError: If ``sequences`` is empty.
+            ValueError: If ``instruction_sequences`` is empty.
             ValueError: If any of the instruction sequences is not complete.
             ValueError: If any of the instruction sequences have different structure.
         """
-        if (num_sequences := len(sequences)) == 0:
+        if (num_sequences := len(instruction_sequences)) == 0:
             raise ValueError("At least one instruction sequence is expected to generate circuits.")
 
         boxed_circuit = QuantumCircuit(self.gate_set.num_qubits)
@@ -280,7 +259,7 @@ class ExecutorCircuitGenerator(
         gateset_idxs = list(self.gate_set.qubit_subset)
         gateset_idxs.sort()
 
-        first_sequence = sequences[0]
+        first_sequence = instruction_sequences[0]
         samplex_arguments = {}
         current_permutation = PartialPauliPermutation([0] * self.gate_set.num_qubits)
         for instr in first_sequence:
@@ -324,7 +303,7 @@ class ExecutorCircuitGenerator(
                 current_permutation = PartialPauliPermutation([0] * self.gate_set.num_qubits)
                 samplex_arguments[f"local_cliffords.{ref}"] = this_arg
 
-        for idx, following_sequence in enumerate(sequences[1:]):
+        for idx, following_sequence in enumerate(instruction_sequences[1:]):
             if not first_sequence.has_same_structure_as(following_sequence):
                 raise ValueError(
                     "Instruction sequences require the same structure to be generated together."
@@ -372,7 +351,7 @@ class ExecutorCircuitGenerator(
                 template,
                 samplex=samplex,
                 samplex_arguments=samplex_arguments,
-                shape=(num_sequences, self._num_randomizations),
+                shape=(num_sequences, num_randomizations),
             ),
             creg_names,
             measurement_map,
