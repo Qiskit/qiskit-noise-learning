@@ -24,6 +24,10 @@ from qiskit_noise_learning.data.xarray_utils import time_bound
 class CurveFitObservables(AnalysisStage):
     """Fit observable data to exponential decays of the form ``a * f**depth``, and average any
     remaining observables over randomizations.
+
+    This stage will curve fit data for any paths in ``fit.paths`` that is present at multiple
+    depths. If ``fit.paths is None``, any path in the data with multiple depths will be curve fit,
+    and all others. In both case, all others will be averaged.
     """
 
     @property
@@ -38,6 +42,9 @@ class CurveFitObservables(AnalysisStage):
         observable_data = fit.observable_data
         dataset = observable_data.dataset
         unique_unbound_paths = list(set(dataset["unbound_path"].data))
+
+        # Determine which paths should be curve-fit vs averaged
+        curve_fit_paths = {p for p in fit.paths if p.is_unbound} if fit.paths else set()
 
         # for accumulating exponential fits
         decay_paths = []
@@ -57,7 +64,17 @@ class CurveFitObservables(AnalysisStage):
             path_dataset = dataset.sel({"observable": path_mask})
 
             unique_depths = sorted(set(path_dataset["depth"].data))
-            if len(unique_depths) <= 1:
+
+            if curve_fit_paths:
+                if path not in curve_fit_paths:
+                    single_depth_paths.add(path)
+                    continue
+                if len(unique_depths) <= 1:
+                    raise ValueError(
+                        f"Cannot curve-fit path with data at {len(unique_depths)} depth(s). "
+                        "At least 2 depths are required."
+                    )
+            elif len(unique_depths) <= 1:
                 single_depth_paths.add(path)
                 continue
 

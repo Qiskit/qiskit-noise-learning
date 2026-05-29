@@ -23,6 +23,11 @@ from qiskit_noise_learning.sequences import InstructionSequence, Path
 class ComputeObservables(AnalysisStage):
     """Compute observable data from raw data.
 
+    This analysis stage utilizes existing relations between paths and instruction sequences in the
+    :class:`Fit` to determine how to compute observables. If relations are not specified, they are
+    greedily constructed by exhaustively comparing paths in ``fit.paths`` and the instruction
+    sequences in ``fit.raw_data``.
+
     .. note:
         This analysis stage does not currently support midcircuit measurements.
     """
@@ -49,58 +54,106 @@ class ComputeObservables(AnalysisStage):
 
         raw_data = fit.raw_data
 
-        # map from unique unbound paths to depths
-        unbound_path_depths: dict[Path, set[int]] = dict()
+        # map from unique unbound paths to accepted depths.
+        # None means accept any depth (for unbound paths in fit.paths).
+        unbound_path_depths: dict[Path, set[int] | None] = dict()
         for path in fit.paths:
-            unbound_path_depths.setdefault(path.without_depth(), set()).add(path.depth)
+            if path.is_unbound:
+                unbound_path_depths[path] = None
+            else:
+                # only add something if path wasn't unbound in fit.paths
+                existing = unbound_path_depths.get(path.without_depth())
+                if existing is not None or path.without_depth() not in unbound_path_depths:
+                    unbound_path_depths.setdefault(path.without_depth(), set()).add(path.depth)
 
         # mapping from unbound paths into data
         # nested mapping: unbound_path -> dt_key -> depth ->
         # {"array_indices": list[int], "signs": list[int]}
         unbound_path_to_data = dict()
 
-        # mapping from unbound instruction sequences to the paths they traverse with sign info;
-        # just used in the process of constructing the above
-        unique_unbound_instruction_sequences: list[InstructionSequence] = []
-        unbound_instruction_sequence_path_signs: list[dict[Path, tuple[bool, bool]]] = []
+        if fit.relations is not None and fit.instruction_sequences is not None:
+            # Strategy A: use precomputed relations
+            unique_uis_list: list[InstructionSequence] = []
+            uis_path_signs_list: list[dict[Path, tuple[bool, bool]]] = []
+            for path_idx, seq_idx in fit.relations:
+                path = fit.paths[path_idx]
+                unbound_path = path.without_depth()
+                seq = fit.instruction_sequences[seq_idx]
+                uis = seq.without_depth()
 
-        for dt_key, datasubtree in raw_data.datatree.items():
-            for array_idx, (uis, depth) in enumerate(
-                zip(
-                    datasubtree.dataset["unbound_instruction_sequence"].data,
-                    datasubtree.dataset["depth"].data,
-                )
-            ):
-                # get the unbound paths traversed by this instruction sequence and sign info,
-                # constructing if not yet encountered
-                uis_path_signs = None
-                if uis not in unique_unbound_instruction_sequences:
-                    unique_unbound_instruction_sequences.append(uis)
-                    uis_path_signs = dict()
-                    for unbound_path in unbound_path_depths:
-                        if unbound_path.is_traversed_by(uis):
-                            uis_path_signs[unbound_path] = unbound_path.fragment_sign_flips(uis)
-                    unbound_instruction_sequence_path_signs.append(uis_path_signs)
-                else:
-                    uis_path_signs = unbound_instruction_sequence_path_signs[
-                        unique_unbound_instruction_sequences.index(uis)
-                    ]
+                if uis not in unique_uis_list:
+                    unique_uis_list.append(uis)
+                    uis_path_signs_list.append({})
 
-                for unbound_path, signs in uis_path_signs.items():
-                    # if depth not relevant, continue
-                    if depth not in unbound_path_depths[unbound_path]:
+                uis_paths = uis_path_signs_list[unique_uis_list.index(uis)]
+                if unbound_path not in uis_paths:
+                    uis_paths[unbound_path] = unbound_path.fragment_sign_flips(seq)
+
+            for dt_key, datasubtree in raw_data.datatree.items():
+                for array_idx, (uis, depth) in enumerate(
+                    zip(
+                        datasubtree.dataset["unbound_instruction_sequence"].data,
+                        datasubtree.dataset["depth"].data,
+                    )
+                ):
+                    if uis not in unique_uis_list:
                         continue
 
-                    # get the dictionary for this unbound path, data tree key, and depth
-                    unbound_path_dt_depth_dict = (
-                        unbound_path_to_data.setdefault(unbound_path, dict())
-                        .setdefault(dt_key, dict())
-                        .setdefault(depth, {"array_indices": [], "signs": []})
+                    for unbound_path, signs in uis_path_signs_list[
+                        unique_uis_list.index(uis)
+                    ].items():
+                        accepted = unbound_path_depths[unbound_path]
+                        if accepted is not None and depth not in accepted:
+                            continue
+
+                        unbound_path_dt_depth_dict = (
+                            unbound_path_to_data.setdefault(unbound_path, dict())
+                            .setdefault(dt_key, dict())
+                            .setdefault(depth, {"array_indices": [], "signs": []})
+                        )
+                        unbound_path_dt_depth_dict["array_indices"].append(array_idx)
+                        unbound_path_dt_depth_dict["signs"].append(
+                            (-1) ** (signs[0] + depth * signs[1])
+                        )
+        else:
+            # Strategy B: greedy discovery fallback
+            unique_unbound_instruction_sequences: list[InstructionSequence] = []
+            unbound_instruction_sequence_path_signs: list[dict[Path, tuple[bool, bool]]] = []
+
+            for dt_key, datasubtree in raw_data.datatree.items():
+                for array_idx, (uis, depth) in enumerate(
+                    zip(
+                        datasubtree.dataset["unbound_instruction_sequence"].data,
+                        datasubtree.dataset["depth"].data,
                     )
-                    unbound_path_dt_depth_dict["array_indices"].append(array_idx)
-                    unbound_path_dt_depth_dict["signs"].append(
-                        (-1) ** (signs[0] + depth * signs[1])
-                    )
+                ):
+                    uis_path_signs = None
+                    if uis not in unique_unbound_instruction_sequences:
+                        unique_unbound_instruction_sequences.append(uis)
+                        uis_path_signs = dict()
+                        for unbound_path in unbound_path_depths:
+                            if unbound_path.is_traversed_by(uis):
+                                uis_path_signs[unbound_path] = unbound_path.fragment_sign_flips(uis)
+                        unbound_instruction_sequence_path_signs.append(uis_path_signs)
+                    else:
+                        uis_path_signs = unbound_instruction_sequence_path_signs[
+                            unique_unbound_instruction_sequences.index(uis)
+                        ]
+
+                    for unbound_path, signs in uis_path_signs.items():
+                        accepted = unbound_path_depths[unbound_path]
+                        if accepted is not None and depth not in accepted:
+                            continue
+
+                        unbound_path_dt_depth_dict = (
+                            unbound_path_to_data.setdefault(unbound_path, dict())
+                            .setdefault(dt_key, dict())
+                            .setdefault(depth, {"array_indices": [], "signs": []})
+                        )
+                        unbound_path_dt_depth_dict["array_indices"].append(array_idx)
+                        unbound_path_dt_depth_dict["signs"].append(
+                            (-1) ** (signs[0] + depth * signs[1])
+                        )
 
         # determine dimension sizes for observable data
         observable_count = 0

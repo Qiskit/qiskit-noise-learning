@@ -99,8 +99,8 @@ class Fit:
         model: The model to fit.
         paths: The paths to analyze.
         instruction_sequences: The instruction sequences used in the experiment.
-        relations: Set of ``(path_idx, sequence_idx)`` tuples indicating which paths are
-            traversed by which instruction sequences.
+        relations: A pre-computed set of ``(path_idx, sequence_idx)`` tuples indicating which paths
+            are traversed by which instruction sequences.
     """
 
     def __init__(
