@@ -203,7 +203,7 @@ class TestEv:
         assert np.array_equal(ev, np.array([1.0]))
 
 
-def _run_compute_observables(paths, instruction_sequences, data, measurement_flips):
+def _run_compute_observables(paths, instruction_sequences, data, measurement_flips, relations=None):
     """Helper: build a Fit with the given paths and RawData, run ComputeObservables."""
     num_bits = data[0].shape[-1] if data else 0
     raw_data = RawData.from_arrays(
@@ -215,7 +215,11 @@ def _run_compute_observables(paths, instruction_sequences, data, measurement_fli
         time_lbs=[np.empty(len(x), dtype="datetime64[us]") for x in data],
         time_ubs=[np.empty(len(x), dtype="datetime64[us]") for x in data],
     )
-    fit = Fit(paths=paths)
+    fit = Fit(
+        paths=paths,
+        instruction_sequences=instruction_sequences if relations is not None else None,
+        relations=relations,
+    )
     fit[RawData] = raw_data
     return ComputeObservables().run(fit)
 
@@ -645,3 +649,240 @@ class TestComputeObservables:
 
         # value without sign flips is -1 for both, but unbound_inst_seq0 requires a sign flip
         np.testing.assert_allclose(ds["observables"], np.array([[1.0, -1.0]]))
+
+    def test_unbound_path_in_fit_paths(self, gate_set_1q):
+        """Test that an unbound path in fit.paths accepts all depths from raw data."""
+        unbound_path = Path(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["P"], QubitSparsePauli("I"), QubitSparsePauli("Z")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["L1"], QubitSparsePauli("Z"), QubitSparsePauli("Z")
+                )
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["M"], QubitSparsePauli("Z"), QubitSparsePauli("I")
+                )
+            ],
+        )
+
+        unbound_seq = unbound_path.to_instruction_sequence().complete()
+        se_flip, r_flip = unbound_path.fragment_sign_flips(unbound_seq)
+        inst_seqs = [unbound_seq.bind_at(d) for d in [1, 2, 3]]
+
+        # Pass the unbound path directly (not bound) — should accept all depths
+        result = _run_compute_observables(
+            paths=[unbound_path],
+            instruction_sequences=inst_seqs,
+            data=[np.zeros((1, 10, 1), dtype=bool)] * 3,
+            measurement_flips=[np.zeros((1, 1), dtype=bool)] * 3,
+        )
+
+        obs = result.observable_data
+        ds = obs.dataset
+        assert ds.sizes["observable"] == 3
+
+        for depth in [1, 2, 3]:
+            sign = (-1) ** (se_flip + depth * r_flip)
+            idx = int(
+                np.argwhere(
+                    (ds["unbound_path"].values == unbound_path) & (ds["depth"].values == depth)
+                )[0, 0]
+            )
+            np.testing.assert_allclose(ds["observables"][idx], sign * 1.0)
+
+    def test_unbound_and_bound_paths_in_fit_paths(self, gate_set_1q):
+        """Test with both unbound and bound paths in fit.paths (greedy fallback)."""
+        unbound_path = Path(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["P"], QubitSparsePauli("I"), QubitSparsePauli("Z")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["L1"], QubitSparsePauli("Z"), QubitSparsePauli("Z")
+                )
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["M"], QubitSparsePauli("Z"), QubitSparsePauli("I")
+                )
+            ],
+        )
+
+        unbound_seq = unbound_path.to_instruction_sequence().complete()
+        se_flip, r_flip = unbound_path.fragment_sign_flips(unbound_seq)
+
+        inst_seqs = [unbound_seq.bind_at(d) for d in [1, 2, 3, 4]]
+
+        # fit.paths: unbound (accepts all depths) + bound at depth 1
+        paths = [unbound_path, unbound_path.bind_at(1)]
+
+        result = _run_compute_observables(
+            paths=paths,
+            instruction_sequences=inst_seqs,
+            data=[np.zeros((1, 10, 1), dtype=bool)] * 4,
+            measurement_flips=[np.zeros((1, 1), dtype=bool)] * 4,
+        )
+
+        obs = result.observable_data
+        ds = obs.dataset
+        # Unbound path accepts all 4 depths (dominates over bound at depth 1)
+        assert ds.sizes["observable"] == 4
+
+        for depth in [1, 2, 3, 4]:
+            sign = (-1) ** (se_flip + depth * r_flip)
+            idx = int(
+                np.argwhere(
+                    (ds["unbound_path"].values == unbound_path) & (ds["depth"].values == depth)
+                )[0, 0]
+            )
+            np.testing.assert_allclose(ds["observables"][idx], sign * 1.0)
+
+    def test_unbound_and_bound_paths_with_relations(self, gate_set_1q):
+        """Test with both unbound and bound paths in fit.paths using relations."""
+        unbound_path = Path(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["P"], QubitSparsePauli("I"), QubitSparsePauli("Z")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["L1"], QubitSparsePauli("Z"), QubitSparsePauli("Z")
+                )
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["M"], QubitSparsePauli("Z"), QubitSparsePauli("I")
+                )
+            ],
+        )
+
+        unbound_seq = unbound_path.to_instruction_sequence().complete()
+        se_flip, r_flip = unbound_path.fragment_sign_flips(unbound_seq)
+
+        inst_seqs = [unbound_seq.bind_at(d) for d in [1, 2, 3, 4]]
+
+        # fit.paths: unbound (index 0, accepts all depths) + bound at depth 1 (index 1)
+        paths = [unbound_path, unbound_path.bind_at(1)]
+
+        # Unbound path relates to all sequences; bound path relates to seq 0 (depth 1)
+        relations = {(0, 0), (0, 1), (0, 2), (0, 3), (1, 0)}
+
+        result = _run_compute_observables(
+            paths=paths,
+            instruction_sequences=inst_seqs,
+            data=[np.zeros((1, 10, 1), dtype=bool)] * 4,
+            measurement_flips=[np.zeros((1, 1), dtype=bool)] * 4,
+            relations=relations,
+        )
+
+        obs = result.observable_data
+        ds = obs.dataset
+        # Unbound path accepts all 4 depths (dominates over bound at depth 1)
+        assert ds.sizes["observable"] == 4
+
+        for depth in [1, 2, 3, 4]:
+            sign = (-1) ** (se_flip + depth * r_flip)
+            idx = int(
+                np.argwhere(
+                    (ds["unbound_path"].values == unbound_path) & (ds["depth"].values == depth)
+                )[0, 0]
+            )
+            np.testing.assert_allclose(ds["observables"][idx], sign * 1.0)
+
+    def test_relations_based_code_path(self, gate_set_1q):
+        """Test ComputeObservables using fit.relations instead of greedy discovery."""
+        unbound_path = Path(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["P"], QubitSparsePauli("I"), QubitSparsePauli("Z")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["L1"], QubitSparsePauli("Z"), QubitSparsePauli("Z")
+                )
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["M"], QubitSparsePauli("Z"), QubitSparsePauli("I")
+                )
+            ],
+        )
+
+        unbound_seq = unbound_path.to_instruction_sequence().complete()
+        se_flip, r_flip = unbound_path.fragment_sign_flips(unbound_seq)
+        inst_seqs = [unbound_seq.bind_at(d) for d in [1, 2]]
+        paths = [unbound_path.bind_at(d) for d in [1, 2]]
+
+        # path 0 (depth 1) relates to seq 0 (depth 1), path 1 (depth 2) relates to seq 1 (depth 2)
+        relations = {(0, 0), (1, 1)}
+
+        result = _run_compute_observables(
+            paths=paths,
+            instruction_sequences=inst_seqs,
+            data=[np.zeros((2, 10, 1), dtype=bool)] * 2,
+            measurement_flips=[np.zeros((2, 1), dtype=bool)] * 2,
+            relations=relations,
+        )
+
+        obs = result.observable_data
+        ds = obs.dataset
+        assert ds.sizes["observable"] == 2
+
+        for depth in [1, 2]:
+            sign = (-1) ** (se_flip + depth * r_flip)
+            idx = int(
+                np.argwhere(
+                    (ds["unbound_path"].values == unbound_path) & (ds["depth"].values == depth)
+                )[0, 0]
+            )
+            np.testing.assert_allclose(ds["observables"][idx], sign * 1.0)
+
+    def test_relations_ignores_unrelated_sequences(self, gate_set_1q):
+        """Test that relations-based path ignores raw data for unrelated sequences."""
+        unbound_path = Path(
+            start_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["P"], QubitSparsePauli("I"), QubitSparsePauli("Z")
+                )
+            ],
+            repeatable_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["L1"], QubitSparsePauli("Z"), QubitSparsePauli("Z")
+                )
+            ],
+            end_fragment=[
+                FidelityIndex.from_transition(
+                    gate_set_1q["M"], QubitSparsePauli("Z"), QubitSparsePauli("I")
+                )
+            ],
+        )
+
+        unbound_seq = unbound_path.to_instruction_sequence().complete()
+        inst_seqs = [unbound_seq.bind_at(1), unbound_seq.bind_at(2)]
+        paths = [unbound_path.bind_at(1)]
+
+        # Only relate path 0 to sequence 0 (not sequence 1)
+        relations = {(0, 0)}
+
+        result = _run_compute_observables(
+            paths=paths,
+            instruction_sequences=inst_seqs,
+            data=[np.zeros((1, 10, 1), dtype=bool)] * 2,
+            measurement_flips=[np.zeros((1, 1), dtype=bool)] * 2,
+            relations=relations,
+        )
+
+        obs = result.observable_data
+        ds = obs.dataset
+        # Only 1 observable: depth 1 from sequence 0. Sequence 1 (depth 2) is ignored.
+        assert ds.sizes["observable"] == 1
+        assert ds["depth"].values[0] == 1
