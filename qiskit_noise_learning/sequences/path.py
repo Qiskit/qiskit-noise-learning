@@ -74,7 +74,7 @@ class Path(BaseSequence[FidelityIndex]):
         Raises:
             ValueError: If the transitions of ``self`` do not start and end with the identity.
         """
-        if self.depth != instruction_sequence.depth:
+        if not self.is_unbound and self.depth != instruction_sequence.depth:
             return None
 
         ident = self._validate_starts_and_ends_with_identity()
@@ -121,7 +121,7 @@ class Path(BaseSequence[FidelityIndex]):
             start_fragment=new_start_fragment,
             repeatable_fragment=new_repeatable_fragment,
             end_fragment=new_end_fragment,
-            depth=self.depth,
+            depth=instruction_sequence.depth,
         )
 
     def is_traversed_by(self, instruction_sequence: InstructionSequence) -> bool:
@@ -141,7 +141,7 @@ class Path(BaseSequence[FidelityIndex]):
         Raises:
             ValueError: If the path does not start and end at the identity.
         """
-        if self.depth != instruction_sequence.depth:
+        if not self.is_unbound and self.depth != instruction_sequence.depth:
             return False
 
         current_pauli = self._validate_starts_and_ends_with_identity()

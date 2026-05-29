@@ -10,33 +10,24 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Experiment builder module."""
+"""Experiment builder stages."""
 
-from .experiment import Experiment
-from .experiment_builder import ExperimentBuilder
-from .experiment_generators import (
-    depth0_path_generator,
-    depth1_path_generator,
-    even_depth_path_generator,
-    even_depth_vanilla_path_generator,
-    standard_vanilla_path_generator,
-)
-from .stage import ExperimentBuilder as ExperimentBuilderPipeline
-from .stage import ExperimentBuilderStage
-from .stages import (
-    AddInstructionSequences,
+from .bind_depths import BindDepths
+from .complete import Complete
+from .identify_relations import IdentifyRelations
+from .merge_sequences import MergeInstructionSequences
+from .path_generators import (
     AddPaths,
-    BindDepths,
-    Complete,
     Depth0Paths,
     Depth1Paths,
     EvenDepthPaths,
     EvenDepthVanillaPaths,
+)
+from .rank_reduce import RankReduce
+from .sequence_generators import (
+    AddInstructionSequences,
     GenerateInstructionSequences,
-    IdentifyRelations,
-    MergeInstructionSequences,
-    RankReduce,
-    SetRandomizations,
-    SetShots,
     VanillaInstructionSequences,
 )
+from .set_randomizations import SetRandomizations
+from .set_shots import SetShots
