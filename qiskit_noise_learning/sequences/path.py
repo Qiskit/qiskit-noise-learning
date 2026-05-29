@@ -270,48 +270,11 @@ class Path(BaseSequence[FidelityIndex]):
         return start_flip ^ end_flip, repeatable_flip
 
     def to_instruction_sequence(self) -> InstructionSequence:
-        r"""Return an instruction sequence that traverses this path.
+        r"""Return a minimally-specified instruction sequence that traverses this path.
 
-        The returned sequence is minimally specified, in the sense that the layers of single qubit
-        Cliffords between the gate set elements are given as :class:`.PartialPauliPermutation`\s
-        which only specify the mappings required to traverse this path.
-
-        The algorithm to construct the output :class:`.InstructionSequence` proceeds as follows. Let
-        ``start_fragment``, ``repeatable_fragment``, and ``end_fragment`` denote the lists of
-        :class:`.Instruction`\s being constructed, which are all initialized to empty lists.
-        For each of these fragments, the first step is to iterate through each ``edge`` in the
-        corresponding fragment of ``self``, concatenating
-        ``[ApplyGate(fidelity_index.gate), partial_pauli_permutation]``, where
-        ``partial_pauli_permutation`` is a :class:`.PartialPauliPermutation` required to correctly
-        connect the current and subsequent fidelity indices of the fragment. This initial step
-        establishes the instructions necessary to traverse the individual fragments of ``self``.
-
-        Next, additional instructions are added to the ends of ``start_fragment`` and
-        ``repeatable_fragment``, and the beginning of ``end_fragment``, to ensure proper transition
-        of the traversed path from the boundary of one fragment to the next. This process depends on
-        whether ``self.repeatable_fragment`` is empty.
-
-        If ``self.repeatable_fragment`` is non-empty, the boundaries between the fragments are
-        handled as follows:
-
-        * A final :class:`.PartialPauliPermutation` is appended to ``start_fragment`` to connect the
-          fidelity indices ``self.start_fragment[-1]`` and ``self.repeatable_fragment[0]``.
-        * A final :class:`.PartialPauliPermutation` is appended to ``repeatable_fragment`` to
-          connect the fidelity indices ``self.repeatable_fragment[-1]`` and
-          ``self.repeatable_fragment[0]``. This ensures the returned instruction sequence can
-          repeatedly traverse ``self.repeatable_fragment``.
-        * Finally, an initial :class:`.PartialPauliPermutation` is prepended to ``end_fragment`` to
-          connect the fidelity indices ``self.repeatable_fragment[-1]`` and ``self.end_fragment[0]``
-          while additionally compensating for the final :class:`.PartialPauliPermutation` in
-          ``repeatable_fragment``.
-
-        If ``self.repeatable_fragment`` is empty, the boundaries are alternatively handled as:
-
-        * A final :class:`.PartialPauliPermutation` is appended to ``start_fragment`` to connect the
-          fidelity indices ``self.start_fragment[-1]`` and ``self.end_fragment[0]``.
-        * No additional boundary modifications are required.
-
-        The depth of the returned instruction sequence is set to ``self.depth``.
+        The single-qubit Clifford layers between gate set elements are given as
+        :class:`.PartialPauliPermutation`\s specifying only the mappings required to traverse
+        this path. The depth of the returned instruction sequence is ``self.depth``.
 
         Returns:
             An instruction sequence traversing this path.
