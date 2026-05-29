@@ -18,8 +18,7 @@ from qiskit import QuantumCircuit
 from qiskit_ibm_runtime.results import QuantumProgramResult
 from samplomatic import Twirl
 
-from qiskit_noise_learning.circuit_generator import ExecutorCircuitGenerator
-from qiskit_noise_learning.circuit_generator.executor_circuit_generator import ExecutorDataMapper
+from qiskit_noise_learning.circuit_generator import ExecutorCircuitGenerator, ExecutorDataMapper
 from qiskit_noise_learning.gate_sets import QiskitGateSet
 from qiskit_noise_learning.sequences import (
     ApplyGate,
@@ -124,7 +123,9 @@ def test_generate_samplex_item(gateset):
         [ApplyGate(model_gateset["M"])],
         depth=5,
     )
-    samplex_item, creg_names, measurement_map = circuit_generator.generate_samplex_item([seq0])
+    samplex_item, creg_names, measurement_map = circuit_generator.generate_samplex_item(
+        [seq0], num_randomizations=50
+    )
 
     assert len(samplex_item.samplex_arguments) == 12
     assert creg_names == ["meas0"]
@@ -155,7 +156,7 @@ def test_generate_samplex_item(gateset):
     )
 
     other_samplex_item, other_creg_names, other_meas_map = circuit_generator.generate_samplex_item(
-        [seq0, seq1, seq2]
+        [seq0, seq1, seq2], num_randomizations=50
     )
 
     assert samplex_item.samplex == other_samplex_item.samplex
@@ -207,8 +208,12 @@ def test_generate_samplex_item_permutation_composition(gateset):
         depth=5,
     )
 
-    samplex_item0, creg_names0, meas_map0 = circuit_generator.generate_samplex_item([seq0])
-    samplex_item1, creg_names1, meas_map1 = circuit_generator.generate_samplex_item([seq1])
+    samplex_item0, creg_names0, meas_map0 = circuit_generator.generate_samplex_item(
+        [seq0], num_randomizations=50
+    )
+    samplex_item1, creg_names1, meas_map1 = circuit_generator.generate_samplex_item(
+        [seq1], num_randomizations=50
+    )
 
     assert creg_names0 == creg_names1
     assert meas_map0.keys() == meas_map1.keys()
@@ -229,7 +234,9 @@ def test_generate_samplex_item_permutation_composition(gateset):
         [ApplyGate(model_gateset["M"])],
         depth=5,
     )
-    samplex_item2, creg_names2, meas_map2 = circuit_generator.generate_samplex_item([seq2])
+    samplex_item2, creg_names2, meas_map2 = circuit_generator.generate_samplex_item(
+        [seq2], num_randomizations=50
+    )
 
     assert creg_names2 == creg_names1
     assert meas_map2.keys() == meas_map1.keys()
@@ -250,7 +257,9 @@ def test_generate_samplex_item_permutation_composition(gateset):
         [ApplyGate(model_gateset["M"])],
         depth=5,
     )
-    samplex_item3, creg_names3, meas_map3 = circuit_generator.generate_samplex_item([seq3])
+    samplex_item3, creg_names3, meas_map3 = circuit_generator.generate_samplex_item(
+        [seq3], num_randomizations=50
+    )
 
     assert creg_names3 == creg_names1
     for key in meas_map3:
@@ -268,7 +277,9 @@ def test_generate_samplex_item_permutation_composition(gateset):
     seq4 = InstructionSequence(
         [ApplyGate(model_gateset["P"]), perm0], [], [perm1, ApplyGate(model_gateset["M"])], depth=5
     )
-    samplex_item4, creg_names4, meas_map4 = circuit_generator.generate_samplex_item([seq4])
+    samplex_item4, creg_names4, meas_map4 = circuit_generator.generate_samplex_item(
+        [seq4], num_randomizations=50
+    )
 
     seq5 = InstructionSequence(
         [ApplyGate(model_gateset["P"])],
@@ -276,7 +287,9 @@ def test_generate_samplex_item_permutation_composition(gateset):
         [perm1.compose(perm0), ApplyGate(model_gateset["M"])],
         depth=5,
     )
-    samplex_item5, creg_names5, meas_map5 = circuit_generator.generate_samplex_item([seq5])
+    samplex_item5, creg_names5, meas_map5 = circuit_generator.generate_samplex_item(
+        [seq5], num_randomizations=50
+    )
 
     assert creg_names5 == creg_names4
     for key in meas_map5:
@@ -297,7 +310,7 @@ def test_generate_samplex_item_raises():
     circuit_generator = ExecutorCircuitGenerator(gateset)
 
     with pytest.raises(ValueError, match="At least one instruction"):
-        circuit_generator.generate_samplex_item([])
+        circuit_generator.generate_samplex_item([], num_randomizations=50)
 
     model_gateset = gateset.model_gate_set
 
@@ -316,10 +329,10 @@ def test_generate_samplex_item_raises():
     seq2 = unbound_seq1.bind_at(4)
 
     with pytest.raises(ValueError, match="require the same structure"):
-        circuit_generator.generate_samplex_item([seq0, seq1])
+        circuit_generator.generate_samplex_item([seq0, seq1], num_randomizations=50)
 
     with pytest.raises(ValueError, match="require the same structure"):
-        circuit_generator.generate_samplex_item([seq1, seq2])
+        circuit_generator.generate_samplex_item([seq1, seq2], num_randomizations=50)
 
     perm = PartialPauliPermutation.from_sets([{("X", "Y")}])
     seq3 = InstructionSequence(
@@ -327,12 +340,12 @@ def test_generate_samplex_item_raises():
     )
 
     with pytest.raises(ValueError, match="incomplete Pauli"):
-        circuit_generator.generate_samplex_item([seq3])
+        circuit_generator.generate_samplex_item([seq3], num_randomizations=50)
 
 
 @pytest.mark.parametrize("gateset", [gateset_full(), gateset_subset()])
-def test_generate(gateset):
-    """Test `ExecutorCircuitGenerator.generate()` works as expected."""
+def test_generate_samplex_items(gateset):
+    """Test `ExecutorCircuitGenerator.generate_samplex_items()` works as expected."""
     circuit_generator = ExecutorCircuitGenerator(gateset)
     model_gateset = gateset.model_gate_set
     unbound_seq0 = InstructionSequence(
@@ -342,7 +355,9 @@ def test_generate(gateset):
     )
 
     sequences = [unbound_seq0.bind_at(d) for d in [1, 3, 10]]
-    samplex_items, data_mapper = circuit_generator.generate(sequences)
+    samplex_items, data_mapper = circuit_generator.generate_samplex_items(
+        sequences, num_randomizations=50
+    )
     assert len(samplex_items) == 3
     assert data_mapper.creg_names == [["meas0"], ["meas0"], ["meas0"]]
     assert data_mapper.item_sequence_indices == [[0], [1], [2]]
@@ -360,7 +375,9 @@ def test_generate(gateset):
     )
 
     sequences.extend(unbound_seq1.bind_at(d) for d in [1, 10, 20])
-    samplex_items, data_mapper = circuit_generator.generate(sequences)
+    samplex_items, data_mapper = circuit_generator.generate_samplex_items(
+        sequences, num_randomizations=50
+    )
     assert len(samplex_items) == 4
     assert data_mapper.creg_names == [["meas0"], ["meas0"], ["meas0"], ["meas0"]]
     assert data_mapper.item_sequence_indices == [[0, 3], [1], [2, 4], [5]]
@@ -372,12 +389,15 @@ def test_generate(gateset):
         depth=1,
     )
     sequences.append(seq2)
-    samplex_items, data_mapper = circuit_generator.generate(sequences)
+    samplex_items, data_mapper = circuit_generator.generate_samplex_items(
+        sequences, num_randomizations=50
+    )
     assert len(samplex_items) == 5
 
 
-def test_generate_different_decomposition_mode():
-    """Test `ExecutorCircuitGenerator.generate()` works with different decomposition modes."""
+def test_generate_samplex_items_different_decomposition_mode():
+    """Test `ExecutorCircuitGenerator.generate_samplex_items()` works with different
+    decomposition modes."""
     gateset = QiskitGateSet(5)
 
     box_circuit = QuantumCircuit(5)
@@ -394,7 +414,9 @@ def test_generate_different_decomposition_mode():
         [ApplyGate(gateset["M"])],
         depth=5,
     )
-    samplex_items, _ = ExecutorCircuitGenerator(gateset, 10).generate([seq])
+    samplex_items, _ = ExecutorCircuitGenerator(gateset).generate_samplex_items(
+        [seq], num_randomizations=10
+    )
 
     ops = samplex_items[0].circuit.count_ops()
     assert ops["sx"] == 20  # 10 in the prepare, 10 in the measure
@@ -411,8 +433,8 @@ def test_collect_empty():
         num_randomizations=0,
     )
     result = QuantumProgramResult([])
-    seq_data = ExecutorCircuitGenerator.collect(result, data_mapper)
-    assert len(seq_data.datatree) == 0
+    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    assert len(fit.raw_data.datatree) == 0
 
 
 def test_collect_single_sequence_no_measurement_flips():
@@ -427,7 +449,8 @@ def test_collect_single_sequence_no_measurement_flips():
         num_randomizations=1,
     )
 
-    raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
+    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    raw_data = fit.raw_data
     dataset = raw_data.datatree["0"]
     np.testing.assert_array_equal(
         dataset["unbound_instruction_sequence"].data, [InstructionSequence([], [], [])]
@@ -451,8 +474,8 @@ def test_collect_single_sequence_with_measurement_flips():
         num_randomizations=1,
     )
 
-    raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
-    dataset = raw_data.datatree["0"].dataset
+    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(dataset["data"].values, creg_data.reshape(1, 1, 3))
     np.testing.assert_array_equal(dataset["measurement_flips"].values, flip_data.reshape(1, 3))
     assert dataset["depth"].values == [0]
@@ -474,8 +497,8 @@ def test_collect_multiple_sequences_same_item():
         num_randomizations=1,
     )
 
-    raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
-    dataset = raw_data.datatree["0"].dataset
+    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
         dataset["unbound_instruction_sequence"].data, [InstructionSequence([], [], [])] * 2
     )
@@ -507,8 +530,8 @@ def test_collect_multiple_sequences_different_items():
         num_randomizations=1,
     )
 
-    raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
-    dataset = raw_data.datatree["0"].dataset
+    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
         dataset["unbound_instruction_sequence"].data, [InstructionSequence([], [], [])] * 2
     )
@@ -544,9 +567,9 @@ def test_collect_multiple_cregs():
         num_randomizations=1,
     )
 
-    raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
+    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
 
-    dataset = raw_data.datatree["0"].dataset
+    dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
         dataset["unbound_instruction_sequence"].data, [InstructionSequence([], [], [])]
     )
@@ -595,7 +618,8 @@ def test_collect_complex_mapping():
         num_randomizations=1,
     )
 
-    raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
+    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    raw_data = fit.raw_data
 
     # Item 0 has meas0 with 2 bits — leaf "0"
     dataset = raw_data.datatree["0"].dataset
@@ -664,12 +688,12 @@ def test_generate_and_collect_with_pass_manager():
     )
 
     num_randomizations = 2
-    cg = ExecutorCircuitGenerator(
-        gateset, num_randomizations=num_randomizations, pass_manager=PassManager([AddMeasPass()])
+    cg = ExecutorCircuitGenerator(gateset, pass_manager=PassManager([AddMeasPass()]))
+    samplex_items, data_mapper = cg.generate_samplex_items(
+        [seq], num_randomizations=num_randomizations
     )
-    samplex_items, data_mapper = cg.generate([seq])
 
-    # Verify generate produces the expected data mapper
+    # Verify generate_samplex_items produces the expected data mapper
     assert data_mapper.item_sequence_indices == [[0]]
     assert data_mapper.creg_names == [["meas0", "pass_meas"]]
     assert list(data_mapper.measurement_maps[0].keys()) == ["meas0", "pass_meas"]
@@ -684,9 +708,9 @@ def test_generate_and_collect_with_pass_manager():
     meas0_data = np.ones((1, num_randomizations, num_shots, 2), dtype=np.uint8)
     pass_meas_data = np.zeros((1, num_randomizations, num_shots, 1), dtype=np.uint8)
     result = make_result([{"meas0": meas0_data, "pass_meas": pass_meas_data}])
-    raw_data = ExecutorCircuitGenerator.collect(result, data_mapper)
+    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
 
-    dataset = raw_data.datatree["0"].dataset
+    dataset = fit.raw_data.datatree["0"].dataset
     assert dataset.attrs["creg_names"] == ["meas0", "pass_meas"]
     assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 2), "pass_meas": (2, 3)}
     np.testing.assert_array_equal(
@@ -729,12 +753,10 @@ def test_generate_with_pass_manager_multi_qubit_creg():
     )
 
     num_randomizations = 2
-    cg = ExecutorCircuitGenerator(
-        gateset,
-        num_randomizations=num_randomizations,
-        pass_manager=PassManager([AddMultiMeasPass()]),
+    cg = ExecutorCircuitGenerator(gateset, pass_manager=PassManager([AddMultiMeasPass()]))
+    samplex_items, data_mapper = cg.generate_samplex_items(
+        [seq], num_randomizations=num_randomizations
     )
-    samplex_items, data_mapper = cg.generate([seq])
 
     assert data_mapper.creg_names == [["meas0", "extra"]]
     assert list(data_mapper.measurement_maps[0].keys()) == ["meas0", "extra"]

@@ -19,7 +19,7 @@ from qiskit.circuit.library import CZGate
 from qiskit.quantum_info import Clifford, QubitSparsePauliList
 
 from qiskit_noise_learning.analysis import AnalysisStage
-from qiskit_noise_learning.circuit_generator.executor_circuit_generator import ExecutorDataMapper
+from qiskit_noise_learning.circuit_generator import ExecutorDataMapper
 from qiskit_noise_learning.data import ModelData, RawData
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
 from qiskit_noise_learning.models import PauliLindbladModel
