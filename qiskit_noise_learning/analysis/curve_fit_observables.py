@@ -25,9 +25,9 @@ class CurveFitObservables(AnalysisStage):
     """Fit observable data to exponential decays of the form ``a * f**depth``, and average any
     remaining observables over randomizations.
 
-    This stage will curve fit data for any paths in ``fit.paths`` that is present at multiple
-    depths. If ``fit.paths is None``, any path in the data with multiple depths will be curve fit,
-    and all others. In both case, all others will be averaged.
+    This stage will curve fit data for any unbound paths in ``fit.paths``. If ``fit.paths is None``,
+    any path in the data with multiple depths will be curve fit. In both cases, any remaining paths
+    will be averaged.
     """
 
     @property
