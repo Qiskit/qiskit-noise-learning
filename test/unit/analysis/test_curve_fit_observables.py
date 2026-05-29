@@ -13,6 +13,7 @@
 from dataclasses import dataclass
 
 import numpy as np
+import pytest
 
 from qiskit_noise_learning.analysis import CurveFitObservables, Fit
 from qiskit_noise_learning.analysis.curve_fit_observables import fit_exponential
@@ -22,6 +23,7 @@ from qiskit_noise_learning.data import ObservableData
 @dataclass(frozen=True)
 class MockPath:
     name: str
+    is_unbound: bool = True
 
 
 def _make_observable_data(
@@ -65,9 +67,9 @@ def _make_observable_data(
     ), unbound_paths
 
 
-def _run_stage(obs_data):
+def _run_stage(obs_data, paths=None):
     """Run CurveFitObservables on the given ObservableData."""
-    fit = Fit()
+    fit = Fit(paths=paths or [])
     fit[ObservableData] = obs_data
     return CurveFitObservables().run(fit)
 
@@ -121,6 +123,53 @@ class TestCurveFitObservables:
         mask = (ds["unbound_path"].data == unbound_paths[pp]) & (ds["depth"].data == -1)
         fidelity = ds["observables"].data[mask][0]
         assert np.isclose(fidelity, 0.8, atol=0.02)
+
+    def test_unbound_path_in_fit_paths_triggers_curve_fit(self):
+        """Test that an unbound path in fit.paths is curve-fit."""
+        pp = "pp0"
+        obs, unbound_paths = _make_observable_data(
+            unbound_path_depths={pp: [1, 2, 3, 4, 5]},
+            a_values={pp: 0.9},
+            f_values={pp: 0.8},
+        )
+        result = _run_stage(obs, paths=[unbound_paths[pp]])
+        ds = result.averaged_data.dataset
+        mask = (ds["unbound_path"].data == unbound_paths[pp]) & (ds["depth"].data == -1)
+        assert np.isclose(ds["observables"].data[mask][0], 0.8, atol=0.02)
+
+    def test_bound_path_in_fit_paths_triggers_average(self):
+        """Test that a bound path (not in curve_fit_paths) is averaged, not curve-fit."""
+        pp0, pp1 = "pp0", "pp1"
+        obs, unbound_paths = _make_observable_data(
+            unbound_path_depths={pp0: [1, 2, 3, 4, 5], pp1: [1, 2, 3]},
+            a_values={pp0: 0.9, pp1: 0.85},
+            f_values={pp0: 0.8, pp1: 0.7},
+        )
+        # Only pp0 is unbound (curve-fit); pp1 is not in fit.paths unbound set → averaged
+        result = _run_stage(obs, paths=[unbound_paths[pp0]])
+        ds = result.averaged_data.dataset
+
+        # pp0 was curve-fit (depth = -1)
+        mask0 = (ds["unbound_path"].data == unbound_paths[pp0]) & (ds["depth"].data == -1)
+        assert mask0.any()
+
+        # pp1 was averaged (depths 1, 2, 3 present, not depth -1)
+        mask1_decay = (ds["unbound_path"].data == unbound_paths[pp1]) & (ds["depth"].data == -1)
+        assert not mask1_decay.any()
+        for d in [1, 2, 3]:
+            mask1_d = (ds["unbound_path"].data == unbound_paths[pp1]) & (ds["depth"].data == d)
+            assert mask1_d.any()
+
+    def test_unbound_path_single_depth_raises(self):
+        """Test that an unbound path in fit.paths with only 1 depth raises ValueError."""
+        pp = "pp0"
+        obs, unbound_paths = _make_observable_data(
+            unbound_path_depths={pp: [3]},
+            a_values={pp: 0.9},
+            f_values={pp: 0.8},
+        )
+        with pytest.raises(ValueError, match="At least 2 depths are required"):
+            _run_stage(obs, paths=[unbound_paths[pp]])
 
 
 class TestFitExponential:
