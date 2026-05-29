@@ -18,15 +18,6 @@ from typing import Self
 from .apply_gate import ApplyGate
 from .base_sequence import BaseSequence
 from .instruction import Instruction
-from .partial_pauli_permutation import PartialPauliPermutation
-
-
-def _complete_fragment(fragment: list[Instruction]) -> Iterator[Instruction]:
-    for instruction in fragment:
-        if isinstance(instruction, PartialPauliPermutation):
-            yield instruction.complete()
-        else:
-            yield instruction
 
 
 def _filter_to_gates(fragment: list[Instruction]) -> Iterator[ApplyGate]:
@@ -47,23 +38,20 @@ class InstructionSequence(BaseSequence[Instruction]):
 
     @property
     def is_complete(self) -> bool:
-        r"""Whether all contained :class:`PartialPauliPermutation`\s are complete."""
-        return not any(
-            isinstance(instr, PartialPauliPermutation) and not instr.is_complete
-            for instr in self._fragment_chain
-        )
+        r"""Whether all contained instructions are completely specified."""
+        return all(instr.is_complete for instr in self._fragment_chain)
 
     def complete(self) -> Self:
         """Return a new instance whose data is the same as ``self`` except that all contained
-        :class:`PartialPauliPermutation` instances are completed.
+        instructions are completed.
 
         Returns:
             A new :class:`InstructionSequence` instance.
         """
         return InstructionSequence(
-            start_fragment=_complete_fragment(self.start_fragment),
-            repeatable_fragment=_complete_fragment(self.repeatable_fragment),
-            end_fragment=_complete_fragment(self.end_fragment),
+            start_fragment=[x.complete() for x in self.start_fragment],
+            repeatable_fragment=[x.complete() for x in self.repeatable_fragment],
+            end_fragment=[x.complete() for x in self.end_fragment],
             depth=self.depth,
         )
 
