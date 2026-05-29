@@ -24,7 +24,7 @@ from qiskit_noise_learning.data import ModelData, RawData
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
 from qiskit_noise_learning.models import PauliLindbladModel
 from qiskit_noise_learning.noise_learner import NoiseLearnerResult
-from qiskit_noise_learning.noise_learner.noise_learner_job import ExperimentSchema, NoiseLearnerJob
+from qiskit_noise_learning.noise_learner.noise_learner_job import NoiseLearnerJob
 
 
 class _StubProgramResult:
@@ -92,19 +92,16 @@ def model(gate_set_cz):
 
 
 @pytest.fixture()
-def data_mapper():
+def data_mapper(model):
     return ExecutorDataMapper(
         item_sequence_indices=[],
         creg_names=[],
         measurement_maps=[],
         instruction_sequences=[],
         num_randomizations=1,
+        fidelity_model=model,
+        paths=[],
     )
-
-
-@pytest.fixture()
-def experiment_schema(data_mapper, model):
-    return ExperimentSchema(data_mapper=data_mapper, paths=[], model=model)
 
 
 @pytest.fixture()
@@ -118,8 +115,8 @@ def analysis_stage():
 
 
 @pytest.fixture()
-def job(stub_runtime_job, experiment_schema, analysis_stage):
-    return NoiseLearnerJob(stub_runtime_job, experiment_schema, analysis_stage)
+def job(stub_runtime_job, data_mapper, analysis_stage):
+    return NoiseLearnerJob(stub_runtime_job, data_mapper, analysis_stage)
 
 
 def test_noise_learner_job_init(job, stub_runtime_job):
