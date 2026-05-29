@@ -164,6 +164,9 @@ class ExecutorCircuitGenerator(
         return fit
 
     def generate(self, experiment):
+        if any(m != 1 for m in experiment.randomization_multipliers):
+            raise ValueError("randomization_multipliers entries other than 1 are not supported.")
+
         sequences = experiment.instruction_sequences
         num_randomizations = experiment.randomizations
         samplex_items, data_mapper = self.generate_samplex_items(
