@@ -15,7 +15,8 @@ from collections import defaultdict
 from collections.abc import Sequence
 from typing import Generic, TypeVar
 
-from qiskit_noise_learning.data import RawData
+from qiskit_noise_learning.analysis.fit import Fit
+from qiskit_noise_learning.experiment_builder.experiment import Experiment
 
 from ..gate_sets import GateSet
 from ..sequences import InstructionSequence
@@ -53,12 +54,12 @@ class CircuitGenerator(abc.ABC, Generic[TaskT, DataMapperT, ResultT]):
 
     @staticmethod
     @abc.abstractmethod
-    def collect(result: ResultT, data_mapper: DataMapperT) -> RawData:
+    def collect(result: ResultT, data_mapper: DataMapperT) -> Fit:
         """Coerce data from a specific execution framework into a canonical form."""
 
     @abc.abstractmethod
-    def generate(self, sequences: list[InstructionSequence]) -> tuple[TaskT, DataMapperT]:
-        """Generate a new experimental task from the provided instruction sequences."""
+    def generate(self, experiment: Experiment) -> tuple[TaskT, DataMapperT]:
+        """Generate a new experimental task from the provided experiment."""
 
     @classmethod
     def partition(cls, sequences: Sequence[InstructionSequence]) -> list[list[InstructionSequence]]:
