@@ -83,7 +83,7 @@ class Experiment:
 
     @property
     def paths(self) -> list[Path] | None:
-        """The analysis paths, or ``None`` if not yet set."""
+        """The analysis paths."""
         return self._paths
 
     @property
