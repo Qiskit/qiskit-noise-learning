@@ -29,5 +29,3 @@ from .sequence_generators import (
     GenerateInstructionSequences,
     VanillaInstructionSequences,
 )
-from .set_randomizations import SetRandomizations
-from .set_shots import SetShots

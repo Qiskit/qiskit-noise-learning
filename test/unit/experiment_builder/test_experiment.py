@@ -27,8 +27,8 @@ class TestExperimentConstruction:
         assert exp.paths is None
         assert exp.instruction_sequences is None
         assert exp.relations is None
-        assert exp.shots is None
-        assert exp.randomizations is None
+        assert exp.shots == 20
+        assert exp.randomizations == 50
         assert exp.randomization_multipliers is None
 
     def test_construction_with_gate_set(self, gate_set_cz):
@@ -111,28 +111,6 @@ class TestExperimentIsExecutable:
         )
         assert not exp.is_executable
 
-    def test_not_executable_missing_shots(self, gate_set_cz, unbound_path_ix):
-        seq = unbound_path_ix.to_instruction_sequence().bind_at(2).complete()
-        exp = Experiment(
-            fidelity_model=gate_set_cz,
-            paths=[unbound_path_ix],
-            instruction_sequences=[seq],
-            randomizations=50,
-            randomization_multipliers=[1],
-        )
-        assert not exp.is_executable
-
-    def test_not_executable_missing_randomizations(self, gate_set_cz, unbound_path_ix):
-        seq = unbound_path_ix.to_instruction_sequence().bind_at(2).complete()
-        exp = Experiment(
-            fidelity_model=gate_set_cz,
-            paths=[unbound_path_ix],
-            instruction_sequences=[seq],
-            shots=100,
-            randomization_multipliers=[1],
-        )
-        assert not exp.is_executable
-
     def test_not_executable_missing_multipliers(self, gate_set_cz, unbound_path_ix):
         seq = unbound_path_ix.to_instruction_sequence().bind_at(2).complete()
         exp = Experiment(
@@ -164,7 +142,7 @@ class TestExperimentReplace:
         exp = Experiment(fidelity_model=gate_set_cz)
         new_exp = exp.replace(shots=100)
         assert new_exp.shots == 100
-        assert exp.shots is None
+        assert exp.shots == 20
 
     def test_replace_unknown_field(self, gate_set_cz):
         exp = Experiment(fidelity_model=gate_set_cz)

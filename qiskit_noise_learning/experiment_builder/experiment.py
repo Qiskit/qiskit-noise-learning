@@ -40,8 +40,8 @@ class Experiment:
         instruction_sequences: Instruction sequences (may include both bound and unbound).
         relations: Set of ``(path_idx, sequence_idx)`` tuples indicating which paths are
             traversed by which instruction sequences.
-        shots: Global number of shots.
-        randomizations: Global number of randomizations.
+        shots: Global number of shots (default 20).
+        randomizations: Global number of randomizations (default 50).
         randomization_multipliers: Per-sequence randomization multiplier (parallel to
             instruction_sequences).
     """
@@ -53,8 +53,8 @@ class Experiment:
         paths: list[Path] | None = None,
         instruction_sequences: list[InstructionSequence] | None = None,
         relations: set[tuple[int, int]] | None = None,
-        shots: int | None = None,
-        randomizations: int | None = None,
+        shots: int = 20,
+        randomizations: int = 50,
         randomization_multipliers: list[int] | None = None,
     ):
         if isinstance(fidelity_model, ModelGateSet):
@@ -97,12 +97,12 @@ class Experiment:
         return self._relations
 
     @property
-    def shots(self) -> int | None:
+    def shots(self) -> int:
         """Global number of shots."""
         return self._shots
 
     @property
-    def randomizations(self) -> int | None:
+    def randomizations(self) -> int:
         """Global number of randomizations."""
         return self._randomizations
 
@@ -133,13 +133,11 @@ class Experiment:
         """Whether this experiment has all the information required to be run.
 
         Requires: ``instruction_sequences`` is set, all sequences are bound and complete,
-        and ``shots``, ``randomizations``, and ``randomization_multipliers`` are all set.
+        and ``randomization_multipliers`` is set.
         """
         if self._instruction_sequences is None:
             return False
         if any(seq.is_unbound or not seq.is_complete for seq in self._instruction_sequences):
-            return False
-        if self._shots is None or self._randomizations is None:
             return False
         if self._randomization_multipliers is None:
             return False

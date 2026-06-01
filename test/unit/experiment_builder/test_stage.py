@@ -16,7 +16,7 @@ from qiskit_noise_learning.experiment_builder.experiment import Experiment
 from qiskit_noise_learning.experiment_builder.stage import ExperimentBuilder, ExperimentBuilderStage
 
 
-class _SetShots(ExperimentBuilderStage):
+class _SimpleStage(ExperimentBuilderStage):
     """Minimal concrete stage for testing."""
 
     def __init__(self, shots):
@@ -39,7 +39,7 @@ class TestExperimentBuilderStage:
     """Tests for the ExperimentBuilderStage base class."""
 
     def test_run_calls_subclass(self):
-        stage = _SetShots(42)
+        stage = _SimpleStage(42)
         exp = Experiment()
         result = stage.run(exp)
         assert result.shots == 42
@@ -57,44 +57,44 @@ class TestExperimentBuilderStage:
             stage.run(exp)
 
     def test_add_stages_produces_builder(self):
-        s1 = _SetShots(10)
-        s2 = _SetShots(20)
+        s1 = _SimpleStage(10)
+        s2 = _SimpleStage(20)
         builder = s1 + s2
         assert isinstance(builder, ExperimentBuilder)
         assert builder.stages == (s1, s2)
 
     def test_add_non_stage_returns_not_implemented(self):
-        s = _SetShots(10)
+        s = _SimpleStage(10)
         assert s.__add__(42) is NotImplemented
 
     def test_repr(self):
-        stage = _SetShots(10)
-        assert repr(stage) == "_SetShots()"
+        stage = _SimpleStage(10)
+        assert repr(stage) == "_SimpleStage()"
 
 
 class TestExperimentBuilder:
     """Tests for the ExperimentBuilder composite stage."""
 
     def test_chains_stages_sequentially(self):
-        builder = ExperimentBuilder(_SetShots(10), _SetShots(20))
+        builder = ExperimentBuilder(_SimpleStage(10), _SimpleStage(20))
         result = builder.run(Experiment())
         assert result.shots == 20
 
     def test_flattens_nested_builders(self):
-        inner = ExperimentBuilder(_SetShots(10), _SetShots(20))
-        outer = ExperimentBuilder(inner, _SetShots(30))
+        inner = ExperimentBuilder(_SimpleStage(10), _SimpleStage(20))
+        outer = ExperimentBuilder(inner, _SimpleStage(30))
         assert len(outer.stages) == 3
         result = outer.run(Experiment())
         assert result.shots == 30
 
     def test_add_builder_to_stage(self):
-        builder = ExperimentBuilder(_SetShots(10))
-        combined = builder + _SetShots(20)
+        builder = ExperimentBuilder(_SimpleStage(10))
+        combined = builder + _SimpleStage(20)
         assert isinstance(combined, ExperimentBuilder)
         assert len(combined.stages) == 2
 
     def test_required_fields_in_chain(self, unbound_path_ix):
-        builder = ExperimentBuilder(_RequiresPaths(), _SetShots(10))
+        builder = ExperimentBuilder(_RequiresPaths(), _SimpleStage(10))
         with pytest.raises(ValueError, match="requires 'paths'"):
             builder.run(Experiment())
 
@@ -102,5 +102,5 @@ class TestExperimentBuilder:
         assert result.shots == 10
 
     def test_repr(self):
-        builder = ExperimentBuilder(_SetShots(10), _SetShots(20))
-        assert repr(builder) == "ExperimentBuilder(_SetShots(), _SetShots())"
+        builder = ExperimentBuilder(_SimpleStage(10), _SimpleStage(20))
+        assert repr(builder) == "ExperimentBuilder(_SimpleStage(), _SimpleStage())"

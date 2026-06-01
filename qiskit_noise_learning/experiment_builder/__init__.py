@@ -36,7 +36,5 @@ from .stages import (
     IdentifyRelations,
     MergeInstructionSequences,
     RankReduce,
-    SetRandomizations,
-    SetShots,
     VanillaInstructionSequences,
 )
