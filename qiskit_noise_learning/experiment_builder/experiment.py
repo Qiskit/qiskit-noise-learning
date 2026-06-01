@@ -108,7 +108,7 @@ class Experiment:
 
     @property
     def randomization_multipliers(self) -> list[int] | None:
-        """Per-sequence randomization multipliers, or ``None`` if not yet set."""
+        """Per-sequence randomization multipliers."""
         return self._randomization_multipliers
 
     @property
