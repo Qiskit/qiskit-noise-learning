@@ -16,7 +16,6 @@ from collections.abc import Hashable, Mapping, Sequence
 from typing import Generic, Self, TypeVar
 
 import numpy as np
-import scipy as sp
 
 from .indexed_vector import IndexedVector
 
@@ -212,23 +211,34 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
     def linearly_independent_rows(self, tol=1e-8) -> Self:
         """Return a submatrix containing a maximal set of linearly independent rows.
 
-        Args:
-            tol: The tolerance with which to include rows based on the non-zero diagonals of the
-                rank-revealing QR decomposition.
-        """
+        Rows are processed in order: a row is kept if and only if it is linearly independent
+        of all preceding kept rows. This guarantees earlier rows are always preferred.
 
-        _, r, p = sp.linalg.qr(self._data.T, pivoting=True)
-        linearly_independent_data_rows = list(p[: r.shape[0]][np.abs(np.diag(r.T)) > tol])
+        Args:
+            tol: The tolerance for determining linear independence based on the norm of the
+                component of a row orthogonal to the span of preceding kept rows.
+        """
+        n_rows, n_cols = self._data.shape
+        selected_indices = []
+        basis = np.empty((n_cols, 0), dtype=float)
+
+        for i in range(n_rows):
+            row = self._data[i]
+            residual = row - basis @ (basis.T @ row) if basis.shape[1] > 0 else row
+            norm = np.linalg.norm(residual)
+            if norm > tol:
+                selected_indices.append(i)
+                basis = np.column_stack([basis, residual / norm])
 
         new_row_index_map = {}
         for row_index, array_idx in self._row_index_map.items():
-            if array_idx in linearly_independent_data_rows:
-                new_row_index_map[row_index] = linearly_independent_data_rows.index(array_idx)
+            if array_idx in selected_indices:
+                new_row_index_map[row_index] = selected_indices.index(array_idx)
 
         return IndexedMatrix[RowIndex, ColumnIndex](
             row_index_map=new_row_index_map,
             column_index_map=self._column_index_map.copy(),
-            data=self._data[linearly_independent_data_rows],
+            data=self._data[selected_indices],
         )
 
     def copy(self) -> Self:
