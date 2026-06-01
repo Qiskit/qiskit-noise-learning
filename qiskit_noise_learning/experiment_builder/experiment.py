@@ -76,7 +76,7 @@ class Experiment:
 
     @property
     def gate_set(self) -> ModelGateSet | None:
-        """The model gate set, or ``None`` if fidelity_model is not set."""
+        """The model gate set."""
         if self._fidelity_model is None:
             return None
         return self._fidelity_model.gate_set
