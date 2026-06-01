@@ -88,7 +88,7 @@ class Experiment:
 
     @property
     def instruction_sequences(self) -> list[InstructionSequence] | None:
-        """The instruction sequences, or ``None`` if not yet set."""
+        """The instruction sequences."""
         return self._instruction_sequences
 
     @property
