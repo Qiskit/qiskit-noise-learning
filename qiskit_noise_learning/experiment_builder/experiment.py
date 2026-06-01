@@ -71,7 +71,7 @@ class Experiment:
 
     @property
     def fidelity_model(self) -> FidelityModel | None:
-        """The fidelity model, or ``None`` if not yet set."""
+        """The fidelity model."""
         return self._fidelity_model
 
     @property
