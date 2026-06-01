@@ -118,12 +118,12 @@ class Experiment:
         Raises:
             ValueError: If ``fidelity_model`` or ``paths`` is ``None``.
         """
-        if self._fidelity_model is None:
-            raise ValueError("Cannot compute design matrix: fidelity_model is None.")
-        if self._paths is None:
-            raise ValueError("Cannot compute design matrix: paths is None.")
-
         if self._design_matrix_cache is None:
+            if self._fidelity_model is None:
+                raise ValueError("Cannot compute design matrix: fidelity_model is None.")
+            if self._paths is None:
+                raise ValueError("Cannot compute design matrix: paths is None.")
+
             self._design_matrix_cache = self._compute_design_matrix()
 
         return self._design_matrix_cache
