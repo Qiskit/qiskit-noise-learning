@@ -93,7 +93,7 @@ class Experiment:
 
     @property
     def relations(self) -> set[tuple[int, int]] | None:
-        """The path-to-sequence relations, or ``None`` if not yet set."""
+        """The set of path and sequence relations."""
         return self._relations
 
     @property
