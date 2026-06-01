@@ -98,12 +98,12 @@ class Experiment:
 
     @property
     def shots(self) -> int | None:
-        """Global number of shots, or ``None`` if not yet set."""
+        """Global number of shots."""
         return self._shots
 
     @property
     def randomizations(self) -> int | None:
-        """Global number of randomizations, or ``None`` if not yet set."""
+        """Global number of randomizations."""
         return self._randomizations
 
     @property
