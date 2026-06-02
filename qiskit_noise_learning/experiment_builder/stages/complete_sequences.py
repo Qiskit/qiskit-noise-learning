@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Complete stage."""
+"""CompleteSequences stage."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from ..experiment import Experiment
 from ..stage import ExperimentBuilderStage
 
 
-class Complete(ExperimentBuilderStage):
+class CompleteSequences(ExperimentBuilderStage):
     """Complete all instruction sequences.
 
     Calls :meth:`~.InstructionSequence.complete` on each instruction sequence to finalize

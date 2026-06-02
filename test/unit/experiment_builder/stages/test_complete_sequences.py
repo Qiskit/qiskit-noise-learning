@@ -13,12 +13,12 @@
 import pytest
 
 from qiskit_noise_learning.experiment_builder.experiment import Experiment
-from qiskit_noise_learning.experiment_builder.stages import Complete
+from qiskit_noise_learning.experiment_builder.stages import CompleteSequences
 
 
-class TestComplete:
+class TestCompleteSequences:
     def test_requires_instruction_sequences(self):
-        stage = Complete()
+        stage = CompleteSequences()
         with pytest.raises(ValueError, match="requires 'instruction_sequences'"):
             stage.run(Experiment())
 
@@ -27,13 +27,13 @@ class TestComplete:
         assert not seq.is_complete
 
         exp = Experiment(instruction_sequences=[seq], randomization_multipliers=[1])
-        result = Complete().run(exp)
+        result = CompleteSequences().run(exp)
 
         assert all(s.is_complete for s in result.instruction_sequences)
 
     def test_already_complete_sequences_unchanged(self, unbound_path_ix):
         seq = unbound_path_ix.to_instruction_sequence().bind_at(3).complete()
         exp = Experiment(instruction_sequences=[seq], randomization_multipliers=[1])
-        result = Complete().run(exp)
+        result = CompleteSequences().run(exp)
 
         assert result.instruction_sequences == [seq]

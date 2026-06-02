@@ -14,13 +14,13 @@ import pytest
 from qiskit.quantum_info import QubitSparsePauli
 
 from qiskit_noise_learning.experiment_builder.experiment import Experiment
-from qiskit_noise_learning.experiment_builder.stages import RankReduce
+from qiskit_noise_learning.experiment_builder.stages import RankReducePaths
 from qiskit_noise_learning.sequences import FidelityIndex, Path
 
 
-class TestRankReduce:
+class TestRankReducePaths:
     def test_requires_paths(self):
-        stage = RankReduce()
+        stage = RankReducePaths()
         with pytest.raises(ValueError, match="requires 'paths'"):
             stage.run(Experiment())
 
@@ -75,7 +75,7 @@ class TestRankReduce:
             relations={(0, 0), (1, 1)},
             randomization_multipliers=[1, 1],
         )
-        result = RankReduce().run(exp)
+        result = RankReducePaths().run(exp)
 
         assert len(result.paths) == 1
         assert result.paths[0] == path
@@ -92,7 +92,7 @@ class TestRankReduce:
             relations={(0, 0), (1, 1)},
             randomization_multipliers=[1, 1],
         )
-        result = RankReduce().run(exp)
+        result = RankReducePaths().run(exp)
 
         assert len(result.paths) == 2
         assert len(result.instruction_sequences) == 2

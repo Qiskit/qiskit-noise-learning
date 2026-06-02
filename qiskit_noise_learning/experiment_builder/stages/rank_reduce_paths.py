@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""RankReduce stage."""
+"""RankReducePaths stage."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from ..stage import ExperimentBuilderStage
 RANK_TOLERANCE = 1e-8
 
 
-class RankReduce(ExperimentBuilderStage):
+class RankReducePaths(ExperimentBuilderStage):
     """Reduce the paths to a maximal linearly independent set.
 
     Removes linearly dependent paths from the experiment's design matrix, updates relations

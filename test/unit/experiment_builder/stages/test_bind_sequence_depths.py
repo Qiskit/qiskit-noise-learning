@@ -13,12 +13,12 @@
 import pytest
 
 from qiskit_noise_learning.experiment_builder.experiment import Experiment
-from qiskit_noise_learning.experiment_builder.stages import BindDepths
+from qiskit_noise_learning.experiment_builder.stages import BindSequenceDepths
 
 
-class TestBindDepths:
+class TestBindSequenceDepths:
     def test_requires_instruction_sequences(self):
-        stage = BindDepths(depths=[2, 4])
+        stage = BindSequenceDepths(depths=[2, 4])
         with pytest.raises(ValueError, match="requires 'instruction_sequences'"):
             stage.run(Experiment())
 
@@ -34,7 +34,7 @@ class TestBindDepths:
             relations={(0, 0), (1, 1)},
             randomization_multipliers=[1, 2],
         )
-        result = BindDepths(depths=[2, 4]).run(exp)
+        result = BindSequenceDepths(depths=[2, 4]).run(exp)
 
         assert len(result.instruction_sequences) == 4
         assert all(not s.is_unbound for s in result.instruction_sequences)
@@ -50,7 +50,7 @@ class TestBindDepths:
             relations={(0, 0)},
             randomization_multipliers=[1],
         )
-        result = BindDepths(depths=[2, 4]).run(exp)
+        result = BindSequenceDepths(depths=[2, 4]).run(exp)
 
         assert len(result.instruction_sequences) == 1
         assert result.instruction_sequences[0].depth == 3
@@ -63,7 +63,7 @@ class TestBindDepths:
             relations={(0, 0), (1, 0)},
             randomization_multipliers=[1],
         )
-        result = BindDepths(depths=[2, 4, 6]).run(exp)
+        result = BindSequenceDepths(depths=[2, 4, 6]).run(exp)
 
         assert len(result.instruction_sequences) == 3
         assert result.relations == {(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2)}
@@ -76,6 +76,6 @@ class TestBindDepths:
             relations={(0, 0), (1, 1)},
             randomization_multipliers=[3, 5],
         )
-        result = BindDepths(depths=[2, 4]).run(exp)
+        result = BindSequenceDepths(depths=[2, 4]).run(exp)
 
         assert result.randomization_multipliers == [3, 3, 5, 5]

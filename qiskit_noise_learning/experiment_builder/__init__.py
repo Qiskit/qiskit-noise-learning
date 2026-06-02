@@ -26,8 +26,8 @@ from .stage import ExperimentBuilderStage
 from .stages import (
     AddInstructionSequences,
     AddPaths,
-    BindDepths,
-    Complete,
+    BindSequenceDepths,
+    CompleteSequences,
     Depth0Paths,
     Depth1Paths,
     EvenDepthPaths,
@@ -35,6 +35,6 @@ from .stages import (
     GenerateInstructionSequences,
     IdentifyRelations,
     MergeInstructionSequences,
-    RankReduce,
+    RankReducePaths,
     VanillaInstructionSequences,
 )

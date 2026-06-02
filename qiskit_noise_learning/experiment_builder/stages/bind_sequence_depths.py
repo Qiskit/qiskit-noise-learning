@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""BindDepths stage."""
+"""BindSequenceDepths stage."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from ..experiment import Experiment
 from ..stage import ExperimentBuilderStage
 
 
-class BindDepths(ExperimentBuilderStage):
+class BindSequenceDepths(ExperimentBuilderStage):
     """Expand unbound instruction sequences at the given depths.
 
     Each unbound instruction sequence is replaced by a bound copy at each depth. Bound

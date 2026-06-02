@@ -12,8 +12,8 @@
 
 """Experiment builder stages."""
 
-from .bind_depths import BindDepths
-from .complete import Complete
+from .bind_sequence_depths import BindSequenceDepths
+from .complete_sequences import CompleteSequences
 from .identify_relations import IdentifyRelations
 from .merge_sequences import MergeInstructionSequences
 from .path_generators import (
@@ -23,7 +23,7 @@ from .path_generators import (
     EvenDepthPaths,
     EvenDepthVanillaPaths,
 )
-from .rank_reduce import RankReduce
+from .rank_reduce_paths import RankReducePaths
 from .sequence_generators import (
     AddInstructionSequences,
     GenerateInstructionSequences,
