@@ -42,9 +42,12 @@ class VanillaInstructionSequences(AddInstructionSequences):
 
     @property
     def required_fields(self) -> tuple[str, ...]:
-        if self._gates is None or self._prep_gate is None or self._meas_gate is None:
-            return ("fidelity_model",)
-        if self._coupling_map is None:
+        if (
+            self._gates is None
+            or self._prep_gate is None
+            or self._meas_gate is None
+            or self._coupling_map is None
+        ):
             return ("fidelity_model",)
         return ()
 
