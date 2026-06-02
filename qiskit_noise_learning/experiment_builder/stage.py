@@ -25,16 +25,24 @@ class ExperimentBuilderStage(ABC):
     Each stage takes an :class:`Experiment` and returns a new :class:`Experiment` with additional
     fields populated or existing fields transformed.
 
-    Subclasses declare which :class:`Experiment` fields they require via the
-    :attr:`required_fields` class attribute. The public :meth:`run` method validates that those
-    fields are not ``None`` before dispatching to :meth:`_run`.
+    Subclasses declare which :class:`Experiment` fields they require via the :attr:`required_fields`
+    class attribute, and which fields they populate (can take form ``None`` to a non-``None`` value)
+    via :attr:`populates_fields`. The public :meth:`run` method validates that the required fields
+    are not ``None`` before dispatching to :meth:`_run`.
+
+    :class:`ExperimentBuilder` uses :attr:`populates_fields` to compute its aggregate
+    :attr:`required_fields`: a stage's requirement is satisfied if a preceding stage populates
+    that field.
 
     Args:
         required_fields: Tuple of :class:`Experiment` property names that must be non-``None``
             before this stage can execute.
+        populates_fields: Tuple of :class:`Experiment` property names that this stage populates
+            on the returned :class:`Experiment`.
     """
 
     required_fields: tuple[str, ...] = ()
+    populates_fields: tuple[str, ...] = ()
 
     def run(self, experiment: Experiment) -> Experiment:
         """Validate required fields, then apply this stage.
@@ -100,6 +108,26 @@ class ExperimentBuilder(ExperimentBuilderStage):
     def stages(self) -> tuple[ExperimentBuilderStage, ...]:
         """The stages in this builder."""
         return self._stages
+
+    @property
+    def required_fields(self) -> tuple[str, ...]:
+        """The fields required by this pipeline that no internal stage populates."""
+        populated: set[str] = set()
+        required: list[str] = []
+        for stage in self._stages:
+            for field in stage.required_fields:
+                if field not in populated and field not in required:
+                    required.append(field)
+            populated.update(stage.populates_fields)
+        return tuple(required)
+
+    @property
+    def populates_fields(self) -> tuple[str, ...]:
+        """The union of all fields populated by stages in this pipeline."""
+        populated: set[str] = set()
+        for stage in self._stages:
+            populated.update(stage.populates_fields)
+        return tuple(sorted(populated))
 
     def _run(self, experiment: Experiment) -> Experiment:
         for stage in self._stages:

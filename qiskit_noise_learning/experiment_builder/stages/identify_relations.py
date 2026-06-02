@@ -32,6 +32,7 @@ class IdentifyRelations(ExperimentBuilderStage):
     """
 
     required_fields = ("paths", "instruction_sequences")
+    populates_fields = ("relations",)
 
     def __init__(self, attempt_instruction_extension: bool = True):
         self._attempt_instruction_extension = attempt_instruction_extension

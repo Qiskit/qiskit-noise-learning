@@ -31,7 +31,7 @@ class BindSequenceDepths(ExperimentBuilderStage):
         depths: The depths at which to bind unbound sequences.
     """
 
-    required_fields = ("instruction_sequences",)
+    required_fields = ("instruction_sequences", "randomization_multipliers")
 
     def __init__(self, depths: list[int]):
         self._depths = depths

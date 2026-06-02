@@ -30,6 +30,7 @@ class GenerateInstructionSequences(AddInstructionSequences):
     """
 
     required_fields = ("paths",)
+    populates_fields = ("instruction_sequences", "randomization_multipliers", "relations")
 
     def __init__(
         self,

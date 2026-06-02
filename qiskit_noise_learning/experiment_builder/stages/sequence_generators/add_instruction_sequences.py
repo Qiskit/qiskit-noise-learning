@@ -33,6 +33,8 @@ class AddInstructionSequences(ExperimentBuilderStage):
             defaults to all ones.
     """
 
+    populates_fields = ("instruction_sequences", "randomization_multipliers")
+
     def __init__(
         self,
         instruction_sequences: list[InstructionSequence],

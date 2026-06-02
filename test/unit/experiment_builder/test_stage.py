@@ -35,6 +35,27 @@ class _RequiresPaths(ExperimentBuilderStage):
         return experiment
 
 
+class _PopulatesPaths(ExperimentBuilderStage):
+    """Stage that populates paths."""
+
+    populates_fields = ("paths",)
+
+    def _run(self, experiment):
+        return experiment.replace(validate=False, paths=[])
+
+
+class _RequiresPathsPopulatesSequences(ExperimentBuilderStage):
+    """Stage that requires paths and populates instruction_sequences."""
+
+    required_fields = ("paths",)
+    populates_fields = ("instruction_sequences", "randomization_multipliers")
+
+    def _run(self, experiment):
+        return experiment.replace(
+            validate=False, instruction_sequences=[], randomization_multipliers=[]
+        )
+
+
 class TestExperimentBuilderStage:
     """Tests for the ExperimentBuilderStage base class."""
 
@@ -104,3 +125,48 @@ class TestExperimentBuilder:
     def test_repr(self):
         builder = ExperimentBuilder(_SimpleStage(10), _SimpleStage(20))
         assert repr(builder) == "ExperimentBuilder(_SimpleStage(), _SimpleStage())"
+
+    def test_required_fields_excludes_populated_by_prior_stage(self):
+        builder = ExperimentBuilder(_PopulatesPaths(), _RequiresPaths())
+        assert builder.required_fields == ()
+
+    def test_required_fields_includes_unsatisfied(self):
+        builder = ExperimentBuilder(_RequiresPaths(), _SimpleStage(10))
+        assert builder.required_fields == ("paths",)
+
+    def test_required_fields_multiple_stages(self):
+        builder = ExperimentBuilder(
+            _PopulatesPaths(), _RequiresPathsPopulatesSequences(), _RequiresPaths()
+        )
+        assert builder.required_fields == ()
+
+    def test_required_fields_order_matters(self):
+        builder = ExperimentBuilder(_RequiresPathsPopulatesSequences(), _PopulatesPaths())
+        assert builder.required_fields == ("paths",)
+
+    def test_populates_fields_union(self):
+        builder = ExperimentBuilder(_PopulatesPaths(), _RequiresPathsPopulatesSequences())
+        assert set(builder.populates_fields) == {
+            "paths",
+            "instruction_sequences",
+            "randomization_multipliers",
+        }
+
+    def test_nested_builder_required_fields(self):
+        inner = ExperimentBuilder(_PopulatesPaths(), _RequiresPathsPopulatesSequences())
+        outer = ExperimentBuilder(inner, _RequiresPaths())
+        assert outer.required_fields == ()
+
+    def test_nested_builder_populates_fields(self):
+        inner = ExperimentBuilder(_PopulatesPaths())
+        outer = ExperimentBuilder(inner, _RequiresPathsPopulatesSequences())
+        assert set(outer.populates_fields) == {
+            "paths",
+            "instruction_sequences",
+            "randomization_multipliers",
+        }
+
+    def test_run_raises_early_for_unsatisfied_fields(self):
+        builder = ExperimentBuilder(_RequiresPathsPopulatesSequences(), _SimpleStage(10))
+        with pytest.raises(ValueError, match="ExperimentBuilder requires 'paths'"):
+            builder.run(Experiment())

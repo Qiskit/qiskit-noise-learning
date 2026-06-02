@@ -33,6 +33,8 @@ class AddPaths(ExperimentBuilderStage):
         path_iterators: One or more iterators of :class:`~.Path` instances.
     """
 
+    populates_fields = ("paths",)
+
     def __init__(self, *path_iterators: Iterator[Path]):
         self._path_iterators = path_iterators
 
