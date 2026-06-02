@@ -31,15 +31,13 @@ from ..analysis import (
 )
 from ..circuit_generator import ExecutorCircuitGenerator, ExecutorDataMapper
 from ..experiment_builder import (
-    BindDepths,
-    Complete,
+    BindSequenceDepths,
+    CompleteSequences,
     EvenDepthVanillaPaths,
     Experiment,
     GenerateInstructionSequences,
     IdentifyRelations,
     MergeInstructionSequences,
-    SetRandomizations,
-    SetShots,
 )
 from ..gate_sets import QiskitGateSet
 from ..models import PauliLindbladModel
@@ -136,12 +134,16 @@ class NoiseLearner:
             + GenerateInstructionSequences()
             + MergeInstructionSequences()
             + IdentifyRelations()
-            + BindDepths(self._options.depths)
-            + Complete()
-            + SetShots(self._options.shots_per_randomizations)
-            + SetRandomizations(self._options.num_randomizations)
+            + CompleteSequences()
+            + BindSequenceDepths(self._options.depths)
         )
-        experiment = pipeline.run(Experiment(fidelity_model=fidelity_model))
+        experiment = pipeline.run(
+            Experiment(
+                fidelity_model=fidelity_model,
+                shots=self._options.shots_per_randomizations,
+                randomizations=self._options.num_randomizations,
+            )
+        )
 
         # Generate circuits
         circuit_gen = ExecutorCircuitGenerator(gate_set)
