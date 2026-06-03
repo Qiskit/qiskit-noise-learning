@@ -28,7 +28,6 @@ from .stages import (
     AddPaths,
     BindSequenceDepths,
     CompleteSequences,
-    Depth0Paths,
     Depth1Paths,
     EvenDepthPaths,
     EvenDepthVanillaPaths,
@@ -36,5 +35,6 @@ from .stages import (
     IdentifyRelations,
     MergeInstructionSequences,
     RankReducePaths,
+    SPAMPaths,
     VanillaInstructionSequences,
 )

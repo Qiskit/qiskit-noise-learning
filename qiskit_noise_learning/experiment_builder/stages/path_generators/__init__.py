@@ -13,7 +13,7 @@
 """Path generator stages."""
 
 from .add_paths import AddPaths
-from .depth0_paths import Depth0Paths
 from .depth1_paths import Depth1Paths
 from .even_depth_paths import EvenDepthPaths
 from .even_depth_vanilla_paths import EvenDepthVanillaPaths
+from .spam_paths import SPAMPaths

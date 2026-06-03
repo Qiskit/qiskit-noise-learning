@@ -18,10 +18,10 @@ from .identify_relations import IdentifyRelations
 from .merge_sequences import MergeInstructionSequences
 from .path_generators import (
     AddPaths,
-    Depth0Paths,
     Depth1Paths,
     EvenDepthPaths,
     EvenDepthVanillaPaths,
+    SPAMPaths,
 )
 from .rank_reduce_paths import RankReducePaths
 from .sequence_generators import (

@@ -15,18 +15,18 @@ from qiskit.quantum_info import QubitSparsePauli, QubitSparsePauliList
 
 from qiskit_noise_learning.experiment_builder.experiment import Experiment
 from qiskit_noise_learning.experiment_builder.stages import (
-    Depth0Paths,
     Depth1Paths,
     EvenDepthPaths,
     EvenDepthVanillaPaths,
+    SPAMPaths,
 )
 from qiskit_noise_learning.sequences import FidelityIndex, Path
 
 
-class TestDepth0Paths:
+class TestSPAMPaths:
     def test_generates_single_qubit_paths(self, gate_set_cz):
         exp = Experiment(fidelity_model=gate_set_cz)
-        stage = Depth0Paths(
+        stage = SPAMPaths(
             prep_gate=gate_set_cz["P"],
             meas_gate=gate_set_cz["M"],
             indices_list=[[0], [1]],
@@ -74,13 +74,13 @@ class TestDepth0Paths:
         assert result.paths == expected
 
     def test_requires_fidelity_model_when_gates_not_provided(self):
-        stage = Depth0Paths()
+        stage = SPAMPaths()
         with pytest.raises(ValueError, match="requires 'fidelity_model'"):
             stage.run(Experiment())
 
     def test_appends_to_existing_paths(self, gate_set_cz, unbound_path_ix):
         exp = Experiment(fidelity_model=gate_set_cz, paths=[unbound_path_ix])
-        stage = Depth0Paths(
+        stage = SPAMPaths(
             prep_gate=gate_set_cz["P"],
             meas_gate=gate_set_cz["M"],
             indices_list=[[0]],
