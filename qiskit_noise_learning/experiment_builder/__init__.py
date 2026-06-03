@@ -23,6 +23,7 @@ from .stages import (
     Depth1Paths,
     EvenDepthPaths,
     EvenDepthVanillaPaths,
+    FullRankPaths,
     GenerateInstructionSequences,
     IdentifyRelations,
     MergeInstructionSequences,

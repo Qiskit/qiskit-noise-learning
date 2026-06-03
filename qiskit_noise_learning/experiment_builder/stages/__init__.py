@@ -22,6 +22,7 @@ from .path_generators import (
     Depth1Paths,
     EvenDepthPaths,
     EvenDepthVanillaPaths,
+    FullRankPaths,
 )
 from .rank_reduce_paths import RankReducePaths
 from .sequence_generators import (
