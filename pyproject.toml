@@ -53,6 +53,10 @@ vis = [
     "plotly",
 ]
 
+cvxpy = [
+    "cvxpy",
+]
+
 [tool.pytest.ini_options]
 addopts = "--doctest-modules"
 filterwarnings = [

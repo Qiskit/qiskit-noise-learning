@@ -15,3 +15,4 @@
 from qiskit.utils import LazyImportTester
 
 HAS_PLOTLY = LazyImportTester("plotly")
+HAS_CVXPY = LazyImportTester("cvxpy")
