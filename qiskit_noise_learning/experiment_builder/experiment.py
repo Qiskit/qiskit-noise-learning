@@ -143,42 +143,6 @@ class Experiment:
             return False
         return True
 
-    def __str__(self) -> str:
-        lines = ["Experiment:"]
-
-        if self._fidelity_model is not None:
-            lines.append(f"  Fidelity model: {self._fidelity_model}")
-        else:
-            lines.append("  Fidelity model: None")
-
-        if self._paths is not None:
-            n_unbound = sum(1 for p in self._paths if p.is_unbound)
-            n_bound = len(self._paths) - n_unbound
-            lines.append(f"  Paths: {len(self._paths)} ({n_unbound} unbound, {n_bound} bound)")
-        else:
-            lines.append("  Paths: None")
-
-        if self._instruction_sequences is not None:
-            n_unbound = sum(1 for s in self._instruction_sequences if s.is_unbound)
-            n_bound = len(self._instruction_sequences) - n_unbound
-            lines.append(
-                f"  Instruction sequences: {len(self._instruction_sequences)}"
-                f" ({n_unbound} unbound, {n_bound} bound)"
-            )
-        else:
-            lines.append("  Instruction sequences: None")
-
-        if self._relations is not None:
-            lines.append(f"  Relations: {len(self._relations)}")
-        else:
-            lines.append("  Relations: None")
-
-        lines.append(f"  Shots: {self._shots}")
-        lines.append(f"  Randomizations: {self._randomizations}")
-        lines.append(f"  Randomization multipliers: {self._randomization_multipliers}")
-
-        return "\n".join(lines)
-
     def replace(self, *, validate: bool = True, **kwargs) -> Experiment:
         """Return a shallow copy with the given fields overridden.
 
@@ -261,6 +225,42 @@ class Experiment:
             new._design_matrix_cache = None  # noqa: SLF001
 
         return new
+
+    def __str__(self) -> str:
+        lines = ["Experiment:"]
+
+        if self._fidelity_model is not None:
+            lines.append(f"  Fidelity model: {self._fidelity_model}")
+        else:
+            lines.append("  Fidelity model: None")
+
+        if self._paths is not None:
+            n_unbound = sum(1 for p in self._paths if p.is_unbound)
+            n_bound = len(self._paths) - n_unbound
+            lines.append(f"  Paths: {len(self._paths)} ({n_unbound} unbound, {n_bound} bound)")
+        else:
+            lines.append("  Paths: None")
+
+        if self._instruction_sequences is not None:
+            n_unbound = sum(1 for s in self._instruction_sequences if s.is_unbound)
+            n_bound = len(self._instruction_sequences) - n_unbound
+            lines.append(
+                f"  Instruction sequences: {len(self._instruction_sequences)}"
+                f" ({n_unbound} unbound, {n_bound} bound)"
+            )
+        else:
+            lines.append("  Instruction sequences: None")
+
+        if self._relations is not None:
+            lines.append(f"  Relations: {len(self._relations)}")
+        else:
+            lines.append("  Relations: None")
+
+        lines.append(f"  Shots: {self._shots}")
+        lines.append(f"  Randomizations: {self._randomizations}")
+        lines.append(f"  Randomization multipliers: {self._randomization_multipliers}")
+
+        return "\n".join(lines)
 
     def __add__(self, other: Experiment) -> Experiment:
         """Compose two experiments by concatenating their list fields.
