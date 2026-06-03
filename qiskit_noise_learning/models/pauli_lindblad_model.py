@@ -573,9 +573,16 @@ def _k_local_paulis(
                         new_paulis.append(pauli0 @ pauli1)
                     current_k_paulis.append(
                         QubitSparsePauliList.from_qubit_sparse_paulis(new_paulis)
+                        if new_paulis
+                        else QubitSparsePauliList.empty(num_qubits)
                     )
 
         paulis.extend(current_k_paulis)
         previous_k_local_sets_and_paulis = zip(current_k_local_sets, current_k_paulis)
 
-    return QubitSparsePauliList.from_qubit_sparse_paulis(chain.from_iterable(paulis))
+    paulis = list(chain.from_iterable(paulis))
+    return (
+        QubitSparsePauliList.from_qubit_sparse_paulis(paulis)
+        if paulis
+        else QubitSparsePauliList.empty(num_qubits)
+    )
