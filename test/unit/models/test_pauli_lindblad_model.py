@@ -610,6 +610,23 @@ def test_k_local(two_q_pauli_str, pauli_str, gate_set_cz):
             assert generator in expected_generators[name]
 
 
+def test_k_local_empty(gate_set_cz):
+    pauli_lindblad_model = PauliLindbladModel.k_local(
+        gate_set=gate_set_cz, k=2, paulis={"CZ": QubitSparsePauliList.empty(1)}
+    )
+
+    expected_generators = {
+        "CZ": QubitSparsePauliList.empty(2),
+        "P": QubitSparsePauliList(["IX", "XI", "XX"]),
+        "M": QubitSparsePauliList(["IX", "XI", "XX"]),
+    }
+
+    for name, generator_list in pauli_lindblad_model.generators.items():
+        assert len(generator_list) == len(expected_generators[name])
+        for generator in generator_list:
+            assert generator in expected_generators[name]
+
+
 def test_k_local_errors(gate_set_cz):
     # paulis has invalid name
     with pytest.raises(ValueError, match="Gate not_in_gate_set"):
