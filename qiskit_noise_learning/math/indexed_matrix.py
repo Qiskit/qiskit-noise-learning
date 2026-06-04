@@ -222,12 +222,23 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
         selected_indices = []
         basis = np.empty((n_cols, 0), dtype=float)
 
-        for i in range(n_rows):
-            row = self._data[i]
-            residual = row - basis @ (basis.T @ row) if basis.shape[1] > 0 else row
+        # identify first accepted row
+        for idx, row in enumerate(self._data):
+            norm = np.linalg.norm(row)
+            if norm > tol:
+                selected_indices.append(idx)
+                basis = np.column_stack([basis, row / norm])
+                break
+
+        if len(selected_indices) == 0:
+            return IndexedMatrix[RowIndex, ColumnIndex]()
+
+        for idx in range(selected_indices[0] + 1, n_rows):
+            row = self._data[idx]
+            residual = row - basis @ (basis.T @ row)
             norm = np.linalg.norm(residual)
             if norm > tol:
-                selected_indices.append(i)
+                selected_indices.append(idx)
                 basis = np.column_stack([basis, residual / norm])
 
         new_row_index_map = {}
