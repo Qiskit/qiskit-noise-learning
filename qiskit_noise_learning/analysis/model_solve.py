@@ -31,6 +31,8 @@ class ModelSolve(AnalysisStage):
 
     If paths are specified on the :class:`~.Fit`, only data matching those paths is used. If no
     paths are specified, all data in the :class:`~.AveragedData` is used.
+
+    This stage assumes a single observable value for each unique :class:`Path`.
     """
 
     @property
@@ -78,6 +80,11 @@ class ModelSolve(AnalysisStage):
             mask = (dataset["unbound_path"].data == unbound_path) & (dataset["depth"].data == depth)
             if not mask.any():
                 continue
+
+            if mask.sum() > 1:
+                raise ValueError(
+                    "ModelSolve assumes only one entry per path, but a duplicate path was found."
+                )
 
             fidelity = float(dataset["observables"].data[mask][0])
             fidelity_std = float(dataset["std"].data[mask][0])
