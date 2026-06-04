@@ -25,9 +25,13 @@ class ModelSolve(AnalysisStage):
     """Base class for finding model parameters.
 
     Constructs the design matrix from the :class:`~.FidelityModel` stored on the
-    :class:`~.Fit` container and the unbound paths in the :class:`~.AveragedData` (depth==-1
-    entries). Then solves ``A @ x = b`` using a specified method, where ``A`` is the
-    design matrix and ``b`` is the vector of decay rates ``-log(f)``.
+    :class:`~.Fit` container and the paths in the :class:`~.AveragedData`. Then solves
+    ``A @ x = b`` using a specified method, where ``A`` is the design matrix and ``b`` is the
+    vector of decay rates ``-log(f)``.
+
+    If paths are specified on the :class:`~.Fit`, only data matching those paths is used. Unbound
+    paths (``depth=None``) match ``depth == -1`` entries, and bound paths match their specific
+    depth. If no paths are specified, all data in the :class:`~.AveragedData` is used.
     """
 
     @property
@@ -53,31 +57,64 @@ class ModelSolve(AnalysisStage):
     def _run(self, fit: Fit):
         averaged_data = fit[AveragedData]
         fidelity_model = fit.model
+        dataset = averaged_data.dataset
 
-        # Filter to decay data (depth == -1)
-        decay_mask = averaged_data.dataset["depth"].data == -1
-        decay_dataset = averaged_data.dataset.sel({"observable": decay_mask})
+        if fit.paths:
+            target_pairs = set()
+            for path in fit.paths:
+                if path.is_unbound:
+                    target_pairs.add((path, -1))
+                else:
+                    target_pairs.add((path.without_depth(), path.depth))
+        else:
+            target_pairs = set(zip(dataset["unbound_path"].data, dataset["depth"].data))
 
-        # Build design matrix from the fidelity model and the unbound paths in the decay data
-        unbound_paths = list(decay_dataset["unbound_path"].data)
-        rows = [fidelity_model.row_from_path(pp) for pp in unbound_paths]
+        row_indices = []
+        rows = []
+        fidelities = []
+        fidelity_stds = []
+        time_lbs_list = []
+        time_ubs_list = []
+
+        for unbound_path, depth in target_pairs:
+            mask = (dataset["unbound_path"].data == unbound_path) & (dataset["depth"].data == depth)
+            if not mask.any():
+                continue
+
+            fidelity = float(dataset["observables"].data[mask][0])
+            fidelity_std = float(dataset["std"].data[mask][0])
+
+            if depth == -1:
+                row_index = unbound_path
+                row = fidelity_model.row_from_path(unbound_path)
+            else:
+                bound_path = unbound_path.bind_at(depth)
+                row_index = bound_path
+                row = fidelity_model.row_from_path(bound_path)
+
+            row_indices.append(row_index)
+            rows.append(row)
+            fidelities.append(fidelity)
+            fidelity_stds.append(fidelity_std)
+            time_lbs_list.append(dataset["time_lbs"].data[mask][0])
+            time_ubs_list.append(dataset["time_ubs"].data[mask][0])
+
         design_matrix = IndexedMatrix()
-        design_matrix.add_rows(row_indices=unbound_paths, rows=rows)
+        design_matrix.add_rows(row_indices=row_indices, rows=rows)
 
-        # Construct b from averaged_data taking the negative logarithm
         row_index_map = design_matrix.row_index_map
         b = np.empty(len(row_index_map), dtype=float)
         sigma_b = np.empty(len(row_index_map), dtype=float)
-        for pp, row_idx in row_index_map.items():
-            pp_mask = decay_dataset["unbound_path"].data == pp
-            fidelity = float(decay_dataset["observables"].data[pp_mask][0])
-            fidelity_std = float(decay_dataset["std"].data[pp_mask][0])
-            b[row_idx] = -np.log(max(fidelity, 1e-300))
-            sigma_b[row_idx] = fidelity_std / max(fidelity, 1e-300)
+        for idx, (row_index, array_idx) in enumerate(row_index_map.items()):
+            list_idx = row_indices.index(row_index)
+            fidelity = fidelities[list_idx]
+            fidelity_std = fidelity_stds[list_idx]
+            b[array_idx] = -np.log(max(fidelity, 1e-300))
+            sigma_b[array_idx] = fidelity_std / max(fidelity, 1e-300)
 
         A = design_matrix.data
 
-        # Solve the nnls problem
+        # Solve the linear problem
         x, metadata = self._linear_solve(A, b)
 
         # Compute covariance
@@ -95,8 +132,10 @@ class ModelSolve(AnalysisStage):
         inv_col = {v: k for k, v in col_index_map.items()}
         param_labels = [inv_col[i] for i in range(len(x))]
 
-        time_lb = time_bound(decay_dataset["time_lbs"].data, "min")
-        time_ub = time_bound(decay_dataset["time_ubs"].data, "max")
+        all_time_lbs = np.array(time_lbs_list, dtype="datetime64[us]")
+        all_time_ubs = np.array(time_ubs_list, dtype="datetime64[us]")
+        time_lb = time_bound(all_time_lbs, "min")
+        time_ub = time_bound(all_time_ubs, "max")
 
         fit[ModelData] = ModelData.from_arrays(
             parameter_indices=param_labels,
