@@ -119,10 +119,8 @@ def _full_rank_paths(
         
         done_paulis.add(hashable)
 
-    # Build Paths:
-    fidelity_paulis = variable_depth_paulis+depth_1_paulis
-    depths = [None] * len(variable_depth_paulis) + [1] * len(depth_1_paulis)
-    for fidelity_pauli, depth in zip(fidelity_paulis, depths):
+    # Build variable-depth paths:
+    for fidelity_pauli in variable_depth_paulis:
         desired_fidelity = FidelityIndex(gate, pauli=fidelity_pauli)
         conjugate = gate.clifford_propagate(fidelity_pauli, inverse = noise_after_gate)
         conjugate_fidelity = FidelityIndex(gate, pauli=conjugate)
@@ -141,7 +139,7 @@ def _full_rank_paths(
                     out_bit_indices=frozenset(input_fidelity.transition[0].indices),
                 )
             ],
-            repeatable_fragment=[input_fidelity, output_fidelity],
+            repeatable_fragment=[desired_fidelity, conjugate_fidelity],
             end_fragment=[
                 FidelityIndex(
                     meas_gate,
@@ -149,5 +147,36 @@ def _full_rank_paths(
                     in_bit_indices=frozenset(output_fidelity.transition[1].indices),
                 )
             ],
-            depth=depth,
+        )
+
+    # Build depth-1 paths:
+    for fidelity_pauli in depth_1_paulis:
+        desired_fidelity = FidelityIndex(gate, pauli=fidelity_pauli)
+        conjugate = gate.clifford_propagate(fidelity_pauli, inverse = noise_after_gate)
+        conjugate_fidelity = FidelityIndex(gate, pauli=conjugate)
+        if not noise_after_gate:
+            input_fidelity = desired_fidelity
+            output_fidelity = conjugate_fidelity
+        else:
+            input_fidelity = conjugate_fidelity
+            output_fidelity = desired_fidelity
+
+        yield Path(
+            start_fragment=[
+                FidelityIndex(
+                    prep_gate,
+                    pauli=ident,
+                    out_bit_indices=frozenset(input_fidelity.transition[0].indices),
+                ),
+                desired_fidelity,
+            ],
+            repeatable_fragment=[],
+            end_fragment=[
+                FidelityIndex(
+                    meas_gate,
+                    pauli=ident,
+                    in_bit_indices=frozenset(output_fidelity.transition[1].indices),
+                )
+            ],
+            depth=0,
         )
