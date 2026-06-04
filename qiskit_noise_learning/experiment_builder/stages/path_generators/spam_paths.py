@@ -34,11 +34,7 @@ class SPAMPaths(AddPaths):
             paths for every qubit.
     """
 
-    @property
-    def required_fields(self) -> tuple[str, ...]:
-        if self._prep_gate is None or self._meas_gate is None:
-            return ("fidelity_model",)
-        return ()
+    required_fields = ("fidelity_model",)
 
     def __init__(
         self,
@@ -53,9 +49,9 @@ class SPAMPaths(AddPaths):
 
     def _generate_paths(self, experiment: Experiment) -> Iterator[Path]:
         gate_set = experiment.gate_set
+        num_qubits = gate_set.num_qubits
         prep_gate = self._prep_gate or default_prep_gate(gate_set)
         meas_gate = self._meas_gate or default_meas_gate(gate_set)
-        num_qubits = prep_gate.num_qubits
 
         indices_list = self._indices_list
         if indices_list is None:
