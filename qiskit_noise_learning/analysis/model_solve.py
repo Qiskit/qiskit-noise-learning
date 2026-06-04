@@ -24,14 +24,13 @@ from qiskit_noise_learning.math import IndexedMatrix
 class ModelSolve(AnalysisStage):
     """Base class for finding model parameters.
 
-    Constructs the design matrix from the :class:`~.FidelityModel` stored on the
-    :class:`~.Fit` container and the paths in the :class:`~.AveragedData`. Then solves
-    ``A @ x = b`` using a specified method, where ``A`` is the design matrix and ``b`` is the
-    vector of decay rates ``-log(f)``.
+    Constructs the design matrix from the :class:`~.FidelityModel` stored on the :class:`~.Fit`
+    container and the paths in the :class:`~.AveragedData`. Then solves ``A @ x = b`` using a
+    specified method, where ``A`` is the design matrix and ``b`` is the vector of negative log
+    observables ``-log(o)``.
 
-    If paths are specified on the :class:`~.Fit`, only data matching those paths is used. Unbound
-    paths (``depth=None``) match ``depth == -1`` entries, and bound paths match their specific
-    depth. If no paths are specified, all data in the :class:`~.AveragedData` is used.
+    If paths are specified on the :class:`~.Fit`, only data matching those paths is used. If no
+    paths are specified, all data in the :class:`~.AveragedData` is used.
     """
 
     @property
@@ -55,9 +54,8 @@ class ModelSolve(AnalysisStage):
         """
 
     def _run(self, fit: Fit):
-        averaged_data = fit[AveragedData]
+        dataset = fit[AveragedData].dataset
         fidelity_model = fit.model
-        dataset = averaged_data.dataset
 
         if fit.paths:
             target_pairs = set()
