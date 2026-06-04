@@ -13,7 +13,7 @@
 """Experiment builder module."""
 
 from .experiment import Experiment
-from .stage import ExperimentBuilder, ExperimentBuilderStage
+from .experiment_builder_stage import ExperimentBuilder, ExperimentBuilderStage
 from .stages import (
     AddInstructionSequences,
     AddPaths,

@@ -17,7 +17,7 @@ from collections.abc import Iterator
 from qiskit_noise_learning.sequences import Path
 
 from ...experiment import Experiment
-from ...stage import ExperimentBuilderStage
+from ...experiment_builder_stage import ExperimentBuilderStage
 
 
 class AddPaths(ExperimentBuilderStage):
