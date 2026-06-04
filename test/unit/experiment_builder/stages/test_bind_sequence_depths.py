@@ -46,6 +46,7 @@ class TestBindSequenceDepths:
     def test_keeps_bound_sequences(self, unbound_path_ix):
         seq = unbound_path_ix.to_instruction_sequence().bind_at(3)
         exp = Experiment(
+            paths=[unbound_path_ix],
             instruction_sequences=[seq],
             relations={(0, 0)},
             randomization_multipliers=[1],
@@ -72,6 +73,7 @@ class TestBindSequenceDepths:
         seq_ix = unbound_path_ix.to_instruction_sequence()
         seq_xi = unbound_path_xi.to_instruction_sequence()
         exp = Experiment(
+            paths=[unbound_path_ix, unbound_path_xi],
             instruction_sequences=[seq_ix, seq_xi],
             relations={(0, 0), (1, 1)},
             randomization_multipliers=[3, 5],

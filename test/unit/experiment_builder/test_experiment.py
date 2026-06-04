@@ -42,6 +42,17 @@ class TestExperimentConstruction:
         assert exp.fidelity_model is model
         assert exp.gate_set == gate_set_cz
 
+    def test_missing_multipliers(self, gate_set_cz, unbound_path_ix):
+        seq = unbound_path_ix.to_instruction_sequence().bind_at(2).complete()
+        with pytest.raises(ValueError, match="must both be None or both be non-None"):
+            Experiment(
+                fidelity_model=gate_set_cz,
+                paths=[unbound_path_ix],
+                instruction_sequences=[seq],
+                shots=100,
+                randomizations=50,
+            )
+
     def test_construction_with_all_fields(self, gate_set_cz, unbound_path_ix):
         seq = unbound_path_ix.to_instruction_sequence()
         exp = Experiment(
@@ -108,17 +119,6 @@ class TestExperimentIsExecutable:
             shots=100,
             randomizations=50,
             randomization_multipliers=[1],
-        )
-        assert not exp.is_executable
-
-    def test_not_executable_missing_multipliers(self, gate_set_cz, unbound_path_ix):
-        seq = unbound_path_ix.to_instruction_sequence().bind_at(2).complete()
-        exp = Experiment(
-            fidelity_model=gate_set_cz,
-            paths=[unbound_path_ix],
-            instruction_sequences=[seq],
-            shots=100,
-            randomizations=50,
         )
         assert not exp.is_executable
 

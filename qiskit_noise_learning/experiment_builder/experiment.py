@@ -44,6 +44,8 @@ class Experiment:
         randomizations: Global number of randomizations (default 50).
         randomization_multipliers: Per-sequence randomization multiplier (parallel to
             instruction_sequences).
+        validate: If ``True`` (default), enforce the same validation checks as
+            :meth:`replace` (co-replacement, length consistency, relations bounds).
     """
 
     def __init__(
@@ -56,18 +58,31 @@ class Experiment:
         shots: int = 20,
         randomizations: int = 50,
         randomization_multipliers: list[int] | None = None,
+        validate: bool = True,
     ):
         if isinstance(fidelity_model, ModelGateSet):
             fidelity_model = CompleteFidelityModel(fidelity_model)
 
-        self._fidelity_model = fidelity_model
-        self._paths = paths
-        self._instruction_sequences = instruction_sequences
-        self._relations = relations
-        self._shots = shots
-        self._randomizations = randomizations
-        self._randomization_multipliers = randomization_multipliers
+        self._fidelity_model = None
+        self._paths = None
+        self._instruction_sequences = None
+        self._relations = None
+        self._shots = 20
+        self._randomizations = 50
+        self._randomization_multipliers = None
         self._design_matrix_cache: IndexedMatrix | None = None
+
+        result = self.replace(
+            validate=validate,
+            fidelity_model=fidelity_model,
+            paths=paths,
+            instruction_sequences=instruction_sequences,
+            relations=relations,
+            shots=shots,
+            randomizations=randomizations,
+            randomization_multipliers=randomization_multipliers,
+        )
+        self.__dict__.update(result.__dict__)
 
     @property
     def fidelity_model(self) -> FidelityModel | None:
