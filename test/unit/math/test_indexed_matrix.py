@@ -174,13 +174,13 @@ def test_linearly_independent_rows():
         data=np.array([[0.0, 1.0, 0.0], [1.0, 1.0, 1.0], [1.0, 1.0, 0.0]]),
     )
 
-    # current implementation drops the first row
+    # row 1 is dependent on row 0, so row 1 is dropped
     assert IndexedMatrix(
         row_index_map={k: k for k in range(3)},
         column_index_map={k: k for k in range(3)},
         data=np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0], [1.0, 1.0, 0.0]]),
     ).linearly_independent_rows() == IndexedMatrix(
-        row_index_map={1: 0, 2: 1},
+        row_index_map={0: 0, 2: 1},
         column_index_map={k: k for k in range(3)},
         data=np.array([[0.0, 0.0, 1.0], [1.0, 1.0, 0.0]]),
     )
@@ -208,7 +208,7 @@ def test_linearly_independent_rows():
         ),
     )
 
-    # current implementation drops the second row
+    # row 2 = row 0 + row 1, so row 2 is dropped
     assert IndexedMatrix(
         row_index_map={k: k for k in range(4)},
         column_index_map={k: k for k in range(6)},
@@ -221,18 +221,18 @@ def test_linearly_independent_rows():
             ]
         ),
     ).linearly_independent_rows() == IndexedMatrix(
-        row_index_map={0: 0, 2: 1, 3: 2},
+        row_index_map={0: 0, 1: 1, 3: 2},
         column_index_map={k: k for k in range(6)},
         data=np.array(
             [
                 [1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
-                [1.0, 1.0, 1.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
                 [0.0, 0.0, 0.0, 0.0, 1.0, 1.0],
             ]
         ),
     )
 
-    # example with zero in top left, drops row 1
+    # row 3 = row 1 + row 2, so row 3 is dropped
     assert IndexedMatrix(
         row_index_map={k: k for k in range(4)},
         column_index_map={k: k for k in range(6)},
@@ -245,12 +245,12 @@ def test_linearly_independent_rows():
             ]
         ),
     ).linearly_independent_rows() == IndexedMatrix(
-        row_index_map={3: 0, 0: 1, 2: 2},
+        row_index_map={0: 0, 1: 1, 2: 2},
         column_index_map={k: k for k in range(6)},
         data=np.array(
             [
-                [1.0, 1.0, 1.0, 1.0, 0.0, 0.0],
                 [0.0, 0.0, 0.0, 0.0, 1.0, 1.0],
+                [1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
                 [0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
             ]
         ),

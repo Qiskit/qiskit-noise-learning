@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 from ..experiment import Experiment
-from ..stage import ExperimentBuilderStage
+from ..experiment_builder_stage import ExperimentBuilderStage
 
 RANK_TOLERANCE = 1e-8
 

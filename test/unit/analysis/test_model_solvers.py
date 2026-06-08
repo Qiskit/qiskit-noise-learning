@@ -20,6 +20,41 @@ from qiskit_noise_learning.math import IndexedVector
 _SOLVERS = [LSQLinearSolve(), NNLSSolve()]
 
 
+class MockPath:
+    """A minimal mock path that supports bind_at, without_depth, and is_unbound."""
+
+    def __init__(self, name, depth=None):
+        self._name = name
+        self._depth = depth
+
+    @property
+    def depth(self):
+        return self._depth
+
+    @property
+    def is_unbound(self):
+        return self._depth is None
+
+    def bind_at(self, depth):
+        return MockPath(self._name, depth=depth)
+
+    def without_depth(self):
+        return MockPath(self._name, depth=None)
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, MockPath)
+            and self._name == other._name
+            and self._depth == other._depth
+        )
+
+    def __hash__(self):
+        return hash((self._name, self._depth))
+
+    def __repr__(self):
+        return f"MockPath({self._name!r}, depth={self._depth})"
+
+
 class MockFidelityModel:
     def __init__(self, rows: dict):
         self._rows = rows
@@ -41,6 +76,23 @@ def _make_decay_data(f_values, f_std_values=None):
         depths=[-1] * n,
         observables=np.array([f_values[pp] for pp in keys]),
         std=np.array([f_std_values[pp] for pp in keys]),
+        time_lbs=np.empty(n, dtype="datetime64[us]"),
+        time_ubs=np.empty(n, dtype="datetime64[us]"),
+    )
+
+
+def _make_averaged_data(entries, std_default=0.001):
+    """Build AveragedData from a list of (unbound_path, depth, fidelity) tuples."""
+    unbound_paths = [e[0] for e in entries]
+    depths = [e[1] for e in entries]
+    observables = np.array([e[2] for e in entries])
+    std = np.array([e[3] if len(e) > 3 else std_default for e in entries])
+    n = len(entries)
+    return AveragedData.from_arrays(
+        unbound_paths=unbound_paths,
+        depths=depths,
+        observables=observables,
+        std=std,
         time_lbs=np.empty(n, dtype="datetime64[us]"),
         time_ubs=np.empty(n, dtype="datetime64[us]"),
     )
@@ -212,3 +264,84 @@ def test_metadata_contains_residual():
     result = NNLSSolve().run(fit)
 
     assert "residual" in result.model_data.metadata
+
+
+@pytest.mark.parametrize("solver", _SOLVERS)
+def test_bound_paths_in_fit_paths(solver):
+    """Test solving with bound paths specified in fit.paths."""
+    pp = MockPath("pp0")
+    pp_bound = pp.bind_at(3)
+    f_true = 0.7
+
+    averaged_data = _make_averaged_data([(pp, 3, f_true)])
+    model = MockFidelityModel({pp_bound: IndexedVector({"r0": 3.0, "r_se": 1.0})})
+
+    fit = Fit(model=model, paths=[pp_bound])
+    fit[AveragedData] = averaged_data
+    result = solver.run(fit)
+
+    model_data = result.model_data
+    r0 = model_data.dataset["parameter_values"].sel(parameter="r0").item()
+    r_se = model_data.dataset["parameter_values"].sel(parameter="r_se").item()
+    assert r0 >= 0
+    assert r_se >= 0
+    assert np.isclose(3 * r0 + r_se, -np.log(f_true), atol=1e-6)
+
+
+@pytest.mark.parametrize("solver", _SOLVERS)
+def test_mixed_bound_and_unbound_paths(solver):
+    """Test solving with a mix of bound and unbound paths in fit.paths."""
+    pp0 = MockPath("pp0")
+    pp1 = MockPath("pp1")
+    pp1_bound = pp1.bind_at(2)
+
+    f0 = 0.9
+    f1 = 0.8
+
+    averaged_data = _make_averaged_data([(pp0, -1, f0), (pp1, 2, f1)])
+    model = MockFidelityModel(
+        {
+            pp0: IndexedVector({"r0": 1.0}),
+            pp1_bound: IndexedVector({"r1": 2.0, "r_se": 1.0}),
+        }
+    )
+
+    fit = Fit(model=model, paths=[pp0, pp1_bound])
+    fit[AveragedData] = averaged_data
+    result = solver.run(fit)
+
+    model_data = result.model_data
+    r0 = model_data.dataset["parameter_values"].sel(parameter="r0").item()
+    assert np.isclose(r0, -np.log(f0), atol=1e-6)
+
+    r1 = model_data.dataset["parameter_values"].sel(parameter="r1").item()
+    r_se = model_data.dataset["parameter_values"].sel(parameter="r_se").item()
+    assert r1 >= 0
+    assert r_se >= 0
+    assert np.isclose(2 * r1 + r_se, -np.log(f1), atol=1e-6)
+
+
+@pytest.mark.parametrize("solver", _SOLVERS)
+def test_no_paths_uses_all_data(solver):
+    """Test that when fit.paths is not specified, all data is used."""
+    pp0 = MockPath("pp0")
+    pp0_bound = pp0.bind_at(2)
+
+    f_decay = 0.85
+    f_bound = 0.7
+
+    averaged_data = _make_averaged_data([(pp0, -1, f_decay), (pp0, 2, f_bound)])
+    model = MockFidelityModel(
+        {
+            pp0: IndexedVector({"r0": 1.0}),
+            pp0_bound: IndexedVector({"r0": 2.0, "r_se": 1.0}),
+        }
+    )
+
+    fit = Fit(model=model)
+    fit[AveragedData] = averaged_data
+    result = solver.run(fit)
+
+    model_data = result.model_data
+    assert "r0" in model_data.dataset["parameter"].values
+    assert "r_se" in model_data.dataset["parameter"].values

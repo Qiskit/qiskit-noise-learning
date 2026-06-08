@@ -10,11 +10,15 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from qiskit.circuit import BoxOp, QuantumCircuit
+from qiskit_ibm_runtime.quantum_program import QuantumProgram
 
+from qiskit_noise_learning.circuit_generator import ExecutorDataMapper
 from qiskit_noise_learning.noise_learner import LearningOptions, NoiseLearner
-from qiskit_noise_learning.noise_learner.noise_learner_job import ExperimentSchema, NoiseLearnerJob
+from qiskit_noise_learning.noise_learner.noise_learner_job import NoiseLearnerJob
 
 
 class _MockTarget:
@@ -78,31 +82,27 @@ def test_noise_learner_run_rejects_non_box_instruction(learner):
         learner.run([box_instr, instr])
 
 
-def test_noise_learner_run_orchestration(learner):
-    """Test run() orchestration with monkeypatched _generate and _execute."""
-    execute_calls = []
+@patch("qiskit_noise_learning.noise_learner.noise_learner.Executor")
+def test_noise_learner_run_orchestration(mock_executor_cls, learner):
+    """Test run() orchestration with monkeypatched _generate."""
     generate_calls = []
 
-    class _FakeJob:
-        experiment_schema = None
-
-    fake_schema = ExperimentSchema.__new__(ExperimentSchema)
-
-    def fake_execute(items):
-        execute_calls.append(items)
-        return _FakeJob()
+    fake_program = MagicMock(spec=QuantumProgram)
+    fake_data_mapper = MagicMock(spec=ExecutorDataMapper)
+    fake_job = MagicMock()
+    mock_executor_cls.return_value.run.return_value = fake_job
 
     def fake_generate(instructions):
         generate_calls.append(instructions)
-        return ([], fake_schema)
+        return (fake_program, fake_data_mapper)
 
     learner._generate = fake_generate  # noqa: SLF001
-    learner._execute = fake_execute  # noqa: SLF001
 
     box_instr = _make_box_instruction()
     result = learner.run([box_instr])
 
     assert isinstance(result, NoiseLearnerJob)
     assert len(generate_calls) == 1
-    assert len(execute_calls) == 1
+    mock_executor_cls.return_value.run.assert_called_once_with(fake_program)
+    assert result._data_mapper is fake_data_mapper  # noqa: SLF001
     assert result._analysis_stage is learner._analyzer  # noqa: SLF001

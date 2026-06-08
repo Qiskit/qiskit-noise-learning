@@ -22,7 +22,7 @@ from qiskit_noise_learning.data import (
     RawData,
 )
 from qiskit_noise_learning.models import FidelityModel
-from qiskit_noise_learning.sequences import Path
+from qiskit_noise_learning.sequences import InstructionSequence, Path
 
 LEVELS = (RawData, ObservableData, AveragedData, ModelData)
 """The levels of the analysis hierarchy."""
@@ -98,6 +98,9 @@ class Fit:
     Args:
         model: The model to fit.
         paths: The paths to analyze.
+        instruction_sequences: The instruction sequences used in the experiment.
+        relations: A pre-computed set of ``(path_idx, sequence_idx)`` tuples indicating which paths
+            are traversed by which instruction sequences.
     """
 
     def __init__(
@@ -105,10 +108,14 @@ class Fit:
         *,
         model: FidelityModel | None = None,
         paths: list[Path] | None = None,
+        instruction_sequences: list[InstructionSequence] | None = None,
+        relations: set[tuple[int, int]] | None = None,
         _store: _LevelHistory | None = None,
     ):
         self._model = model
         self._paths = paths or []
+        self._instruction_sequences = instruction_sequences
+        self._relations = relations
         self._store: _LevelHistory = {t: [Absent] for t in LEVELS} if _store is None else _store
 
     def copy(self) -> Self:
@@ -116,6 +123,12 @@ class Fit:
         return Fit(
             model=self._model,
             paths=list(self._paths),
+            instruction_sequences=(
+                list(self._instruction_sequences)
+                if self._instruction_sequences is not None
+                else None
+            ),
+            relations=set(self._relations) if self._relations is not None else None,
             _store={t: list(h) for t, h in self._store.items()},
         )
 
@@ -159,3 +172,13 @@ class Fit:
     def paths(self) -> list[Path]:
         """The paths to compute observables for."""
         return self._paths
+
+    @property
+    def instruction_sequences(self) -> list[InstructionSequence] | None:
+        """The instruction sequences used in the experiment, or ``None`` if not set."""
+        return self._instruction_sequences
+
+    @property
+    def relations(self) -> set[tuple[int, int]] | None:
+        """Path-to-sequence relations, or ``None`` if not set."""
+        return self._relations
