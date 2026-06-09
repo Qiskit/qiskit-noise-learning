@@ -15,8 +15,11 @@
 from abc import ABC, abstractmethod
 from collections.abc import Hashable
 from itertools import chain
-from typing import Generic, TypeVar
+from typing import Generic, TypeVar, overload
 
+import numpy as np
+
+from qiskit_noise_learning.data import ModelData
 from qiskit_noise_learning.gate_sets import GateSet, ModelGateSet
 from qiskit_noise_learning.math import IndexedVector
 from qiskit_noise_learning.sequences import FidelityIndex, Path
@@ -45,7 +48,7 @@ class FidelityModel(Generic[ParameterIndex], ABC):
 
     @abstractmethod
     def row_from_fidelity(self, fidelity_index: FidelityIndex) -> IndexedVector[ParameterIndex]:
-        """Get a row of the fidelity parameterization matrix.
+        """Get a row of the log fidelity parameterization matrix.
 
         Args:
             fidelity_index: The fidelity index for the row.
@@ -75,3 +78,71 @@ class FidelityModel(Generic[ParameterIndex], ABC):
             vector += self.row_from_fidelity(fidelity_index)
 
         return vector
+
+    @overload
+    def log_fidelity_estimate(self, index: FidelityIndex, model_data: ModelData) -> float: ...
+
+    @overload
+    def log_fidelity_estimate(self, index: Path, model_data: ModelData) -> float: ...
+
+    def log_fidelity_estimate(self, index: FidelityIndex | Path, model_data: ModelData) -> float:
+        """Compute the log-fidelity estimate for a fidelity index or path given model parameters.
+
+        Returns the dot product ``row . params`` where ``row`` is the design matrix row for
+        ``index``. For a :class:`~.Path`, the semantics follow :meth:`row_from_path`: unbound paths
+        give the per-repetition log-fidelity (repeatable fragment only), bound paths give the total
+        log-fidelity including start and end fragments.
+
+        Args:
+            index: A fidelity index or path.
+            model_data: The fitted model parameters.
+
+        Returns:
+            The log-fidelity estimate.
+
+        Raises:
+            ValueError: If a parameter index from the design matrix row is not present in
+                ``model_data``.
+        """
+        if isinstance(index, Path):
+            row = self.row_from_path(index)
+        else:
+            row = self.row_from_fidelity(index)
+
+        params = model_data.dataset["parameter_values"]
+        param_labels = params.coords["parameter"].values
+        param_index_map = {label: pos for pos, label in enumerate(param_labels)}
+        param_values = params.values
+
+        dot = 0.0
+        for idx, coeff in row.items():
+            if idx not in param_index_map:
+                raise ValueError(f"Parameter index {idx} not found in ModelData.")
+            dot += coeff * param_values[param_index_map[idx]]
+
+        return dot
+
+    @overload
+    def fidelity_estimate(self, index: FidelityIndex, model_data: ModelData) -> float: ...
+
+    @overload
+    def fidelity_estimate(self, index: Path, model_data: ModelData) -> float: ...
+
+    def fidelity_estimate(self, index: FidelityIndex | Path, model_data: ModelData) -> float:
+        """Compute the fidelity estimate for a fidelity index or path given model parameters.
+
+        Returns ``exp(-log_fidelity_estimate(index, model_data))``. See
+        :meth:`log_fidelity_estimate` for details on the semantics.
+
+        Args:
+            index: A fidelity index or path.
+            model_data: The fitted model parameters.
+
+        Returns:
+            The fidelity estimate.
+
+        Raises:
+            ValueError: If a parameter index from the design matrix row is not present in
+                ``model_data``.
+        """
+        return float(np.exp(-self.log_fidelity_estimate(index, model_data)))
