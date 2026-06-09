@@ -211,8 +211,9 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
     def linearly_independent_rows(self, tol=1e-8) -> Self:
         """Return a submatrix containing a maximal set of linearly independent rows.
 
-        Rows are processed in order: a row is kept if and only if it is linearly independent
-        of all preceding kept rows. This guarantees earlier rows are always preferred.
+        Rows are processed in order (according to the indices in ``self.row_index_map``): a row is
+        kept if and only if it is linearly independent of all preceding kept rows. This guarantees
+        earlier rows are always preferred.
 
         Args:
             tol: The tolerance for determining linear independence based on the norm of the
