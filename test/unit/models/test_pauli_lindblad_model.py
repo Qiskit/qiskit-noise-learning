@@ -438,7 +438,7 @@ def test_k_partition_local_default_coupling_map(two_q_pauli_str):
 
 
 def test_k_partition_local_errors(gate_set_cz):
-    with pytest.raises(ValueError, match="k >"):
+    with pytest.raises(ValueError, match="k value 3"):
         PauliLindbladModel.k_partition_local(gate_set=gate_set_cz, k=3)
 
     # qubit_partitions has invalid name
@@ -484,6 +484,58 @@ def test_k_partition_local_errors(gate_set_cz):
         PauliLindbladModel.k_partition_local(
             gate_set=gate_set_cz, k=1, local_paulis={"CZ": [QubitSparsePauliList(["X"])] * 2}
         )
+
+
+def test_k_partition_local_per_gate_k(two_q_pauli_str):
+    model_gate_set = ModelGateSet(4)
+    model_gate_set.add_gate(
+        ModelGate("CZ", [((0, 1), Clifford(CZGate())), ((2, 3), Clifford(CZGate()))])
+    )
+    model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(4), prep_idxs=range(4)))
+    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(4), meas_idxs=range(4)))
+
+    # CZ gets k=2 (includes cross-partition terms), P and M get k=1 (only local terms)
+    pauli_lindblad_model = PauliLindbladModel.k_partition_local(
+        gate_set=model_gate_set, k={"CZ": 2, "P": 1, "M": 1}
+    )
+
+    expected_cz_generators = QubitSparsePauliList(
+        # 1-local
+        [s + "II" for s in two_q_pauli_str]
+        + ["II" + s for s in two_q_pauli_str]
+        # 2-local
+        + [s1 + s2 for s1, s2 in product(two_q_pauli_str, repeat=2)]
+    )
+    expected_p_generators = QubitSparsePauliList(["XIII", "IXII", "IIXI", "IIIX"])
+    expected_m_generators = QubitSparsePauliList(["XIII", "IXII", "IIXI", "IIIX"])
+
+    assert len(pauli_lindblad_model.generators["CZ"]) == len(expected_cz_generators)
+    for generator in pauli_lindblad_model.generators["CZ"]:
+        assert generator in expected_cz_generators
+
+    assert len(pauli_lindblad_model.generators["P"]) == len(expected_p_generators)
+    for generator in pauli_lindblad_model.generators["P"]:
+        assert generator in expected_p_generators
+
+    assert len(pauli_lindblad_model.generators["M"]) == len(expected_m_generators)
+    for generator in pauli_lindblad_model.generators["M"]:
+        assert generator in expected_m_generators
+
+
+def test_k_partition_local_per_gate_k_errors(gate_set_cz):
+    # k dict missing a gate
+    with pytest.raises(ValueError, match="missing gates"):
+        PauliLindbladModel.k_partition_local(gate_set=gate_set_cz, k={"CZ": 2, "P": 1})
+
+    # k dict has extra gate not in gate_set
+    with pytest.raises(ValueError, match="not in gate_set"):
+        PauliLindbladModel.k_partition_local(
+            gate_set=gate_set_cz, k={"CZ": 2, "P": 1, "M": 1, "X": 1}
+        )
+
+    # k value too large for a gate
+    with pytest.raises(ValueError, match="k value 3"):
+        PauliLindbladModel.k_partition_local(gate_set=gate_set_cz, k={"CZ": 3, "P": 1, "M": 1})
 
 
 def test_k_local(two_q_pauli_str, pauli_str, gate_set_cz):
@@ -643,6 +695,23 @@ def test_k_local_errors(gate_set_cz):
             k=1,
             paulis={"CZ": QubitSparsePauliList(["XY"])},
         )
+
+
+def test_k_local_per_gate_k(two_q_pauli_str, pauli_str, gate_set_cz):
+    pauli_lindblad_model = PauliLindbladModel.k_local(
+        gate_set=gate_set_cz, k={"CZ": 2, "P": 1, "M": 1}
+    )
+
+    expected_generators = {
+        "CZ": QubitSparsePauliList(two_q_pauli_str),
+        "P": QubitSparsePauliList(["IX", "XI"]),
+        "M": QubitSparsePauliList(["IX", "XI"]),
+    }
+
+    for name, generator_list in pauli_lindblad_model.generators.items():
+        assert len(generator_list) == len(expected_generators[name])
+        for generator in generator_list:
+            assert generator in expected_generators[name]
 
 
 def test_to_pauli_lindblad_maps(gate_set_cz, generators_cz):
