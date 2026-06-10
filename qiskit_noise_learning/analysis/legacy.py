@@ -59,7 +59,7 @@ class LegacySolve(AnalysisStage):
         )
 
         layer_name = (
-            fit.averaged_data.dataset.unbound_path[0].item().repeatable_fragment[0].gate.name
+            fit.averaged_data.dataset.unbound_path[0].item().repeatable_fragment[0].gate_name
         )
 
         param_labels = [

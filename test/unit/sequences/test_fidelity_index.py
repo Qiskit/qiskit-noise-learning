@@ -26,14 +26,14 @@ def test_construction():
     ident = Clifford(QuantumCircuit(2))
     gate = ModelGate("L0", [((0, 1), ident)], qubit_idxs=range(2), meas_idxs=[0])
 
-    fidelity_index = FidelityIndex(
+    fidelity_index = FidelityIndex.from_gate(
         gate=gate,
         pauli=QubitSparsePauli("XI"),
         in_bit_indices=frozenset([0]),
         out_bit_indices=frozenset(),
     )
 
-    assert fidelity_index.gate == gate
+    assert fidelity_index.gate_name == gate.name
     assert fidelity_index.pauli == QubitSparsePauli("XI")
     assert fidelity_index.in_bit_indices == frozenset([0])
     assert fidelity_index.out_bit_indices == frozenset()
@@ -46,7 +46,7 @@ def test_construction_validation():
     gate = ModelGate("L0", [((0, 1), ident)], qubit_idxs=range(2), meas_idxs=[0])
 
     with pytest.raises(ValueError, match="pauli.indices must lie"):
-        FidelityIndex(
+        FidelityIndex.from_gate(
             gate=gate,
             pauli=QubitSparsePauli("IX"),
             in_bit_indices=frozenset([0]),
@@ -54,7 +54,7 @@ def test_construction_validation():
         )
 
     with pytest.raises(ValueError, match="in_bit_indices must be a subset"):
-        FidelityIndex(
+        FidelityIndex.from_gate(
             gate=gate,
             pauli=QubitSparsePauli("XI"),
             in_bit_indices=frozenset([1]),
@@ -62,7 +62,7 @@ def test_construction_validation():
         )
 
     with pytest.raises(ValueError, match="out_bit_indices must be a subset"):
-        FidelityIndex(
+        FidelityIndex.from_gate(
             gate=gate,
             pauli=QubitSparsePauli("XI"),
             in_bit_indices=frozenset(),
@@ -77,12 +77,12 @@ def test_observable_indices_and_mask():
     gate = ModelGate("L0", cliffords=[((1,), qc)], qubit_idxs=range(2), meas_idxs=[0])
 
     # qubit 0 Z measured but not reset
-    fid_idx = FidelityIndex(gate, QubitSparsePauli("ZI"), in_bit_indices=frozenset([0]))
+    fid_idx = FidelityIndex.from_gate(gate, QubitSparsePauli("ZI"), in_bit_indices=frozenset([0]))
     assert fid_idx.observable_indices == [0]
     assert np.array_equal(fid_idx.mask, np.array([True], np.bool_))
 
     # qubit 0 Z measured and reset to Z
-    fid_idx = FidelityIndex(
+    fid_idx = FidelityIndex.from_gate(
         gate, QubitSparsePauli("ZI"), in_bit_indices=frozenset([0]), out_bit_indices=frozenset([0])
     )
     assert fid_idx.observable_indices == []
@@ -92,7 +92,7 @@ def test_observable_indices_and_mask():
     gate = ModelGate(
         "L0", cliffords=[((1,), qc)], qubit_idxs=range(2), meas_idxs=[0], prep_idxs=[1]
     )
-    fid_idx = FidelityIndex(
+    fid_idx = FidelityIndex.from_gate(
         gate, QubitSparsePauli("II"), in_bit_indices=frozenset([0]), out_bit_indices=frozenset([1])
     )
     assert fid_idx.observable_indices == [0]
@@ -101,13 +101,13 @@ def test_observable_indices_and_mask():
     gate = ModelGate(
         "L0", cliffords=[((1,), qc)], qubit_idxs=range(2), meas_idxs=[0, 1], prep_idxs=[1]
     )
-    fid_idx = FidelityIndex(
+    fid_idx = FidelityIndex.from_gate(
         gate, QubitSparsePauli("II"), in_bit_indices=frozenset([0]), out_bit_indices=frozenset([1])
     )
     assert fid_idx.observable_indices == [0, 1]
     assert np.array_equal(fid_idx.mask, np.array([True, True], np.bool_))
 
-    fid_idx = FidelityIndex(
+    fid_idx = FidelityIndex.from_gate(
         gate,
         QubitSparsePauli("II"),
         in_bit_indices=frozenset([0, 1]),
@@ -116,7 +116,7 @@ def test_observable_indices_and_mask():
     assert np.array_equal(fid_idx.mask, np.array([True, False], np.bool_))
 
     # a case where the first entry in the list isn't being included
-    fid_idx = FidelityIndex(
+    fid_idx = FidelityIndex.from_gate(
         gate,
         QubitSparsePauli("II"),
         in_bit_indices=frozenset([1]),
@@ -131,7 +131,7 @@ def test_transition():
     qc.sx(1)
     gate = ModelGate("L0", [((0, 1), Clifford(qc))], qubit_idxs=range(2), meas_idxs=[0])
 
-    fidelity_index = FidelityIndex(
+    fidelity_index = FidelityIndex.from_gate(
         gate=gate,
         pauli=QubitSparsePauli("ZI"),
         in_bit_indices=frozenset([0]),
@@ -151,7 +151,7 @@ def test_sign_flip():
     qc.sx(1)
     gate = ModelGate("L0", cliffords=[(range(2), Clifford(qc))], meas_idxs=[0])
 
-    fidelity_index = FidelityIndex(
+    fidelity_index = FidelityIndex.from_gate(
         gate=gate,
         pauli=QubitSparsePauli("YI"),
         in_bit_indices=frozenset([0]),
@@ -168,7 +168,7 @@ def test_sign_flip():
     qc.x(1)
     gate = ModelGate("L0", cliffords=[(range(2), Clifford(qc))], meas_idxs=[0])
 
-    fidelity_index = FidelityIndex(
+    fidelity_index = FidelityIndex.from_gate(
         gate=gate,
         pauli=QubitSparsePauli("YI"),
         in_bit_indices=frozenset([0]),
@@ -190,7 +190,7 @@ def test_from_transition():
     fidelity_idx = FidelityIndex.from_transition(
         gate=gate, in_pauli=QubitSparsePauli("II"), out_pauli=QubitSparsePauli("IZ")
     )
-    assert fidelity_idx == FidelityIndex(
+    assert fidelity_idx == FidelityIndex.from_gate(
         gate=gate,
         pauli=QubitSparsePauli("II"),
         in_bit_indices=frozenset(),
@@ -202,7 +202,7 @@ def test_from_transition():
     fidelity_idx = FidelityIndex.from_transition(
         gate=gate, in_pauli=QubitSparsePauli("ZI"), out_pauli=QubitSparsePauli("IZ")
     )
-    assert fidelity_idx == FidelityIndex(
+    assert fidelity_idx == FidelityIndex.from_gate(
         gate=gate,
         pauli=QubitSparsePauli("II"),
         in_bit_indices=frozenset([1]),
@@ -214,7 +214,7 @@ def test_from_transition():
     fidelity_idx = FidelityIndex.from_transition(
         gate=gate, in_pauli=QubitSparsePauli("IX"), out_pauli=QubitSparsePauli("ZX")
     )
-    assert fidelity_idx == FidelityIndex(
+    assert fidelity_idx == FidelityIndex.from_gate(
         gate=gate,
         pauli=QubitSparsePauli("ZX"),
         in_bit_indices=frozenset([]),
@@ -226,7 +226,7 @@ def test_from_transition():
     fidelity_idx = FidelityIndex.from_transition(
         gate=gate, in_pauli=QubitSparsePauli("ZX"), out_pauli=QubitSparsePauli("IX")
     )
-    assert fidelity_idx == FidelityIndex(
+    assert fidelity_idx == FidelityIndex.from_gate(
         gate=gate,
         pauli=QubitSparsePauli("IX"),
         in_bit_indices=frozenset([]),
@@ -238,7 +238,7 @@ def test_from_transition():
     fidelity_idx = FidelityIndex.from_transition(
         gate=gate, in_pauli=QubitSparsePauli("ZX"), out_pauli=QubitSparsePauli("ZX")
     )
-    assert fidelity_idx == FidelityIndex(
+    assert fidelity_idx == FidelityIndex.from_gate(
         gate=gate,
         pauli=QubitSparsePauli("IX"),
         in_bit_indices=frozenset([]),
@@ -250,7 +250,7 @@ def test_from_transition():
     fidelity_idx = FidelityIndex.from_transition(
         gate=gate, in_pauli=QubitSparsePauli("IZZ"), out_pauli=QubitSparsePauli("ZZZ")
     )
-    assert fidelity_idx == FidelityIndex(
+    assert fidelity_idx == FidelityIndex.from_gate(
         gate=gate,
         pauli=QubitSparsePauli("IIZ"),
         in_bit_indices=frozenset([1]),
@@ -262,7 +262,7 @@ def test_from_transition():
     fidelity_idx = FidelityIndex.from_transition(
         gate=gate, in_pauli=QubitSparsePauli("IIZ"), out_pauli=QubitSparsePauli("ZIZ")
     )
-    assert fidelity_idx == FidelityIndex(
+    assert fidelity_idx == FidelityIndex.from_gate(
         gate=gate,
         pauli=QubitSparsePauli("IIZ"),
         in_bit_indices=frozenset([]),
@@ -326,7 +326,7 @@ def test_from_transition_errors():
 def test_hash():
     gate = ModelGate("L0", [], qubit_idxs=range(2), meas_idxs=[0])
 
-    fidelity_index = FidelityIndex(
+    fidelity_index = FidelityIndex.from_gate(
         gate=gate,
         pauli=QubitSparsePauli("XI"),
         in_bit_indices=frozenset([0]),

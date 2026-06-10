@@ -36,7 +36,7 @@ class TestSPAMPaths:
         expected = [
             Path(
                 start_fragment=[
-                    FidelityIndex(
+                    FidelityIndex.from_gate(
                         gate=gate_set_cz["P"],
                         pauli=QubitSparsePauli("II"),
                         out_bit_indices=frozenset([0]),
@@ -44,7 +44,7 @@ class TestSPAMPaths:
                 ],
                 repeatable_fragment=[],
                 end_fragment=[
-                    FidelityIndex(
+                    FidelityIndex.from_gate(
                         gate=gate_set_cz["M"],
                         pauli=QubitSparsePauli("II"),
                         in_bit_indices=frozenset([0]),
@@ -54,7 +54,7 @@ class TestSPAMPaths:
             ),
             Path(
                 start_fragment=[
-                    FidelityIndex(
+                    FidelityIndex.from_gate(
                         gate=gate_set_cz["P"],
                         pauli=QubitSparsePauli("II"),
                         out_bit_indices=frozenset([1]),
@@ -62,7 +62,7 @@ class TestSPAMPaths:
                 ],
                 repeatable_fragment=[],
                 end_fragment=[
-                    FidelityIndex(
+                    FidelityIndex.from_gate(
                         gate=gate_set_cz["M"],
                         pauli=QubitSparsePauli("II"),
                         in_bit_indices=frozenset([1]),

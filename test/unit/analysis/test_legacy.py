@@ -246,7 +246,7 @@ def test_legacy_solve_writes_model_data(two_qubit_anticomm_fit):
     assert isinstance(md, ModelData)
 
     # Parameter labels should be GeneratorIndex objects with the gate name from the
-    # unbound path's repeatable_fragment[0].gate.name (the gate set fixture uses "LL").
+    # unbound path's repeatable_fragment[0].gate_name (the gate set fixture uses "LL").
     indices = md.dataset["parameter"].values.tolist()
     assert all(idx.gate_name == "LL" for idx in indices)
 
