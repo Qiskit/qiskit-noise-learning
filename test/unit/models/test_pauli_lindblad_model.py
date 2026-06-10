@@ -494,9 +494,9 @@ def test_k_partition_local_per_gate_k(two_q_pauli_str):
     model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(4), prep_idxs=range(4)))
     model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(4), meas_idxs=range(4)))
 
-    # CZ gets k=2 (includes cross-partition terms), P and M get k=1 (only local terms)
+    # CZ gets k=2 (includes cross-partition terms), P and M get k=1 via default
     pauli_lindblad_model = PauliLindbladModel.k_partition_local(
-        gate_set=model_gate_set, k={"CZ": 2, "P": 1, "M": 1}
+        gate_set=model_gate_set, k=1, gate_k={"CZ": 2}
     )
 
     expected_cz_generators = QubitSparsePauliList(
@@ -523,19 +523,13 @@ def test_k_partition_local_per_gate_k(two_q_pauli_str):
 
 
 def test_k_partition_local_per_gate_k_errors(gate_set_cz):
-    # k dict missing a gate
-    with pytest.raises(ValueError, match="missing gates"):
-        PauliLindbladModel.k_partition_local(gate_set=gate_set_cz, k={"CZ": 2, "P": 1})
-
-    # k dict has extra gate not in gate_set
+    # gate_k has extra gate not in gate_set
     with pytest.raises(ValueError, match="not in gate_set"):
-        PauliLindbladModel.k_partition_local(
-            gate_set=gate_set_cz, k={"CZ": 2, "P": 1, "M": 1, "X": 1}
-        )
+        PauliLindbladModel.k_partition_local(gate_set=gate_set_cz, gate_k={"X": 1})
 
-    # k value too large for a gate
+    # gate_k value too large
     with pytest.raises(ValueError, match="k value 3"):
-        PauliLindbladModel.k_partition_local(gate_set=gate_set_cz, k={"CZ": 3, "P": 1, "M": 1})
+        PauliLindbladModel.k_partition_local(gate_set=gate_set_cz, gate_k={"CZ": 3})
 
 
 def test_k_local(two_q_pauli_str, pauli_str, gate_set_cz):
@@ -698,9 +692,7 @@ def test_k_local_errors(gate_set_cz):
 
 
 def test_k_local_per_gate_k(two_q_pauli_str, pauli_str, gate_set_cz):
-    pauli_lindblad_model = PauliLindbladModel.k_local(
-        gate_set=gate_set_cz, k={"CZ": 2, "P": 1, "M": 1}
-    )
+    pauli_lindblad_model = PauliLindbladModel.k_local(gate_set=gate_set_cz, k=1, gate_k={"CZ": 2})
 
     expected_generators = {
         "CZ": QubitSparsePauliList(two_q_pauli_str),

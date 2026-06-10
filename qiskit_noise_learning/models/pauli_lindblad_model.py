@@ -153,7 +153,8 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
     @staticmethod
     def k_partition_local(
         gate_set: GateSet,
-        k: int | dict[str, int] = 2,
+        k: int = 2,
+        gate_k: dict[str, int] | None = None,
         qubit_partitions: dict[str, list[set[int]]] | None = None,
         local_paulis: dict[str, list[QubitSparsePauliList]] | None = None,
         noise_site: dict[str, Literal["before"] | Literal["after"]] | None = None,
@@ -190,9 +191,10 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
                 pure measurement layers. To be converted to a :class:`ModelGateSet`. The coupling
                 map is drawn from ``gate_set.model_gate_set.coupling_map``, or if it is ``None``,
                 defaults to the complete coupling map.
-            k: The degree of locality of the model. Either an integer applied uniformly to all
-                gates, or a dictionary mapping gate names to per-gate locality values. When a
-                dictionary, every gate in the gate set must be present. Defaults to ``2``.
+            k: The default degree of locality of the model. Applies to all gates not specified
+                in ``gate_k``. Defaults to ``2``.
+            gate_k: A dictionary mapping gate names to per-gate locality values that override
+                ``k`` for the specified gates.
             qubit_partitions: A dictionary indicating a qubit partition for each gate. Any
                 unspecified partitions will be populated with a default in which qubits are
                 grouped together if they are connected by unitary gate operations.
@@ -211,8 +213,8 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
             A new :class:`~.PauliLindbladModel` instance.
 
         Raises:
-            ValueError: If any ``k`` value exceeds ``len(gate_set.qubit_subset)``.
-            ValueError: If ``k`` is a dict with keys not matching gate set names.
+            ValueError: If any k value exceeds ``len(gate_set.qubit_subset)``.
+            ValueError: If ``gate_k`` contains names not in the gate set.
             ValueError: Name not in ``gate_set`` is used in any other dictionary.
             ValueError: Any partition is ill-formed.
             ValueError: ``local_paulis`` does not satisfy the assumed form.
@@ -221,16 +223,13 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         gate_set = gate_set.model_gate_set
 
         # normalize k to a per-gate dict
-        if isinstance(k, int):
-            k_per_gate = {name: k for name in gate_set}
-        else:
-            extra = set(k) - set(gate_set)
-            if extra:
-                raise ValueError(f"k dict contains gates not in gate_set: {extra}")
-            missing = set(gate_set) - set(k)
-            if missing:
-                raise ValueError(f"k dict is missing gates: {missing}")
-            k_per_gate = k
+        gate_k = gate_k or {}
+
+        extra = set(gate_k) - set(gate_set)
+        if extra:
+            raise ValueError(f"gate_k contains gates not in gate_set: {extra}")
+
+        k_per_gate = {name: gate_k.get(name, k) for name in gate_set}
 
         for name, k_val in k_per_gate.items():
             if k_val > len(gate_set.qubit_subset):
@@ -334,7 +333,8 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
     @staticmethod
     def k_local(
         gate_set: GateSet,
-        k: int | dict[str, int] = 2,
+        k: int = 2,
+        gate_k: dict[str, int] | None = None,
         paulis: dict[str, QubitSparsePauliList] | None = None,
         noise_site: dict[str, Literal["before"] | Literal["after"]] | None = None,
         fidelity_mixer: FidelityMixer | None = None,
@@ -347,9 +347,10 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         Args:
             gate_set: The gate set being modelled. Must contain only Clifford, pure preparation, and
                 pure measurement layers. To be converted to a :class:`ModelGateSet`.
-            k: The degree of locality of the model. Either an integer applied uniformly to all
-                gates, or a dictionary mapping gate names to per-gate locality values. When a
-                dictionary, every gate in the gate set must be present. Defaults to ``2``.
+            k: The default degree of locality of the model. Applies to all gates not specified
+                in ``gate_k``. Defaults to ``2``.
+            gate_k: A dictionary mapping gate names to per-gate locality values that override
+                ``k`` for the specified gates.
             paulis: A dictionary indicating the single-qubit Paulis to use in the k-local
                 model for each gate. For Clifford gates, defaults to all single qubit Paulis, and
                 for measurement and preparation, defaults to :math:`\{I, X}\}`.
@@ -364,6 +365,7 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         return PauliLindbladModel.k_partition_local(
             gate_set=gate_set,
             k=k,
+            gate_k=gate_k,
             qubit_partitions={
                 name: [{x} for x in gate.qubit_idxs] for name, gate in gate_set.items()
             },
