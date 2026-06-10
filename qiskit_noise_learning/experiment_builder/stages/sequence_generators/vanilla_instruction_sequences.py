@@ -90,15 +90,15 @@ def _generate_vanilla_instruction_sequences(
 ) -> list[InstructionSequence]:
     ret = []
     all_zs = QubitSparsePauli.from_label("Z" * len(coupling_map.graph.nodes()))
-    repeatable_fragment = [ApplyGate(gate), ApplyGate(gate)]
+    repeatable_fragment = [ApplyGate(gate.name), ApplyGate(gate.name)]
     for basis in _generate_bases(coupling_map.graph):
         basis = QubitSparsePauli.from_label(basis)
         permutation = PartialPauliPermutation.from_qubit_sparse_paulis(all_zs, basis)
         ret.append(
             InstructionSequence(
-                [ApplyGate(prep_gate), permutation],
+                [ApplyGate(prep_gate.name), permutation],
                 repeatable_fragment,
-                [permutation.inverse, ApplyGate(meas_gate)],
+                [permutation.inverse, ApplyGate(meas_gate.name)],
             )
         )
     return ret

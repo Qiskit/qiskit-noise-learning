@@ -33,23 +33,61 @@ class FidelityIndex:
     - A list of "output" bits on the measured and reset qubits :math:`y in Z_2^{M \cup R}`.
 
     Args:
-        gate: The model for the gate.
+        gate_name: The name of the gate.
         pauli: A Pauli operator with support on unmeasured and unreset qubits. Note that
             ``pauli.num_qubits`` controls the size of the operators returned by ``self.transition``.
         in_bit_indices: The qubit indices of the non-zero "input bits".
         out_bit_indices: The qubit indices of the non-zero "output bits".
+        input_pauli: The input Pauli of the transition.
+        output_pauli: The output Pauli of the transition.
+        sign_flip: Whether the transition involves a sign flip.
+        meas_idxs: The measurement qubit indices for the gate.
     """
 
     def __init__(
         self,
+        gate_name: str,
+        pauli: QubitSparsePauli,
+        in_bit_indices: frozenset[int],
+        out_bit_indices: frozenset[int],
+        input_pauli: QubitSparsePauli,
+        output_pauli: QubitSparsePauli,
+        sign_flip: bool,
+        meas_idxs: frozenset[int],
+    ):
+        self._gate_name = gate_name
+        self._pauli = pauli
+        self._in_bit_indices = in_bit_indices
+        self._out_bit_indices = out_bit_indices
+        self._input_pauli = input_pauli
+        self._output_pauli = output_pauli
+        self._sign_flip = sign_flip
+        self._meas_idxs = meas_idxs
+
+    @classmethod
+    def from_gate(
+        cls,
         gate: ModelGate,
         pauli: QubitSparsePauli,
         in_bit_indices: frozenset[int] = frozenset(),
         out_bit_indices: frozenset[int] = frozenset(),
-    ):
+    ) -> Self:
+        """Construct a fidelity index from a gate and Pauli data.
+
+        This constructor validates the consistency of the provided data and computes the
+        transition Paulis and sign flip.
+
+        Args:
+            gate: The model gate.
+            pauli: A Pauli operator with support on unmeasured and unreset qubits.
+            in_bit_indices: The qubit indices of the non-zero "input bits".
+            out_bit_indices: The qubit indices of the non-zero "output bits".
+
+        Raises:
+            ValueError: If the provided data is inconsistent with the gate.
+        """
         meas_and_prep_qubits = gate.meas_idxs.union(gate.prep_idxs)
 
-        # check consistency of gate and other label data
         if not frozenset(pauli.indices).issubset(
             frozenset(gate.qubit_idxs).difference(meas_and_prep_qubits)
         ):
@@ -65,69 +103,20 @@ class FidelityIndex:
                 "out_bit_indices must be a subset of gate.meas_idxs.union(gate.prep_idxs)"
             )
 
-        self._gate = gate
-        self._pauli = pauli
-        self._in_bit_indices = in_bit_indices
-        self._out_bit_indices = out_bit_indices
-
-        # transition data to be lazily evaluated
-        self._input_pauli = None
-        self._output_pauli = None
-        self._sign_flip = None
-
-    @property
-    def gate(self) -> ModelGate:
-        """The model for the gate."""
-        return self._gate
-
-    @property
-    def pauli(self) -> QubitSparsePauli:
-        """The Pauli operator on the Clifford portion of the model gate."""
-        return self._pauli
-
-    @property
-    def in_bit_indices(self) -> frozenset[int]:
-        """The input bits corresponding to the measurement indices."""
-        return self._in_bit_indices
-
-    @cached_property
-    def mask(self) -> np.ndarray[np.bool_]:
-        """The mask for marginalizing measurement outcomes."""
-        mask = np.zeros(len(self.gate.meas_idxs), dtype=np.bool_)
-        mask[
-            [
-                idx
-                for idx, meas_idx in enumerate(self.gate.sorted_meas_idxs)
-                if meas_idx in self.observable_indices
-            ]
-        ] = True
-        return mask
-
-    @cached_property
-    def observable_indices(self) -> list[int]:
-        """Qubit indices of the associated Z observable in ascending order."""
-        return sorted(
-            self.out_bit_indices.intersection(self.gate.meas_idxs).symmetric_difference(
-                self.in_bit_indices
-            )
+        input_pauli, output_pauli, sign_flip = _compute_transition(
+            gate, pauli, in_bit_indices, out_bit_indices
         )
 
-    @property
-    def out_bit_indices(self) -> frozenset[int]:
-        """The output bits corresponding to the reset indices."""
-        return self._out_bit_indices
-
-    @property
-    def sign_flip(self) -> bool:
-        """Whether the transition associated with this fidelity involves a sign flip."""
-        self._set_transition()
-        return self._sign_flip
-
-    @property
-    def transition(self) -> tuple[QubitSparsePauli, QubitSparsePauli]:
-        """The phaseless Pauli operator transition associated with this fidelity index."""
-        self._set_transition()
-        return self._input_pauli, self._output_pauli
+        return cls(
+            gate_name=gate.name,
+            pauli=pauli,
+            in_bit_indices=in_bit_indices,
+            out_bit_indices=out_bit_indices,
+            input_pauli=input_pauli,
+            output_pauli=output_pauli,
+            sign_flip=sign_flip,
+            meas_idxs=gate.meas_idxs,
+        )
 
     @classmethod
     def from_transition(
@@ -198,39 +187,78 @@ class FidelityIndex:
                 "qubits"
             )
 
-        return cls(
-            gate=gate, pauli=pauli, in_bit_indices=in_bit_indices, out_bit_indices=out_bit_indices
+        input_pauli, output_pauli, sign_flip = _compute_transition(
+            gate, pauli, in_bit_indices, out_bit_indices
         )
 
-    def _set_transition(self):
-        """Evaluate transition data."""
-        if not self._input_pauli:
-            # construct input Pauli
-            phased_input_pauli = self.gate.clifford_propagate(
-                pauli=PhasedQubitSparsePauli(self.pauli.to_pauli())
-                @ PhasedQubitSparsePauli.from_sparse_label(
-                    (0, "Z" * len(self.in_bit_indices), list(self.in_bit_indices)),
-                    num_qubits=self.pauli.num_qubits,
-                ),
-                inverse=True,
-            )
-            self._input_pauli = QubitSparsePauli.from_raw_parts(
-                num_qubits=phased_input_pauli.num_qubits,
-                paulis=phased_input_pauli.paulis,
-                indices=phased_input_pauli.indices,
-            )
-            self._sign_flip = phased_input_pauli.phase == 2
+        return cls(
+            gate_name=gate.name,
+            pauli=pauli,
+            in_bit_indices=in_bit_indices,
+            out_bit_indices=out_bit_indices,
+            input_pauli=input_pauli,
+            output_pauli=output_pauli,
+            sign_flip=sign_flip,
+            meas_idxs=gate.meas_idxs,
+        )
 
-            # construct output Pauli
-            self._output_pauli = self.pauli @ QubitSparsePauli.from_sparse_label(
-                ("Z" * len(self.out_bit_indices), list(self.out_bit_indices)),
-                num_qubits=self.pauli.num_qubits,
+    @property
+    def gate_name(self) -> str:
+        """The name of the gate."""
+        return self._gate_name
+
+    @property
+    def pauli(self) -> QubitSparsePauli:
+        """The Pauli operator on the Clifford portion of the model gate."""
+        return self._pauli
+
+    @property
+    def in_bit_indices(self) -> frozenset[int]:
+        """The input bits corresponding to the measurement indices."""
+        return self._in_bit_indices
+
+    @property
+    def out_bit_indices(self) -> frozenset[int]:
+        """The output bits corresponding to the reset indices."""
+        return self._out_bit_indices
+
+    @property
+    def sign_flip(self) -> bool:
+        """Whether the transition associated with this fidelity involves a sign flip."""
+        return self._sign_flip
+
+    @property
+    def transition(self) -> tuple[QubitSparsePauli, QubitSparsePauli]:
+        """The phaseless Pauli operator transition associated with this fidelity index."""
+        return self._input_pauli, self._output_pauli
+
+    @cached_property
+    def mask(self) -> np.ndarray[np.bool_]:
+        """The mask for marginalizing measurement outcomes."""
+        sorted_meas_idxs = sorted(self._meas_idxs)
+        mask = np.zeros(len(self._meas_idxs), dtype=np.bool_)
+        mask[
+            [
+                idx
+                for idx, meas_idx in enumerate(sorted_meas_idxs)
+                if meas_idx in self.observable_indices
+            ]
+        ] = True
+        return mask
+
+    @cached_property
+    def observable_indices(self) -> list[int]:
+        """Qubit indices of the associated Z observable in ascending order."""
+        return sorted(
+            self.out_bit_indices.intersection(self._meas_idxs).symmetric_difference(
+                self.in_bit_indices
             )
+        )
 
     def __eq__(self, other: "FidelityIndex") -> bool:
         return (
             isinstance(other, FidelityIndex)
-            and self.gate == other.gate
+            and self.gate_name == other.gate_name
             and self.pauli == other.pauli
             and self.in_bit_indices == other.in_bit_indices
             and self.out_bit_indices == other.out_bit_indices
@@ -240,7 +268,7 @@ class FidelityIndex:
         if not hasattr(self, "_hash"):
             self._hash = hash(
                 (
-                    self.gate,
+                    self.gate_name,
                     (tuple(self.pauli.paulis), tuple(self.pauli.indices), self.pauli.num_qubits),
                     self.in_bit_indices,
                     self.out_bit_indices,
@@ -250,12 +278,42 @@ class FidelityIndex:
 
     def __repr__(self) -> str:
         s = "FidelityIndex(\n"
-        s += f"    gate={self.gate},\n"
+        s += f"    gate_name='{self.gate_name}',\n"
         s += f"    pauli={self.pauli},\n"
         s += f"    in_bit_indices={self.in_bit_indices},\n"
         s += f"    out_bit_indices={self.out_bit_indices},\n"
         s += ")"
         return s
+
+
+def _compute_transition(
+    gate: ModelGate,
+    pauli: QubitSparsePauli,
+    in_bit_indices: frozenset[int],
+    out_bit_indices: frozenset[int],
+) -> tuple[QubitSparsePauli, QubitSparsePauli, bool]:
+    """Compute the transition Paulis and sign flip for a fidelity index."""
+    phased_input_pauli = gate.clifford_propagate(
+        pauli=PhasedQubitSparsePauli(pauli.to_pauli())
+        @ PhasedQubitSparsePauli.from_sparse_label(
+            (0, "Z" * len(in_bit_indices), list(in_bit_indices)),
+            num_qubits=pauli.num_qubits,
+        ),
+        inverse=True,
+    )
+    input_pauli = QubitSparsePauli.from_raw_parts(
+        num_qubits=phased_input_pauli.num_qubits,
+        paulis=phased_input_pauli.paulis,
+        indices=phased_input_pauli.indices,
+    )
+    sign_flip = phased_input_pauli.phase == 2
+
+    output_pauli = pauli @ QubitSparsePauli.from_sparse_label(
+        ("Z" * len(out_bit_indices), list(out_bit_indices)),
+        num_qubits=pauli.num_qubits,
+    )
+
+    return input_pauli, output_pauli, sign_flip
 
 
 def _restrict_pauli(pauli: QubitSparsePauli, indices: Container[int]) -> QubitSparsePauli:

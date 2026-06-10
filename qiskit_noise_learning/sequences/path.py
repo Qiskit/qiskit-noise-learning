@@ -400,7 +400,7 @@ def _path_fragment_to_instruction_fragment(path_fragment: list[FidelityIndex]) -
     instruction_fragment = []
 
     fidelity_idx0 = path_fragment[0]
-    instruction_fragment.append(ApplyGate(fidelity_idx0.gate))
+    instruction_fragment.append(ApplyGate(fidelity_idx0.gate_name))
     for fidelity_idx1 in path_fragment[1:]:
         # connect the input and output Paulis
         instruction_fragment.append(
@@ -408,7 +408,7 @@ def _path_fragment_to_instruction_fragment(path_fragment: list[FidelityIndex]) -
                 fidelity_idx0.transition[1], fidelity_idx1.transition[0]
             )
         )
-        instruction_fragment.append(ApplyGate(fidelity_idx1.gate))
+        instruction_fragment.append(ApplyGate(fidelity_idx1.gate_name))
         fidelity_idx0 = fidelity_idx1
 
     return instruction_fragment
@@ -443,7 +443,7 @@ def _instruction_fragment_traverses_path_fragment(
                     # return None if gate differs from what is expected for the current path entry
                     if (
                         path_idx >= len(path_fragment)
-                        or instruction.gate != path_fragment[path_idx].gate
+                        or instruction.gate_name != path_fragment[path_idx].gate_name
                         or current_pauli != path_fragment[path_idx].transition[0]
                     ):
                         return None
@@ -455,7 +455,7 @@ def _instruction_fragment_traverses_path_fragment(
                     # return None if gate differs from what is expected for the current path entry
                     if (
                         path_idx >= len(path_fragment)
-                        or instruction.gate != path_fragment[path_idx].gate
+                        or instruction.gate_name != path_fragment[path_idx].gate_name
                         or unphased_pauli != path_fragment[path_idx].transition[0]
                     ):
                         return None
@@ -514,7 +514,7 @@ def _extend_instruction_fragment(
         if isinstance(instruction, ApplyGate):
             if (
                 path_idx >= len(path_fragment)
-                or instruction.gate != path_fragment[path_idx].gate
+                or instruction.gate_name != path_fragment[path_idx].gate_name
                 or current_pauli != path_fragment[path_idx].transition[0]
                 or path_idx == len(path_fragment)
             ):

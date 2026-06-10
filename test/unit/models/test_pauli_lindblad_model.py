@@ -203,7 +203,7 @@ def test_noise_site_errors(gate_set_cz, generators_cz):
 
 def test_row_from_unmixed_fidelity(gate_set_cz, generators_cz):
     pauli_lindblad_model = PauliLindbladModel(gate_set=gate_set_cz, generators=generators_cz)
-    fidelity = FidelityIndex(
+    fidelity = FidelityIndex.from_gate(
         gate=gate_set_cz["CZ"],
         pauli=QubitSparsePauli("IX"),
         in_bit_indices=frozenset(),
@@ -221,7 +221,7 @@ def test_row_from_unmixed_fidelity(gate_set_cz, generators_cz):
     pauli_lindblad_model = PauliLindbladModel(
         gate_set=gate_set_cz, generators=generators_cz, noise_site={"CZ": "after"}
     )
-    fidelity = FidelityIndex(
+    fidelity = FidelityIndex.from_gate(
         gate=gate_set_cz["CZ"],
         pauli=QubitSparsePauli("IX"),
         in_bit_indices=frozenset(),
@@ -235,7 +235,7 @@ def test_row_from_unmixed_fidelity(gate_set_cz, generators_cz):
     assert pauli_lindblad_model.row_from_unmixed_fidelity(fidelity) == expected
 
     # test measurement - pauli is ZI
-    fidelity = FidelityIndex(
+    fidelity = FidelityIndex.from_gate(
         gate=gate_set_cz["M"],
         pauli=QubitSparsePauli("II"),
         in_bit_indices=frozenset([1]),
@@ -255,7 +255,7 @@ def test_row_from_unmixed_fidelity_errors(gate_set_cz, generators_cz):
         gate_set=model_gate_set, generators={"P": generators_cz["P"], "M": generators_cz["M"]}
     )
 
-    fidelity = FidelityIndex(
+    fidelity = FidelityIndex.from_gate(
         gate=gate_set_cz["CZ"],
         pauli=QubitSparsePauli("IX"),
         in_bit_indices=frozenset(),

@@ -98,14 +98,14 @@ def _even_depth_paths(
         for output_pauli in output_paulis:
             if not np.array_equal(input_pauli.indices, output_pauli.indices):
                 continue
-            output_fidelity = FidelityIndex(gate, pauli=output_pauli)
+            output_fidelity = FidelityIndex.from_gate(gate, pauli=output_pauli)
 
             if np.array_equal(
                 input_fidelity.transition[1].indices, output_fidelity.transition[0].indices
             ):
                 yield Path(
                     start_fragment=[
-                        FidelityIndex(
+                        FidelityIndex.from_gate(
                             prep_gate,
                             pauli=ident,
                             out_bit_indices=frozenset(input_fidelity.transition[0].indices),
@@ -113,7 +113,7 @@ def _even_depth_paths(
                     ],
                     repeatable_fragment=[input_fidelity, output_fidelity],
                     end_fragment=[
-                        FidelityIndex(
+                        FidelityIndex.from_gate(
                             meas_gate,
                             pauli=ident,
                             in_bit_indices=frozenset(output_fidelity.transition[1].indices),

@@ -90,35 +90,35 @@ class TestIdentifyRelations:
 
         instruction_sequence_ix = InstructionSequence(
             start_fragment=[
-                ApplyGate(gate_set_cz["P"]),
+                ApplyGate("P"),
                 PartialPauliPermutation.from_sets([{("Z", "X")}, set()]),
             ],
-            repeatable_fragment=[ApplyGate(gate_set_cz["CZ"])] * 2,
+            repeatable_fragment=[ApplyGate("CZ")] * 2,
             end_fragment=[
                 PartialPauliPermutation.from_sets([{("X", "Z")}, set()]),
-                ApplyGate(gate_set_cz["M"]),
+                ApplyGate("M"),
             ],
         )
         instruction_sequence_xi = InstructionSequence(
             start_fragment=[
-                ApplyGate(gate_set_cz["P"]),
+                ApplyGate("P"),
                 PartialPauliPermutation.from_sets([set(), {("Z", "X")}]),
             ],
-            repeatable_fragment=[ApplyGate(gate_set_cz["CZ"])] * 2,
+            repeatable_fragment=[ApplyGate("CZ")] * 2,
             end_fragment=[
                 PartialPauliPermutation.from_sets([set(), {("X", "Z")}]),
-                ApplyGate(gate_set_cz["M"]),
+                ApplyGate("M"),
             ],
         )
         instruction_sequence_xx = InstructionSequence(
             start_fragment=[
-                ApplyGate(gate_set_cz["P"]),
+                ApplyGate("P"),
                 PartialPauliPermutation.from_sets([{("Z", "X")}] * 2),
             ],
-            repeatable_fragment=[ApplyGate(gate_set_cz["CZ"])] * 2,
+            repeatable_fragment=[ApplyGate("CZ")] * 2,
             end_fragment=[
                 PartialPauliPermutation.from_sets([{("X", "Z")}] * 2),
-                ApplyGate(gate_set_cz["M"]),
+                ApplyGate("M"),
             ],
         )
 

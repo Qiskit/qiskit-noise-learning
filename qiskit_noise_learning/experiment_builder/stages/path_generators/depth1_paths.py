@@ -82,12 +82,16 @@ def _depth1_paths(
         out_pauli = gate.clifford_propagate(pauli)
         yield Path(
             start_fragment=[
-                FidelityIndex(prep_gate, pauli=ident, out_bit_indices=frozenset(pauli.indices)),
-                FidelityIndex(gate, pauli=out_pauli),
+                FidelityIndex.from_gate(
+                    prep_gate, pauli=ident, out_bit_indices=frozenset(pauli.indices)
+                ),
+                FidelityIndex.from_gate(gate, pauli=out_pauli),
             ],
             repeatable_fragment=[],
             end_fragment=[
-                FidelityIndex(meas_gate, pauli=ident, in_bit_indices=frozenset(out_pauli.indices))
+                FidelityIndex.from_gate(
+                    meas_gate, pauli=ident, in_bit_indices=frozenset(out_pauli.indices)
+                )
             ],
             depth=0,
         )

@@ -51,7 +51,7 @@ def _make_model_data(parameter_indices, parameter_values):
 
 def test_row_from_fidelity(gate_set_1q):
     complete_model = CompleteFidelityModel(gate_set_1q)
-    fidelity = FidelityIndex(
+    fidelity = FidelityIndex.from_gate(
         gate=gate_set_1q["L0"],
         pauli=QubitSparsePauli("X"),
         in_bit_indices=frozenset(),
@@ -63,7 +63,7 @@ def test_row_from_fidelity(gate_set_1q):
 def test_row_from_unmixed_fidelity(gate_set_1q):
     """Should be same result as mixed version."""
     complete_model = CompleteFidelityModel(gate_set_1q)
-    fidelity = FidelityIndex(
+    fidelity = FidelityIndex.from_gate(
         gate=gate_set_1q["L0"],
         pauli=QubitSparsePauli("X"),
         in_bit_indices=frozenset(),
@@ -75,13 +75,13 @@ def test_row_from_unmixed_fidelity(gate_set_1q):
 def test_row_from_unbound_path(gate_set_1q):
     """Test row_from_path with an unbound path returns only the repeatable fragment row."""
     complete_model = CompleteFidelityModel(gate_set_1q)
-    fidelityX = FidelityIndex(
+    fidelityX = FidelityIndex.from_gate(
         gate=gate_set_1q["L0"],
         pauli=QubitSparsePauli("X"),
         in_bit_indices=frozenset(),
         out_bit_indices=frozenset(),
     )
-    fidelityY = FidelityIndex(
+    fidelityY = FidelityIndex.from_gate(
         gate=gate_set_1q["L0"],
         pauli=QubitSparsePauli("Y"),
         in_bit_indices=frozenset(),
@@ -101,13 +101,13 @@ def test_row_from_unbound_path(gate_set_1q):
 def test_row_from_bound_path(gate_set_1q):
     """Test row_from_path with a bound path returns the full row scaled by depth."""
     complete_model = CompleteFidelityModel(gate_set_1q)
-    fidelityX = FidelityIndex(
+    fidelityX = FidelityIndex.from_gate(
         gate=gate_set_1q["L0"],
         pauli=QubitSparsePauli("X"),
         in_bit_indices=frozenset(),
         out_bit_indices=frozenset(),
     )
-    fidelityY = FidelityIndex(
+    fidelityY = FidelityIndex.from_gate(
         gate=gate_set_1q["L0"],
         pauli=QubitSparsePauli("Y"),
         in_bit_indices=frozenset(),

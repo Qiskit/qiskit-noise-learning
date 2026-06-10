@@ -116,11 +116,11 @@ def gateset_subset():
 def test_generate_samplex_item(gateset):
     """Test `ExecutorCircuitGenerator.generate_samplex_item()` works as expected."""
     circuit_generator = ExecutorCircuitGenerator(gateset)
-    model_gateset = gateset.model_gate_set
+
     seq0 = InstructionSequence(
-        [ApplyGate(model_gateset["P"])],
-        [ApplyGate(model_gateset["L0"]), ApplyGate(model_gateset["L1"])],
-        [ApplyGate(model_gateset["M"])],
+        [ApplyGate("P")],
+        [ApplyGate("L0"), ApplyGate("L1")],
+        [ApplyGate("M")],
         depth=5,
     )
     samplex_item, creg_names, measurement_map = circuit_generator.generate_samplex_item(
@@ -142,16 +142,16 @@ def test_generate_samplex_item(gateset):
 
     perm = PartialPauliPermutation(array)
     seq1 = InstructionSequence(
-        [ApplyGate(model_gateset["P"])],
-        [ApplyGate(model_gateset["L0"]), ApplyGate(model_gateset["L1"])],
-        [perm, ApplyGate(model_gateset["M"])],
+        [ApplyGate("P")],
+        [ApplyGate("L0"), ApplyGate("L1")],
+        [perm, ApplyGate("M")],
         depth=5,
     )
 
     seq2 = InstructionSequence(
-        [ApplyGate(model_gateset["P"]), perm],
-        [ApplyGate(model_gateset["L0"]), perm, ApplyGate(model_gateset["L1"]), perm],
-        [ApplyGate(model_gateset["M"])],
+        [ApplyGate("P"), perm],
+        [ApplyGate("L0"), perm, ApplyGate("L1"), perm],
+        [ApplyGate("M")],
         depth=5,
     )
 
@@ -183,7 +183,6 @@ def test_generate_samplex_item_permutation_composition(gateset):
     """
 
     circuit_generator = ExecutorCircuitGenerator(gateset)
-    model_gateset = gateset.model_gate_set
 
     gateset_idxs = [idx for idx in gateset.qubit_subset]
     gateset_idxs.sort()
@@ -192,9 +191,9 @@ def test_generate_samplex_item_permutation_composition(gateset):
 
     perm0 = PartialPauliPermutation(array)
     seq0 = InstructionSequence(
-        [ApplyGate(model_gateset["P"]), perm0],
-        [ApplyGate(model_gateset["L0"]), perm0, ApplyGate(model_gateset["L1"]), perm0],
-        [ApplyGate(model_gateset["M"])],
+        [ApplyGate("P"), perm0],
+        [ApplyGate("L0"), perm0, ApplyGate("L1"), perm0],
+        [ApplyGate("M")],
         depth=5,
     )
 
@@ -202,9 +201,9 @@ def test_generate_samplex_item_permutation_composition(gateset):
     array[gateset_idxs] = 2
     perm1 = PartialPauliPermutation(array)
     seq1 = InstructionSequence(
-        [ApplyGate(model_gateset["P"]), perm1, perm0],
-        [ApplyGate(model_gateset["L0"]), perm0, ApplyGate(model_gateset["L1"]), perm0],
-        [ApplyGate(model_gateset["M"])],
+        [ApplyGate("P"), perm1, perm0],
+        [ApplyGate("L0"), perm0, ApplyGate("L1"), perm0],
+        [ApplyGate("M")],
         depth=5,
     )
 
@@ -229,9 +228,9 @@ def test_generate_samplex_item_permutation_composition(gateset):
     )
 
     seq2 = InstructionSequence(
-        [ApplyGate(model_gateset["P"]), perm0.compose(perm1)],
-        [ApplyGate(model_gateset["L0"]), perm0, ApplyGate(model_gateset["L1"]), perm0],
-        [ApplyGate(model_gateset["M"])],
+        [ApplyGate("P"), perm0.compose(perm1)],
+        [ApplyGate("L0"), perm0, ApplyGate("L1"), perm0],
+        [ApplyGate("M")],
         depth=5,
     )
     samplex_item2, creg_names2, meas_map2 = circuit_generator.generate_samplex_item(
@@ -252,9 +251,9 @@ def test_generate_samplex_item_permutation_composition(gateset):
     )
 
     seq3 = InstructionSequence(
-        [ApplyGate(model_gateset["P"]), perm1.compose(perm0)],
-        [ApplyGate(model_gateset["L0"]), perm0, ApplyGate(model_gateset["L1"]), perm0],
-        [ApplyGate(model_gateset["M"])],
+        [ApplyGate("P"), perm1.compose(perm0)],
+        [ApplyGate("L0"), perm0, ApplyGate("L1"), perm0],
+        [ApplyGate("M")],
         depth=5,
     )
     samplex_item3, creg_names3, meas_map3 = circuit_generator.generate_samplex_item(
@@ -274,17 +273,15 @@ def test_generate_samplex_item_permutation_composition(gateset):
     )
 
     # no repeatable fragment
-    seq4 = InstructionSequence(
-        [ApplyGate(model_gateset["P"]), perm0], [], [perm1, ApplyGate(model_gateset["M"])], depth=5
-    )
+    seq4 = InstructionSequence([ApplyGate("P"), perm0], [], [perm1, ApplyGate("M")], depth=5)
     samplex_item4, creg_names4, meas_map4 = circuit_generator.generate_samplex_item(
         [seq4], num_randomizations=50
     )
 
     seq5 = InstructionSequence(
-        [ApplyGate(model_gateset["P"])],
+        [ApplyGate("P")],
         [],
-        [perm1.compose(perm0), ApplyGate(model_gateset["M"])],
+        [perm1.compose(perm0), ApplyGate("M")],
         depth=5,
     )
     samplex_item5, creg_names5, meas_map5 = circuit_generator.generate_samplex_item(
@@ -312,17 +309,15 @@ def test_generate_samplex_item_raises():
     with pytest.raises(ValueError, match="At least one instruction"):
         circuit_generator.generate_samplex_item([], num_randomizations=50)
 
-    model_gateset = gateset.model_gate_set
-
     unbound_seq0 = InstructionSequence(
-        [ApplyGate(model_gateset["P"])],
-        [ApplyGate(model_gateset["L0"])],
-        [ApplyGate(model_gateset["M"])],
+        [ApplyGate("P")],
+        [ApplyGate("L0")],
+        [ApplyGate("M")],
     )
     unbound_seq1 = InstructionSequence(
-        [ApplyGate(model_gateset["P"])],
-        [ApplyGate(model_gateset["L1"])],
-        [ApplyGate(model_gateset["M"])],
+        [ApplyGate("P")],
+        [ApplyGate("L1")],
+        [ApplyGate("M")],
     )
     seq0 = unbound_seq0.bind_at(3)
     seq1 = unbound_seq1.bind_at(3)
@@ -335,9 +330,7 @@ def test_generate_samplex_item_raises():
         circuit_generator.generate_samplex_item([seq1, seq2], num_randomizations=50)
 
     perm = PartialPauliPermutation.from_sets([{("X", "Y")}])
-    seq3 = InstructionSequence(
-        [ApplyGate(model_gateset["P"])], [perm], [ApplyGate(model_gateset["M"])], depth=1
-    )
+    seq3 = InstructionSequence([ApplyGate("P")], [perm], [ApplyGate("M")], depth=1)
 
     with pytest.raises(ValueError, match="incomplete Pauli"):
         circuit_generator.generate_samplex_item([seq3], num_randomizations=50)
@@ -347,11 +340,11 @@ def test_generate_samplex_item_raises():
 def test_generate_samplex_items(gateset):
     """Test `ExecutorCircuitGenerator.generate_samplex_items()` works as expected."""
     circuit_generator = ExecutorCircuitGenerator(gateset)
-    model_gateset = gateset.model_gate_set
+
     unbound_seq0 = InstructionSequence(
-        [ApplyGate(model_gateset["P"])],
-        [ApplyGate(model_gateset["L0"]), ApplyGate(model_gateset["L1"])],
-        [ApplyGate(model_gateset["M"])],
+        [ApplyGate("P")],
+        [ApplyGate("L0"), ApplyGate("L1")],
+        [ApplyGate("M")],
     )
 
     sequences = [unbound_seq0.bind_at(d) for d in [1, 3, 10]]
@@ -369,9 +362,9 @@ def test_generate_samplex_items(gateset):
     perm = PartialPauliPermutation(array)
 
     unbound_seq1 = InstructionSequence(
-        [ApplyGate(model_gateset["P"]), perm],
-        [perm, ApplyGate(model_gateset["L0"]), ApplyGate(model_gateset["L1"]), perm],
-        [ApplyGate(model_gateset["M"]), perm],
+        [ApplyGate("P"), perm],
+        [perm, ApplyGate("L0"), ApplyGate("L1"), perm],
+        [ApplyGate("M"), perm],
     )
 
     sequences.extend(unbound_seq1.bind_at(d) for d in [1, 10, 20])
@@ -383,9 +376,9 @@ def test_generate_samplex_items(gateset):
     assert data_mapper.item_sequence_indices == [[0, 3], [1], [2, 4], [5]]
 
     seq2 = InstructionSequence(
-        [ApplyGate(model_gateset["P"])],
-        [ApplyGate(model_gateset["L1"]), ApplyGate(model_gateset["L0"])],
-        [ApplyGate(model_gateset["M"])],
+        [ApplyGate("P")],
+        [ApplyGate("L1"), ApplyGate("L0")],
+        [ApplyGate("M")],
         depth=1,
     )
     sequences.append(seq2)
@@ -409,9 +402,9 @@ def test_generate_samplex_items_different_decomposition_mode():
     gateset.add_box_as_gate(box_circuit[0], name="my_gate")
 
     seq = InstructionSequence(
-        [ApplyGate(gateset["P"])],
-        [ApplyGate(gateset["my_gate"])],
-        [ApplyGate(gateset["M"])],
+        [ApplyGate("P")],
+        [ApplyGate("my_gate")],
+        [ApplyGate("M")],
         depth=5,
     )
     samplex_items, _ = ExecutorCircuitGenerator(gateset).generate_samplex_items(
@@ -679,11 +672,10 @@ def test_generate_and_collect_with_pass_manager():
         builder.circuit.cz(0, 1)
         builder.circuit.noop(range(2))
 
-    model_gateset = gateset.model_gate_set
     seq = InstructionSequence(
-        [ApplyGate(model_gateset["P"])],
-        [ApplyGate(model_gateset["L0"])],
-        [ApplyGate(model_gateset["M"])],
+        [ApplyGate("P")],
+        [ApplyGate("L0")],
+        [ApplyGate("M")],
         depth=1,
     )
 
@@ -744,11 +736,10 @@ def test_generate_with_pass_manager_multi_qubit_creg():
         builder.circuit.cz(0, 1)
         builder.circuit.noop(range(2))
 
-    model_gateset = gateset.model_gate_set
     seq = InstructionSequence(
-        [ApplyGate(model_gateset["P"])],
-        [ApplyGate(model_gateset["L0"])],
-        [ApplyGate(model_gateset["M"])],
+        [ApplyGate("P")],
+        [ApplyGate("L0")],
+        [ApplyGate("M")],
         depth=1,
     )
 

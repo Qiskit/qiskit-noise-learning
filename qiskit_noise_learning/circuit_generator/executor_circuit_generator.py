@@ -271,7 +271,7 @@ class ExecutorCircuitGenerator(
                     raise ValueError("Encountered an incomplete Pauli permutation.")
                 current_permutation = instr.compose(current_permutation)
             elif isinstance(instr, ApplyGate):
-                gate = self.gate_set[instr.gate.name]
+                gate = self.gate_set[instr.gate_name]
 
                 body = QuantumCircuit([boxed_circuit.qubits[idx] for idx in gate.qubit_idxs])
                 ref = next(ref_iter)

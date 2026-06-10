@@ -14,21 +14,23 @@
 
 from typing import Self
 
-from qiskit_noise_learning.gate_sets import ModelGate
-
 from .instruction import Instruction
 
 
 class ApplyGate(Instruction):
-    """An instruction that applies a fixed gate."""
+    """An instruction that applies a fixed gate.
 
-    def __init__(self, gate: ModelGate):
-        self._gate = gate
+    Args:
+        gate_name: The name of the gate to apply.
+    """
+
+    def __init__(self, gate_name: str):
+        self._gate_name = gate_name
 
     @property
-    def gate(self) -> ModelGate:
-        """The gate to apply."""
-        return self._gate
+    def gate_name(self) -> str:
+        """The name of the gate to apply."""
+        return self._gate_name
 
     @property
     def is_complete(self) -> bool:
@@ -43,7 +45,7 @@ class ApplyGate(Instruction):
         """Whether or not this apply gate is mergeable with another one.
 
         Note that mergeability of two :class:`ApplyGate` instructions is based on equality
-        of the names of the contained model gates.
+        of the gate names.
 
         Args:
             other: The other instruction to check mergeablitity with.
@@ -51,16 +53,16 @@ class ApplyGate(Instruction):
         Returns:
             Whether this instruction is mergeable with the other.
         """
-        return isinstance(other, ApplyGate) and self.gate.name == other.gate.name
+        return isinstance(other, ApplyGate) and self.gate_name == other.gate_name
 
     def merge(self, other):
         if not self.is_mergeable_with(other):
             raise ValueError("Cannot merge ApplyGate instructions with different gates.")
 
-        return ApplyGate(self.gate)
+        return ApplyGate(self.gate_name)
 
     def __eq__(self, other: Self) -> bool:
-        return isinstance(other, ApplyGate) and self.gate == other.gate
+        return isinstance(other, ApplyGate) and self.gate_name == other.gate_name
 
     def __repr__(self) -> str:
-        return f"ApplyGate('{self.gate.name}')"
+        return f"ApplyGate('{self.gate_name}')"

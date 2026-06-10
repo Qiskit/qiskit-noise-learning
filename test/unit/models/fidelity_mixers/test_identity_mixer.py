@@ -22,7 +22,7 @@ from qiskit_noise_learning.sequences import FidelityIndex
 def test_fidelity_mixture():
     """Test fidelity_mixture returns a delta distribution."""
     gate = ModelGate("L0", [((0, 1), Clifford(CZGate()))])
-    fidelity_index = FidelityIndex(
+    fidelity_index = FidelityIndex.from_gate(
         gate=gate,
         pauli=QubitSparsePauli("ZX"),
         in_bit_indices=frozenset(),
