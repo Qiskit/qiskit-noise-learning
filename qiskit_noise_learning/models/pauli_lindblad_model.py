@@ -213,7 +213,7 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
             A new :class:`~.PauliLindbladModel` instance.
 
         Raises:
-            ValueError: If any k value exceeds ``len(gate_set.qubit_subset)``.
+            ValueError: If any ``k`` value exceeds ``len(gate_set.qubit_subset)``.
             ValueError: If ``gate_k`` contains names not in the gate set.
             ValueError: Name not in ``gate_set`` is used in any other dictionary.
             ValueError: Any partition is ill-formed.
