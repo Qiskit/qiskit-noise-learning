@@ -126,9 +126,9 @@ class FidelityModel(Generic[ParameterIndex], ABC):
     def fidelity_estimate(self, index: Path, model_data: ModelData) -> float: ...
 
     def fidelity_estimate(self, index: FidelityIndex | Path, model_data: ModelData) -> float:
-        """Compute the fidelity estimate for a fidelity index or path given model parameters.
+        """Return the fidelity estimate for a fidelity index or path given model parameters.
 
-        Returns ``exp(-log_fidelity_estimate(index, model_data))``. See
+        Computes ``exp(-log_fidelity_estimate(index, model_data))``. See
         :meth:`log_fidelity_estimate` for details on the semantics.
 
         Args:
