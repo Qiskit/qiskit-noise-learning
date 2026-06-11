@@ -294,9 +294,10 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         # construct default local paulis
         local_paulis = local_paulis or dict()
 
-        for name in local_paulis:
-            if name not in gate_set:
-                raise ValueError(f"Gate {name} in local_paulis is not in gate_set.")
+        if not local_paulis.keys() <= gate_set.keys():
+            raise ValueError(
+                f"Gates {set(local_paulis) - set(gate_set)} in local_paulis not in gate_set."
+            )
 
         # need prep and meas names for local_paulis defaults
         prep_names, meas_names = _validate_gate_set_form(gate_set)

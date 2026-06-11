@@ -466,7 +466,7 @@ def test_k_partition_local_errors(gate_set_cz):
         )
 
     # local_paulis has invalid name
-    with pytest.raises(ValueError, match="Gate not_in_gate_set"):
+    with pytest.raises(ValueError, match="Gates {'not_in_gate_set'}"):
         PauliLindbladModel.k_partition_local(
             gate_set=gate_set_cz,
             k=1,
@@ -675,7 +675,7 @@ def test_k_local_empty(gate_set_cz):
 
 def test_k_local_errors(gate_set_cz):
     # paulis has invalid name
-    with pytest.raises(ValueError, match="Gate not_in_gate_set"):
+    with pytest.raises(ValueError, match="Gates {'not_in_gate_set'}"):
         PauliLindbladModel.k_local(
             gate_set=gate_set_cz,
             k=1,
