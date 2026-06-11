@@ -238,7 +238,10 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
 
         for name, k_val in gate_k.items():
             if k_val > len(gate_set.qubit_subset):
-                raise ValueError(f"k value {k_val} for gate '{name}' > len(gate_set.qubit_subset)")
+                raise ValueError(
+                    f"k:`{k_val}` for gate '{name}' must be less than or equal to the number of "
+                    f"qubits: `{len(gate_set.qubit_subset)}`."
+                )
 
         # default coupling map
         coupling_map = gate_set.coupling_map or CouplingMap.from_full(gate_set.num_qubits)

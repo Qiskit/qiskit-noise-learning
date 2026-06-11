@@ -528,7 +528,7 @@ def test_k_partition_local_per_gate_k_errors(gate_set_cz):
         PauliLindbladModel.k_partition_local(gate_set=gate_set_cz, gate_k={"X": 1})
 
     # gate_k value too large
-    with pytest.raises(ValueError, match="k value 3"):
+    with pytest.raises(ValueError, match="k:`3`"):
         PauliLindbladModel.k_partition_local(gate_set=gate_set_cz, gate_k={"CZ": 3})
 
 
