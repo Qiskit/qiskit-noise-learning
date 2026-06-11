@@ -30,7 +30,15 @@ class FidelityIndex:
     each fidelity is indexed by:
     - A Pauli on the unmeasured and unreset qubits :math:`Q in P^{[K]\setminus (M \cup R)}`,
     - A list of "input bits" on the measured qubits :math:`x in Z_2^M`, and
-    - A list of "output" bits on the measured and reset qubits :math:`y in Z_2^{M \cup R}`.
+    - A list of "output bits" on the measured and reset qubits :math:`y in Z_2^{M \cup R}`.
+
+    In addition to the above data uniquely specifying a fidelity, this class has several derived
+    properties phrased in terms of the Pauli-operator transition implied by the index data. While
+    these properties can be computed from the index data and the properties of the gate, this class
+    is setup primarily as a data class, with all required data specified as arguments to the
+    :meth:`FidelityIndex.__init__`, which is viewed as a "low-level" constructor without validation.
+    The constructors :meth:`FidelityIndex.from_gate` and :meth:`FidelityIndex.from_transition` offer
+    higher-level and easier to use construction methods.
 
     Args:
         gate_name: The name of the gate.
@@ -38,9 +46,9 @@ class FidelityIndex:
             ``pauli.num_qubits`` controls the size of the operators returned by ``self.transition``.
         in_bit_indices: The qubit indices of the non-zero "input bits".
         out_bit_indices: The qubit indices of the non-zero "output bits".
-        input_pauli: The input Pauli of the transition.
-        output_pauli: The output Pauli of the transition.
-        sign_flip: Whether the transition involves a sign flip.
+        input_pauli: The input Pauli of the implied transition.
+        output_pauli: The output Pauli of the implied transition.
+        sign_flip: Whether the implied transition involves a sign flip.
         meas_idxs: The measurement qubit indices for the gate.
     """
 
@@ -72,10 +80,10 @@ class FidelityIndex:
         in_bit_indices: frozenset[int] = frozenset(),
         out_bit_indices: frozenset[int] = frozenset(),
     ) -> Self:
-        """Construct a fidelity index from a gate and Pauli data.
+        """Construct a fidelity index from a gate and unique index data.
 
-        This constructor validates the consistency of the provided data and computes the
-        transition Paulis and sign flip.
+        This constructor includes validation of the index data against the :class:`ModelGate`
+        properties.
 
         Args:
             gate: The model gate.
