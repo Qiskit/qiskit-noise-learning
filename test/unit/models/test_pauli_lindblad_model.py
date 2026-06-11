@@ -438,7 +438,7 @@ def test_k_partition_local_default_coupling_map(two_q_pauli_str):
 
 
 def test_k_partition_local_errors(gate_set_cz):
-    with pytest.raises(ValueError, match="k value 3"):
+    with pytest.raises(ValueError, match="k:`3`"):
         PauliLindbladModel.k_partition_local(gate_set=gate_set_cz, k=3)
 
     # qubit_partitions has invalid name

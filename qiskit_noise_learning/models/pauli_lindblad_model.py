@@ -220,18 +220,22 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
             ValueError: ``local_paulis`` does not satisfy the assumed form.
         """
 
-        gate_set = gate_set.model_gate_set
+        # validate k
+        if k > len(gate_set.qubit_subset):
+            raise ValueError(
+                f"k:`{k}` must be less than or equal to the number of qubits: "
+                f"`{len(gate_set.qubit_subset)}`."
+            )
 
-        # normalize k to a per-gate dict
+        # validate gate_k
+        gate_set = gate_set.model_gate_set
         gate_k = gate_k or {}
 
-        extra = set(gate_k) - set(gate_set)
-        if extra:
-            raise ValueError(f"gate_k contains gates not in gate_set: {extra}")
+        extra_gate_k = set(gate_k) - set(gate_set)
+        if extra_gate_k:
+            raise ValueError(f"gate_k contains gates not in gate_set: {extra_gate_k}")
 
-        k_per_gate = {name: gate_k.get(name, k) for name in gate_set}
-
-        for name, k_val in k_per_gate.items():
+        for name, k_val in gate_k.items():
             if k_val > len(gate_set.qubit_subset):
                 raise ValueError(f"k value {k_val} for gate '{name}' > len(gate_set.qubit_subset)")
 
@@ -316,7 +320,7 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         generators = dict()
         for name in gate_set:
             generators[name] = _k_local_paulis(
-                k=k_per_gate[name],
+                k=gate_k.get(name, k),
                 num_qubits=gate_set.num_qubits,
                 coupling_map=coupling_map,
                 qubit_partition=qubit_partitions[name],
