@@ -20,8 +20,31 @@ from qiskit_noise_learning.gate_sets import ModelGate
 from qiskit_noise_learning.sequences import FidelityIndex
 
 
-def test_construction():
-    """Test construction and attributes."""
+def test_init():
+    """Test low-level __init__ stores all values and derived properties work."""
+    fidelity_index = FidelityIndex(
+        gate_name="L0",
+        pauli=QubitSparsePauli("XI"),
+        in_bit_indices=frozenset([0]),
+        out_bit_indices=frozenset(),
+        input_pauli=QubitSparsePauli("YZ"),
+        output_pauli=QubitSparsePauli("XI"),
+        sign_flip=True,
+        meas_idxs=frozenset([0]),
+    )
+
+    assert fidelity_index.gate_name == "L0"
+    assert fidelity_index.pauli == QubitSparsePauli("XI")
+    assert fidelity_index.in_bit_indices == frozenset([0])
+    assert fidelity_index.out_bit_indices == frozenset()
+    assert fidelity_index.transition == (QubitSparsePauli("YZ"), QubitSparsePauli("XI"))
+    assert fidelity_index.sign_flip is True
+    assert fidelity_index.observable_indices == [0]
+    assert np.array_equal(fidelity_index.mask, np.array([True], np.bool_))
+
+
+def test_from_gate():
+    """Test from_gate construction and attributes."""
 
     ident = Clifford(QuantumCircuit(2))
     gate = ModelGate("L0", [((0, 1), ident)], qubit_idxs=range(2), meas_idxs=[0])
@@ -39,8 +62,8 @@ def test_construction():
     assert fidelity_index.out_bit_indices == frozenset()
 
 
-def test_construction_validation():
-    """Test construction and attributes."""
+def test_from_gate_validation():
+    """Test from_gate validation."""
 
     ident = Clifford(QuantumCircuit(2))
     gate = ModelGate("L0", [((0, 1), ident)], qubit_idxs=range(2), meas_idxs=[0])
