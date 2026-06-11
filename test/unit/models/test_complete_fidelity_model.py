@@ -37,6 +37,18 @@ def gate_set_1q():
     return model_gate_set
 
 
+def _make_model_data(parameter_indices, parameter_values):
+    """Helper to construct a ModelData with given parameters."""
+    n = len(parameter_indices)
+    return ModelData.from_arrays(
+        parameter_indices=parameter_indices,
+        parameter_values=np.array(parameter_values, dtype=np.float64),
+        covariance=np.zeros((n, n), dtype=np.float64),
+        time_lbs=np.full(n, np.datetime64("2026-01-01"), dtype="datetime64[us]"),
+        time_ubs=np.full(n, np.datetime64("2026-01-01"), dtype="datetime64[us]"),
+    )
+
+
 def test_row_from_fidelity(gate_set_1q):
     complete_model = CompleteFidelityModel(gate_set_1q)
     fidelity = FidelityIndex(
@@ -109,18 +121,6 @@ def test_row_from_bound_path(gate_set_1q):
         depth=5,
     )
     assert complete_model.row_from_path(path) == IndexedVector({fidelityX: 11.0, fidelityY: 6.0})
-
-
-def _make_model_data(parameter_indices, parameter_values):
-    """Helper to construct a ModelData with given parameters."""
-    n = len(parameter_indices)
-    return ModelData.from_arrays(
-        parameter_indices=parameter_indices,
-        parameter_values=np.array(parameter_values, dtype=np.float64),
-        covariance=np.zeros((n, n), dtype=np.float64),
-        time_lbs=np.full(n, np.datetime64("2026-01-01"), dtype="datetime64[us]"),
-        time_ubs=np.full(n, np.datetime64("2026-01-01"), dtype="datetime64[us]"),
-    )
 
 
 def test_fidelity_estimate_from_index(gate_set_1q):
