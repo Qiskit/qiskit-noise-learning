@@ -86,9 +86,9 @@ class FidelityModel(Generic[ParameterIndex], ABC):
     def log_fidelity_estimate(self, index: Path, model_data: ModelData) -> float: ...
 
     def log_fidelity_estimate(self, index: FidelityIndex | Path, model_data: ModelData) -> float:
-        """Compute the log-fidelity estimate for a fidelity index or path given model parameters.
+        """Return the log-fidelity estimate for a fidelity index or path given model parameters.
 
-        Returns the dot product ``row . params`` where ``row`` is the design matrix row for
+        Computes the dot product ``row . params`` where ``row`` is the design matrix row for
         ``index``. For a :class:`~.Path`, the semantics follow :meth:`row_from_path`: unbound paths
         give the per-repetition log-fidelity (repeatable fragment only), bound paths give the total
         log-fidelity including start and end fragments.
