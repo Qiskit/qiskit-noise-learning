@@ -44,8 +44,7 @@ class ApplyGate(Instruction):
     def is_mergeable_with(self, other: "Instruction") -> bool:
         """Whether or not this apply gate is mergeable with another one.
 
-        Note that mergeability of two :class:`ApplyGate` instructions is based on equality
-        of the gate names.
+        Mergeability of two :class:`ApplyGate` instructions is based on equality of the gate names.
 
         Args:
             other: The other instruction to check mergeablitity with.
