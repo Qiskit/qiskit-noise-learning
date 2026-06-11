@@ -104,7 +104,9 @@ class FidelityModel(Generic[ParameterIndex], ABC):
             ValueError: If a parameter index from the design matrix row is not present in
                 ``model_data``.
         """
-        row = self.row_from_path(index) if isinstance(index, Path) else self.row_from_fidelity(index)
+        row = (
+            self.row_from_path(index) if isinstance(index, Path) else self.row_from_fidelity(index)
+        )
 
         params = model_data.dataset["parameter_values"]
         param_labels = params.coords["parameter"].values
