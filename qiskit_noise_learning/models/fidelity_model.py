@@ -137,9 +137,5 @@ class FidelityModel(Generic[ParameterIndex], ABC):
 
         Returns:
             The fidelity estimate.
-
-        Raises:
-            ValueError: If a parameter index from the design matrix row is not present in
-                ``model_data``.
         """
         return float(np.exp(-self.log_fidelity_estimate(index, model_data)))
