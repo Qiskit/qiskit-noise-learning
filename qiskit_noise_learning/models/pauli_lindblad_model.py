@@ -220,6 +220,8 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
             ValueError: ``local_paulis`` does not satisfy the assumed form.
         """
 
+        gate_set = gate_set.model_gate_set
+
         # validate k
         if k > len(gate_set.qubit_subset):
             raise ValueError(
@@ -228,7 +230,6 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
             )
 
         # validate gate_k
-        gate_set = gate_set.model_gate_set
         gate_k = gate_k or {}
 
         extra_gate_k = set(gate_k) - set(gate_set)
