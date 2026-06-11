@@ -232,9 +232,10 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         # validate gate_k
         gate_k = gate_k or {}
 
-        extra_gate_k = set(gate_k) - set(gate_set)
-        if extra_gate_k:
-            raise ValueError(f"gate_k contains gates not in gate_set: {extra_gate_k}")
+        if not gate_k.keys() <= gate_set.keys():
+            raise ValueError(
+                f"gate_k contains gates not in gate_set: {set(gate_k) - set(gate_set)}"
+            )
 
         for name, k_val in gate_k.items():
             if k_val > len(gate_set.qubit_subset):
@@ -249,9 +250,11 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         # validate and construct partitions
         qubit_partitions = qubit_partitions or dict()
 
-        for name in qubit_partitions:
-            if name not in gate_set:
-                raise ValueError(f"Gate {name} in qubit_partitions is not in gate_set.")
+        if not qubit_partitions.keys() <= gate_set.keys():
+            raise ValueError(
+                f"Gates {set(qubit_partitions) - set(gate_set)} in qubit_partitions not in "
+                "gate_set."
+            )
 
         for name, gate in gate_set.items():
             if name in qubit_partitions:
