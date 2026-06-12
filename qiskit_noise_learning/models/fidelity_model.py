@@ -17,6 +17,8 @@ from collections.abc import Hashable
 from itertools import chain
 from typing import Generic, TypeVar
 
+from qiskit.quantum_info import QubitSparsePauli
+
 from qiskit_noise_learning.gate_sets import GateSet, ModelGateSet
 from qiskit_noise_learning.math import IndexedVector
 from qiskit_noise_learning.sequences import FidelityIndex, Path
@@ -75,3 +77,119 @@ class FidelityModel(Generic[ParameterIndex], ABC):
             vector += self.row_from_fidelity(fidelity_index)
 
         return vector
+
+    def fidelity_index_latex_symbol(
+        self,
+        fidelity_index: FidelityIndex,
+        format: str = "transition",
+    ) -> str:
+        r"""Return a LaTeX string for a fidelity index.
+
+        Args:
+            fidelity_index: The fidelity index to label.
+            format: Either ``"transition"`` (shows input :math:`\to` output Pauli) or ``"index"``
+                (shows pauli, in_bit_indices, out_bit_indices).
+
+        Returns:
+            A LaTeX string.
+
+        Raises:
+            ValueError: If ``format`` is not ``"transition"`` or ``"index"``.
+        """
+        gate_sym = self._gate_set[fidelity_index.gate_name].latex_symbol
+
+        if format == "transition":
+            in_pauli, out_pauli = fidelity_index.transition
+            in_str = _qubit_sparse_pauli_to_latex(in_pauli)
+            out_str = _qubit_sparse_pauli_to_latex(out_pauli)
+            return rf"{in_str} \xrightarrow{{{gate_sym}}} {out_str}"
+        elif format == "index":
+            pauli_str = _qubit_sparse_pauli_to_latex(fidelity_index.pauli)
+            parts = [gate_sym, pauli_str]
+            if fidelity_index.in_bit_indices:
+                in_bits = (
+                    r"\{" + ",".join(str(i) for i in sorted(fidelity_index.in_bit_indices)) + r"\}"
+                )
+                parts.append(rf"b_{{in}}={in_bits}")
+            if fidelity_index.out_bit_indices:
+                out_bits = (
+                    r"\{" + ",".join(str(i) for i in sorted(fidelity_index.out_bit_indices)) + r"\}"
+                )
+                parts.append(rf"b_{{out}}={out_bits}")
+            return r"f(" + r",\, ".join(parts) + r")"
+        else:
+            raise ValueError(f"Invalid format: {format!r}. Must be 'transition' or 'index'.")
+
+    def path_latex_symbol(self, path: Path, format: str = "transition") -> str:
+        r"""Return a LaTeX string for a path.
+
+        The format shows the repeatable fragment as a bracketed sequence raised to the depth, with
+        start and end fragments shown separately if present. In transition format, consecutive
+        fidelity indices whose output and input Paulis match are chained into a single arrow
+        sequence.
+
+        Args:
+            path: The path to label.
+            format: The format to use for each fidelity index label. Passed as the
+                ``format`` argument to :meth:`fidelity_index_latex_symbol`.
+
+        Returns:
+            A LaTeX string.
+        """
+        parts = []
+
+        if path.start_fragment:
+            parts.append(self._fragment_latex_symbol(path.start_fragment, format))
+
+        if path.repeatable_fragment:
+            rep_str = self._fragment_latex_symbol(path.repeatable_fragment, format)
+            depth_str = str(path.depth) if path.depth is not None else "d"
+            parts.append(f"[{rep_str}]^{{{depth_str}}}")
+
+        if path.end_fragment:
+            parts.append(self._fragment_latex_symbol(path.end_fragment, format))
+
+        delimiter = r" \rightarrow " if format == "transition" else ""
+        return delimiter.join(parts)
+
+    def _fragment_latex_symbol(self, fragment: list[FidelityIndex], format: str) -> str:
+        """Return a LaTeX string for a single fragment of a path."""
+        if format != "transition":
+            return "".join(self.fidelity_index_latex_symbol(fi, format=format) for fi in fragment)
+
+        chains = []
+        current_chain = []
+        for fi in fragment:
+            in_pauli, out_pauli = fi.transition
+            gate_sym = self._gate_set[fi.gate_name].latex_symbol
+            if current_chain and current_chain[-1][1] == in_pauli:
+                current_chain.append((in_pauli, out_pauli, gate_sym))
+            else:
+                if current_chain:
+                    chains.append(current_chain)
+                current_chain = [(in_pauli, out_pauli, gate_sym)]
+        if current_chain:
+            chains.append(current_chain)
+
+        chain_strs = []
+        for arrow_chain in chains:
+            parts = [_qubit_sparse_pauli_to_latex(arrow_chain[0][0])]
+            for _, out_pauli, gate_sym in arrow_chain:
+                out_str = _qubit_sparse_pauli_to_latex(out_pauli)
+                parts.append(rf"\xrightarrow{{{gate_sym}}} {out_str}")
+            chain_strs.append(" ".join(parts))
+
+        return r" \rightarrow ".join(chain_strs)
+
+
+_PAULI_LABELS = {1: "Z", 2: "X", 3: "Y"}
+
+
+def _qubit_sparse_pauli_to_latex(pauli: QubitSparsePauli) -> str:
+    """Convert a QubitSparsePauli to a LaTeX string like ``X_{0} Z_{2}``."""
+    if len(pauli.paulis) == 0:
+        return "I"
+    parts = []
+    for p, idx in zip(pauli.paulis, pauli.indices):
+        parts.append(f"{_PAULI_LABELS[int(p)]}_{{{int(idx)}}}")
+    return " ".join(parts)
