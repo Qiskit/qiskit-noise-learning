@@ -105,7 +105,7 @@ class FidelityModel(Generic[ParameterIndex], ABC):
             return rf"{in_str} \xrightarrow{{{gate_sym}}} {out_str}"
         elif format == "formula":
             pauli_str = _qubit_sparse_pauli_to_latex(fidelity_index.pauli)
-            parts = [gate_sym, pauli_str]
+            parts = [pauli_str]
             if fidelity_index.in_bit_indices:
                 in_bits = (
                     r"\{" + ",".join(str(i) for i in sorted(fidelity_index.in_bit_indices)) + r"\}"
@@ -116,7 +116,7 @@ class FidelityModel(Generic[ParameterIndex], ABC):
                     r"\{" + ",".join(str(i) for i in sorted(fidelity_index.out_bit_indices)) + r"\}"
                 )
                 parts.append(rf"b_{{out}}={out_bits}")
-            return r"f(" + r",\, ".join(parts) + r")"
+            return rf"f^{{{gate_sym}}}(" + r",\, ".join(parts) + r")"
         else:
             raise ValueError(f"Invalid format: {format!r}. Must be 'transition' or 'index'.")
 
