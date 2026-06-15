@@ -61,9 +61,7 @@ class GateBuilder:
             self._box.__exit__(exc_type, exc_value, traceback)
         finally:
             self._box = None
-        self._gate_set.add_box_as_gate(
-            self.circuit[0], name=self.name, latex_str=self._latex_str
-        )
+        self._gate_set.add_box_as_gate(self.circuit[0], name=self.name, latex_str=self._latex_str)
         return False
 
 
@@ -244,9 +242,7 @@ class QiskitGateSet(GateSet[QiskitGate]):
         name = name or next(self._name_iter)
         annotations = box.annotations or [Twirl()]
         self.add_gate(
-            QiskitGate(
-                name, box.body, qubit_idxs, annotations=annotations, latex_str=latex_str
-            )
+            QiskitGate(name, box.body, qubit_idxs, annotations=annotations, latex_str=latex_str)
         )
         return name
 
@@ -296,9 +292,7 @@ class QiskitGateSet(GateSet[QiskitGate]):
             qubit_idxs = range(circuit.num_qubits)
         name = name or next(self._name_iter)
         self.add_gate(
-            QiskitGate(
-                name, circuit, qubit_idxs, annotations=annotations, latex_str=latex_str
-            )
+            QiskitGate(name, circuit, qubit_idxs, annotations=annotations, latex_str=latex_str)
         )
         return name
 
@@ -362,9 +356,7 @@ class QiskitGateSet(GateSet[QiskitGate]):
 
         name = name or next(self._name_iter)
         self.add_gate(
-            QiskitGate(
-                name, circuit, qubit_idxs, annotations=annotations, latex_str=latex_str
-            )
+            QiskitGate(name, circuit, qubit_idxs, annotations=annotations, latex_str=latex_str)
         )
         return name
 
