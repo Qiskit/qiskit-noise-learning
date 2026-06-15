@@ -78,7 +78,7 @@ class FidelityModel(Generic[ParameterIndex], ABC):
 
         return vector
 
-    def fidelity_index_latex_symbol(
+    def fidelity_index_latex_str(
         self,
         fidelity_index: FidelityIndex,
         format: str = "transition",
@@ -87,14 +87,14 @@ class FidelityModel(Generic[ParameterIndex], ABC):
 
         Args:
             fidelity_index: The fidelity index to label.
-            format: Either ``"transition"`` (shows input :math:`\to` output Pauli) or ``"index"``
+            format: Either ``"transition"`` (shows input :math:`\to` output Pauli) or ``"formula"``
                 (shows pauli, in_bit_indices, out_bit_indices).
 
         Returns:
             A LaTeX string.
 
         Raises:
-            ValueError: If ``format`` is not ``"transition"`` or ``"index"``.
+            ValueError: If ``format`` is not ``"transition"`` or ``"formula"``.
         """
         gate_sym = self._gate_set[fidelity_index.gate_name].latex_symbol
 
@@ -103,7 +103,7 @@ class FidelityModel(Generic[ParameterIndex], ABC):
             in_str = _qubit_sparse_pauli_to_latex(in_pauli)
             out_str = _qubit_sparse_pauli_to_latex(out_pauli)
             return rf"{in_str} \xrightarrow{{{gate_sym}}} {out_str}"
-        elif format == "index":
+        elif format == "formula":
             pauli_str = _qubit_sparse_pauli_to_latex(fidelity_index.pauli)
             parts = [gate_sym, pauli_str]
             if fidelity_index.in_bit_indices:
@@ -120,7 +120,7 @@ class FidelityModel(Generic[ParameterIndex], ABC):
         else:
             raise ValueError(f"Invalid format: {format!r}. Must be 'transition' or 'index'.")
 
-    def path_latex_symbol(self, path: Path, format: str = "transition") -> str:
+    def path_latex_str(self, path: Path, format: str = "transition") -> str:
         r"""Return a LaTeX string for a path.
 
         The format shows the repeatable fragment as a bracketed sequence raised to the depth, with
@@ -131,7 +131,7 @@ class FidelityModel(Generic[ParameterIndex], ABC):
         Args:
             path: The path to label.
             format: The format to use for each fidelity index label. Passed as the
-                ``format`` argument to :meth:`fidelity_index_latex_symbol`.
+                ``format`` argument to :meth:`fidelity_index_latex_str`.
 
         Returns:
             A LaTeX string.
@@ -139,23 +139,23 @@ class FidelityModel(Generic[ParameterIndex], ABC):
         parts = []
 
         if path.start_fragment:
-            parts.append(self._fragment_latex_symbol(path.start_fragment, format))
+            parts.append(self._fragment_latex_str(path.start_fragment, format))
 
         if path.repeatable_fragment:
-            rep_str = self._fragment_latex_symbol(path.repeatable_fragment, format)
-            depth_str = str(path.depth) if path.depth is not None else "d"
+            rep_str = self._fragment_latex_str(path.repeatable_fragment, format)
+            depth_str = str(path.depth) if path.depth is not None else "r"
             parts.append(f"[{rep_str}]^{{{depth_str}}}")
 
         if path.end_fragment:
-            parts.append(self._fragment_latex_symbol(path.end_fragment, format))
+            parts.append(self._fragment_latex_str(path.end_fragment, format))
 
         delimiter = r" \rightarrow " if format == "transition" else ""
         return delimiter.join(parts)
 
-    def _fragment_latex_symbol(self, fragment: list[FidelityIndex], format: str) -> str:
+    def _fragment_latex_str(self, fragment: list[FidelityIndex], format: str) -> str:
         """Return a LaTeX string for a single fragment of a path."""
         if format != "transition":
-            return "".join(self.fidelity_index_latex_symbol(fi, format=format) for fi in fragment)
+            return "".join(self.fidelity_index_latex_str(fi, format=format) for fi in fragment)
 
         chains = []
         current_chain = []
