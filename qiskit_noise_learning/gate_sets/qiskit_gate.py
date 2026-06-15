@@ -68,7 +68,7 @@ class QiskitGate(Gate):
         annotations: The annotations that describe how to implement the gate. If ``None``, this
             defaults to Pauli twirling. If no :class:`samplomatic.Tag` annotation is provided,
             then one is added automatically whose tag name is equal to ``name``.
-        latex_str: An optional LaTeX string for rendering this gate.
+        latex_str: An optional LaTeX string for this gate.
     """
 
     def __init__(

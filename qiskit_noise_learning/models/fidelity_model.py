@@ -89,7 +89,7 @@ class FidelityModel(Generic[ParameterIndex], ABC):
         Args:
             fidelity_index: The fidelity index to label.
             format: Either ``"transition"`` (shows input :math:`\to` output Pauli) or ``"formula"``
-                (shows pauli, in_bit_indices, out_bit_indices).
+                (shows index data ``pauli``, ``in_bit_indices``, ``out_bit_indices``).
 
         Returns:
             A LaTeX string.
@@ -126,15 +126,11 @@ class FidelityModel(Generic[ParameterIndex], ABC):
     ) -> str:
         r"""Return a LaTeX string for a path.
 
-        The format shows the repeatable fragment as a bracketed sequence raised to the depth, with
-        start and end fragments shown separately if present. In transition format, consecutive
-        fidelity indices whose output and input Paulis match are chained into a single arrow
-        sequence.
-
         Args:
             path: The path to label.
-            format: The format to use for each fidelity index label. Passed as the
-                ``format`` argument to :meth:`fidelity_index_latex_str`.
+            format: The format to use for each fidelity index label. ``"transition"`` displays the
+                Pauli operator transitions induced by each gate, and ``"formula"`` displays the
+                fidelity label formula associated with this path.
             repeatable_only: If ``True``, only render the repeatable fragment without brackets
                 or depth exponent.
 

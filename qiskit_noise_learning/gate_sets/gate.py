@@ -70,7 +70,7 @@ class Gate(ABC):
 
     @property
     def latex_str(self) -> str:
-        """A LaTeX string for rendering this gate."""
+        """A LaTeX string for this gate."""
         return self._latex_str if self._latex_str is not None else self._name
 
     @property
