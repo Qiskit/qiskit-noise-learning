@@ -172,7 +172,7 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         if format != "formula":
             return super().fidelity_index_latex_str(fidelity_index, format=format)
 
-        gate_sym = self._gate_set[fidelity_index.gate_name].latex_symbol
+        gate_sym = self._gate_set[fidelity_index.gate_name].latex_str
         pauli = (
             fidelity_index.transition[0]
             if self._noise_site[fidelity_index.gate_name] == "before"

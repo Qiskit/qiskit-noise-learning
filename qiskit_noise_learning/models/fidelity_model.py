@@ -96,7 +96,7 @@ class FidelityModel(Generic[ParameterIndex], ABC):
         Raises:
             ValueError: If ``format`` is not ``"transition"`` or ``"formula"``.
         """
-        gate_sym = self._gate_set[fidelity_index.gate_name].latex_symbol
+        gate_sym = self._gate_set[fidelity_index.gate_name].latex_str
 
         if format == "transition":
             in_pauli, out_pauli = fidelity_index.transition
@@ -161,7 +161,7 @@ class FidelityModel(Generic[ParameterIndex], ABC):
         current_chain = []
         for fi in fragment:
             in_pauli, out_pauli = fi.transition
-            gate_sym = self._gate_set[fi.gate_name].latex_symbol
+            gate_sym = self._gate_set[fi.gate_name].latex_str
             if current_chain and current_chain[-1][1] == in_pauli:
                 current_chain.append((in_pauli, out_pauli, gate_sym))
             else:

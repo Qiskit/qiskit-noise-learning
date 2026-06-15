@@ -34,8 +34,8 @@ class Gate(ABC):
         qubit_idxs: The physical qubit indices that the gate acts on.
         prep_idxs: The physical qubit indices that this gate prepares, or resets to the 0 state.
         meas_idxs: The physical qubit indices that this gate measures.
-        latex_symbol: An optional LaTeX string for rendering this gate. If ``None``,
-            :attr:`latex_symbol` falls back to :attr:`name`.
+        latex_str: An optional LaTeX string for rendering this gate. If ``None``,
+            :attr:`latex_str` falls back to :attr:`name`.
     """
 
     def __init__(
@@ -44,10 +44,10 @@ class Gate(ABC):
         qubit_idxs: Iterable[int],
         prep_idxs: Iterable[int] = (),
         meas_idxs: Iterable[int] = (),
-        latex_symbol: str | None = None,
+        latex_str: str | None = None,
     ):
         self._name = name
-        self._latex_symbol = latex_symbol
+        self._latex_str = latex_str
         self._qubit_idxs = tuple(qubit_idxs)
 
         self._prep_idxs = frozenset(prep_idxs)
@@ -69,9 +69,9 @@ class Gate(ABC):
         return self._name
 
     @property
-    def latex_symbol(self) -> str:
-        """A LaTeX string for rendering this gate in labels and plots."""
-        return self._latex_symbol if self._latex_symbol is not None else self._name
+    def latex_str(self) -> str:
+        """A LaTeX string for rendering this gate."""
+        return self._latex_str if self._latex_str is not None else self._name
 
     @property
     def num_qubits(self) -> int:

@@ -53,7 +53,7 @@ class ModelGate(Gate):
         qubit_idxs: Iterable[int] | None = None,
         meas_idxs: Iterable[int] = (),
         prep_idxs: Iterable[int] = (),
-        latex_symbol: str | None = None,
+        latex_str: str | None = None,
     ):
         if cliffords is None and qubit_idxs is None:
             raise ValueError("At least one of 'cliffords' or 'qubit_idxs' must be specified.")
@@ -78,7 +78,7 @@ class ModelGate(Gate):
             qubit_idxs=qubit_idxs,
             prep_idxs=prep_idxs,
             meas_idxs=meas_idxs,
-            latex_symbol=latex_symbol,
+            latex_str=latex_str,
         )
 
     @cached_property
