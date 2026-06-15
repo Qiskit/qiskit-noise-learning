@@ -12,6 +12,13 @@
 
 from .analysis_pipeline import AnalysisPipeline, AnalysisStage
 from .average_observables import AverageObservables
+from .bootstrap import (
+    ArchResampler,
+    Bootstrap,
+    NumpyResampler,
+    Resampler,
+    ScipyResampler,
+)
 from .compute_observables import ComputeObservables
 from .curve_fit_observables import CurveFitObservables
 from .fit import Fit
