@@ -13,6 +13,7 @@
 """FidelityModel"""
 
 from abc import ABC, abstractmethod
+from collections import Counter
 from collections.abc import Hashable
 from itertools import chain
 from typing import Generic, TypeVar
@@ -155,7 +156,19 @@ class FidelityModel(Generic[ParameterIndex], ABC):
     def _fragment_latex_str(self, fragment: list[FidelityIndex], format: str) -> str:
         """Return a LaTeX string for a single fragment of a path."""
         if format != "transition":
-            return "".join(self.fidelity_index_latex_str(fi, format=format) for fi in fragment)
+            counts = Counter(fragment)
+            parts = []
+            seen = set()
+            for fi in fragment:
+                if fi in seen:
+                    continue
+                seen.add(fi)
+                sym = self.fidelity_index_latex_str(fi, format=format)
+                count = counts[fi]
+                if count > 1:
+                    sym = f"{{{sym}}}^{{{count}}}"
+                parts.append(sym)
+            return "".join(parts)
 
         chains = []
         current_chain = []
