@@ -121,7 +121,9 @@ class FidelityModel(Generic[ParameterIndex], ABC):
         else:
             raise ValueError(f"Invalid format: {format!r}. Must be 'transition' or 'index'.")
 
-    def path_latex_str(self, path: Path, format: str = "transition") -> str:
+    def path_latex_str(
+        self, path: Path, format: str = "transition", repeatable_only: bool = False
+    ) -> str:
         r"""Return a LaTeX string for a path.
 
         The format shows the repeatable fragment as a bracketed sequence raised to the depth, with
@@ -133,10 +135,15 @@ class FidelityModel(Generic[ParameterIndex], ABC):
             path: The path to label.
             format: The format to use for each fidelity index label. Passed as the
                 ``format`` argument to :meth:`fidelity_index_latex_str`.
+            repeatable_only: If ``True``, only render the repeatable fragment without brackets
+                or depth exponent.
 
         Returns:
             A LaTeX string.
         """
+        if repeatable_only:
+            return self._fragment_latex_str(path.repeatable_fragment, format)
+
         parts = []
 
         if path.start_fragment:
