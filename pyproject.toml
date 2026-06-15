@@ -57,6 +57,10 @@ cvxpy = [
     "cvxpy",
 ]
 
+bootstrap = [
+    "arch>=8.0",
+]
+
 [tool.pytest.ini_options]
 addopts = "--doctest-modules"
 filterwarnings = [
