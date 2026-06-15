@@ -27,6 +27,7 @@ from qiskit_noise_learning.math import IndexedVector
 from qiskit_noise_learning.sequences import FidelityIndex
 
 from .fidelity_mixers import FidelityMixer
+from .fidelity_model import _qubit_sparse_pauli_to_latex
 from .mixed_fidelity_model import MixedFidelityModel
 
 
@@ -149,6 +150,36 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
                 anti_commuting.append(GeneratorIndex(gate_name=gate_name, generator=generator))
 
         return IndexedVector[GeneratorIndex]({index: 2.0 for index in anti_commuting})
+
+    def fidelity_index_latex_str(
+        self,
+        fidelity_index: FidelityIndex,
+        format: str = "transition",
+    ) -> str:
+        r"""Return a LaTeX string for a fidelity index.
+
+        Overrides the base class to provide a simplified formula format for Pauli-Lindblad models:
+        :math:`f^{G}_{P}`, where :math:`G` is the gate symbol and :math:`P` is the relevant Pauli
+        determined by the noise site.
+
+        Args:
+            fidelity_index: The fidelity index to label.
+            format: Either ``"transition"`` or ``"formula"``.
+
+        Returns:
+            A LaTeX string.
+        """
+        if format != "formula":
+            return super().fidelity_index_latex_str(fidelity_index, format=format)
+
+        gate_sym = self._gate_set[fidelity_index.gate_name].latex_symbol
+        pauli = (
+            fidelity_index.transition[0]
+            if self._noise_site[fidelity_index.gate_name] == "before"
+            else fidelity_index.transition[1]
+        )
+        pauli_str = _qubit_sparse_pauli_to_latex(pauli)
+        return rf"f^{{{gate_sym}}}_{{{pauli_str}}}"
 
     @staticmethod
     def k_partition_local(
