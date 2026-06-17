@@ -26,7 +26,8 @@ class ComputeObservables(AnalysisStage):
     This analysis stage utilizes existing relations between paths and instruction sequences in the
     :class:`Fit` to determine how to compute observables. If relations are not specified, they are
     greedily constructed by exhaustively comparing paths in ``fit.paths`` and the instruction
-    sequences in ``fit.raw_data``.
+    sequences in ``fit.raw_data``. Note that in this latter case, ``fit.paths`` is not updated and
+    will therefore remain ``None``.
 
     .. note:
         This analysis stage does not currently support midcircuit measurements.
