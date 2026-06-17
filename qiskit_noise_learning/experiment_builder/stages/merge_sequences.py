@@ -22,7 +22,7 @@ from rustworkx import PyGraph, graph_greedy_color
 from qiskit_noise_learning.sequences import InstructionSequence
 
 from ..experiment import Experiment
-from ..stage import ExperimentBuilderStage
+from ..experiment_builder_stage import ExperimentBuilderStage
 
 
 class MergeInstructionSequences(ExperimentBuilderStage):

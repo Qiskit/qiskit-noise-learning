@@ -13,7 +13,10 @@
 import pytest
 
 from qiskit_noise_learning.experiment_builder.experiment import Experiment
-from qiskit_noise_learning.experiment_builder.stage import ExperimentBuilder, ExperimentBuilderStage
+from qiskit_noise_learning.experiment_builder.experiment_builder_stage import (
+    ExperimentBuilder,
+    ExperimentBuilderStage,
+)
 
 
 class _SimpleStage(ExperimentBuilderStage):

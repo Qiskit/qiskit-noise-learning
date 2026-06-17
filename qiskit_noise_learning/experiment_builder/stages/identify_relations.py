@@ -17,7 +17,7 @@ from __future__ import annotations
 from qiskit_noise_learning.sequences import InstructionSequence, Path
 
 from ..experiment import Experiment
-from ..stage import ExperimentBuilderStage
+from ..experiment_builder_stage import ExperimentBuilderStage
 
 
 class IdentifyRelations(ExperimentBuilderStage):
