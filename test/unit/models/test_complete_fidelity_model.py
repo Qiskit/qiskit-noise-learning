@@ -125,7 +125,7 @@ def test_row_from_bound_path(gate_set_1q):
 
 def test_fidelity_estimate_from_index(gate_set_1q):
     complete_model = CompleteFidelityModel(gate_set_1q)
-    fidelityX = FidelityIndex(
+    fidelityX = FidelityIndex.from_gate(
         gate=gate_set_1q["L0"],
         pauli=QubitSparsePauli("X"),
         in_bit_indices=frozenset(),
@@ -139,13 +139,13 @@ def test_fidelity_estimate_from_index(gate_set_1q):
 
 def test_fidelity_estimate_from_unbound_path(gate_set_1q):
     complete_model = CompleteFidelityModel(gate_set_1q)
-    fidelityX = FidelityIndex(
+    fidelityX = FidelityIndex.from_gate(
         gate=gate_set_1q["L0"],
         pauli=QubitSparsePauli("X"),
         in_bit_indices=frozenset(),
         out_bit_indices=frozenset(),
     )
-    fidelityY = FidelityIndex(
+    fidelityY = FidelityIndex.from_gate(
         gate=gate_set_1q["L0"],
         pauli=QubitSparsePauli("Y"),
         in_bit_indices=frozenset(),
@@ -171,13 +171,13 @@ def test_fidelity_estimate_from_unbound_path(gate_set_1q):
 
 def test_fidelity_estimate_from_bound_path(gate_set_1q):
     complete_model = CompleteFidelityModel(gate_set_1q)
-    fidelityX = FidelityIndex(
+    fidelityX = FidelityIndex.from_gate(
         gate=gate_set_1q["L0"],
         pauli=QubitSparsePauli("X"),
         in_bit_indices=frozenset(),
         out_bit_indices=frozenset(),
     )
-    fidelityY = FidelityIndex(
+    fidelityY = FidelityIndex.from_gate(
         gate=gate_set_1q["L0"],
         pauli=QubitSparsePauli("Y"),
         in_bit_indices=frozenset(),
@@ -204,13 +204,13 @@ def test_fidelity_estimate_from_bound_path(gate_set_1q):
 
 def test_fidelity_estimate_missing_param(gate_set_1q):
     complete_model = CompleteFidelityModel(gate_set_1q)
-    fidelityX = FidelityIndex(
+    fidelityX = FidelityIndex.from_gate(
         gate=gate_set_1q["L0"],
         pauli=QubitSparsePauli("X"),
         in_bit_indices=frozenset(),
         out_bit_indices=frozenset(),
     )
-    fidelityY = FidelityIndex(
+    fidelityY = FidelityIndex.from_gate(
         gate=gate_set_1q["L0"],
         pauli=QubitSparsePauli("Y"),
         in_bit_indices=frozenset(),
