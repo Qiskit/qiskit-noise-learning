@@ -33,7 +33,7 @@ class FidelityIndex:
     - A list of "output bits" on the measured and reset qubits :math:`y in Z_2^{M \cup R}`.
 
     In addition to the above data uniquely specifying a fidelity, this class has several derived
-    properties phrased in terms of the Pauli-operator transition implied by the index data. While
+    properties phrased in terms of the Pauli operator transition implied by the index data. While
     these properties can be computed from the index data and the properties of the gate, this class
     is setup primarily as a data class, with all required data specified as arguments to the
     :meth:`FidelityIndex.__init__`, which is viewed as a "low-level" constructor without validation.
