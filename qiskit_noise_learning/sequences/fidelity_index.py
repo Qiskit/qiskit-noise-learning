@@ -46,9 +46,9 @@ class FidelityIndex:
             ``pauli.num_qubits`` controls the size of the operators returned by ``self.transition``.
         in_bit_indices: The qubit indices of the non-zero "input bits".
         out_bit_indices: The qubit indices of the non-zero "output bits".
-        input_pauli: The input Pauli of the implied transition.
-        output_pauli: The output Pauli of the implied transition.
-        sign_flip: Whether the implied transition involves a sign flip.
+        input_pauli: The input Pauli of the transition.
+        output_pauli: The output Pauli of the transition.
+        sign_flip: Whether the transition involves a sign flip.
         meas_idxs: The measurement qubit indices for the gate.
     """
 
