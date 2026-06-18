@@ -13,7 +13,6 @@
 """FidelityIndex"""
 
 from collections.abc import Container
-from functools import cached_property
 from typing import Self
 
 import numpy as np
@@ -240,7 +239,7 @@ class FidelityIndex:
         """The phaseless Pauli operator transition associated with this fidelity index."""
         return self._input_pauli, self._output_pauli
 
-    @cached_property
+    @property
     def mask(self) -> np.ndarray[np.bool_]:
         """The mask for marginalizing measurement outcomes."""
         sorted_meas_idxs = sorted(self._meas_idxs)
@@ -254,7 +253,7 @@ class FidelityIndex:
         ] = True
         return mask
 
-    @cached_property
+    @property
     def observable_indices(self) -> list[int]:
         """Qubit indices of the associated Z observable in ascending order."""
         return sorted(
