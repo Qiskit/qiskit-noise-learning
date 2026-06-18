@@ -221,12 +221,12 @@ class FidelityIndex:
 
     @property
     def in_bit_indices(self) -> frozenset[int]:
-        """The input bits corresponding to the measurement indices."""
+        """The input bit index data as a subset of the gate measurement indices."""
         return self._in_bit_indices
 
     @property
     def out_bit_indices(self) -> frozenset[int]:
-        """The output bits corresponding to the reset indices."""
+        """The output bit index data as a subset of the union of the measured and reset qubits."""
         return self._out_bit_indices
 
     @property
