@@ -31,13 +31,11 @@ class FidelityIndex:
     - A list of "input bits" on the measured qubits :math:`x in Z_2^M`, and
     - A list of "output bits" on the measured and reset qubits :math:`y in Z_2^{M \cup R}`.
 
-    In addition to the above data uniquely specifying a fidelity, this class has several derived
-    properties phrased in terms of the Pauli operator transition implied by the index data. While
-    these properties can be computed from the index data and the properties of the gate, this class
-    is setup primarily as a data class, with all required data specified as arguments to the
-    :meth:`FidelityIndex.__init__`, which is viewed as a "low-level" constructor without validation.
-    The constructors :meth:`FidelityIndex.from_gate` and :meth:`FidelityIndex.from_transition` offer
-    higher-level and easier to use construction methods.
+    The constructor :meth:`FidelityIndex.from_gate` builds a :class:`.FidelityIndex` from a
+    :class:`.ModelGate` and the above unique index data. Alternatively,
+    :meth:`FidelityIndex.from_transition` can be used to build an instance from the Pauli transition
+    implied by the index data. The :meth:`FidelityIndex.__init__` is viewed as a "low-level"
+    constructor which takes all stored properties without validation.
 
     Args:
         gate_name: The name of the gate.
@@ -81,14 +79,13 @@ class FidelityIndex:
     ) -> Self:
         """Construct a fidelity index from a gate and unique index data.
 
-        This constructor includes validation of the index data against the :class:`ModelGate`
-        properties.
-
         Args:
             gate: The model gate.
             pauli: A Pauli operator with support on unmeasured and unreset qubits.
-            in_bit_indices: The qubit indices of the non-zero "input bits".
-            out_bit_indices: The qubit indices of the non-zero "output bits".
+            in_bit_indices: The subset of measurement qubit indices corresponding to non-zero "input
+                bits".
+            out_bit_indices: The subset of the union of measurement and reset qubit indices
+                corresponding non-zero "output bits".
 
         Raises:
             ValueError: If the provided data is inconsistent with the gate.
