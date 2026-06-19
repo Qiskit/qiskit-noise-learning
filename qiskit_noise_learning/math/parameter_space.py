@@ -20,16 +20,12 @@ Index = TypeVar("Index", bound=Hashable)
 
 
 class ParameterSpace(Generic[Index], ABC):
-    """Abstract description of an index space for a linear map.
-
-    Describes the space structurally without requiring enumeration, supporting
-    spaces that may be exponentially large.
-    """
+    """Abstract description of vector space with arbitrary basis index types."""
 
     @property
     @abstractmethod
     def dim(self) -> int:
-        """The dimension (cardinality) of the space, computed analytically."""
+        """The dimension (cardinality) of the space."""
 
     @abstractmethod
     def __contains__(self, index: object) -> bool:

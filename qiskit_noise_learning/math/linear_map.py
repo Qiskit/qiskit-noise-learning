@@ -27,28 +27,24 @@ OtherOutput = TypeVar("OtherOutput", bound=Hashable)
 
 
 class LinearMap(Generic[InputIndex, OutputIndex], ABC):
-    """A linear map between two indexed spaces, represented row-by-row.
-
-    Given an output index, returns the corresponding sparse row as an
-    :class:`~.IndexedVector` over the input space.
-    """
+    """A linear map between two parameter spaces."""
 
     @property
     @abstractmethod
     def input_space(self) -> ParameterSpace[InputIndex]:
-        """The parameter space of input indices."""
+        """The input parameter space."""
 
     @property
     @abstractmethod
     def output_space(self) -> ParameterSpace[OutputIndex]:
-        """The parameter space of output indices."""
+        """The output parameter space."""
 
     @abstractmethod
     def row(self, output_index: OutputIndex) -> IndexedVector[InputIndex]:
-        """Return the sparse row corresponding to a given output index."""
+        """The sparse row in the linear map corresponding to a given output parameter index."""
 
     def evaluate(self, output_index: OutputIndex, parameters: Mapping[InputIndex, float]) -> float:
-        """Compute the dot product of a row with a parameter vector.
+        """Compute the dot product of a row with an input parameter vector.
 
         Args:
             output_index: The output index whose row to evaluate.
@@ -74,6 +70,18 @@ class LinearMap(Generic[InputIndex, OutputIndex], ABC):
     ) -> "ComposedLinearMap[OtherInput, InputIndex, OutputIndex]":
         """Pre-compose: inner maps A->I, self maps I->O, result maps A->O."""
         return ComposedLinearMap(inner=inner, outer=self)
+
+    def __matmul__(
+        self, other: "LinearMap[OtherInput, InputIndex]"
+    ) -> "ComposedLinearMap[OtherInput, InputIndex, OutputIndex]":
+        """``self @ other`` means ``self`` applied after ``other``."""
+        return self.pre_compose(other)
+
+    def __rmatmul__(
+        self, other: "LinearMap[OutputIndex, OtherOutput]"
+    ) -> "ComposedLinearMap[InputIndex, OutputIndex, OtherOutput]":
+        """``other @ self`` when ``other`` is not a :class:`LinearMap`, but ``self`` is."""
+        return self.compose(other)
 
 
 class ComposedLinearMap(LinearMap[InputIndex, OutputIndex]):
