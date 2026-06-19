@@ -201,7 +201,7 @@ def test_noise_site_errors(gate_set_cz, generators_cz):
         )
 
 
-def test_row_from_unmixed_fidelity(gate_set_cz, generators_cz):
+def test_row(gate_set_cz, generators_cz):
     pauli_lindblad_model = PauliLindbladModel(gate_set=gate_set_cz, generators=generators_cz)
     fidelity = FidelityIndex.from_gate(
         gate=gate_set_cz["CZ"],
@@ -215,7 +215,7 @@ def test_row_from_unmixed_fidelity(gate_set_cz, generators_cz):
         for pauli in QubitSparsePauliList(["ZZ", "ZY", "XI", "XX", "YI", "YX"])
     ]
     expected = IndexedVector({index: 2.0 for index in indices})
-    assert pauli_lindblad_model.row_from_unmixed_fidelity(fidelity) == expected
+    assert pauli_lindblad_model.row(fidelity) == expected
 
     # same setup but with noise model after gate
     pauli_lindblad_model = PauliLindbladModel(
@@ -232,7 +232,7 @@ def test_row_from_unmixed_fidelity(gate_set_cz, generators_cz):
         for pauli in QubitSparsePauliList(["ZZ", "ZY", "XZ", "XY", "YZ", "YY"])
     ]
     expected = IndexedVector({k: 2.0 for k in indices})
-    assert pauli_lindblad_model.row_from_unmixed_fidelity(fidelity) == expected
+    assert pauli_lindblad_model.row(fidelity) == expected
 
     # test measurement - pauli is ZI
     fidelity = FidelityIndex.from_gate(
@@ -243,10 +243,10 @@ def test_row_from_unmixed_fidelity(gate_set_cz, generators_cz):
     )
     indices = [GeneratorIndex("M", pauli) for pauli in QubitSparsePauliList(["XI", "XX"])]
     expected = IndexedVector({k: 2.0 for k in indices})
-    assert pauli_lindblad_model.row_from_unmixed_fidelity(fidelity) == expected
+    assert pauli_lindblad_model.row(fidelity) == expected
 
 
-def test_row_from_unmixed_fidelity_errors(gate_set_cz, generators_cz):
+def test_row_errors(gate_set_cz, generators_cz):
     # setup model with no CZ
     model_gate_set = ModelGateSet(2)
     model_gate_set.add_gate(gate_set_cz["P"])
@@ -262,7 +262,7 @@ def test_row_from_unmixed_fidelity_errors(gate_set_cz, generators_cz):
         out_bit_indices=frozenset(),
     )
     with pytest.raises(ValueError, match="Gate with name CZ not in gate set."):
-        pauli_lindblad_model.row_from_unmixed_fidelity(fidelity)
+        pauli_lindblad_model.row(fidelity)
 
 
 def test_k_partition_local(two_q_pauli_str, gate_set_cz):

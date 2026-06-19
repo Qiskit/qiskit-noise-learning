@@ -13,6 +13,5 @@
 """Modelling module."""
 
 from .complete_fidelity_model import CompleteFidelityModel
-from .fidelity_mixers import FidelityMixer, IdentityMixer
 from .fidelity_model import FidelityModel
 from .pauli_lindblad_model import GeneratorIndex, PauliLindbladModel

@@ -12,21 +12,31 @@
 
 """CompleteFidelityModel"""
 
-from qiskit_noise_learning.math import IndexedVector
+from functools import cached_property
+
+from qiskit_noise_learning.math import IndexedVector, ParameterSpace
 from qiskit_noise_learning.sequences import FidelityIndex
 
-from .mixed_fidelity_model import MixedFidelityModel
+from .fidelity_index_space import FidelityIndexSpace
+from .fidelity_model import FidelityModel
 
 
-class CompleteFidelityModel(MixedFidelityModel[FidelityIndex]):
+class CompleteFidelityModel(FidelityModel[FidelityIndex]):
     r"""A fidelity model where the parameters are the log fidelities themselves.
 
     In this case, the parameterization matrix :math:`A` is simply the identity.
 
     Args:
         gate_set: The gate set for which the fidelities are being modelled.
-        fidelity_mixer: Averaging procedure for the fidelities.
     """
 
-    def row_from_unmixed_fidelity(self, fidelity_index):
+    @cached_property
+    def input_space(self) -> ParameterSpace[FidelityIndex]:
+        return FidelityIndexSpace(self._gate_set)
+
+    @cached_property
+    def output_space(self) -> ParameterSpace[FidelityIndex]:
+        return FidelityIndexSpace(self._gate_set)
+
+    def _core_row(self, fidelity_index):
         return IndexedVector[FidelityIndex]({fidelity_index: 1.0})

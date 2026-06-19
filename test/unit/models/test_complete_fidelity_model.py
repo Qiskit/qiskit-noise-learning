@@ -60,7 +60,7 @@ def test_row_from_fidelity(gate_set_1q):
     assert complete_model.row_from_fidelity(fidelity) == IndexedVector({fidelity: 1.0})
 
 
-def test_row_from_unmixed_fidelity(gate_set_1q):
+def test_row(gate_set_1q):
     """Should be same result as mixed version."""
     complete_model = CompleteFidelityModel(gate_set_1q)
     fidelity = FidelityIndex.from_gate(
@@ -69,7 +69,7 @@ def test_row_from_unmixed_fidelity(gate_set_1q):
         in_bit_indices=frozenset(),
         out_bit_indices=frozenset(),
     )
-    assert complete_model.row_from_unmixed_fidelity(fidelity) == IndexedVector({fidelity: 1.0})
+    assert complete_model.row(fidelity) == IndexedVector({fidelity: 1.0})
 
 
 def test_row_from_unbound_path(gate_set_1q):

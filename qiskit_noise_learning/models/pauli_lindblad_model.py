@@ -14,6 +14,7 @@
 
 from copy import copy
 from dataclasses import dataclass
+from functools import cached_property
 from itertools import chain, product
 from typing import Literal, Self
 
@@ -23,12 +24,11 @@ from qiskit.transpiler import CouplingMap
 
 from qiskit_noise_learning.data import ModelData
 from qiskit_noise_learning.gate_sets import GateSet, ModelGateSet
-from qiskit_noise_learning.math import IndexedVector
+from qiskit_noise_learning.math import EnumeratedParameterSpace, IndexedVector, ParameterSpace
 from qiskit_noise_learning.sequences import FidelityIndex
 
-from .fidelity_mixers import FidelityMixer
-from .fidelity_model import _qubit_sparse_pauli_to_latex
-from .mixed_fidelity_model import MixedFidelityModel
+from .fidelity_index_space import FidelityIndexSpace
+from .fidelity_model import FidelityModel, _qubit_sparse_pauli_to_latex
 
 
 @dataclass
@@ -44,7 +44,7 @@ class GeneratorIndex:
         return self._hash
 
 
-class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
+class PauliLindbladModel(FidelityModel[GeneratorIndex]):
     r"""A fidelity model parameterized in terms of the rates of sparse Pauli Lindblad maps.
 
     This model class assumes that every gate in the gate set is either a unitary, a pure preparation
@@ -68,7 +68,6 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
             for unitary gates and pure measurement gates, and ``"after"`` for pure preparation. An
             error will be raised if a value for pure measurement or preparation is specified that
             differs from the default.
-        fidelity_mixer: The fidelity mixer to use. Defaults to the identity mixer.
 
     Raises:
         ValueError: If the gate set is not of the required form, or if ``noise_model_before_gate``
@@ -80,7 +79,6 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         gate_set: GateSet,
         generators: dict[str, QubitSparsePauliList],
         noise_site: dict[str, str] | None = None,
-        fidelity_mixer: FidelityMixer | None = None,
     ):
         gate_set = gate_set.model_gate_set
         prep_names, meas_names = _validate_gate_set_form(gate_set)
@@ -94,7 +92,7 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         self._noise_site = _validate_and_complete_noise_site_dict(
             gate_set, noise_site, prep_names, meas_names
         )
-        super().__init__(gate_set=gate_set, fidelity_mixer=fidelity_mixer)
+        super().__init__(gate_set=gate_set)
 
     @property
     def generators(self) -> dict[str, QubitSparsePauliList]:
@@ -116,36 +114,37 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         """The names of the preparation in this model."""
         return self._prep_names
 
-    def row_from_unmixed_fidelity(
-        self, fidelity_index: FidelityIndex
-    ) -> IndexedVector[GeneratorIndex]:
-        """The row in the base parameterization matrix, unmodified by the fidelity mixer.
+    @cached_property
+    def input_space(self) -> ParameterSpace[GeneratorIndex]:
+        indices = frozenset(
+            GeneratorIndex(gate_name=name, generator=gen)
+            for name, gen_list in self._generators.items()
+            for gen in gen_list
+        )
+        return EnumeratedParameterSpace(indices)
 
-        For a Pauli-Lindblad model, this returns a :class:`IndexedVector` instance whose labels
-        correspond to the generators of the gate noise model that anti-commute with the relevant
-        Pauli operator (`fidelity_index.transition[0]` if the noise model is before the gate, and
-        `fidelity_index.transition[1]` if the noise model is after the gate). The data values of the
-        indexed vector are all :math:`2`.
+    @cached_property
+    def output_space(self) -> ParameterSpace[FidelityIndex]:
+        return FidelityIndexSpace(self._gate_set)
 
-        Args:
-            fidelity_index: The fidelity index labelling the requested row.
+    def _core_row(self, fidelity_index: FidelityIndex) -> IndexedVector[GeneratorIndex]:
+        """The row in the parameterization matrix for a given fidelity index.
 
-        Raises:
-            ValueError: If the gate is not in the model.
+        Returns an :class:`IndexedVector` whose labels correspond to the generators that
+        anti-commute with the relevant Pauli operator, with coefficient 2.
         """
         gate_name = fidelity_index.gate_name
-        if gate_name not in self.generators:
+        if gate_name not in self._generators:
             raise ValueError(f"Gate with name {fidelity_index.gate_name} not in gate set.")
 
-        # retrieve the relevant Pauli
         pauli = (
             fidelity_index.transition[0]
-            if self.noise_site[gate_name] == "before"
+            if self._noise_site[gate_name] == "before"
             else fidelity_index.transition[1]
         )
 
         anti_commuting = []
-        for generator in self.generators[gate_name]:
+        for generator in self._generators[gate_name]:
             if not pauli.commutes(generator):
                 anti_commuting.append(GeneratorIndex(gate_name=gate_name, generator=generator))
 
@@ -189,7 +188,6 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         qubit_partitions: dict[str, list[set[int]]] | None = None,
         local_paulis: dict[str, list[QubitSparsePauliList]] | None = None,
         noise_site: dict[str, Literal["before"] | Literal["after"]] | None = None,
-        fidelity_mixer: FidelityMixer | None = None,
     ) -> Self:
         r"""Construct a k-local model according to qubit partitions.
 
@@ -238,7 +236,6 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
                 :math:`\{I, X}\}` on ``k`` qubits.
             noise_site: Dictionary indicating whether to model gate noise as ``"before"``
                 or ``"after"`` the gate.
-            fidelity_mixer: The fidelity mixer to use. Defaults to the identity mixer.
 
         Returns:
             A new :class:`~.PauliLindbladModel` instance.
@@ -370,7 +367,6 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
             gate_set=gate_set,
             generators=generators,
             noise_site=noise_site,
-            fidelity_mixer=fidelity_mixer,
         )
 
     @staticmethod
@@ -380,7 +376,6 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         gate_k: dict[str, int] | None = None,
         paulis: dict[str, QubitSparsePauliList] | None = None,
         noise_site: dict[str, Literal["before"] | Literal["after"]] | None = None,
-        fidelity_mixer: FidelityMixer | None = None,
     ) -> Self:
         r"""Construct a k-local model.
 
@@ -399,7 +394,6 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
                 for measurement and preparation, defaults to :math:`\{I, X}\}`.
             noise_site: Dictionary indicating whether to model gate noise as ``"before"``
                 or ``"after"`` the gate.
-            fidelity_mixer: The fidelity mixer to use. Defaults to the identity mixer.
 
         Returns:
             A new :class:`~.PauliFidelityModel` instance.
@@ -414,7 +408,6 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
             },
             local_paulis=None if paulis is None else {name: [p] for name, p in paulis.items()},
             noise_site=noise_site,
-            fidelity_mixer=fidelity_mixer,
         )
 
     def to_pauli_lindblad_maps(
@@ -423,7 +416,7 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         """Return a dictionary of :class:`PauliLindbladMap` for each gate in the model.
 
         Args:
-            model_fit: The fitted model parameters and covariance.
+            model_data: The fitted model parameters and covariance.
             include_spam: Whether to include SPAM gates in the output.
 
         Returns:
