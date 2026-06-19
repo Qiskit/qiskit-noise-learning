@@ -35,19 +35,14 @@ ParameterIndex = TypeVar("ParameterIndex", bound=Hashable)
 class FidelityModel(LinearMap[ParameterIndex, FidelityIndex], Generic[ParameterIndex]):
     r"""A linear parameterization of the log fidelities of a gate set.
 
-    This class provides an interface into rows of the matrix :math:`A` for which
-    :math:`-\log(f) = Ar`, where :math:`f` is the vector of fidelities, and :math:`r` is the model
-    parameter space.
+    A :class:`FidelityModel` is a special kind of :class:`LinearMap`:
+    - The output space is the :class:`FidelityIndexSpace` of a gate set; i.e. it represents linear
+      map :math:`A` for which :math:`-\log(f) = Ar`, where :math:`f` is the vector of fidelities,
+      and :math:`r` is the model parameter space.
+    - The type is preserved under composition with other :class:`LinearMap`\s.
 
-    A ``FidelityModel`` can be composed with other :class:`~.LinearMap` instances:
-
-    - **Pre-composition** with a ``LinearMap[A, P]`` creates a new model parameterized by ``A``
-      instead of ``P``, while preserving the model's domain-specific behavior (rendering, etc.).
-    - **Post-composition** with a ``LinearMap[FidelityIndex, FidelityIndex]`` applies a fidelity
-      transformation, creating a new model with the same input parameter space.
-
-    In both cases, composition returns a new instance of the same class, preserving access to
-    domain-specific properties and methods.
+    The latter point allows concrete subclasses representing specific classes of fidelity models to
+    maintain control over specialized behaviour (e.g. fidelity renderings in specific contexts).
 
     Args:
         gate_set: The gate set for which the fidelities are modelled, to be converted to a
