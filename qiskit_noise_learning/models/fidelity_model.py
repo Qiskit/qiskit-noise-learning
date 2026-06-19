@@ -13,21 +13,16 @@
 """FidelityModel"""
 
 from abc import abstractmethod
-from collections import Counter
 from collections.abc import Hashable
-from copy import copy
 from itertools import chain
 from typing import Generic, TypeVar, overload
 
 import numpy as np
-from qiskit.quantum_info import QubitSparsePauli
 
 from qiskit_noise_learning.data import ModelData
-from qiskit_noise_learning.gate_sets import GateSet, ModelGateSet
-from qiskit_noise_learning.math import ComposedLinearMap, IndexedVector, LinearMap, ParameterSpace
+from qiskit_noise_learning.gate_sets import ModelGateSet
+from qiskit_noise_learning.math import IndexedVector, LinearMap
 from qiskit_noise_learning.sequences import FidelityIndex, Path
-
-from .fidelity_index_space import FidelityIndexSpace
 
 ParameterIndex = TypeVar("ParameterIndex", bound=Hashable)
 
@@ -35,94 +30,59 @@ ParameterIndex = TypeVar("ParameterIndex", bound=Hashable)
 class FidelityModel(LinearMap[ParameterIndex, FidelityIndex], Generic[ParameterIndex]):
     r"""A linear parameterization of the log fidelities of a gate set.
 
-    A :class:`FidelityModel` is a special kind of :class:`LinearMap`:
-    - The output space is the :class:`FidelityIndexSpace` of a gate set; i.e. it represents linear
-      map :math:`A` for which :math:`-\log(f) = Ar`, where :math:`f` is the vector of fidelities,
-      and :math:`r` is the model parameter space.
-    - The type is preserved under composition with other :class:`LinearMap`\s.
+    A :class:`FidelityModel` is a :class:`~.LinearMap` whose output space is a
+    :class:`~.FidelityIndexSpace`. It represents the matrix :math:`A` for which
+    :math:`-\log(f) = Ar`, where :math:`f` is the vector of fidelities and :math:`r` is the
+    model parameter vector.
 
-    The latter point allows concrete subclasses representing specific classes of fidelity models to
-    maintain control over specialized behaviour (e.g. fidelity renderings in specific contexts).
+    This is the abstract interface shared by every fidelity model. It collects the domain-level
+    behaviour — design-matrix rows for fidelity indices and paths, fidelity estimates, and
+    composition — on top of the abstract :meth:`row`. Concrete implementations
+    (:class:`~.CompleteFidelityModel`, :class:`~.PauliLindbladModel`, and
+    :class:`~.ComposedFidelityModel`) supply their own constructors and set ``self._gate_set``.
 
-    Args:
-        gate_set: The gate set for which the fidelities are modelled, to be converted to a
-            :class:`ModelGateSet`.
+    Composition with other :class:`~.LinearMap` instances (via ``@``) returns a
+    :class:`~.ComposedFidelityModel` that preserves this interface.
     """
-
-    def __init__(self, gate_set: GateSet, input_space: ParameterSpace[ParameterIndex]):
-        self._gate_set = gate_set.model_gate_set
-        super().__init__(input_space=input_space, output_space=FidelityIndexSpace(self._gate_set))
-        self._pre_map = None
-        self._post_map = None
 
     @property
     def gate_set(self) -> ModelGateSet:
+        """The gate set whose fidelities are modelled."""
         return self._gate_set
 
+    @abstractmethod
     def row(self, output_index: FidelityIndex) -> IndexedVector[ParameterIndex]:
         """Get a row of the log fidelity parameterization matrix.
 
         Args:
             output_index: The fidelity index for the row.
         """
-        if self._post_map is not None:
-            core_result = self._core_left_multiply(self._post_map.row(output_index))
-        else:
-            core_result = self._core_row(output_index)
 
-        if self._pre_map is not None:
-            return self._pre_map.left_multiply(core_result)
-
-        return core_result
-
-    @abstractmethod
-    def _core_row(self, fidelity_index: FidelityIndex) -> IndexedVector:
-        """Return the row for a fidelity index without composition.
-
-        Subclasses implement this to define the core linear map.
-        """
-
-    def _core_left_multiply(self, vector: IndexedVector[FidelityIndex]) -> IndexedVector:
-        """Left-multiply a sparse vector against the core map."""
-        result = IndexedVector()
-        for idx, coeff in vector.items():
-            result = result + coeff * self._core_row(idx)
-        return result
-
-    def compose(self, outer: "LinearMap[FidelityIndex, FidelityIndex]") -> "FidelityModel":
-        """Post-compose with a fidelity transformation.
-
-        Returns a new model of the same type with the transformation applied after the core map.
+    def compose(self, outer: "LinearMap") -> "FidelityModel":
+        """Post-compose with a linear map on the output space.
 
         Args:
-            outer: A linear map on the fidelity index space.
+            outer: A linear map applied after this one.
+
+        Returns:
+            A :class:`~.ComposedFidelityModel` representing the composition.
         """
-        new_model = copy(self)
-        if self._post_map is not None:
-            new_model._post_map = ComposedLinearMap(  # noqa: SLF001
-                inner=self._post_map, outer=outer
-            )
-        else:
-            new_model._post_map = outer  # noqa: SLF001
-        return new_model
+        from .composed_fidelity_model import ComposedFidelityModel
+
+        return ComposedFidelityModel([self, outer])
 
     def pre_compose(self, inner: "LinearMap") -> "FidelityModel":
-        """Pre-compose with a parameter transformation.
-
-        Returns a new model of the same type with the transformation applied before the core map.
+        """Pre-compose with a linear map on the input space.
 
         Args:
-            inner: A linear map whose output space matches the model's native parameter space.
+            inner: A linear map applied before this one.
+
+        Returns:
+            A :class:`~.ComposedFidelityModel` representing the composition.
         """
-        new_model = copy(self)
-        if self._pre_map is not None:
-            new_model._pre_map = ComposedLinearMap(  # noqa: SLF001
-                inner=inner, outer=self._pre_map
-            )
-        else:
-            new_model._pre_map = inner  # noqa: SLF001
-        new_model._input_space = inner.input_space  # noqa: SLF001
-        return new_model
+        from .composed_fidelity_model import ComposedFidelityModel
+
+        return ComposedFidelityModel([inner, self])
 
     def row_from_fidelity(self, fidelity_index: FidelityIndex) -> IndexedVector[ParameterIndex]:
         """Get a row of the log fidelity parameterization matrix.
@@ -219,134 +179,3 @@ class FidelityModel(LinearMap[ParameterIndex, FidelityIndex], Generic[ParameterI
             The fidelity estimate.
         """
         return float(np.exp(-self.log_fidelity_estimate(index, model_data)))
-
-    def fidelity_index_latex_str(
-        self,
-        fidelity_index: FidelityIndex,
-        format: str = "transition",
-    ) -> str:
-        r"""Return a LaTeX string for a fidelity index.
-
-        Args:
-            fidelity_index: The fidelity index to label.
-            format: Either ``"transition"`` (shows input :math:`\to` output Pauli) or ``"formula"``
-                (shows index data ``pauli``, ``in_bit_indices``, ``out_bit_indices``).
-
-        Returns:
-            A LaTeX string.
-
-        Raises:
-            ValueError: If ``format`` is not ``"transition"`` or ``"formula"``.
-        """
-        gate_sym = self._gate_set[fidelity_index.gate_name].latex_str
-
-        if format == "transition":
-            in_pauli, out_pauli = fidelity_index.transition
-            in_str = _qubit_sparse_pauli_to_latex(in_pauli)
-            out_str = _qubit_sparse_pauli_to_latex(out_pauli)
-            return rf"{in_str} \xrightarrow{{{gate_sym}}} {out_str}"
-        elif format == "formula":
-            pauli_str = _qubit_sparse_pauli_to_latex(fidelity_index.pauli)
-            parts = [pauli_str]
-            if fidelity_index.in_bit_indices:
-                in_bits = (
-                    r"\{" + ",".join(str(i) for i in sorted(fidelity_index.in_bit_indices)) + r"\}"
-                )
-                parts.append(rf"b_{{in}}={in_bits}")
-            if fidelity_index.out_bit_indices:
-                out_bits = (
-                    r"\{" + ",".join(str(i) for i in sorted(fidelity_index.out_bit_indices)) + r"\}"
-                )
-                parts.append(rf"b_{{out}}={out_bits}")
-            return rf"f^{{{gate_sym}}}(" + r",\, ".join(parts) + r")"
-        else:
-            raise ValueError(f"Invalid format: {format!r}. Must be 'transition' or 'index'.")
-
-    def path_latex_str(
-        self, path: Path, format: str = "transition", repeatable_only: bool = False
-    ) -> str:
-        r"""Return a LaTeX string for a path.
-
-        Args:
-            path: The path to label.
-            format: The format to use for each fidelity index label. ``"transition"`` displays the
-                Pauli operator transitions induced by each gate, and ``"formula"`` displays the
-                fidelity label formula associated with this path.
-            repeatable_only: If ``True``, only render the repeatable fragment without brackets
-                or depth exponent.
-
-        Returns:
-            A LaTeX string.
-        """
-        if repeatable_only:
-            return self._fragment_latex_str(path.repeatable_fragment, format)
-
-        parts = []
-
-        if path.start_fragment:
-            parts.append(self._fragment_latex_str(path.start_fragment, format))
-
-        if path.repeatable_fragment:
-            rep_str = self._fragment_latex_str(path.repeatable_fragment, format)
-            depth_str = str(path.depth) if path.depth is not None else "r"
-            parts.append(f"[{rep_str}]^{{{depth_str}}}")
-
-        if path.end_fragment:
-            parts.append(self._fragment_latex_str(path.end_fragment, format))
-
-        delimiter = r" \rightarrow " if format == "transition" else ""
-        return delimiter.join(parts)
-
-    def _fragment_latex_str(self, fragment: list[FidelityIndex], format: str) -> str:
-        """Return a LaTeX string for a single fragment of a path."""
-        if format != "transition":
-            counts = Counter(fragment)
-            parts = []
-            seen = set()
-            for fi in fragment:
-                if fi in seen:
-                    continue
-                seen.add(fi)
-                sym = self.fidelity_index_latex_str(fi, format=format)
-                count = counts[fi]
-                if count > 1:
-                    sym = f"{{{sym}}}^{{{count}}}"
-                parts.append(sym)
-            return "".join(parts)
-
-        chains = []
-        current_chain = []
-        for fi in fragment:
-            in_pauli, out_pauli = fi.transition
-            gate_sym = self._gate_set[fi.gate_name].latex_str
-            if current_chain and current_chain[-1][1] == in_pauli:
-                current_chain.append((in_pauli, out_pauli, gate_sym))
-            else:
-                if current_chain:
-                    chains.append(current_chain)
-                current_chain = [(in_pauli, out_pauli, gate_sym)]
-        if current_chain:
-            chains.append(current_chain)
-
-        chain_strs = []
-        for arrow_chain in chains:
-            parts = [_qubit_sparse_pauli_to_latex(arrow_chain[0][0])]
-            for _, out_pauli, gate_sym in arrow_chain:
-                out_str = _qubit_sparse_pauli_to_latex(out_pauli)
-                parts.append(rf"\xrightarrow{{{gate_sym}}} {out_str}")
-            chain_strs.append(" ".join(parts))
-
-        return r" \rightarrow ".join(chain_strs)
-
-
-_PAULI_LABELS = {1: "Z", 2: "X", 3: "Y"}
-
-
-def _qubit_sparse_pauli_to_latex(pauli: QubitSparsePauli) -> str:
-    """Convert a QubitSparsePauli to a LaTeX string like ``X_{0} Z_{2}``."""
-    if len(pauli.paulis) == 0:
-        return "I"
-    parts = []
-    for p, idx in zip(pauli.paulis, pauli.indices):
-        parts.append(f"{_PAULI_LABELS[int(p)]}_{{{int(idx)}}}")
-    return " ".join(parts)

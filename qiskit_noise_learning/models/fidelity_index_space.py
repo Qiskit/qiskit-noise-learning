@@ -39,6 +39,11 @@ class FidelityIndexSpace(ParameterSpace[FidelityIndex]):
             total += (4**num_unmeas_unreset) * (2**num_meas) * (2**num_meas_or_prep)
         return total
 
+    @property
+    def gate_set(self) -> ModelGateSet:
+        """The gate set defining valid fidelity indices."""
+        return self._gate_set
+
     def __contains__(self, index: object) -> bool:
         if not isinstance(index, FidelityIndex):
             return False

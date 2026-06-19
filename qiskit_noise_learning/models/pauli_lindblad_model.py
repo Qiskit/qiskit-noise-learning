@@ -26,7 +26,8 @@ from qiskit_noise_learning.gate_sets import GateSet, ModelGateSet
 from qiskit_noise_learning.math import EnumeratedParameterSpace, IndexedVector
 from qiskit_noise_learning.sequences import FidelityIndex
 
-from .fidelity_model import FidelityModel, _qubit_sparse_pauli_to_latex
+from .fidelity_index_space import FidelityIndexSpace
+from .fidelity_model import FidelityModel
 
 
 @dataclass
@@ -98,7 +99,8 @@ class PauliLindbladModel(FidelityModel[GeneratorIndex]):
                 for gen in gen_list
             )
         )
-        super().__init__(gate_set=gate_set, input_space=input_space)
+        self._gate_set = gate_set
+        super().__init__(input_space=input_space, output_space=FidelityIndexSpace(gate_set))
 
     @property
     def generators(self) -> dict[str, QubitSparsePauliList]:
@@ -120,12 +122,13 @@ class PauliLindbladModel(FidelityModel[GeneratorIndex]):
         """The names of the preparation in this model."""
         return self._prep_names
 
-    def _core_row(self, fidelity_index: FidelityIndex) -> IndexedVector[GeneratorIndex]:
+    def row(self, output_index: FidelityIndex) -> IndexedVector[GeneratorIndex]:
         """The row in the parameterization matrix for a given fidelity index.
 
         Returns an :class:`IndexedVector` whose labels correspond to the generators that
         anti-commute with the relevant Pauli operator, with coefficient 2.
         """
+        fidelity_index = output_index
         gate_name = fidelity_index.gate_name
         if gate_name not in self._generators:
             raise ValueError(f"Gate with name {fidelity_index.gate_name} not in gate set.")
@@ -142,36 +145,6 @@ class PauliLindbladModel(FidelityModel[GeneratorIndex]):
                 anti_commuting.append(GeneratorIndex(gate_name=gate_name, generator=generator))
 
         return IndexedVector[GeneratorIndex]({index: 2.0 for index in anti_commuting})
-
-    def fidelity_index_latex_str(
-        self,
-        fidelity_index: FidelityIndex,
-        format: str = "transition",
-    ) -> str:
-        r"""Return a LaTeX string for a fidelity index.
-
-        Overrides the base class to provide a simplified formula format for Pauli-Lindblad models:
-        :math:`f^{G}_{P}`, where :math:`G` is the gate symbol and :math:`P` is the relevant Pauli
-        determined by the noise site.
-
-        Args:
-            fidelity_index: The fidelity index to label.
-            format: Either ``"transition"`` or ``"formula"``.
-
-        Returns:
-            A LaTeX string.
-        """
-        if format != "formula":
-            return super().fidelity_index_latex_str(fidelity_index, format=format)
-
-        gate_sym = self._gate_set[fidelity_index.gate_name].latex_str
-        pauli = (
-            fidelity_index.transition[0]
-            if self._noise_site[fidelity_index.gate_name] == "before"
-            else fidelity_index.transition[1]
-        )
-        pauli_str = _qubit_sparse_pauli_to_latex(pauli)
-        return rf"f^{{{gate_sym}}}_{{{pauli_str}}}"
 
     @staticmethod
     def k_partition_local(

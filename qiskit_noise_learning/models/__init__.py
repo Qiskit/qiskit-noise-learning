@@ -13,5 +13,6 @@
 """Modelling module."""
 
 from .complete_fidelity_model import CompleteFidelityModel
+from .composed_fidelity_model import ComposedFidelityModel
 from .fidelity_model import FidelityModel
 from .pauli_lindblad_model import GeneratorIndex, PauliLindbladModel
