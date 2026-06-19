@@ -15,10 +15,10 @@
 from collections.abc import Hashable
 from typing import Self, TypeVar
 
-BasisIndex = TypeVar("BasisIndex", bound=Hashable)
+Index = TypeVar("Index", bound=Hashable)
 
 
-class IndexedVector(dict[BasisIndex, float]):
+class IndexedVector(dict[Index, float]):
     """A vector of floats with arbitrary index, or axis label, data."""
 
     def add(self, other: Self) -> Self:
@@ -29,11 +29,11 @@ class IndexedVector(dict[BasisIndex, float]):
         for basis_index, value in other.items():
             new_vector[basis_index] = new_vector.get(basis_index, 0.0) + value
 
-        return IndexedVector[BasisIndex](new_vector)
+        return IndexedVector[Index](new_vector)
 
     def mul(self, const: float) -> Self:
         """Return a new indexed vector by multipling self with a constant."""
-        return IndexedVector[BasisIndex]({k: const * v for k, v in self.items()})
+        return IndexedVector[Index]({k: const * v for k, v in self.items()})
 
     def __add__(self, other: Self) -> Self:
         return self.add(other)
