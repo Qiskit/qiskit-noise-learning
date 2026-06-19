@@ -15,6 +15,7 @@
 from abc import abstractmethod
 from collections import Counter
 from collections.abc import Hashable
+from copy import copy
 from itertools import chain
 from typing import Generic, TypeVar, overload
 
@@ -23,7 +24,7 @@ from qiskit.quantum_info import QubitSparsePauli
 
 from qiskit_noise_learning.data import ModelData
 from qiskit_noise_learning.gate_sets import GateSet, ModelGateSet
-from qiskit_noise_learning.math import IndexedVector, LinearMap, ParameterSpace
+from qiskit_noise_learning.math import ComposedLinearMap, IndexedVector, LinearMap, ParameterSpace
 from qiskit_noise_learning.sequences import FidelityIndex, Path
 
 from .fidelity_index_space import FidelityIndexSpace
@@ -92,6 +93,41 @@ class FidelityModel(LinearMap[ParameterIndex, FidelityIndex], Generic[ParameterI
         for idx, coeff in vector.items():
             result = result + coeff * self._core_row(idx)
         return result
+
+    def compose(self, outer: "LinearMap[FidelityIndex, FidelityIndex]") -> "FidelityModel":
+        """Post-compose with a fidelity transformation.
+
+        Returns a new model of the same type with the transformation applied after the core map.
+
+        Args:
+            outer: A linear map on the fidelity index space.
+        """
+        new_model = copy(self)
+        if self._post_map is not None:
+            new_model._post_map = ComposedLinearMap(  # noqa: SLF001
+                inner=self._post_map, outer=outer
+            )
+        else:
+            new_model._post_map = outer  # noqa: SLF001
+        return new_model
+
+    def pre_compose(self, inner: "LinearMap") -> "FidelityModel":
+        """Pre-compose with a parameter transformation.
+
+        Returns a new model of the same type with the transformation applied before the core map.
+
+        Args:
+            inner: A linear map whose output space matches the model's native parameter space.
+        """
+        new_model = copy(self)
+        if self._pre_map is not None:
+            new_model._pre_map = ComposedLinearMap(  # noqa: SLF001
+                inner=inner, outer=self._pre_map
+            )
+        else:
+            new_model._pre_map = inner  # noqa: SLF001
+        new_model._input_space = inner.input_space  # noqa: SLF001
+        return new_model
 
     def row_from_fidelity(self, fidelity_index: FidelityIndex) -> IndexedVector[ParameterIndex]:
         """Get a row of the log fidelity parameterization matrix.
