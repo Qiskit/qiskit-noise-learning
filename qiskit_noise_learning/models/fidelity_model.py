@@ -23,8 +23,10 @@ from qiskit.quantum_info import QubitSparsePauli
 
 from qiskit_noise_learning.data import ModelData
 from qiskit_noise_learning.gate_sets import GateSet, ModelGateSet
-from qiskit_noise_learning.math import IndexedVector, LinearMap
+from qiskit_noise_learning.math import IndexedVector, LinearMap, ParameterSpace
 from qiskit_noise_learning.sequences import FidelityIndex, Path
+
+from .fidelity_index_space import FidelityIndexSpace
 
 ParameterIndex = TypeVar("ParameterIndex", bound=Hashable)
 
@@ -33,7 +35,7 @@ class FidelityModel(LinearMap[ParameterIndex, FidelityIndex], Generic[ParameterI
     r"""A linear parameterization of the log fidelities of a gate set.
 
     This class provides an interface into rows of the matrix :math:`A` for which
-    :math:`-\log(f) = Ar`, where :math:`f` is the vector of fidelities, and :math:`r` is a reduced
+    :math:`-\log(f) = Ar`, where :math:`f` is the vector of fidelities, and :math:`r` is the model
     parameter space.
 
     A ``FidelityModel`` can be composed with other :class:`~.LinearMap` instances:
@@ -41,7 +43,7 @@ class FidelityModel(LinearMap[ParameterIndex, FidelityIndex], Generic[ParameterI
     - **Pre-composition** with a ``LinearMap[A, P]`` creates a new model parameterized by ``A``
       instead of ``P``, while preserving the model's domain-specific behavior (rendering, etc.).
     - **Post-composition** with a ``LinearMap[FidelityIndex, FidelityIndex]`` applies a fidelity
-      mixer, creating a new model with the same parameter space but mixed fidelities.
+      transformation, creating a new model with the same input parameter space.
 
     In both cases, composition returns a new instance of the same class, preserving access to
     domain-specific properties and methods.
@@ -51,8 +53,9 @@ class FidelityModel(LinearMap[ParameterIndex, FidelityIndex], Generic[ParameterI
             :class:`ModelGateSet`.
     """
 
-    def __init__(self, gate_set: GateSet):
+    def __init__(self, gate_set: GateSet, input_space: ParameterSpace[ParameterIndex]):
         self._gate_set = gate_set.model_gate_set
+        super().__init__(input_space=input_space, output_space=FidelityIndexSpace(self._gate_set))
         self._pre_map = None
         self._post_map = None
 
@@ -66,9 +69,15 @@ class FidelityModel(LinearMap[ParameterIndex, FidelityIndex], Generic[ParameterI
         Args:
             output_index: The fidelity index for the row.
         """
-        if self._pre_map is not None or self._post_map is not None:
-            return self._compute_composed_row(output_index)
-        return self._core_row(output_index)
+        if self._post_map is not None:
+            core_result = self._core_left_multiply(self._post_map.row(output_index))
+        else:
+            core_result = self._core_row(output_index)
+
+        if self._pre_map is not None:
+            return self._pre_map.left_multiply(core_result)
+
+        return core_result
 
     @abstractmethod
     def _core_row(self, fidelity_index: FidelityIndex) -> IndexedVector:
@@ -77,24 +86,12 @@ class FidelityModel(LinearMap[ParameterIndex, FidelityIndex], Generic[ParameterI
         Subclasses implement this to define the core linear map.
         """
 
-    def _compute_composed_row(self, output_index: FidelityIndex) -> IndexedVector[ParameterIndex]:
-        """Compute a row through the composition chain (post -> core -> pre)."""
-        if self._post_map is not None:
-            post_row = self._post_map.row(output_index)
-            core_result = IndexedVector()
-            for fidelity_idx, coeff in post_row.items():
-                core_result = core_result + coeff * self._core_row(fidelity_idx)
-        else:
-            core_result = self._core_row(output_index)
-
-        if self._pre_map is not None:
-            result = IndexedVector[ParameterIndex]()
-            for core_idx, coeff in core_result.items():
-                pre_row = self._pre_map.row(core_idx)
-                result = result + coeff * pre_row
-            return result
-
-        return core_result
+    def _core_left_multiply(self, vector: IndexedVector[FidelityIndex]) -> IndexedVector:
+        """Left-multiply a sparse vector against the core map."""
+        result = IndexedVector()
+        for idx, coeff in vector.items():
+            result = result + coeff * self._core_row(idx)
+        return result
 
     def row_from_fidelity(self, fidelity_index: FidelityIndex) -> IndexedVector[ParameterIndex]:
         """Get a row of the log fidelity parameterization matrix.

@@ -27,21 +27,51 @@ OtherOutput = TypeVar("OtherOutput", bound=Hashable)
 
 
 class LinearMap(Generic[InputIndex, OutputIndex], ABC):
-    """A linear map between two parameter spaces."""
+    """An implicit linear map between two parameter spaces.
+
+    Args:
+        input_space: The input parameter space.
+        output_space: The output parameter space.
+    """
+
+    def __init__(
+        self,
+        input_space: ParameterSpace[InputIndex],
+        output_space: ParameterSpace[OutputIndex],
+    ):
+        self._input_space = input_space
+        self._output_space = output_space
 
     @property
-    @abstractmethod
     def input_space(self) -> ParameterSpace[InputIndex]:
         """The input parameter space."""
+        return self._input_space
 
     @property
-    @abstractmethod
     def output_space(self) -> ParameterSpace[OutputIndex]:
         """The output parameter space."""
+        return self._output_space
 
     @abstractmethod
     def row(self, output_index: OutputIndex) -> IndexedVector[InputIndex]:
         """The sparse row in the linear map corresponding to a given output parameter index."""
+
+    def left_multiply(self, vector: IndexedVector[OutputIndex]) -> IndexedVector[InputIndex]:
+        """Left-multiply a sparse vector against this map.
+
+        Given a vector in the output space, expands each entry through the corresponding row
+        to produce a vector in the input space.
+
+        Args:
+            vector: A sparse vector indexed by the output space.
+
+        Returns:
+            A sparse vector in the input space.
+        """
+        result = IndexedVector[InputIndex]()
+        for idx, coeff in vector.items():
+            result = result + coeff * self.row(idx)
+        return result
 
     def evaluate(self, output_index: OutputIndex, parameters: Mapping[InputIndex, float]) -> float:
         """Compute the dot product of a row with an input parameter vector.
@@ -99,16 +129,9 @@ class ComposedLinearMap(LinearMap[InputIndex, OutputIndex]):
         inner: LinearMap[InputIndex, MiddleIndex],
         outer: LinearMap[MiddleIndex, OutputIndex],
     ):
+        super().__init__(input_space=inner.input_space, output_space=outer.output_space)
         self._inner = inner
         self._outer = outer
-
-    @property
-    def input_space(self) -> ParameterSpace[InputIndex]:
-        return self._inner.input_space
-
-    @property
-    def output_space(self) -> ParameterSpace[OutputIndex]:
-        return self._outer.output_space
 
     @property
     def inner(self) -> LinearMap[InputIndex, MiddleIndex]:
@@ -122,9 +145,4 @@ class ComposedLinearMap(LinearMap[InputIndex, OutputIndex]):
 
     def row(self, output_index: OutputIndex) -> IndexedVector[InputIndex]:
         """Compute the composed row by expanding through the intermediate space."""
-        outer_row = self._outer.row(output_index)
-        result = IndexedVector[InputIndex]()
-        for middle_index, coeff in outer_row.items():
-            inner_row = self._inner.row(middle_index)
-            result = result + coeff * inner_row
-        return result
+        return self._inner.left_multiply(self._outer.row(output_index))

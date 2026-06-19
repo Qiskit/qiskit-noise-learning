@@ -14,7 +14,6 @@
 
 from copy import copy
 from dataclasses import dataclass
-from functools import cached_property
 from itertools import chain, product
 from typing import Literal, Self
 
@@ -24,10 +23,9 @@ from qiskit.transpiler import CouplingMap
 
 from qiskit_noise_learning.data import ModelData
 from qiskit_noise_learning.gate_sets import GateSet, ModelGateSet
-from qiskit_noise_learning.math import EnumeratedParameterSpace, IndexedVector, ParameterSpace
+from qiskit_noise_learning.math import EnumeratedParameterSpace, IndexedVector
 from qiskit_noise_learning.sequences import FidelityIndex
 
-from .fidelity_index_space import FidelityIndexSpace
 from .fidelity_model import FidelityModel, _qubit_sparse_pauli_to_latex
 
 
@@ -92,7 +90,15 @@ class PauliLindbladModel(FidelityModel[GeneratorIndex]):
         self._noise_site = _validate_and_complete_noise_site_dict(
             gate_set, noise_site, prep_names, meas_names
         )
-        super().__init__(gate_set=gate_set)
+
+        input_space = EnumeratedParameterSpace(
+            frozenset(
+                GeneratorIndex(gate_name=name, generator=gen)
+                for name, gen_list in self._generators.items()
+                for gen in gen_list
+            )
+        )
+        super().__init__(gate_set=gate_set, input_space=input_space)
 
     @property
     def generators(self) -> dict[str, QubitSparsePauliList]:
@@ -113,19 +119,6 @@ class PauliLindbladModel(FidelityModel[GeneratorIndex]):
     def prep_names(self) -> set[str]:
         """The names of the preparation in this model."""
         return self._prep_names
-
-    @cached_property
-    def input_space(self) -> ParameterSpace[GeneratorIndex]:
-        indices = frozenset(
-            GeneratorIndex(gate_name=name, generator=gen)
-            for name, gen_list in self._generators.items()
-            for gen in gen_list
-        )
-        return EnumeratedParameterSpace(indices)
-
-    @cached_property
-    def output_space(self) -> ParameterSpace[FidelityIndex]:
-        return FidelityIndexSpace(self._gate_set)
 
     def _core_row(self, fidelity_index: FidelityIndex) -> IndexedVector[GeneratorIndex]:
         """The row in the parameterization matrix for a given fidelity index.

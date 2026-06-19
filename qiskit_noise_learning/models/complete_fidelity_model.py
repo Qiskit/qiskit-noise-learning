@@ -12,9 +12,8 @@
 
 """CompleteFidelityModel"""
 
-from functools import cached_property
-
-from qiskit_noise_learning.math import IndexedVector, ParameterSpace
+from qiskit_noise_learning.gate_sets import GateSet
+from qiskit_noise_learning.math import IndexedVector
 from qiskit_noise_learning.sequences import FidelityIndex
 
 from .fidelity_index_space import FidelityIndexSpace
@@ -30,13 +29,9 @@ class CompleteFidelityModel(FidelityModel[FidelityIndex]):
         gate_set: The gate set for which the fidelities are being modelled.
     """
 
-    @cached_property
-    def input_space(self) -> ParameterSpace[FidelityIndex]:
-        return FidelityIndexSpace(self._gate_set)
-
-    @cached_property
-    def output_space(self) -> ParameterSpace[FidelityIndex]:
-        return FidelityIndexSpace(self._gate_set)
+    def __init__(self, gate_set: GateSet):
+        model_gate_set = gate_set.model_gate_set
+        super().__init__(gate_set=gate_set, input_space=FidelityIndexSpace(model_gate_set))
 
     def _core_row(self, fidelity_index):
         return IndexedVector[FidelityIndex]({fidelity_index: 1.0})
