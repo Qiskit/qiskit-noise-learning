@@ -99,7 +99,6 @@ class PauliLindbladModel(FidelityModel[GeneratorIndex]):
                 for gen in gen_list
             )
         )
-        self._gate_set = gate_set
         super().__init__(input_space=input_space, output_space=FidelityIndexSpace(gate_set))
 
     @property

@@ -30,8 +30,7 @@ class CompleteFidelityModel(FidelityModel[FidelityIndex]):
     """
 
     def __init__(self, gate_set: GateSet):
-        self._gate_set = gate_set.model_gate_set
-        output_space = FidelityIndexSpace(self._gate_set)
+        output_space = FidelityIndexSpace(gate_set.model_gate_set)
         super().__init__(input_space=output_space, output_space=output_space)
 
     def row(self, output_index: FidelityIndex) -> IndexedVector[FidelityIndex]:

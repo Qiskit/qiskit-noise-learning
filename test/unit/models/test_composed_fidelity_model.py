@@ -15,11 +15,7 @@ from qiskit.circuit.library import CZGate
 from qiskit.quantum_info import Clifford, QubitSparsePauli
 
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
-from qiskit_noise_learning.math import (
-    ComposedLinearMap,
-    IndexedVector,
-    LinearMap,
-)
+from qiskit_noise_learning.math import ComposedLinearMap
 from qiskit_noise_learning.models import (
     CompleteFidelityModel,
     ComposedFidelityModel,
@@ -45,13 +41,6 @@ def fidelity_index(gate_set):
         in_bit_indices=frozenset(),
         out_bit_indices=frozenset(),
     )
-
-
-class _NonFidelityMap(LinearMap):
-    """A minimal linear map whose output space is not a fidelity index space."""
-
-    def row(self, output_index):
-        return IndexedVector()
 
 
 def test_compose_returns_composed_fidelity_model(gate_set):

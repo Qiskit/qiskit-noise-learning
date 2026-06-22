@@ -39,18 +39,21 @@ class FidelityModel(LinearMap[ParameterIndex, FidelityIndex], Generic[ParameterI
 
     This is the abstract interface shared by every fidelity model. It collects the domain-level
     behaviour — design-matrix rows for fidelity indices and paths, fidelity estimates, and
-    composition — on top of the abstract :meth:`row`. Concrete implementations
-    (:class:`~.CompleteFidelityModel`, :class:`~.PauliLindbladModel`, and
-    :class:`~.ComposedFidelityModel`) supply their own constructors and set ``self._gate_set``.
+    composition — on top of the abstract :meth:`row`.
 
     Composition with other :class:`~.LinearMap` instances (via ``@``) returns a
     :class:`~.ComposedFidelityModel` that preserves this interface.
     """
 
     @property
+    def output_space(self) -> FidelityIndexSpace:
+        """The output space, always a :class:`~.FidelityIndexSpace`."""
+        return self._output_space
+
+    @property
     def gate_set(self) -> ModelGateSet:
         """The gate set whose fidelities are modelled."""
-        return self._gate_set
+        return self.output_space.gate_set
 
     @abstractmethod
     def row(self, output_index: FidelityIndex) -> IndexedVector[ParameterIndex]:

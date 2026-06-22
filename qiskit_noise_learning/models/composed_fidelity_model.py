@@ -24,10 +24,6 @@ class ComposedFidelityModel(ComposedLinearMap, FidelityModel):
         maps: Ordered sequence of maps in application order (``maps[0]`` applied first).
     """
 
-    def __init__(self, maps: list[LinearMap]):
-        super().__init__(maps)
-        self._gate_set = self._maps[-1].output_space.gate_set
-
     def compose(self, outer: "LinearMap") -> "LinearMap":
         """Post-compose with a linear map on the output space, flattening the chain.
 
