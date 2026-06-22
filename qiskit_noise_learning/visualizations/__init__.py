@@ -12,4 +12,5 @@
 
 """Visualization utilities"""
 
+from .fidelity_latex import fidelity_index_latex_str, path_latex_str
 from .gate_set_topology import gate_set_topology
