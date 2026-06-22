@@ -26,8 +26,8 @@ from qiskit_noise_learning.gate_sets import GateSet, ModelGateSet
 from qiskit_noise_learning.math import EnumeratedParameterSpace, IndexedVector
 from qiskit_noise_learning.sequences import FidelityIndex
 
-from .fidelity_index_space import FidelityIndexSpace
 from .fidelity_model import FidelityModel
+from .log_fidelity_space import LogFidelitySpace
 
 
 @dataclass
@@ -99,7 +99,7 @@ class PauliLindbladModel(FidelityModel[GeneratorIndex]):
                 for gen in gen_list
             )
         )
-        super().__init__(input_space=input_space, output_space=FidelityIndexSpace(gate_set))
+        super().__init__(input_space=input_space, output_space=LogFidelitySpace(gate_set))
 
     @property
     def generators(self) -> dict[str, QubitSparsePauliList]:

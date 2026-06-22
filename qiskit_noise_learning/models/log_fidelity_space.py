@@ -10,18 +10,21 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""FidelityIndexSpace"""
+"""LogFidelitySpace"""
 
 from qiskit_noise_learning.gate_sets import ModelGateSet
 from qiskit_noise_learning.math import ParameterSpace
 from qiskit_noise_learning.sequences import FidelityIndex
 
 
-class FidelityIndexSpace(ParameterSpace[FidelityIndex]):
-    """The space of all valid fidelity indices for a given gate set.
+class LogFidelitySpace(ParameterSpace[FidelityIndex]):
+    """The log-fidelity parameter space for a gate set.
+
+    Each coordinate of this space is the log fidelity of a gate transition, with the coordinates
+    indexed by the :class:`~.FidelityIndex` instances valid for the gate set.
 
     Args:
-        gate_set: The model gate set defining valid fidelity indices.
+        gate_set: The model gate set defining the valid fidelity indices.
     """
 
     def __init__(self, gate_set: ModelGateSet):

@@ -24,7 +24,7 @@ from qiskit_noise_learning.gate_sets import ModelGateSet
 from qiskit_noise_learning.math import ComposedLinearMap, IndexedVector, LinearMap
 from qiskit_noise_learning.sequences import FidelityIndex, Path
 
-from .fidelity_index_space import FidelityIndexSpace
+from .log_fidelity_space import LogFidelitySpace
 
 ParameterIndex = TypeVar("ParameterIndex", bound=Hashable)
 
@@ -33,7 +33,7 @@ class FidelityModel(LinearMap[ParameterIndex, FidelityIndex], Generic[ParameterI
     r"""A linear parameterization of the log fidelities of a gate set.
 
     A :class:`FidelityModel` is a :class:`~.LinearMap` whose output space is a
-    :class:`~.FidelityIndexSpace`. It represents the matrix :math:`A` for which
+    :class:`~.LogFidelitySpace`. It represents the matrix :math:`A` for which
     :math:`-\log(f) = Ar`, where :math:`f` is the vector of fidelities and :math:`r` is the
     model parameter vector.
 
@@ -46,8 +46,8 @@ class FidelityModel(LinearMap[ParameterIndex, FidelityIndex], Generic[ParameterI
     """
 
     @property
-    def output_space(self) -> FidelityIndexSpace:
-        """The output space, always a :class:`~.FidelityIndexSpace`."""
+    def output_space(self) -> LogFidelitySpace:
+        """The output space, always a :class:`~.LogFidelitySpace`."""
         return self._output_space
 
     @property
@@ -67,14 +67,14 @@ class FidelityModel(LinearMap[ParameterIndex, FidelityIndex], Generic[ParameterI
         """Post-compose with a linear map on the output space.
 
         Since post-composition replaces the output space with ``outer``'s, the result is only a
-        fidelity model when ``outer`` maps back into a :class:`~.FidelityIndexSpace`.
+        fidelity model when ``outer`` maps back into a :class:`~.LogFidelitySpace`.
 
         Args:
             outer: A linear map applied after this one.
 
         Returns:
             A :class:`~.ComposedFidelityModel` if the composed chain still maps into a
-            :class:`~.FidelityIndexSpace`, otherwise a plain :class:`~.ComposedLinearMap`.
+            :class:`~.LogFidelitySpace`, otherwise a plain :class:`~.ComposedLinearMap`.
         """
         outer_maps = outer.maps if isinstance(outer, ComposedLinearMap) else [outer]
         return _composed_fidelity_map([self, *outer_maps])
@@ -194,7 +194,7 @@ def _composed_fidelity_map(maps: list[LinearMap]) -> LinearMap:
     """Build the composed map for a flat chain, choosing the type from its output space.
 
     Returns a :class:`~.ComposedFidelityModel` when the chain maps into a
-    :class:`~.FidelityIndexSpace` (so the result is itself a fidelity model), otherwise a plain
+    :class:`~.LogFidelitySpace` (so the result is itself a fidelity model), otherwise a plain
     :class:`~.ComposedLinearMap`. The discriminator is the output space of the chain rather than
     the type of any single map, so a :class:`~.ComposedLinearMap` ending in a fidelity model is
     still recognised as a fidelity model.
@@ -204,6 +204,6 @@ def _composed_fidelity_map(maps: list[LinearMap]) -> LinearMap:
     """
     from .composed_fidelity_model import ComposedFidelityModel
 
-    if isinstance(maps[-1].output_space, FidelityIndexSpace):
+    if isinstance(maps[-1].output_space, LogFidelitySpace):
         return ComposedFidelityModel(maps)
     return ComposedLinearMap(maps)

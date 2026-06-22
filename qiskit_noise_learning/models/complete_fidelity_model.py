@@ -16,8 +16,8 @@ from qiskit_noise_learning.gate_sets import GateSet
 from qiskit_noise_learning.math import IndexedVector
 from qiskit_noise_learning.sequences import FidelityIndex
 
-from .fidelity_index_space import FidelityIndexSpace
 from .fidelity_model import FidelityModel
+from .log_fidelity_space import LogFidelitySpace
 
 
 class CompleteFidelityModel(FidelityModel[FidelityIndex]):
@@ -30,7 +30,7 @@ class CompleteFidelityModel(FidelityModel[FidelityIndex]):
     """
 
     def __init__(self, gate_set: GateSet):
-        output_space = FidelityIndexSpace(gate_set.model_gate_set)
+        output_space = LogFidelitySpace(gate_set.model_gate_set)
         super().__init__(input_space=output_space, output_space=output_space)
 
     def row(self, output_index: FidelityIndex) -> IndexedVector[FidelityIndex]:

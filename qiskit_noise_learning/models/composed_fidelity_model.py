@@ -32,7 +32,7 @@ class ComposedFidelityModel(ComposedLinearMap, FidelityModel):
 
         Returns:
             A :class:`~.ComposedFidelityModel` if the composed chain still maps into a
-            :class:`~.FidelityIndexSpace`, otherwise a plain :class:`~.ComposedLinearMap`.
+            :class:`~.LogFidelitySpace`, otherwise a plain :class:`~.ComposedLinearMap`.
         """
         outer_maps = outer.maps if isinstance(outer, ComposedLinearMap) else [outer]
         return _composed_fidelity_map([*self._maps, *outer_maps])
