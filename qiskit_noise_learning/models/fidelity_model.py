@@ -21,8 +21,10 @@ import numpy as np
 
 from qiskit_noise_learning.data import ModelData
 from qiskit_noise_learning.gate_sets import ModelGateSet
-from qiskit_noise_learning.math import IndexedVector, LinearMap
+from qiskit_noise_learning.math import ComposedLinearMap, IndexedVector, LinearMap
 from qiskit_noise_learning.sequences import FidelityIndex, Path
+
+from .fidelity_index_space import FidelityIndexSpace
 
 ParameterIndex = TypeVar("ParameterIndex", bound=Hashable)
 
@@ -58,21 +60,26 @@ class FidelityModel(LinearMap[ParameterIndex, FidelityIndex], Generic[ParameterI
             output_index: The fidelity index for the row.
         """
 
-    def compose(self, outer: "LinearMap") -> "FidelityModel":
+    def compose(self, outer: "LinearMap") -> "LinearMap":
         """Post-compose with a linear map on the output space.
+
+        Since post-composition replaces the output space with ``outer``'s, the result is only a
+        fidelity model when ``outer`` maps back into a :class:`~.FidelityIndexSpace`.
 
         Args:
             outer: A linear map applied after this one.
 
         Returns:
-            A :class:`~.ComposedFidelityModel` representing the composition.
+            A :class:`~.ComposedFidelityModel` if the composed chain still maps into a
+            :class:`~.FidelityIndexSpace`, otherwise a plain :class:`~.ComposedLinearMap`.
         """
-        from .composed_fidelity_model import ComposedFidelityModel
-
-        return ComposedFidelityModel([self, outer])
+        outer_maps = outer.maps if isinstance(outer, ComposedLinearMap) else [outer]
+        return _composed_fidelity_map([self, *outer_maps])
 
     def pre_compose(self, inner: "LinearMap") -> "FidelityModel":
         """Pre-compose with a linear map on the input space.
+
+        Pre-composition leaves the output space unchanged, so the result is always a fidelity model.
 
         Args:
             inner: A linear map applied before this one.
@@ -80,9 +87,8 @@ class FidelityModel(LinearMap[ParameterIndex, FidelityIndex], Generic[ParameterI
         Returns:
             A :class:`~.ComposedFidelityModel` representing the composition.
         """
-        from .composed_fidelity_model import ComposedFidelityModel
-
-        return ComposedFidelityModel([inner, self])
+        inner_maps = inner.maps if isinstance(inner, ComposedLinearMap) else [inner]
+        return _composed_fidelity_map([*inner_maps, self])
 
     def row_from_fidelity(self, fidelity_index: FidelityIndex) -> IndexedVector[ParameterIndex]:
         """Get a row of the log fidelity parameterization matrix.
@@ -179,3 +185,22 @@ class FidelityModel(LinearMap[ParameterIndex, FidelityIndex], Generic[ParameterI
             The fidelity estimate.
         """
         return float(np.exp(-self.log_fidelity_estimate(index, model_data)))
+
+
+def _composed_fidelity_map(maps: list[LinearMap]) -> LinearMap:
+    """Build the composed map for a flat chain, choosing the type from its output space.
+
+    Returns a :class:`~.ComposedFidelityModel` when the chain maps into a
+    :class:`~.FidelityIndexSpace` (so the result is itself a fidelity model), otherwise a plain
+    :class:`~.ComposedLinearMap`. The discriminator is the output space of the chain rather than
+    the type of any single map, so a :class:`~.ComposedLinearMap` ending in a fidelity model is
+    still recognised as a fidelity model.
+
+    Args:
+        maps: The flat chain of maps in application order.
+    """
+    from .composed_fidelity_model import ComposedFidelityModel
+
+    if isinstance(maps[-1].output_space, FidelityIndexSpace):
+        return ComposedFidelityModel(maps)
+    return ComposedLinearMap(maps)
