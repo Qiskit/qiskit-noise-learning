@@ -60,9 +60,9 @@ class ModelSolve(AnalysisStage):
 
         # Build design matrix from the fidelity model and the unbound paths in the decay data
         unbound_paths = list(decay_dataset["unbound_path"].data)
-        rows = [fidelity_model.row_from_path(pp) for pp in unbound_paths]
-        design_matrix = IndexedMatrix()
-        design_matrix.add_rows(row_indices=unbound_paths, rows=rows)
+        design_matrix = IndexedMatrix.from_rows(
+            unbound_paths, [fidelity_model.row_from_path(pp) for pp in unbound_paths]
+        )
 
         # Construct b from averaged_data taking the negative logarithm
         row_index_map = design_matrix.row_index_map

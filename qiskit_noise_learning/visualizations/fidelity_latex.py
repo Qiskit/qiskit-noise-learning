@@ -16,7 +16,7 @@ from collections import Counter
 
 from qiskit.quantum_info import QubitSparsePauli
 
-from qiskit_noise_learning.models import FidelityModel, PauliLindbladModel
+from qiskit_noise_learning.models import FidelityModel, find_pauli_lindblad_model
 from qiskit_noise_learning.sequences import FidelityIndex, Path
 
 _PAULI_LABELS = {1: "Z", 2: "X", 3: "Y"}
@@ -56,7 +56,7 @@ def fidelity_index_latex_str(
         return rf"{in_str} \xrightarrow{{{gate_sym}}} {out_str}"
 
     if format == "formula":
-        pauli_lindblad_model = _find_pauli_lindblad_model(model)
+        pauli_lindblad_model = find_pauli_lindblad_model(model)
         if pauli_lindblad_model is not None:
             gate_sym = pauli_lindblad_model.gate_set[gate_name].latex_str
             pauli = (
@@ -122,17 +122,6 @@ def path_latex_str(
 
     delimiter = r" \rightarrow " if format == "transition" else ""
     return delimiter.join(parts)
-
-
-def _find_pauli_lindblad_model(model: FidelityModel) -> PauliLindbladModel | None:
-    """Return a :class:`~.PauliLindbladModel` from ``model`` or its composition chain, if any."""
-    if isinstance(model, PauliLindbladModel):
-        return model
-    for sub_map in getattr(model, "maps", []):
-        found = _find_pauli_lindblad_model(sub_map)
-        if found is not None:
-            return found
-    return None
 
 
 def _fragment_latex_str(fragment: list[FidelityIndex], model: FidelityModel, format: str) -> str:

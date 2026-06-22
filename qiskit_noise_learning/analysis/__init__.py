@@ -17,6 +17,8 @@ from .curve_fit_observables import CurveFitObservables
 from .fit import Fit
 from .flip_post_select import FlipPostSelect
 from .legacy import LegacySolve
+from .model_propagation import propagate_model_data
 from .model_solve import LSQLinearSolve, NNLSSolve
+from .pauli_lindblad_maps import to_pauli_lindblad_maps
 from .symmetrize import SymmetrizeFidelities, SymmetrizeGenerators
 from .zero_post_select import ZeroPostSelect

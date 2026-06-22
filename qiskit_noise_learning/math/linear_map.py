@@ -13,9 +13,10 @@
 """LinearMap"""
 
 from abc import ABC, abstractmethod
-from collections.abc import Hashable, Mapping
+from collections.abc import Hashable, Iterable, Mapping
 from typing import Generic, TypeVar
 
+from .indexed_matrix import IndexedMatrix
 from .indexed_vector import IndexedVector
 from .parameter_space import ParameterSpace
 
@@ -87,6 +88,23 @@ class LinearMap(Generic[InputIndex, OutputIndex], ABC):
         """
         row = self.row(output_index)
         return sum(coeff * parameters[idx] for idx, coeff in row.items())
+
+    def to_indexed_matrix(
+        self, row_indices: Iterable[OutputIndex]
+    ) -> IndexedMatrix[OutputIndex, InputIndex]:
+        """Materialize this map as an :class:`IndexedMatrix` over the given output indices.
+
+        Args:
+            row_indices: The output indices whose rows to include. These must be supplied
+                explicitly; the full output space is in general too large (or not enumerable) to
+                materialize.
+
+        Returns:
+            An :class:`IndexedMatrix` whose rows are indexed by ``row_indices`` and whose columns
+            are the input indices appearing in those rows.
+        """
+        row_indices = list(row_indices)
+        return IndexedMatrix.from_rows(row_indices, [self.row(idx) for idx in row_indices])
 
     def compose(
         self, outer: "LinearMap[OutputIndex, OtherOutput]"

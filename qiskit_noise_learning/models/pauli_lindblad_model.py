@@ -23,7 +23,7 @@ from qiskit.transpiler import CouplingMap
 
 from qiskit_noise_learning.data import ModelData
 from qiskit_noise_learning.gate_sets import GateSet, ModelGateSet
-from qiskit_noise_learning.math import EnumeratedParameterSpace, IndexedVector
+from qiskit_noise_learning.math import EnumeratedParameterSpace, IndexedVector, LinearMap
 from qiskit_noise_learning.sequences import FidelityIndex
 
 from .fidelity_model import FidelityModel
@@ -409,6 +409,24 @@ class PauliLindbladModel(FidelityModel[GeneratorIndex]):
             gate_name: PauliLindbladMap.from_terms(generators)
             for gate_name, generators in noise_maps.items()
         }
+
+
+def find_pauli_lindblad_model(model: LinearMap) -> "PauliLindbladModel | None":
+    """Return the :class:`PauliLindbladModel` within ``model``, or ``None`` if there is none.
+
+    Searches ``model`` itself and, recursively, the maps of any composition it is built from (e.g.
+    a :class:`~.ComposedFidelityModel`).
+
+    Args:
+        model: A linear map, possibly a composition containing a :class:`PauliLindbladModel`.
+    """
+    if isinstance(model, PauliLindbladModel):
+        return model
+    for sub_map in getattr(model, "maps", []):
+        found = find_pauli_lindblad_model(sub_map)
+        if found is not None:
+            return found
+    return None
 
 
 def _validate_gate_set_form(gate_set: ModelGateSet) -> tuple[list[str], list[str]]:

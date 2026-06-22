@@ -21,6 +21,7 @@ from .indexed_vector import IndexedVector
 
 RowIndex = TypeVar("RowIndex", bound=Hashable)
 ColumnIndex = TypeVar("ColumnIndex", bound=Hashable)
+OtherColumnIndex = TypeVar("OtherColumnIndex", bound=Hashable)
 
 
 class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
@@ -96,6 +97,27 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
             column_index_map={k: idx for idx, k in enumerate(column_indices)},
             data=data,
         )
+
+    @classmethod
+    def from_rows(
+        cls,
+        row_indices: Sequence[RowIndex],
+        rows: Sequence[IndexedVector[ColumnIndex]],
+        tol: float = 1e-8,
+    ) -> Self:
+        """Construct from row indices and their sparse :class:`IndexedVector` rows.
+
+        Args:
+            row_indices: The index for each row.
+            rows: The sparse rows, as :class:`IndexedVector` instances.
+            tol: Tolerance below which row values are treated as ``0.0``.
+
+        Returns:
+            An :class:`IndexedMatrix` containing the (non-zero) rows.
+        """
+        matrix = cls()
+        matrix.add_rows(row_indices=list(row_indices), rows=list(rows), tol=tol)
+        return matrix
 
     @property
     def row_index_map(self) -> dict[RowIndex, int]:
@@ -259,6 +281,84 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
             row_index_map=self._row_index_map.copy(),
             column_index_map=self.column_index_map.copy(),
             data=self._data.copy(),
+        )
+
+    def transpose(self) -> "IndexedMatrix[ColumnIndex, RowIndex]":
+        """Return the transpose, swapping row and column indices."""
+        if self._data.shape[0] == 0:
+            return IndexedMatrix[ColumnIndex, RowIndex]()
+        return IndexedMatrix[ColumnIndex, RowIndex](
+            row_index_map=self._column_index_map.copy(),
+            column_index_map=self._row_index_map.copy(),
+            data=self._data.T.copy(),
+        )
+
+    @property
+    def T(self) -> "IndexedMatrix[ColumnIndex, RowIndex]":
+        """The transpose, swapping row and column indices."""
+        return self.transpose()
+
+    def __matmul__(
+        self,
+        other: "IndexedMatrix[ColumnIndex, OtherColumnIndex] | IndexedVector[ColumnIndex]",
+    ) -> "IndexedMatrix[RowIndex, OtherColumnIndex] | IndexedVector[RowIndex]":
+        """Index-aware matrix product.
+
+        Contraction is performed over the index labels shared between this matrix's columns and the
+        rows (or entries) of ``other``; labels present in only one operand are treated as zero. The
+        intended contract is that ``other``'s row indices (or the vector's indices) are this
+        matrix's column indices.
+
+        Args:
+            other: An :class:`IndexedMatrix` whose rows are indexed by this matrix's column
+                indices, or an :class:`IndexedVector` indexed by this matrix's column indices.
+
+        Returns:
+            An :class:`IndexedMatrix` (matrix product, indexed by this matrix's rows and ``other``'s
+            columns) or :class:`IndexedVector` (matrix-vector product, indexed by this matrix's
+            rows).
+        """
+        if isinstance(other, IndexedVector):
+            return self._matmul_vector(other)
+        if isinstance(other, IndexedMatrix):
+            return self._matmul_matrix(other)
+        return NotImplemented
+
+    def _matmul_vector(self, vector: IndexedVector[ColumnIndex]) -> IndexedVector[RowIndex]:
+        result = IndexedVector[RowIndex]()
+        if self._data.shape[0] == 0:
+            return result
+
+        x = np.zeros(len(self._column_index_map), dtype=float)
+        for column_index, data_idx in self._column_index_map.items():
+            if column_index in vector:
+                x[data_idx] = vector[column_index]
+
+        y = self._data @ x
+        for row_index, data_idx in self._row_index_map.items():
+            result[row_index] = float(y[data_idx])
+        return result
+
+    def _matmul_matrix(
+        self, other: "IndexedMatrix[ColumnIndex, OtherColumnIndex]"
+    ) -> "IndexedMatrix[RowIndex, OtherColumnIndex]":
+        n_rows = len(self._row_index_map)
+        if n_rows == 0:
+            return IndexedMatrix[RowIndex, OtherColumnIndex]()
+
+        n_cols = len(other.column_index_map)
+        shared = [k for k in self._column_index_map if k in other.row_index_map]
+        if shared:
+            left = self._data[:, [self._column_index_map[k] for k in shared]]
+            right = other.data[[other.row_index_map[k] for k in shared], :]
+            data = left @ right
+        else:
+            data = np.zeros((n_rows, n_cols), dtype=float)
+
+        return IndexedMatrix[RowIndex, OtherColumnIndex](
+            row_index_map=self._row_index_map.copy(),
+            column_index_map=dict(other.column_index_map),
+            data=data,
         )
 
     def __getitem__(

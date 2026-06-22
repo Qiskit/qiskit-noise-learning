@@ -652,3 +652,112 @@ def test_linearly_independent_rows_pivoting():
 
     for k in reduced_matrix.row_index_map:
         assert matrix[k] == reduced_matrix[k]
+
+
+def test_transpose():
+    matrix = IndexedMatrix.from_index_lists(
+        row_indices=["a", "b"],
+        column_indices=["x", "y", "z"],
+        data=np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
+    )
+
+    transposed = matrix.transpose()
+    assert transposed.row_index_map == {"x": 0, "y": 1, "z": 2}
+    assert transposed.column_index_map == {"a": 0, "b": 1}
+    assert (transposed.data == matrix.data.T).all()
+
+    # the ``T`` property is equivalent, and a double transpose round-trips
+    assert matrix.T == transposed
+    assert matrix.T.T == matrix
+
+
+def test_transpose_empty():
+    assert IndexedMatrix().transpose() == IndexedMatrix()
+
+
+def test_matmul_vector():
+    matrix = IndexedMatrix.from_index_lists(
+        row_indices=["a", "b"],
+        column_indices=["x", "y"],
+        data=np.array([[1.0, 2.0], [3.0, 4.0]]),
+    )
+    vector = IndexedVector({"x": 1.0, "y": 1.0})
+
+    result = matrix @ vector
+    assert isinstance(result, IndexedVector)
+    assert result == IndexedVector({"a": 3.0, "b": 7.0})
+
+
+def test_matmul_vector_aligns_by_label_and_treats_missing_as_zero():
+    matrix = IndexedMatrix.from_index_lists(
+        row_indices=["a", "b"],
+        column_indices=["x", "y"],
+        data=np.array([[1.0, 2.0], [3.0, 4.0]]),
+    )
+    # column order differs from the vector, and an extra key is ignored; missing -> 0
+    vector = IndexedVector({"y": 10.0, "ignored": 99.0})
+
+    result = matrix @ vector
+    assert result == IndexedVector({"a": 20.0, "b": 40.0})
+
+
+def test_matmul_matrix():
+    left = IndexedMatrix.from_index_lists(
+        row_indices=["a", "b"],
+        column_indices=["x", "y"],
+        data=np.array([[1.0, 2.0], [3.0, 4.0]]),
+    )
+    right = IndexedMatrix.from_index_lists(
+        row_indices=["x", "y"],
+        column_indices=["p", "q"],
+        data=np.array([[1.0, 0.0], [0.0, 1.0]]),
+    )
+
+    result = left @ right
+    assert isinstance(result, IndexedMatrix)
+    assert result.row_index_map == {"a": 0, "b": 1}
+    assert result.column_index_map == {"p": 0, "q": 1}
+    assert (result.data == left.data).all()
+
+
+def test_matmul_matrix_aligns_inner_index_by_label():
+    left = IndexedMatrix.from_index_lists(
+        row_indices=["a"],
+        column_indices=["x", "y"],
+        data=np.array([[1.0, 2.0]]),
+    )
+    # rows of ``right`` are in a different order from ``left``'s columns
+    right = IndexedMatrix.from_index_lists(
+        row_indices=["y", "x"],
+        column_indices=["p"],
+        data=np.array([[10.0], [100.0]]),
+    )
+
+    result = left @ right
+    # 1.0 * x(100) + 2.0 * y(10) = 120
+    assert result.row_index_map == {"a": 0}
+    assert result.column_index_map == {"p": 0}
+    assert result.data == np.array([[120.0]])
+
+
+def test_matmul_covariance_propagation():
+    # M @ cov @ M.T, the use case for propagating a covariance through a linear map.
+    m = IndexedMatrix.from_index_lists(
+        row_indices=["out0", "out1"],
+        column_indices=["in0", "in1"],
+        data=np.array([[1.0, 1.0], [0.0, 2.0]]),
+    )
+    cov = IndexedMatrix.from_index_lists(
+        row_indices=["in0", "in1"],
+        column_indices=["in0", "in1"],
+        data=np.array([[2.0, 0.0], [0.0, 3.0]]),
+    )
+
+    result = m @ cov @ m.T
+    assert result.row_index_map.keys() == {"out0", "out1"}
+    assert result.column_index_map.keys() == {"out0", "out1"}
+
+    expected = m.data @ cov.data @ m.data.T
+    # reorder result data into the same axis order as ``m`` for comparison
+    order = [result.row_index_map[k] for k in ["out0", "out1"]]
+    assert np.allclose(result.data[np.ix_(order, order)], expected)
