@@ -13,7 +13,6 @@
 """FidelityIndex"""
 
 from collections.abc import Container
-from functools import cached_property
 from typing import Self
 
 import numpy as np
@@ -27,18 +26,19 @@ class FidelityIndex:
 
     Let :math:`K` be the number of qubits, :math:`[K] = {0, ..., K-1}`, :math:`M\subset [K]` denote
     the measured qubits, and :math:`R \subset [K]` the reset qubits for the gate. For a given gate,
-    each fidelity is indexed by:
+    each fidelity is specified by:
     - A Pauli on the unmeasured and unreset qubits :math:`Q in P^{[K]\setminus (M \cup R)}`,
     - A list of "input bits" on the measured qubits :math:`x in Z_2^M`, and
     - A list of "output bits" on the measured and reset qubits :math:`y in Z_2^{M \cup R}`.
+    This list constitutes the "index data" for a generalized fidelity for a given gate, in the sense
+    that there is a bijection between all generalized fidelities and the above set of all objects
+    satisfying the above description.
 
-    In addition to the above data uniquely specifying a fidelity, this class has several derived
-    properties phrased in terms of the Pauli-operator transition implied by the index data. While
-    these properties can be computed from the index data and the properties of the gate, this class
-    is setup primarily as a data class, with all required data specified as arguments to the
-    :meth:`FidelityIndex.__init__`, which is viewed as a "low-level" constructor without validation.
-    The constructors :meth:`FidelityIndex.from_gate` and :meth:`FidelityIndex.from_transition` offer
-    higher-level and easier to use construction methods.
+    The constructor :meth:`FidelityIndex.from_gate` builds a :class:`.FidelityIndex` from a
+    :class:`.ModelGate` and the above unique index data. Alternatively,
+    :meth:`FidelityIndex.from_transition` can be used to build an instance from the Pauli transition
+    implied by the index data. The :meth:`FidelityIndex.__init__` is viewed as a "low-level"
+    constructor which takes all stored properties without validation.
 
     Args:
         gate_name: The name of the gate.
@@ -46,9 +46,9 @@ class FidelityIndex:
             ``pauli.num_qubits`` controls the size of the operators returned by ``self.transition``.
         in_bit_indices: The qubit indices of the non-zero "input bits".
         out_bit_indices: The qubit indices of the non-zero "output bits".
-        input_pauli: The input Pauli of the implied transition.
-        output_pauli: The output Pauli of the implied transition.
-        sign_flip: Whether the implied transition involves a sign flip.
+        input_pauli: The input Pauli of the transition.
+        output_pauli: The output Pauli of the transition.
+        sign_flip: Whether the transition involves a sign flip.
         meas_idxs: The measurement qubit indices for the gate.
     """
 
@@ -82,14 +82,13 @@ class FidelityIndex:
     ) -> Self:
         """Construct a fidelity index from a gate and unique index data.
 
-        This constructor includes validation of the index data against the :class:`ModelGate`
-        properties.
-
         Args:
             gate: The model gate.
             pauli: A Pauli operator with support on unmeasured and unreset qubits.
-            in_bit_indices: The qubit indices of the non-zero "input bits".
-            out_bit_indices: The qubit indices of the non-zero "output bits".
+            in_bit_indices: The subset of measurement qubit indices corresponding to non-zero "input
+                bits".
+            out_bit_indices: The subset of the union of measurement and reset qubit indices
+                corresponding non-zero "output bits".
 
         Raises:
             ValueError: If the provided data is inconsistent with the gate.
@@ -222,12 +221,12 @@ class FidelityIndex:
 
     @property
     def in_bit_indices(self) -> frozenset[int]:
-        """The input bits corresponding to the measurement indices."""
+        """The input bit index data as a subset of the gate measurement indices."""
         return self._in_bit_indices
 
     @property
     def out_bit_indices(self) -> frozenset[int]:
-        """The output bits corresponding to the reset indices."""
+        """The output bit index data as a subset of the union of the measured and reset qubits."""
         return self._out_bit_indices
 
     @property
@@ -240,7 +239,7 @@ class FidelityIndex:
         """The phaseless Pauli operator transition associated with this fidelity index."""
         return self._input_pauli, self._output_pauli
 
-    @cached_property
+    @property
     def mask(self) -> np.ndarray[np.bool_]:
         """The mask for marginalizing measurement outcomes."""
         sorted_meas_idxs = sorted(self._meas_idxs)
@@ -254,7 +253,7 @@ class FidelityIndex:
         ] = True
         return mask
 
-    @cached_property
+    @property
     def observable_indices(self) -> list[int]:
         """Qubit indices of the associated Z observable in ascending order."""
         return sorted(

@@ -11,10 +11,7 @@
 # that they have been altered from the originals.
 
 import pytest
-from qiskit import QuantumCircuit
-from qiskit.quantum_info import Clifford
 
-from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
 from qiskit_noise_learning.sequences import (
     ApplyGate,
     InstructionSequence,
@@ -22,29 +19,7 @@ from qiskit_noise_learning.sequences import (
 )
 
 
-@pytest.fixture()
-def gate_set():
-    model_gate_set = ModelGateSet(3)
-    ident = [((0, 1, 2), Clifford(QuantumCircuit(3)))]
-    model_gate_set.add_gate(ModelGate("P", ident, prep_idxs=range(3)))
-    model_gate_set.add_gate(ModelGate("M", ident, meas_idxs=range(3)))
-    model_gate_set.add_gate(ModelGate("L0", ident))
-    model_gate_set.add_gate(ModelGate("L1", ident))
-    return model_gate_set
-
-
-@pytest.fixture
-def model_gate_set_1q() -> ModelGateSet:
-    model_gate_set = ModelGateSet(1)
-    ident = [((0,), Clifford(QuantumCircuit(1)))]
-    model_gate_set.add_gate(ModelGate("P", ident, prep_idxs=range(1)))
-    model_gate_set.add_gate(ModelGate("M", ident, meas_idxs=range(1)))
-    model_gate_set.add_gate(ModelGate("L0", ident))
-    model_gate_set.add_gate(ModelGate("L1", ident))
-    return model_gate_set
-
-
-def test_construction(gate_set):
+def test_construction():
     """Test construction and attributes."""
 
     start_fragment = [ApplyGate("P")]
@@ -63,7 +38,7 @@ def test_construction(gate_set):
     assert seq.depth is None
 
 
-def test_construction_with_depth(gate_set):
+def test_construction_with_depth():
     """Test construction with a specified depth."""
 
     start_fragment = [ApplyGate("P")]
@@ -84,7 +59,7 @@ def test_construction_with_depth(gate_set):
     assert len(seq) == 8
 
 
-def test_is_mergeable_with(gate_set):
+def test_is_mergeable_with():
     """Test mergeability checking for InstructionSequence (variable-depth)."""
 
     seq0 = InstructionSequence(
@@ -144,7 +119,7 @@ def test_is_mergeable_with(gate_set):
     )
 
 
-def test_is_mergeable_with_depth_mismatch(gate_set):
+def test_is_mergeable_with_depth_mismatch():
     """Test that sequences with different depths are not mergeable."""
 
     seq0 = InstructionSequence(
@@ -173,7 +148,7 @@ def test_is_mergeable_with_depth_mismatch(gate_set):
     assert not seq0.is_mergeable_with(seq2)
 
 
-def test_merge(gate_set):
+def test_merge():
     """Test merging of instruction sequences."""
 
     seq0 = InstructionSequence(
@@ -216,7 +191,7 @@ def test_merge(gate_set):
     assert seq2 == expected
 
 
-def test_merge_failures(gate_set):
+def test_merge_failures():
     """Test merging of instruction sequence failures."""
 
     # inconsistent lengths
@@ -284,7 +259,7 @@ def test_merge_failures(gate_set):
         seq0.merge(seq1)
 
 
-def test_complete(gate_set):
+def test_complete():
     """Test InstructionSequence.complete."""
 
     start_permutation = PartialPauliPermutation.from_sets([{("Z", "X")}, {("X", "Y")}])
@@ -315,7 +290,7 @@ def test_complete(gate_set):
     assert expected == seq.complete()
 
 
-def test_complete_preserves_depth(gate_set):
+def test_complete_preserves_depth():
     """Test that complete() preserves the depth."""
 
     seq = InstructionSequence(
@@ -328,7 +303,7 @@ def test_complete_preserves_depth(gate_set):
     assert seq.complete().depth == 7
 
 
-def test_has_same_structure_as(model_gate_set_1q):
+def test_has_same_structure_as():
     """Test has_same_structure_as for InstructionSequence."""
 
     seq0 = InstructionSequence(
@@ -403,7 +378,7 @@ def test_has_same_structure_as(model_gate_set_1q):
             ApplyGate("P"),
             PartialPauliPermutation.from_sets([{("X", "Y")}]),
         ],
-        repeatable_fragment=[model_gate_set_1q["L0"]],
+        repeatable_fragment=[ApplyGate("L0")],
         end_fragment=[
             PartialPauliPermutation.from_sets([{("Y", "Z")}]),
             ApplyGate("M"),
@@ -412,7 +387,7 @@ def test_has_same_structure_as(model_gate_set_1q):
     assert not seq0.has_same_structure_as(seq4)
 
 
-def test_has_same_structure_as_depth(model_gate_set_1q):
+def test_has_same_structure_as_depth():
     """Test that has_same_structure_as requires matching depths."""
 
     seq0 = InstructionSequence(
@@ -438,7 +413,7 @@ def test_has_same_structure_as_depth(model_gate_set_1q):
     assert seq0.has_same_structure_as(seq2)
 
 
-def test_bind_at(gate_set):
+def test_bind_at():
     """Test bind_at returns a new instance with the specified depth."""
 
     start_fragment = [ApplyGate("P")]
