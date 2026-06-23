@@ -109,6 +109,18 @@ def test_missing_tag_leaves_barrier_intact():
     assert result.count_ops().get("barrier", 0) == 1
 
 
+def test_parameter_after_tag(noise_dict):
+    qc = _circuit_with_barrier(2, "R0@tag=r0&inject_noise=r1")
+    result = PassManager([InsertNoisePass(noise_dict=noise_dict, noise_after=True)]).run(qc)
+    assert len(_noise_error_ops(result)) == 1
+
+
+def test_parameter_before_tag(noise_dict):
+    qc = _circuit_with_barrier(2, "R0@inject_noise=r1&tag=r0")
+    result = PassManager([InsertNoisePass(noise_dict=noise_dict, noise_after=True)]).run(qc)
+    assert len(_noise_error_ops(result)) == 1
+
+
 def test_noise_qubits_ordered_by_physical_index(noise_dict):
     # Barrier on a non-canonical qubit subset/order: qargs = [2, 0].  After substitution the
     # PauliLindbladError must land on physical qubits [0, 2] (ascending), not [2, 0].
