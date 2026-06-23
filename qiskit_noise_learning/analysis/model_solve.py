@@ -59,13 +59,28 @@ class ModelSolve(AnalysisStage):
         dataset = fit[AveragedData].dataset
         fidelity_model = fit.model
 
+        # Index the dataset once: (unbound_path, depth) -> row position. The dataset uses depth==-1
+        # to encode unbound observations.
+        index_by_key: dict = {}
+        for i, key in enumerate(zip(dataset["unbound_path"].data, dataset["depth"].data)):
+            if key in index_by_key:
+                raise ValueError(
+                    f"ModelSolve assumes one entry per path, but a duplicate was found: {key}."
+                )
+            index_by_key[key] = i
+
+        # Resolve targets as (lookup_key, row_path) tuples. The lookup_key matches the dataset's
+        # encoding (unbound_path, depth_int) with depth==-1 for unbound. The row_path is the Path
+        # used for design matrix row construction and as the IndexedMatrix row index.
         if fit.paths:
-            target_pairs = {
-                (path, -1) if path.is_unbound else (path.without_depth(), path.depth)
-                for path in fit.paths
-            }
+            targets = []
+            for path in fit.paths:
+                if path.is_unbound:
+                    targets.append(((path, -1), path))
+                else:
+                    targets.append(((path.without_depth(), path.depth), path))
         else:
-            target_pairs = set(zip(dataset["unbound_path"].data, dataset["depth"].data))
+            targets = [((pp, d), pp if d == -1 else pp.bind_at(d)) for pp, d in index_by_key]
 
         row_indices = []
         rows = []
@@ -74,44 +89,30 @@ class ModelSolve(AnalysisStage):
         time_lbs_list = []
         time_ubs_list = []
 
-        for unbound_path, depth in target_pairs:
-            mask = (dataset["unbound_path"].data == unbound_path) & (dataset["depth"].data == depth)
-            if not mask.any():
+        for lookup_key, path in targets:
+            i = index_by_key.get(lookup_key)
+            if i is None:
                 continue
 
-            if mask.sum() > 1:
-                raise ValueError(
-                    "ModelSolve assumes only one entry per path, but a duplicate path was found."
-                )
-
-            fidelity = float(dataset["observables"].data[mask][0])
-            fidelity_std = float(dataset["std"].data[mask][0])
-
-            if depth == -1:
-                row_index = unbound_path
-                row = fidelity_model.row_from_path(unbound_path)
-            else:
-                bound_path = unbound_path.bind_at(depth)
-                row_index = bound_path
-                row = fidelity_model.row_from_path(bound_path)
-
-            row_indices.append(row_index)
-            rows.append(row)
-            fidelities.append(fidelity)
-            fidelity_stds.append(fidelity_std)
-            time_lbs_list.append(dataset["time_lbs"].data[mask][0])
-            time_ubs_list.append(dataset["time_ubs"].data[mask][0])
+            row_indices.append(path)
+            rows.append(fidelity_model.row_from_path(path))
+            fidelities.append(float(dataset["observables"].data[i]))
+            fidelity_stds.append(float(dataset["std"].data[i]))
+            time_lbs_list.append(dataset["time_lbs"].data[i])
+            time_ubs_list.append(dataset["time_ubs"].data[i])
 
         design_matrix = IndexedMatrix()
         design_matrix.add_rows(row_indices=row_indices, rows=rows)
 
-        row_index_map = design_matrix.row_index_map
-        b = np.empty(len(row_index_map), dtype=float)
-        sigma_b = np.empty(len(row_index_map), dtype=float)
-        for idx, (row_index, array_idx) in enumerate(row_index_map.items()):
-            list_idx = row_indices.index(row_index)
-            fidelity = fidelities[list_idx]
-            fidelity_std = fidelity_stds[list_idx]
+        # Build b and sigma_b aligned with the design matrix's row order. add_rows may drop all-zero
+        # rows, so iterate row_index_map (the surviving rows) and look up each path's fidelity in
+        # O(1).
+        fidelity_by_row = dict(zip(row_indices, zip(fidelities, fidelity_stds)))
+        n_rows = len(design_matrix.row_index_map)
+        b = np.empty(n_rows, dtype=float)
+        sigma_b = np.empty(n_rows, dtype=float)
+        for row_index, array_idx in design_matrix.row_index_map.items():
+            fidelity, fidelity_std = fidelity_by_row[row_index]
             b[array_idx] = -np.log(max(fidelity, 1e-300))
             sigma_b[array_idx] = fidelity_std / max(fidelity, 1e-300)
 
