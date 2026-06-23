@@ -60,12 +60,10 @@ class ModelSolve(AnalysisStage):
         fidelity_model = fit.model
 
         if fit.paths:
-            target_pairs = set()
-            for path in fit.paths:
-                if path.is_unbound:
-                    target_pairs.add((path, -1))
-                else:
-                    target_pairs.add((path.without_depth(), path.depth))
+            target_pairs = {
+                (path, -1) if path.is_unbound else (path.without_depth(), path.depth)
+                for path in fit.paths
+            }
         else:
             target_pairs = set(zip(dataset["unbound_path"].data, dataset["depth"].data))
 
