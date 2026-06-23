@@ -132,9 +132,9 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         Raises:
             ValueError: If the gate is not in the model.
         """
-        gate_name = fidelity_index.gate.name
+        gate_name = fidelity_index.gate_name
         if gate_name not in self.generators:
-            raise ValueError(f"Gate with name {fidelity_index.gate.name} not in gate set.")
+            raise ValueError(f"Gate with name {fidelity_index.gate_name} not in gate set.")
 
         # retrieve the relevant Pauli
         pauli = (

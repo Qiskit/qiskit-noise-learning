@@ -61,11 +61,15 @@ def test_construction():
     meas = ModelGate("M", ident, qubit_idxs=range(2), meas_idxs=range(2))
 
     start_fragment = [
-        FidelityIndex(prep, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2)))
+        FidelityIndex.from_gate(
+            prep, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2))
+        )
     ]
-    repeatable_fragment = [FidelityIndex(gate, pauli=QubitSparsePauli("IX"))] * 2
+    repeatable_fragment = [FidelityIndex.from_gate(gate, pauli=QubitSparsePauli("IX"))] * 2
     end_fragment = [
-        FidelityIndex(meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2)))
+        FidelityIndex.from_gate(
+            meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2))
+        )
     ]
 
     path = Path(
@@ -88,11 +92,15 @@ def test_construction_with_depth():
     meas = ModelGate("M", ident, qubit_idxs=range(2), meas_idxs=range(2))
 
     start_fragment = [
-        FidelityIndex(prep, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2)))
+        FidelityIndex.from_gate(
+            prep, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2))
+        )
     ]
-    repeatable_fragment = [FidelityIndex(gate, pauli=QubitSparsePauli("IX"))] * 2
+    repeatable_fragment = [FidelityIndex.from_gate(gate, pauli=QubitSparsePauli("IX"))] * 2
     end_fragment = [
-        FidelityIndex(meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2)))
+        FidelityIndex.from_gate(
+            meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2))
+        )
     ]
 
     path = Path(
@@ -116,14 +124,18 @@ def test_iter():
     meas = ModelGate("M", ident, qubit_idxs=range(2), meas_idxs=range(2))
 
     start_fragment = [
-        FidelityIndex(prep, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2)))
+        FidelityIndex.from_gate(
+            prep, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2))
+        )
     ]
     repeatable_fragment = [
-        FidelityIndex(gate0, pauli=QubitSparsePauli("IX")),
-        FidelityIndex(gate1, pauli=QubitSparsePauli("IY")),
+        FidelityIndex.from_gate(gate0, pauli=QubitSparsePauli("IX")),
+        FidelityIndex.from_gate(gate1, pauli=QubitSparsePauli("IY")),
     ]
     end_fragment = [
-        FidelityIndex(meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2)))
+        FidelityIndex.from_gate(
+            meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2))
+        )
     ]
 
     path = Path(
@@ -154,15 +166,21 @@ def test_getitem():
     meas = ModelGate("M", ident, qubit_idxs=range(2), meas_idxs=range(2))
 
     start_fragment = [
-        FidelityIndex(prep0, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2))),
-        FidelityIndex(prep1, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2))),
+        FidelityIndex.from_gate(
+            prep0, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2))
+        ),
+        FidelityIndex.from_gate(
+            prep1, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2))
+        ),
     ]
     repeatable_fragment = [
-        FidelityIndex(gate0, pauli=QubitSparsePauli("IX")),
-        FidelityIndex(gate1, pauli=QubitSparsePauli("IY")),
+        FidelityIndex.from_gate(gate0, pauli=QubitSparsePauli("IX")),
+        FidelityIndex.from_gate(gate1, pauli=QubitSparsePauli("IY")),
     ]
     end_fragment = [
-        FidelityIndex(meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2)))
+        FidelityIndex.from_gate(
+            meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2))
+        )
     ]
 
     path = Path(
@@ -195,11 +213,15 @@ def test_getitem_out_of_bounds():
     meas = ModelGate("M", ident, qubit_idxs=range(2), meas_idxs=range(2))
 
     start_fragment = [
-        FidelityIndex(prep, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2)))
+        FidelityIndex.from_gate(
+            prep, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2))
+        )
     ]
-    repeatable_fragment = [FidelityIndex(gate, pauli=QubitSparsePauli("IX"))]
+    repeatable_fragment = [FidelityIndex.from_gate(gate, pauli=QubitSparsePauli("IX"))]
     end_fragment = [
-        FidelityIndex(meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2)))
+        FidelityIndex.from_gate(
+            meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2))
+        )
     ]
 
     path = Path(
@@ -286,16 +308,16 @@ def test_to_instruction_sequence_single_qubit_single_box(gate_set_1q):
     )
     expected = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_1q["P"]),
+            ApplyGate("P"),
             PartialPauliPermutation.from_sets([{("Z", "X")}]),
         ],
         repeatable_fragment=[
-            ApplyGate(gate_set_1q["L0"]),
+            ApplyGate("L0"),
             PartialPauliPermutation.from_sets([{("Y", "X")}]),
         ],
         end_fragment=[
             PartialPauliPermutation.from_sets([{("X", "Z")}]),
-            ApplyGate(gate_set_1q["M"]),
+            ApplyGate("M"),
         ],
     )
     assert path.to_instruction_sequence() == expected
@@ -316,11 +338,11 @@ def test_to_instruction_sequence_single_qubit_single_box(gate_set_1q):
     )
     expected = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_1q["P"]),
+            ApplyGate("P"),
             PartialPauliPermutation.from_sets([{("Z", "Z")}]),
         ],
         repeatable_fragment=[],
-        end_fragment=[ApplyGate(gate_set_1q["M"])],
+        end_fragment=[ApplyGate("M")],
     )
     assert path.to_instruction_sequence() == expected
 
@@ -378,20 +400,20 @@ def test_to_instruction_sequence_single_qubit_single_box_deep_repetition(gate_se
     )
     expected = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_1q["P"]),
+            ApplyGate("P"),
             PartialPauliPermutation.from_sets([{("Z", "Y")}]),
         ],
         repeatable_fragment=[
-            ApplyGate(gate_set_1q["L0"]),
+            ApplyGate("L0"),
             PartialPauliPermutation.from_sets([{("Z", "X")}]),
-            ApplyGate(gate_set_1q["L0"]),
+            ApplyGate("L0"),
             PartialPauliPermutation.from_sets([{("Y", "Y")}]),
-            ApplyGate(gate_set_1q["L0"]),
+            ApplyGate("L0"),
             PartialPauliPermutation.from_sets([{("Z", "Y")}]),
         ],
         end_fragment=[
             PartialPauliPermutation.from_sets([{("Y", "Z")}]),
-            ApplyGate(gate_set_1q["M"]),
+            ApplyGate("M"),
         ],
     )
     assert path.to_instruction_sequence() == expected
@@ -422,18 +444,18 @@ def test_to_instruction_sequence_single_qubit_two_boxes(gate_set_1q):
     )
     expected = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_1q["P"]),
+            ApplyGate("P"),
             PartialPauliPermutation.from_sets([{("Z", "X")}]),
         ],
         repeatable_fragment=[
-            ApplyGate(gate_set_1q["L0"]),
+            ApplyGate("L0"),
             PartialPauliPermutation.from_sets([{("Y", "Z")}]),
-            ApplyGate(gate_set_1q["L1"]),
+            ApplyGate("L1"),
             PartialPauliPermutation.from_sets([{("Z", "X")}]),
         ],
         end_fragment=[
             PartialPauliPermutation.from_sets([{("X", "Z")}]),
-            ApplyGate(gate_set_1q["M"]),
+            ApplyGate("M"),
         ],
     )
     assert path.to_instruction_sequence() == expected
@@ -461,32 +483,32 @@ def test_is_traversed_by(gate_set_1q):
     )
     inst_seq = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_1q["P"]),
+            ApplyGate("P"),
             PartialPauliPermutation.from_sets([{("Z", "Y")}]),
         ],
         repeatable_fragment=[
-            ApplyGate(gate_set_1q["L1"]),
+            ApplyGate("L1"),
             PartialPauliPermutation.from_sets([{("Y", "Y")}]),
         ],
         end_fragment=[
             PartialPauliPermutation.from_sets([{("Y", "Z")}]),
-            ApplyGate(gate_set_1q["M"]),
+            ApplyGate("M"),
         ],
     )
     assert path.is_traversed_by(inst_seq)
 
     wrong_inst_seq = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_1q["P"]),
+            ApplyGate("P"),
             PartialPauliPermutation.from_sets([{("Z", "Y")}]),
         ],
         repeatable_fragment=[
-            ApplyGate(gate_set_1q["L1"]),
+            ApplyGate("L1"),
             PartialPauliPermutation.from_sets([{("Y", "Y")}]),
         ],
         end_fragment=[
             PartialPauliPermutation.from_sets([{("X", "Z")}]),
-            ApplyGate(gate_set_1q["M"]),
+            ApplyGate("M"),
         ],
     )
     assert not path.is_traversed_by(wrong_inst_seq)
@@ -513,18 +535,18 @@ def test_is_traversed_by(gate_set_1q):
     )
     inst_seq = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_1q["P"]),
+            ApplyGate("P"),
             PartialPauliPermutation.from_sets([{("Z", "X")}]),
         ],
         repeatable_fragment=[
-            ApplyGate(gate_set_1q["L0"]),
+            ApplyGate("L0"),
             PartialPauliPermutation.from_sets([{("Y", "Z")}]),
-            ApplyGate(gate_set_1q["L1"]),
+            ApplyGate("L1"),
             PartialPauliPermutation.from_sets([{("Z", "X")}]),
         ],
         end_fragment=[
             PartialPauliPermutation.from_sets([{("X", "Z")}]),
-            ApplyGate(gate_set_1q["M"]),
+            ApplyGate("M"),
         ],
     )
 
@@ -548,9 +570,9 @@ def test_is_traversed_by_depth_mismatch(gate_set_1q):
         depth=3,
     )
     inst_seq = InstructionSequence(
-        start_fragment=[ApplyGate(gate_set_1q["P"])],
+        start_fragment=[ApplyGate("P")],
         repeatable_fragment=[],
-        end_fragment=[ApplyGate(gate_set_1q["M"])],
+        end_fragment=[ApplyGate("M")],
         depth=4,
     )
     assert not path.is_traversed_by(inst_seq)
@@ -577,18 +599,18 @@ def test_is_traversed_by_multiple_permutations(gate_set_1q):
 
     inst_seq = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_1q["P"]),
+            ApplyGate("P"),
             PartialPauliPermutation.from_sets([{("Z", "Y")}]),
         ],
         repeatable_fragment=[
-            ApplyGate(gate_set_1q["L1"]),
+            ApplyGate("L1"),
             PartialPauliPermutation.from_sets([{("Y", "Y")}]),
             PartialPauliPermutation.from_sets([{("Y", "X")}]),
             PartialPauliPermutation.from_sets([{("X", "Y")}]),
         ],
         end_fragment=[
             PartialPauliPermutation.from_sets([{("Y", "Z")}]),
-            ApplyGate(gate_set_1q["M"]),
+            ApplyGate("M"),
         ],
     )
     assert path.is_traversed_by(inst_seq)
@@ -611,11 +633,11 @@ def test_is_traversed_by_edge_cases(gate_set_1q, gate_set_cz):
     )
     inst_seq = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_1q["P"]),
+            ApplyGate("P"),
         ],
         repeatable_fragment=[],
         end_fragment=[
-            ApplyGate(gate_set_1q["M"]),
+            ApplyGate("M"),
         ],
     )
     assert path.is_traversed_by(inst_seq)
@@ -636,14 +658,14 @@ def test_is_traversed_by_edge_cases(gate_set_1q, gate_set_cz):
     )
     inst_seq = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_1q["P"]),
+            ApplyGate("P"),
         ],
         repeatable_fragment=[
             PartialPauliPermutation.from_sets([{("Z", "Y")}]),
             PartialPauliPermutation.from_sets([{("Y", "Z")}]),
         ],
         end_fragment=[
-            ApplyGate(gate_set_1q["M"]),
+            ApplyGate("M"),
         ],
     )
     assert path.is_traversed_by(inst_seq)
@@ -662,7 +684,7 @@ def test_is_traversed_by_edge_cases(gate_set_1q, gate_set_cz):
         end_fragment=[],
     )
     inst_seq = InstructionSequence(
-        start_fragment=[ApplyGate(gate_set_1q["P"]), ApplyGate(gate_set_1q["M"])],
+        start_fragment=[ApplyGate("P"), ApplyGate("M")],
         repeatable_fragment=[],
         end_fragment=[],
     )
@@ -683,9 +705,9 @@ def test_is_traversed_by_edge_cases(gate_set_1q, gate_set_cz):
         ],
     )
     inst_seq = InstructionSequence(
-        start_fragment=[ApplyGate(gate_set_cz["P"]), ApplyGate(gate_set_cz["CZ"])],
+        start_fragment=[ApplyGate("P"), ApplyGate("CZ")],
         repeatable_fragment=[],
-        end_fragment=[ApplyGate(gate_set_cz["M"])],
+        end_fragment=[ApplyGate("M")],
     )
     assert not path.is_traversed_by(inst_seq)
 
@@ -707,11 +729,11 @@ def test_is_traversed_by_errors(gate_set_1q):
     )
     inst_seq = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_1q["P"]),
+            ApplyGate("P"),
         ],
         repeatable_fragment=[],
         end_fragment=[
-            ApplyGate(gate_set_1q["M"]),
+            ApplyGate("M"),
         ],
     )
     with pytest.raises(ValueError, match="Path does not begin with identity."):
@@ -803,24 +825,24 @@ def test_extend_permutations(gate_set_cz):
     # test for manually built paths without the standard structure
     inst_seq_IX = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_cz["P"]),
+            ApplyGate("P"),
             PartialPauliPermutation.from_sets([{("Z", "X")}, set()]),
         ],
-        repeatable_fragment=[ApplyGate(gate_set_cz["CZ"])] * 2,
+        repeatable_fragment=[ApplyGate("CZ")] * 2,
         end_fragment=[
             PartialPauliPermutation.from_sets([{("X", "Z")}, set()]),
-            ApplyGate(gate_set_cz["M"]),
+            ApplyGate("M"),
         ],
     )
     inst_seq_XI = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_cz["P"]),
+            ApplyGate("P"),
             PartialPauliPermutation.from_sets([set(), {("Z", "X")}]),
         ],
-        repeatable_fragment=[ApplyGate(gate_set_cz["CZ"])] * 2,
+        repeatable_fragment=[ApplyGate("CZ")] * 2,
         end_fragment=[
             PartialPauliPermutation.from_sets([set(), {("X", "Z")}]),
-            ApplyGate(gate_set_cz["M"]),
+            ApplyGate("M"),
         ],
     )
 
@@ -889,9 +911,9 @@ def test_extend_permutations_failures(gate_set_cz):
         ],
     )
     inst_seq = InstructionSequence(
-        start_fragment=[ApplyGate(gate_set_cz["P"]), ApplyGate(gate_set_cz["CZ"])],
+        start_fragment=[ApplyGate("P"), ApplyGate("CZ")],
         repeatable_fragment=[],
-        end_fragment=[ApplyGate(gate_set_cz["M"])],
+        end_fragment=[ApplyGate("M")],
     )
     assert path.extend_permutations(inst_seq) is None
 
@@ -919,16 +941,16 @@ def test_fragment_sign_flips_case1(gate_set_1q):
     )
     inst_seq = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_1q["P"]),
+            ApplyGate("P"),
             PartialPauliPermutation.from_sets([{("Z", "X")}]),
         ],
         repeatable_fragment=[
-            ApplyGate(gate_set_1q["L0"]),
+            ApplyGate("L0"),
             PartialPauliPermutation.from_sets([{("Y", "X")}]),
         ],
         end_fragment=[
             PartialPauliPermutation.from_sets([{("X", "Z")}]),
-            ApplyGate(gate_set_1q["M"]),
+            ApplyGate("M"),
         ],
     ).complete()
 
@@ -967,18 +989,18 @@ def test_fragment_sign_flips_case2(gate_set_1q):
     )
     inst_seq = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_1q["P"]),
+            ApplyGate("P"),
             PartialPauliPermutation.from_sets([{("Z", "Y")}]),
         ],
         repeatable_fragment=[
-            ApplyGate(gate_set_1q["L0"]),
+            ApplyGate("L0"),
             PartialPauliPermutation.from_sets([{("Z", "Z")}]),
-            ApplyGate(gate_set_1q["L0"]),
+            ApplyGate("L0"),
             PartialPauliPermutation.from_sets([{("X", "Y")}]),
         ],
         end_fragment=[
             PartialPauliPermutation.from_sets([{("Y", "Z")}]),
-            ApplyGate(gate_set_1q["M"]),
+            ApplyGate("M"),
         ],
     ).complete()
 
@@ -1018,18 +1040,18 @@ def test_fragment_sign_flips_case3(gate_set_1q):
     )
     inst_seq = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_1q["P"]),
+            ApplyGate("P"),
             PartialPauliPermutation.from_sets([{("Z", "X")}]),
         ],
         repeatable_fragment=[
-            ApplyGate(gate_set_1q["L0"]),
+            ApplyGate("L0"),
             PartialPauliPermutation.from_sets([{("Y", "Z")}]),
-            ApplyGate(gate_set_1q["L0"]),
+            ApplyGate("L0"),
             PartialPauliPermutation.from_sets([{("X", "X")}]),
         ],
         end_fragment=[
             PartialPauliPermutation.from_sets([{("X", "Z")}]),
-            ApplyGate(gate_set_1q["M"]),
+            ApplyGate("M"),
         ],
     ).complete()
 
@@ -1068,18 +1090,18 @@ def test_fragment_sign_flips_case4(gate_set_1q):
     )
     inst_seq = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_1q["P"]),
+            ApplyGate("P"),
             PartialPauliPermutation.from_sets([{("Z", "X")}]),
-            ApplyGate(gate_set_1q["L0"]),
+            ApplyGate("L0"),
             PartialPauliPermutation.from_sets([{("Y", "Z")}]),
         ],
         repeatable_fragment=[
-            ApplyGate(gate_set_1q["L0"]),
+            ApplyGate("L0"),
             PartialPauliPermutation.from_sets([{("X", "Z")}]),
         ],
         end_fragment=[
             PartialPauliPermutation.from_sets([{("Z", "Z")}]),
-            ApplyGate(gate_set_1q["M"]),
+            ApplyGate("M"),
         ],
     ).complete()
 
@@ -1111,12 +1133,12 @@ def test_fragment_sign_flips_errors(gate_set_1q):
     )
     inst_seq = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_1q["P"]),
+            ApplyGate("P"),
             PartialPauliPermutation.from_sets([{("Z", "X")}]),
         ],
         repeatable_fragment=[],
         end_fragment=[
-            ApplyGate(gate_set_1q["M"]),
+            ApplyGate("M"),
         ],
     ).complete()
 
@@ -1149,12 +1171,12 @@ def test_fragment_sign_flips_errors(gate_set_1q):
     )
     inst_seq = InstructionSequence(
         start_fragment=[
-            ApplyGate(gate_set_1q["P"]),
+            ApplyGate("P"),
             PartialPauliPermutation.from_sets([{("Z", "X")}]),
         ],
         repeatable_fragment=[],
         end_fragment=[
-            ApplyGate(gate_set_1q["M"]),
+            ApplyGate("M"),
         ],
     ).complete()
 
@@ -1168,11 +1190,15 @@ def test_hash():
     meas = ModelGate("M", [], qubit_idxs=range(2), meas_idxs=range(2))
 
     start_fragment = [
-        FidelityIndex(prep, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2)))
+        FidelityIndex.from_gate(
+            prep, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2))
+        )
     ]
-    repeatable_fragment = [FidelityIndex(gate, pauli=QubitSparsePauli("IX"))] * 2
+    repeatable_fragment = [FidelityIndex.from_gate(gate, pauli=QubitSparsePauli("IX"))] * 2
     end_fragment = [
-        FidelityIndex(meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2)))
+        FidelityIndex.from_gate(
+            meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2))
+        )
     ]
 
     path = Path(
@@ -1201,9 +1227,9 @@ def test_bind_at(gate_set_1q):
     gate = ModelGate("L0", ident, qubit_idxs=range(1))
     meas = ModelGate("M", ident, qubit_idxs=range(1), meas_idxs=range(1))
 
-    start_fragment = [FidelityIndex(prep, pauli=QubitSparsePauli("I"))]
-    repeatable_fragment = [FidelityIndex(gate, pauli=QubitSparsePauli("X"))]
-    end_fragment = [FidelityIndex(meas, pauli=QubitSparsePauli("I"))]
+    start_fragment = [FidelityIndex.from_gate(prep, pauli=QubitSparsePauli("I"))]
+    repeatable_fragment = [FidelityIndex.from_gate(gate, pauli=QubitSparsePauli("X"))]
+    end_fragment = [FidelityIndex.from_gate(meas, pauli=QubitSparsePauli("I"))]
 
     path = Path(
         start_fragment=start_fragment,

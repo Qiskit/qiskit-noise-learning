@@ -42,8 +42,9 @@ class ComputeObservables(AnalysisStage):
         return ObservableData
 
     def _run(self, fit):
+        # note that in_bit_indices could technically be empty with a measurement
         if any(
-            fidelity_index.gate.meas_idxs
+            fidelity_index.in_bit_indices
             for path in fit.paths
             for fidelity_index in chain(
                 path.start_fragment,

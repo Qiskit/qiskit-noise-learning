@@ -23,13 +23,13 @@ from qiskit_noise_learning.sequences import FidelityIndex
 def fidelity_list():
     gate = ModelGate("L0", [((0, 1), Clifford(CZGate()))])
     return [
-        FidelityIndex(
+        FidelityIndex.from_gate(
             gate=gate,
             pauli=QubitSparsePauli("ZX"),
             in_bit_indices=frozenset(),
             out_bit_indices=frozenset(),
         ),
-        FidelityIndex(
+        FidelityIndex.from_gate(
             gate=gate,
             pauli=QubitSparsePauli("XX"),
             in_bit_indices=frozenset(),
@@ -54,7 +54,7 @@ def test_add(fidelity_list):
 
     # no overlap
     gate = ModelGate("L0", [((0, 1), Clifford(CZGate()))])
-    new_index = FidelityIndex(
+    new_index = FidelityIndex.from_gate(
         gate=gate,
         pauli=QubitSparsePauli("ZZ"),
         in_bit_indices=frozenset(),

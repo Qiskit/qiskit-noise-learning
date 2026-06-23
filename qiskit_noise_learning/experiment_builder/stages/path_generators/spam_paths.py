@@ -60,7 +60,7 @@ class SPAMPaths(AddPaths):
         for indices in indices_list:
             yield Path(
                 start_fragment=[
-                    FidelityIndex(
+                    FidelityIndex.from_gate(
                         gate=prep_gate,
                         pauli=QubitSparsePauli.identity(num_qubits),
                         in_bit_indices=frozenset(),
@@ -69,7 +69,7 @@ class SPAMPaths(AddPaths):
                 ],
                 repeatable_fragment=[],
                 end_fragment=[
-                    FidelityIndex(
+                    FidelityIndex.from_gate(
                         gate=meas_gate,
                         pauli=QubitSparsePauli.identity(num_qubits),
                         in_bit_indices=frozenset(indices),

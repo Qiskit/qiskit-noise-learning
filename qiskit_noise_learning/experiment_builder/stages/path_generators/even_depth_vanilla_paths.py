@@ -89,11 +89,11 @@ def _even_depth_vanilla_paths(
         if input_pauli != gate.clifford_propagate(output_pauli):
             continue
 
-        input_fidelity = FidelityIndex(gate, pauli=output_pauli)
-        output_fidelity = FidelityIndex(gate, pauli=input_pauli)
+        input_fidelity = FidelityIndex.from_gate(gate, pauli=output_pauli)
+        output_fidelity = FidelityIndex.from_gate(gate, pauli=input_pauli)
         yield Path(
             start_fragment=[
-                FidelityIndex(
+                FidelityIndex.from_gate(
                     prep_gate,
                     pauli=ident,
                     out_bit_indices=frozenset(input_fidelity.transition[0].indices),
@@ -101,7 +101,7 @@ def _even_depth_vanilla_paths(
             ],
             repeatable_fragment=[input_fidelity, output_fidelity],
             end_fragment=[
-                FidelityIndex(
+                FidelityIndex.from_gate(
                     meas_gate,
                     pauli=ident,
                     in_bit_indices=frozenset(output_fidelity.transition[1].indices),
