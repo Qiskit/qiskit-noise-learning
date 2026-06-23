@@ -59,9 +59,8 @@ class ModelSolve(AnalysisStage):
         dataset = fit[AveragedData].dataset
         fidelity_model = fit.model
 
-        # Index the dataset once: (unbound_path, depth) -> row position. The dataset uses depth==-1
-        # to encode unbound observations.
-        index_by_key: dict = {}
+        # Index the as "(unbound_path, depth) -> row position", where -1 denotes unbound
+        index_by_key: dict[tuple[Path, int], int] = {}
         for i, key in enumerate(zip(dataset["unbound_path"].data, dataset["depth"].data)):
             if key in index_by_key:
                 raise ValueError(
