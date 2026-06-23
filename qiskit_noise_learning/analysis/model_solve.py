@@ -61,12 +61,12 @@ class ModelSolve(AnalysisStage):
 
         # Index the as "(unbound_path, depth) -> row position", where -1 denotes unbound
         index_by_key: dict[tuple[Path, int], int] = {}
-        for i, key in enumerate(zip(dataset["unbound_path"].data, dataset["depth"].data)):
+        for idx, key in enumerate(zip(dataset["unbound_path"].data, dataset["depth"].data)):
             if key in index_by_key:
                 raise ValueError(
                     f"ModelSolve assumes one entry per path, but a duplicate was found: {key}."
                 )
-            index_by_key[key] = i
+            index_by_key[key] = idx
 
         # Resolve targets as (lookup_key, row_path) tuples. The lookup_key matches the dataset's
         # encoding (unbound_path, depth_int) with depth==-1 for unbound. The row_path is the Path
