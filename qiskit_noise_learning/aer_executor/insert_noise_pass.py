@@ -57,7 +57,9 @@ class InsertNoisePass(TransformationPass):
         self._noise_scale = noise_scale
         self._warn_absent = warn_absent
 
-        self._pattern = re.compile(r"^(?P<pos>[A-Za-z])(?P<idx>\d+)@tag=(?P<tag>.+)$")
+        # After the @ sign the tag can be either as a single parameter,
+        # or after some other parameters (and will be attached to a "&" sign)
+        self._pattern = re.compile(r"^(?P<pos>[A-Za-z])(?P<idx>\d+)@(?:tag=|.*?&tag=)([^&]*)")
 
         super().__init__()
 
@@ -81,7 +83,8 @@ class InsertNoisePass(TransformationPass):
         if not (match_group := self._pattern.match(name)):
             return None
         pos = match_group.group("pos")
-        tag = match_group.group("tag")
+        # the tag group is not named to allow different pattern options
+        tag = match_group.group(3)
 
         if self._noise_after:
             if pos != "R":
