@@ -108,10 +108,12 @@ def test_missing_tag_leaves_barrier_intact():
     assert len(_noise_error_ops(result)) == 0
     assert result.count_ops().get("barrier", 0) == 1
 
+
 def test_parameter_after_tag(noise_dict):
     qc = _circuit_with_barrier(2, "R0@tag=r0&inject_noise=r1")
     result = PassManager([InsertNoisePass(noise_dict=noise_dict, noise_after=True)]).run(qc)
     assert len(_noise_error_ops(result)) == 1
+
 
 def test_parameter_before_tag(noise_dict):
     qc = _circuit_with_barrier(2, "R0@inject_noise=r1&tag=r0")
