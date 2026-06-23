@@ -104,8 +104,7 @@ class ModelSolve(AnalysisStage):
         design_matrix.add_rows(row_indices=row_indices, rows=rows)
 
         # Build b and sigma_b aligned with the design matrix's row order. add_rows may drop all-zero
-        # rows, so iterate row_index_map (the surviving rows) and look up each path's fidelity in
-        # O(1).
+        # rows, so iterate row_index_map, the surviving rows.
         fidelity_by_row = dict(zip(row_indices, zip(fidelities, fidelity_stds)))
         n_rows = len(design_matrix.row_index_map)
         b = np.empty(n_rows, dtype=float)
