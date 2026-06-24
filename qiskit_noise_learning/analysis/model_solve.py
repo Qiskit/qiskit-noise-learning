@@ -217,10 +217,10 @@ class NNLSSolve(ModelSolve):
         param_labels: list,
         path_labels: list[Path],
     ) -> tuple[np.ndarray, np.ndarray, dict]:
-        x, residual = opt.nnls(A, b, **self.nnls_opts)
+        x, _ = opt.nnls(A, b, **self.nnls_opts)
         free_indices = np.where(x > 0)[0]
         cov_x = self._covariance(A, sigma_b, x, free_indices)
-        return x, cov_x, {"residual": residual}
+        return x, cov_x, dict()
 
 
 class LSQLinearSolve(ModelSolve):
