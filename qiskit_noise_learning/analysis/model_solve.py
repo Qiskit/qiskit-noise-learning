@@ -84,22 +84,22 @@ class ModelSolve(AnalysisStage):
 
         row_indices = []
         rows = []
-        fidelities = []
-        fidelity_stds = []
-        time_lbs_list = []
-        time_ubs_list = []
+        dataset_idxs = []
 
         for lookup_key, path in targets:
-            i = index_by_key.get(lookup_key)
-            if i is None:
-                continue
+            if (idx := index_by_key.get(lookup_key)) is None:
+                raise ValueError(
+                    f"Required path-depth pair {lookup_key} missing from AveragedData."
+                )
 
             row_indices.append(path)
             rows.append(fidelity_model.row_from_path(path))
-            fidelities.append(float(dataset["observables"].data[i]))
-            fidelity_stds.append(float(dataset["std"].data[i]))
-            time_lbs_list.append(dataset["time_lbs"].data[i])
-            time_ubs_list.append(dataset["time_ubs"].data[i])
+            dataset_idxs.append(idx)
+
+        fidelities = dataset["observables"].data[dataset_idxs]
+        fidelity_stds = dataset["std"].data[dataset_idxs]
+        time_lbs_list = dataset["time_lbs"].data[dataset_idxs]
+        time_ubs_list = dataset["time_ubs"].data[dataset_idxs]
 
         design_matrix = IndexedMatrix()
         design_matrix.add_rows(row_indices=row_indices, rows=rows)
