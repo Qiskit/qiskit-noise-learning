@@ -28,9 +28,10 @@ from qiskit_noise_learning.sequences import Path
 class ModelSolve(AnalysisStage):
     """Base class for model fitting routines.
 
-    Constructs a design matrix from the :class:`~.FidelityModel` stored on the :class:`~.Fit`
-    container and the paths in the :class:`~.AveragedData`. Then solves ``A @ x = b`` using the
-    method defined by subclasses.
+    Constructs the design matrix from the :class:`~.FidelityModel` stored on the :class:`~.Fit`
+    container and the paths in the :class:`~.AveragedData`. Then solves ``A @ x = b`` using a
+    specified method, where ``A`` is the design matrix and ``b`` is the vector of negative log
+    observables ``-log(o)``.
 
     If paths are specified on the :class:`~.Fit`, only data matching those paths is used. If no
     paths are specified, all data in the :class:`~.AveragedData` is used.
