@@ -19,6 +19,7 @@ from qiskit_noise_learning.analysis import AnalysisStage, Fit
 from qiskit_noise_learning.data import AveragedData, ModelData
 from qiskit_noise_learning.data.xarray_utils import time_bound
 from qiskit_noise_learning.math import IndexedMatrix
+from qiskit_noise_learning.sequences import Path
 
 
 class ModelSolve(AnalysisStage):
