@@ -22,19 +22,14 @@ from qiskit_noise_learning.models import GeneratorIndex, PauliLindbladModel
 
 
 @pytest.fixture()
-def cz_model():
+def cz_model(gate_set_cz):
     """A 2-qubit PauliLindbladModel with a CZ gate, prep, and meas."""
-    gate_set = ModelGateSet(2)
-    gate_set.add_gate(ModelGate("CZ", [((0, 1), Clifford(CZGate()))]))
-    gate_set.add_gate(ModelGate("P", qubit_idxs=range(2), prep_idxs=range(2)))
-    gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), meas_idxs=range(2)))
-
     generators = {
         "CZ": QubitSparsePauliList(["XI", "IX", "XX", "YY", "ZI", "IZ", "ZZ"]),
         "P": QubitSparsePauliList(["XI", "IX", "XX"]),
         "M": QubitSparsePauliList(["XI", "IX", "XX"]),
     }
-    return PauliLindbladModel(gate_set, generators)
+    return PauliLindbladModel(gate_set_cz, generators)
 
 
 def _make_model_data(model, rates):

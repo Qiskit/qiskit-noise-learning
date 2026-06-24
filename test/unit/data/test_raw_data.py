@@ -10,30 +10,14 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from dataclasses import dataclass
-
 import numpy as np
 
 from qiskit_noise_learning.data import RawData
 
 
-@dataclass(frozen=True)
-class MockUnboundInstructionSequence:
-    name: str
-
-
-@dataclass(frozen=True)
-class MockInstructionSequence:
-    _unbound: MockUnboundInstructionSequence
-    depth: int
-
-    def without_depth(self):
-        return self._unbound
-
-
-def test_from_arrays():
+def test_from_arrays(make_instruction_sequence):
     """Test constructing RawData from arrays."""
-    seq = MockInstructionSequence(_unbound=MockUnboundInstructionSequence("uis0"), depth=1)
+    seq = make_instruction_sequence(name="CZ", depth=1)
     num_randomizations = 3
     num_shots = 10
     num_bits = 2
@@ -56,9 +40,9 @@ def test_from_arrays():
     assert ds.attrs["creg_bit_boundaries"] == {"meas0": (0, 2)}
 
 
-def test_filter_time():
+def test_filter_time(make_instruction_sequence):
     """Test that filter_time keeps only randomizations within the time window."""
-    seq = MockInstructionSequence(_unbound=MockUnboundInstructionSequence("uis0"), depth=1)
+    seq = make_instruction_sequence(name="CZ", depth=1)
     num_shots = 5
     num_bits = 2
     t_lbs = np.array(["2026-01-01", "2026-01-03", "2026-01-05"], dtype="datetime64[us]")

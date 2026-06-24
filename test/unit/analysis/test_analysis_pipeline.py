@@ -24,14 +24,6 @@ from qiskit_noise_learning.analysis.fit import AbsentType, SkippedType
 from qiskit_noise_learning.data import AveragedData, ModelData, ObservableData, RawData
 
 
-class MockFidelityModel:
-    def __init__(self, rows: dict):
-        self._rows = rows
-
-    def row_from_path(self, path):
-        return self._rows[path]
-
-
 class _StubRawToObs(AnalysisStage):
     @property
     def input_level(self):

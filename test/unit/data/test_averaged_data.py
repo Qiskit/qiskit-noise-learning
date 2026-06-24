@@ -10,21 +10,14 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from dataclasses import dataclass
-
 import numpy as np
 
 from qiskit_noise_learning.data import AveragedData
 
 
-@dataclass(frozen=True)
-class MockPath:
-    name: str
-
-
-def test_from_arrays():
+def test_from_arrays(make_cz_path):
     """Test constructing AveragedData from arrays."""
-    p = MockPath("p0")
+    p = make_cz_path("IX")
     avg = AveragedData.from_arrays(
         unbound_paths=[p],
         depths=[-1],
@@ -41,10 +34,10 @@ def test_from_arrays():
     assert float(ds["std"].values[0]) == 0.01
 
 
-def test_filter_time():
+def test_filter_time(make_cz_path):
     """Test that filter_time keeps only data within the time window."""
-    p0 = MockPath("p0")
-    p1 = MockPath("p1")
+    p0 = make_cz_path("IX")
+    p1 = make_cz_path("XI")
     avg = AveragedData.from_arrays(
         unbound_paths=[p0, p1],
         depths=[-1, -1],

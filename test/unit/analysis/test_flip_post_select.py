@@ -10,50 +10,16 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from dataclasses import dataclass
-from types import SimpleNamespace
-
 import numpy as np
 import pytest
 import xarray as xr
 from qiskit.transpiler import CouplingMap
 
-from qiskit_noise_learning.analysis import Fit, FlipPostSelect
+from qiskit_noise_learning.analysis import FlipPostSelect
 from qiskit_noise_learning.data import RawData
 
 
-@dataclass(frozen=True)
-class MockInstructionSequence:
-    name: str
-    depth: int
-
-    def without_depth(self):
-        return MockInstructionSequence(name=self.name, depth=None)
-
-
-def make_fit(raw_data, coupling_map):
-    fit = Fit(model=SimpleNamespace(gate_set=SimpleNamespace(coupling_map=coupling_map)))
-    fit[RawData] = raw_data
-    return fit
-
-
-def make_raw_data(creg_names, measurement_map, data):
-    """Build a RawData from a single data array (1 sequence)."""
-    seq = MockInstructionSequence(name="p0", depth=1)
-    num_rand = data.shape[0]
-    num_bits = data.shape[2]
-    return RawData.from_arrays(
-        creg_names=creg_names,
-        measurement_map=measurement_map,
-        instruction_sequences=[seq],
-        data=[data],
-        measurement_flips=[np.zeros((num_rand, num_bits), dtype=bool)],
-        time_lbs=[np.array(["2026-01-01"] * num_rand, dtype="datetime64[us]")],
-        time_ubs=[np.array(["2026-01-02"] * num_rand, dtype="datetime64[us]")],
-    )
-
-
-def test_flip_post_select_node_masks_unchanged_bits():
+def test_flip_post_select_node_masks_unchanged_bits(make_fit, make_raw_data):
     """FlipPostSelect node mode masks shots where any bit is unchanged between cregs."""
     # data layout: [meas0 (4 bits), meas0_ps (4 bits)]
     # shot 0: all bits flipped → keep
@@ -85,7 +51,7 @@ def test_flip_post_select_node_masks_unchanged_bits():
     np.testing.assert_array_equal(mask, [[False, True, False]])
 
 
-def test_flip_post_select_node_no_masking_when_all_flipped():
+def test_flip_post_select_node_no_masking_when_all_flipped(make_fit, make_raw_data):
     """FlipPostSelect node mode produces no masking when all bits flip."""
     data = np.array(
         [
@@ -112,7 +78,7 @@ def test_flip_post_select_node_no_masking_when_all_flipped():
     np.testing.assert_array_equal(mask, np.zeros((1, 2), dtype=bool))
 
 
-def test_flip_post_select_edge_masks_adjacent_pair_failures():
+def test_flip_post_select_edge_masks_adjacent_pair_failures(make_fit, make_raw_data):
     """FlipPostSelect edge mode masks shots with adjacent qubits both failing to flip."""
     # coupling map line: 0-1, 1-2, 2-3
     # data layout: [meas0 (4 bits), meas0_ps (4 bits)]
@@ -145,7 +111,7 @@ def test_flip_post_select_edge_masks_adjacent_pair_failures():
     np.testing.assert_array_equal(mask, [[True, False, False]])
 
 
-def test_flip_post_select_mismatched_qubits_raises():
+def test_flip_post_select_mismatched_qubits_raises(make_fit, make_raw_data):
     """FlipPostSelect raises ValueError when cregs measure different qubits."""
     data = np.zeros((1, 2, 4), dtype=bool)
     raw = make_raw_data(
@@ -162,7 +128,7 @@ def test_flip_post_select_mismatched_qubits_raises():
         FlipPostSelect(mode="node").run(fit)
 
 
-def test_flip_post_select_multiple_randomizations():
+def test_flip_post_select_multiple_randomizations(make_fit, make_raw_data):
     """FlipPostSelect correctly handles multiple randomizations independently."""
     # 3 randomizations, 2 shots each
     # data layout: [meas0 (4 bits), meas0_ps (4 bits)]
@@ -209,7 +175,7 @@ def test_flip_post_select_multiple_randomizations():
     np.testing.assert_array_equal(mask, expected)
 
 
-def test_flip_post_select_preserves_existing_mask():
+def test_flip_post_select_preserves_existing_mask(make_fit, make_raw_data):
     """FlipPostSelect preserves pre-existing True entries in data_mask."""
     # All bits flip → no new masking
     data = np.array(
