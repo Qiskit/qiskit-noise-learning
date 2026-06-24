@@ -68,7 +68,8 @@ class TestExperimentBuilderStage:
         result = stage.run(exp)
         assert result.shots == 42
 
-    def test_required_fields_validation_passes(self, unbound_path_ix):
+    def test_required_fields_validation_passes(self, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
         stage = _RequiresPaths()
         exp = Experiment(paths=[unbound_path_ix])
         result = stage.run(exp)
@@ -117,12 +118,12 @@ class TestExperimentBuilder:
         assert isinstance(combined, ExperimentBuilder)
         assert len(combined.stages) == 2
 
-    def test_required_fields_in_chain(self, unbound_path_ix):
+    def test_required_fields_in_chain(self, make_cz_path):
         builder = ExperimentBuilder(_RequiresPaths(), _SimpleStage(10))
         with pytest.raises(ValueError, match="requires 'paths'"):
             builder.run(Experiment())
 
-        result = builder.run(Experiment(paths=[unbound_path_ix]))
+        result = builder.run(Experiment(paths=[make_cz_path("IX")]))
         assert result.shots == 10
 
     def test_repr(self):

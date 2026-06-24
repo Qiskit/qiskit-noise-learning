@@ -12,109 +12,16 @@
 
 import numpy as np
 import pytest
-from qiskit.circuit import QuantumCircuit
-from qiskit.circuit.library import CZGate, XGate
-from qiskit.quantum_info import Clifford, QubitSparsePauli
+from qiskit.quantum_info import QubitSparsePauli
 
 from qiskit_noise_learning.analysis import ComputeObservables, Fit
 from qiskit_noise_learning.analysis.compute_observables import compute_expectation_value
 from qiskit_noise_learning.data import ObservableData, RawData
-from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
 from qiskit_noise_learning.sequences import (
     FidelityIndex,
     PartialPauliPermutation,
     Path,
 )
-
-
-@pytest.fixture()
-def gate_set_1q():
-    model_gate_set = ModelGateSet(1)
-    ident = Clifford(QuantumCircuit(1))
-    model_gate_set.add_gate(ModelGate("P", [((0,), ident)], prep_idxs=range(1)))
-    model_gate_set.add_gate(ModelGate("M", [((0,), ident)], meas_idxs=range(1)))
-    model_gate_set.add_gate(
-        ModelGate("L0", [((0,), Clifford([[True, True, True], [True, False, True]]))])
-    )
-    model_gate_set.add_gate(ModelGate("L1", [((0,), Clifford(XGate()))]))
-    return model_gate_set
-
-
-@pytest.fixture()
-def gate_set_cz():
-    model_gate_set = ModelGateSet(2)
-    model_gate_set.add_gate(ModelGate("CZ", [((0, 1), Clifford(CZGate()))]))
-    model_gate_set.add_gate(
-        ModelGate("P", [((0, 1), Clifford(QuantumCircuit(2)))], prep_idxs=range(2))
-    )
-    model_gate_set.add_gate(
-        ModelGate("M", [((0, 1), Clifford(QuantumCircuit(2)))], meas_idxs=range(2))
-    )
-    return model_gate_set
-
-
-@pytest.fixture()
-def unbound_path_ix(gate_set_cz):
-    return Path(
-        start_fragment=[
-            FidelityIndex.from_transition(
-                gate=gate_set_cz["P"],
-                in_pauli=QubitSparsePauli("II"),
-                out_pauli=QubitSparsePauli("IZ"),
-            )
-        ],
-        repeatable_fragment=[
-            FidelityIndex.from_transition(
-                gate=gate_set_cz["CZ"],
-                in_pauli=QubitSparsePauli("IX"),
-                out_pauli=QubitSparsePauli("ZX"),
-            ),
-            FidelityIndex.from_transition(
-                gate=gate_set_cz["CZ"],
-                in_pauli=QubitSparsePauli("ZX"),
-                out_pauli=QubitSparsePauli("IX"),
-            ),
-        ],
-        end_fragment=[
-            FidelityIndex.from_transition(
-                gate=gate_set_cz["M"],
-                in_pauli=QubitSparsePauli("IZ"),
-                out_pauli=QubitSparsePauli("II"),
-            )
-        ],
-    )
-
-
-@pytest.fixture()
-def unbound_path_xi(gate_set_cz):
-    return Path(
-        start_fragment=[
-            FidelityIndex.from_transition(
-                gate=gate_set_cz["P"],
-                in_pauli=QubitSparsePauli("II"),
-                out_pauli=QubitSparsePauli("ZI"),
-            )
-        ],
-        repeatable_fragment=[
-            FidelityIndex.from_transition(
-                gate=gate_set_cz["CZ"],
-                in_pauli=QubitSparsePauli("XI"),
-                out_pauli=QubitSparsePauli("XZ"),
-            ),
-            FidelityIndex.from_transition(
-                gate=gate_set_cz["CZ"],
-                in_pauli=QubitSparsePauli("XZ"),
-                out_pauli=QubitSparsePauli("XI"),
-            ),
-        ],
-        end_fragment=[
-            FidelityIndex.from_transition(
-                gate=gate_set_cz["M"],
-                in_pauli=QubitSparsePauli("ZI"),
-                out_pauli=QubitSparsePauli("II"),
-            )
-        ],
-    )
 
 
 class TestEv:
@@ -437,8 +344,9 @@ class TestComputeObservables:
         ev2 = ds["observables"][idx2].values
         assert ev1 == pytest.approx(-ev2)
 
-    def test_unbound_path_observables_mask_2q(self, gate_set_cz, unbound_path_ix):
+    def test_unbound_path_observables_mask_2q(self, gate_set_cz, make_cz_path):
         """Verify the observable mask selects only the correct qubits."""
+        unbound_path_ix = make_cz_path("IX")
         assert unbound_path_ix.end_fragment[-1].observable_indices == [0]
 
         unbound_seq = unbound_path_ix.to_instruction_sequence().complete()
@@ -468,8 +376,10 @@ class TestComputeObservables:
         )
         np.testing.assert_allclose(result.observable_data.dataset["observables"][0], sign * (-1.0))
 
-    def test_unbound_path_observables_multiway(self, gate_set_cz, unbound_path_ix, unbound_path_xi):
+    def test_unbound_path_observables_multiway(self, gate_set_cz, make_cz_path):
         """Verify computation with multiple unbound paths per instruction sequence."""
+        unbound_path_ix = make_cz_path("IX")
+        unbound_path_xi = make_cz_path("XI")
         seq_ix = unbound_path_ix.to_instruction_sequence()
         seq_xi = unbound_path_xi.to_instruction_sequence()
         merged_seq = seq_ix.merge(seq_xi).complete()

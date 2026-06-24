@@ -22,8 +22,8 @@ class TestCompleteSequences:
         with pytest.raises(ValueError, match="requires 'instruction_sequences'"):
             stage.run(Experiment())
 
-    def test_completes_sequences(self, gate_set_1q, unbound_path_ix):
-        seq = unbound_path_ix.to_instruction_sequence().bind_at(3)
+    def test_completes_sequences(self, make_cz_path):
+        seq = make_cz_path("IX").to_instruction_sequence().bind_at(3)
         assert not seq.is_complete
 
         exp = Experiment(instruction_sequences=[seq], randomization_multipliers=[1])
@@ -31,8 +31,8 @@ class TestCompleteSequences:
 
         assert all(s.is_complete for s in result.instruction_sequences)
 
-    def test_already_complete_sequences_unchanged(self, unbound_path_ix):
-        seq = unbound_path_ix.to_instruction_sequence().bind_at(3).complete()
+    def test_already_complete_sequences_unchanged(self, make_cz_path):
+        seq = make_cz_path("IX").to_instruction_sequence().bind_at(3).complete()
         exp = Experiment(instruction_sequences=[seq], randomization_multipliers=[1])
         result = CompleteSequences().run(exp)
 

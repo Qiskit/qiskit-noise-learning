@@ -22,7 +22,9 @@ class TestBindSequenceDepths:
         with pytest.raises(ValueError, match="requires 'instruction_sequences'"):
             stage.run(Experiment())
 
-    def test_expands_unbound_sequences(self, unbound_path_ix, unbound_path_xi):
+    def test_expands_unbound_sequences(self, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
+        unbound_path_xi = make_cz_path("XI")
         seq_ix = unbound_path_ix.to_instruction_sequence()
         seq_xi = unbound_path_xi.to_instruction_sequence()
         assert seq_ix.is_unbound
@@ -43,7 +45,8 @@ class TestBindSequenceDepths:
         assert result.instruction_sequences[2].depth == 2
         assert result.instruction_sequences[3].depth == 4
 
-    def test_keeps_bound_sequences(self, unbound_path_ix):
+    def test_keeps_bound_sequences(self, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
         seq = unbound_path_ix.to_instruction_sequence().bind_at(3)
         exp = Experiment(
             paths=[unbound_path_ix],
@@ -56,7 +59,9 @@ class TestBindSequenceDepths:
         assert len(result.instruction_sequences) == 1
         assert result.instruction_sequences[0].depth == 3
 
-    def test_relations_fanned_out(self, unbound_path_ix, unbound_path_xi):
+    def test_relations_fanned_out(self, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
+        unbound_path_xi = make_cz_path("XI")
         seq_ix = unbound_path_ix.to_instruction_sequence()
         exp = Experiment(
             paths=[unbound_path_ix, unbound_path_xi],
@@ -69,7 +74,9 @@ class TestBindSequenceDepths:
         assert len(result.instruction_sequences) == 3
         assert result.relations == {(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2)}
 
-    def test_multipliers_propagated(self, unbound_path_ix, unbound_path_xi):
+    def test_multipliers_propagated(self, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
+        unbound_path_xi = make_cz_path("XI")
         seq_ix = unbound_path_ix.to_instruction_sequence()
         seq_xi = unbound_path_xi.to_instruction_sequence()
         exp = Experiment(

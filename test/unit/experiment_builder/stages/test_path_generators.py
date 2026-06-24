@@ -78,7 +78,8 @@ class TestSPAMPaths:
         with pytest.raises(ValueError, match="requires 'fidelity_model'"):
             stage.run(Experiment())
 
-    def test_appends_to_existing_paths(self, gate_set_cz, unbound_path_ix):
+    def test_appends_to_existing_paths(self, gate_set_cz, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
         exp = Experiment(fidelity_model=gate_set_cz, paths=[unbound_path_ix])
         stage = SPAMPaths(
             prep_gate=gate_set_cz["P"],

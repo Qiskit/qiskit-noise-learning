@@ -24,8 +24,10 @@ class TestMergeInstructionSequences:
         with pytest.raises(ValueError, match="requires 'instruction_sequences'"):
             stage.run(Experiment())
 
-    def test_two_mergeable_sequences(self, gate_set_cz, unbound_path_ix, unbound_path_xi):
+    def test_two_mergeable_sequences(self, gate_set_cz, make_cz_path):
         """Two compatible sequences are merged into one."""
+        unbound_path_ix = make_cz_path("IX")
+        unbound_path_xi = make_cz_path("XI")
         seqs = [
             unbound_path_ix.to_instruction_sequence(),
             unbound_path_xi.to_instruction_sequence(),
@@ -44,9 +46,9 @@ class TestMergeInstructionSequences:
         assert unbound_path_ix.is_traversed_by(result.instruction_sequences[0])
         assert unbound_path_xi.is_traversed_by(result.instruction_sequences[0])
 
-    def test_three_way_merge(self, gate_set_cz, unbound_path_ix, unbound_path_xi, unbound_path_xx):
+    def test_three_way_merge(self, gate_set_cz, make_cz_path):
         """Three mutually compatible sequences are merged into one."""
-        paths = [unbound_path_ix, unbound_path_xi, unbound_path_xx]
+        paths = [make_cz_path("IX"), make_cz_path("XI"), make_cz_path("XX")]
         seqs = [p.to_instruction_sequence() for p in paths]
         exp = Experiment(
             fidelity_model=gate_set_cz,
@@ -124,8 +126,10 @@ class TestMergeInstructionSequences:
         assert len(result.instruction_sequences) == 2
         assert result.relations == {(0, 0), (1, 1)}
 
-    def test_multipliers_take_max(self, gate_set_cz, unbound_path_ix, unbound_path_xi):
+    def test_multipliers_take_max(self, gate_set_cz, make_cz_path):
         """When merging, the resulting multiplier is the max of the merged group."""
+        unbound_path_ix = make_cz_path("IX")
+        unbound_path_xi = make_cz_path("XI")
         seqs = [
             unbound_path_ix.to_instruction_sequence(),
             unbound_path_xi.to_instruction_sequence(),
@@ -141,7 +145,8 @@ class TestMergeInstructionSequences:
 
         assert result.randomization_multipliers == [7]
 
-    def test_single_sequence_unchanged(self, gate_set_cz, unbound_path_ix):
+    def test_single_sequence_unchanged(self, gate_set_cz, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
         seq = unbound_path_ix.to_instruction_sequence()
         exp = Experiment(
             fidelity_model=gate_set_cz,
