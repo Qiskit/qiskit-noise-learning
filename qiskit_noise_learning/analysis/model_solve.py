@@ -275,7 +275,7 @@ class PositivityMinSolve(ModelSolve):
     subject to:
 
     - :math:`\\|W (A r - b)\\|_2 \\leq \\epsilon`
-    - :math:`|A_i r - b_i| \\leq \\delta_i` for each row :math:`i`
+    - :math:`|(Ar - b)_i| \\leq \\delta_i` for each row :math:`i`
     - :math:`r \\geq 0` (optional)
 
     See :class:`~.ModelSolve` for more details about the general responsibility of a model solver
