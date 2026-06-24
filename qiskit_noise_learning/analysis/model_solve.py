@@ -11,6 +11,7 @@
 # that they have been altered from the originals.
 
 from abc import abstractmethod
+from collections.abc import Iterator
 
 import numpy as np
 import scipy.optimize as opt
@@ -69,16 +70,18 @@ class ModelSolve(AnalysisStage):
                 )
             index_by_key[key] = idx
 
-        # Resolve targets as (lookup_key, row_path) tuples. 
+        # Resolve targets as (lookup_key, row_path) tuples.
         targets: Iterator[tuple[tuple[Path, int], Path]]
         if fit.paths:
             targets = (
-                ((path, -1), path) if path.is_unbound else ((path.without_depth(), path.depth), path)
+                ((path, -1), path)
+                if path.is_unbound
+                else ((path.without_depth(), path.depth), path)
                 for path in fit.paths
             )
         else:
             targets = (
-                ((path, depth), (path if depth == -1 else pp.bind_at(depth))) 
+                ((path, depth), (path if depth == -1 else path.bind_at(depth)))
                 for path, depth in index_by_key
             )
 
