@@ -11,6 +11,7 @@
 # that they have been altered from the originals.
 
 from abc import abstractmethod
+from collections.abc import Iterator
 
 import numpy as np
 import scipy.optimize as opt
@@ -19,15 +20,21 @@ from qiskit_noise_learning.analysis import AnalysisStage, Fit
 from qiskit_noise_learning.data import AveragedData, ModelData
 from qiskit_noise_learning.data.xarray_utils import time_bound
 from qiskit_noise_learning.math import IndexedMatrix
+from qiskit_noise_learning.sequences import Path
 
 
 class ModelSolve(AnalysisStage):
     """Base class for finding model parameters.
 
-    Constructs the design matrix from the :class:`~.FidelityModel` stored on the
-    :class:`~.Fit` container and the unbound paths in the :class:`~.AveragedData` (depth==-1
-    entries). Then solves ``A @ x = b`` using a specified method, where ``A`` is the
-    design matrix and ``b`` is the vector of decay rates ``-log(f)``.
+    Constructs the design matrix from the :class:`~.FidelityModel` stored on the :class:`~.Fit`
+    container and the paths in the :class:`~.AveragedData`. Then solves ``A @ x = b`` using a
+    specified method, where ``A`` is the design matrix and ``b`` is the vector of negative log
+    observables ``-log(o)``.
+
+    If paths are specified on the :class:`~.Fit`, only data matching those paths is used. If no
+    paths are specified, all data in the :class:`~.AveragedData` is used.
+
+    This stage assumes a single observable value for each unique :class:`Path`.
     """
 
     @property
@@ -51,33 +58,69 @@ class ModelSolve(AnalysisStage):
         """
 
     def _run(self, fit: Fit):
-        averaged_data = fit[AveragedData]
+        dataset = fit[AveragedData].dataset
         fidelity_model = fit.model
 
-        # Filter to decay data (depth == -1)
-        decay_mask = averaged_data.dataset["depth"].data == -1
-        decay_dataset = averaged_data.dataset.sel({"observable": decay_mask})
+        # Index the as "(unbound_path, depth) -> row position", where -1 denotes unbound
+        index_by_key: dict[tuple[Path, int], int] = {}
+        for idx, key in enumerate(zip(dataset["unbound_path"].data, dataset["depth"].data)):
+            if key in index_by_key:
+                raise ValueError(
+                    f"ModelSolve assumes one entry per path, but a duplicate was found: {key}."
+                )
+            index_by_key[key] = idx
 
-        # Build design matrix from the fidelity model and the unbound paths in the decay data
-        unbound_paths = list(decay_dataset["unbound_path"].data)
-        rows = [fidelity_model.row_from_path(pp) for pp in unbound_paths]
+        # Resolve targets as (lookup_key, row_path) tuples.
+        targets: Iterator[tuple[tuple[Path, int], Path]]
+        if fit.paths:
+            targets = (
+                ((path, -1), path)
+                if path.is_unbound
+                else ((path.without_depth(), path.depth), path)
+                for path in fit.paths
+            )
+        else:
+            targets = (
+                ((path, depth), (path if depth == -1 else path.bind_at(depth)))
+                for path, depth in index_by_key
+            )
+
+        row_indices = []
+        rows = []
+        dataset_idxs = []
+
+        for lookup_key, path in targets:
+            if (idx := index_by_key.get(lookup_key)) is None:
+                raise ValueError(
+                    f"Required path-depth pair {lookup_key} missing from AveragedData."
+                )
+
+            row_indices.append(path)
+            rows.append(fidelity_model.row_from_path(path))
+            dataset_idxs.append(idx)
+
+        fidelities = dataset["observables"].data[dataset_idxs]
+        fidelity_stds = dataset["std"].data[dataset_idxs]
+        time_lbs_list = dataset["time_lbs"].data[dataset_idxs]
+        time_ubs_list = dataset["time_ubs"].data[dataset_idxs]
+
         design_matrix = IndexedMatrix()
-        design_matrix.add_rows(row_indices=unbound_paths, rows=rows)
+        design_matrix.add_rows(row_indices=row_indices, rows=rows)
 
-        # Construct b from averaged_data taking the negative logarithm
-        row_index_map = design_matrix.row_index_map
-        b = np.empty(len(row_index_map), dtype=float)
-        sigma_b = np.empty(len(row_index_map), dtype=float)
-        for pp, row_idx in row_index_map.items():
-            pp_mask = decay_dataset["unbound_path"].data == pp
-            fidelity = float(decay_dataset["observables"].data[pp_mask][0])
-            fidelity_std = float(decay_dataset["std"].data[pp_mask][0])
-            b[row_idx] = -np.log(max(fidelity, 1e-300))
-            sigma_b[row_idx] = fidelity_std / max(fidelity, 1e-300)
+        # Build b and sigma_b aligned with the design matrix's row order. add_rows may drop all-zero
+        # rows, so iterate row_index_map, the surviving rows.
+        fidelity_by_row = dict(zip(row_indices, zip(fidelities, fidelity_stds)))
+        n_rows = len(design_matrix.row_index_map)
+        b = np.empty(n_rows, dtype=float)
+        sigma_b = np.empty(n_rows, dtype=float)
+        for row_index, array_idx in design_matrix.row_index_map.items():
+            fidelity, fidelity_std = fidelity_by_row[row_index]
+            b[array_idx] = -np.log(max(fidelity, 1e-300))
+            sigma_b[array_idx] = fidelity_std / max(fidelity, 1e-300)
 
         A = design_matrix.data
 
-        # Solve the nnls problem
+        # Solve the linear problem
         x, metadata = self._linear_solve(A, b)
 
         # Compute covariance
@@ -95,8 +138,10 @@ class ModelSolve(AnalysisStage):
         inv_col = {v: k for k, v in col_index_map.items()}
         param_labels = [inv_col[i] for i in range(len(x))]
 
-        time_lb = time_bound(decay_dataset["time_lbs"].data, "min")
-        time_ub = time_bound(decay_dataset["time_ubs"].data, "max")
+        all_time_lbs = np.array(time_lbs_list, dtype="datetime64[us]")
+        all_time_ubs = np.array(time_ubs_list, dtype="datetime64[us]")
+        time_lb = time_bound(all_time_lbs, "min")
+        time_ub = time_bound(all_time_ubs, "max")
 
         fit[ModelData] = ModelData.from_arrays(
             parameter_indices=param_labels,
