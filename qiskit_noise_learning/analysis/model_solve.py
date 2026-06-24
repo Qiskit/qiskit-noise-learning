@@ -69,18 +69,18 @@ class ModelSolve(AnalysisStage):
                 )
             index_by_key[key] = idx
 
-        # Resolve targets as (lookup_key, row_path) tuples. The lookup_key matches the dataset's
-        # encoding (unbound_path, depth_int) with depth==-1 for unbound. The row_path is the Path
-        # used for design matrix row construction and as the IndexedMatrix row index.
+        # Resolve targets as (lookup_key, row_path) tuples. 
+        targets: Iterator[tuple[tuple[Path, int], Path]]
         if fit.paths:
-            targets = []
-            for path in fit.paths:
-                if path.is_unbound:
-                    targets.append(((path, -1), path))
-                else:
-                    targets.append(((path.without_depth(), path.depth), path))
+            targets = (
+                ((path, -1), path) if path.is_unbound else ((path.without_depth(), path.depth), path)
+                for path in fit.paths
+            )
         else:
-            targets = [((pp, d), pp if d == -1 else pp.bind_at(d)) for pp, d in index_by_key]
+            targets = (
+                ((path, depth), (path if depth == -1 else pp.bind_at(depth))) 
+                for path, depth in index_by_key
+            )
 
         row_indices = []
         rows = []
