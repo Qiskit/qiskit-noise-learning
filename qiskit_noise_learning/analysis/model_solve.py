@@ -19,7 +19,7 @@ import scipy.optimize as opt
 from qiskit_noise_learning.analysis import AnalysisStage, Fit
 from qiskit_noise_learning.data import AveragedData, ModelData
 from qiskit_noise_learning.data.xarray_utils import time_bound
-from qiskit_noise_learning.math import IndexedMatrix
+from qiskit_noise_learning.math import IndexedMatrix, IndexedVector
 from qiskit_noise_learning.models.pauli_lindblad_model import PauliLindbladModel
 from qiskit_noise_learning.optionals import HAS_CVXPY
 from qiskit_noise_learning.sequences import Path
@@ -250,7 +250,8 @@ class LSQLinearSolve(ModelSolve):
         free_indices = np.where(~at_lower & ~at_upper)[0]
         cov_x = self._covariance(A, sigma_b, x, free_indices)
 
-        return x, cov_x, {"opt_res": opt_res}
+        # cost is 0.5 * ||A x - b||_2^2
+        return x, cov_x, {"opt_res": opt_res, "residual": np.sqrt(2 * opt_res.cost)}
 
 
 class PositivityMinSolve(ModelSolve):
@@ -366,4 +367,15 @@ class PositivityMinSolve(ModelSolve):
         problem = cp.Problem(objective, constraints)
         problem.solve()
 
-        return x.value, np.zeros((n, n)), {"problem": problem}
+        return (
+            x.value,
+            np.zeros((n, n)),
+            {
+                "problem": problem,
+                "residual": np.linalg.norm(residual.value),
+                "weighted_residual": np.linalg.norm(weighted_residual.value),
+                "path_residual": IndexedVector(
+                    {k: v for k, v in zip(path_labels, np.abs(residual.value))}
+                ),
+            },
+        )
