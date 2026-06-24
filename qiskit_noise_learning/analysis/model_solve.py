@@ -20,16 +20,17 @@ from qiskit_noise_learning.analysis import AnalysisStage, Fit
 from qiskit_noise_learning.data import AveragedData, ModelData
 from qiskit_noise_learning.data.xarray_utils import time_bound
 from qiskit_noise_learning.math import IndexedMatrix
+from qiskit_noise_learning.models.pauli_lindblad_model import PauliLindbladModel
+from qiskit_noise_learning.optionals import HAS_CVXPY
 from qiskit_noise_learning.sequences import Path
 
 
 class ModelSolve(AnalysisStage):
-    """Base class for finding model parameters.
+    """Base class for model fitting routines.
 
-    Constructs the design matrix from the :class:`~.FidelityModel` stored on the :class:`~.Fit`
-    container and the paths in the :class:`~.AveragedData`. Then solves ``A @ x = b`` using a
-    specified method, where ``A`` is the design matrix and ``b`` is the vector of negative log
-    observables ``-log(o)``.
+    Constructs a design matrix from the :class:`~.FidelityModel` stored on the :class:`~.Fit`
+    container and the paths in the :class:`~.AveragedData`. Then solves ``A @ x = b`` using the
+    method defined by subclasses.
 
     If paths are specified on the :class:`~.Fit`, only data matching those paths is used. If no
     paths are specified, all data in the :class:`~.AveragedData` is used.
@@ -46,18 +47,48 @@ class ModelSolve(AnalysisStage):
         return ModelData
 
     @abstractmethod
-    def _linear_solve(self, a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, dict]:
-        """Perform the linear inversion ``a_mat \\ b_vec``, somehow.
+    def _solve(
+        self,
+        A: np.ndarray,
+        b: np.ndarray,
+        sigma_b: np.ndarray,
+        param_labels: list,
+        path_labels: list[Path],
+    ) -> tuple[np.ndarray, np.ndarray, dict]:
+        """Numerical method for solving the linear system.
 
         Args:
-            a_mat: The matrix to invert by, not necessarily invertible.
-            b_vec: The vector to invert.
+            A: The design matrix with shape ``(m, n)``.
+            b: The target vector with length ``m``.
+            sigma_b: Uncertainty on ``b`` with length ``m``.
+            param_labels: Ordered parameter labels corresponding to columns of ``A``.
+            path_labels: Ordered path labels corresponding to rows of ``A``.
 
         Returns:
-           The inverted vector and any dictionary of metadata.
+            A tuple of ``(x, cov_x, metadata)``.
         """
 
     def _run(self, fit: Fit):
+        A, b, sigma_b, param_labels, path_labels, time_lb, time_ub = self._build_linear_system(fit)
+        x, cov_x, metadata = self._solve(A, b, sigma_b, param_labels, path_labels)
+
+        fit[ModelData] = ModelData.from_arrays(
+            parameter_indices=param_labels,
+            parameter_values=x,
+            covariance=cov_x,
+            time_lbs=np.full(len(x), time_lb, dtype="datetime64[us]"),
+            time_ubs=np.full(len(x), time_ub, dtype="datetime64[us]"),
+            metadata=metadata,
+        )
+
+    def _build_linear_system(
+        self, fit: Fit
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list, list[Path], np.datetime64, np.datetime64]:
+        """Build the linear system arrays from a :class:`~.Fit`.
+
+        Returns:
+            A tuple of ``(A, b, sigma_b, param_labels, path_labels, time_lb, time_ub)``.
+        """
         dataset = fit[AveragedData].dataset
         fidelity_model = fit.model
 
@@ -118,39 +149,41 @@ class ModelSolve(AnalysisStage):
             b[array_idx] = -np.log(max(fidelity, 1e-300))
             sigma_b[array_idx] = fidelity_std / max(fidelity, 1e-300)
 
-        A = design_matrix.data
-
-        # Solve the linear problem
-        x, metadata = self._linear_solve(A, b)
-
-        # Compute covariance
-        cov_b = np.diag(sigma_b**2)
-        free_indices = np.where(x > 0)[0]
-        cov_x = np.zeros((len(x), len(x)))
-        if free_indices.size > 0:
-            A_S = A[:, free_indices]
-            A_S_pinv = np.linalg.pinv(A_S)
-            cov_x_S = A_S_pinv @ cov_b @ A_S_pinv.T
-            cov_x[np.ix_(free_indices, free_indices)] = cov_x_S
-
-        # Construct and store the ModelData instance
-        col_index_map = design_matrix.column_index_map
-        inv_col = {v: k for k, v in col_index_map.items()}
-        param_labels = [inv_col[i] for i in range(len(x))]
-
         all_time_lbs = np.array(time_lbs_list, dtype="datetime64[us]")
         all_time_ubs = np.array(time_ubs_list, dtype="datetime64[us]")
         time_lb = time_bound(all_time_lbs, "min")
         time_ub = time_bound(all_time_ubs, "max")
 
-        fit[ModelData] = ModelData.from_arrays(
-            parameter_indices=param_labels,
-            parameter_values=x,
-            covariance=cov_x,
-            time_lbs=np.full(len(x), time_lb, dtype="datetime64[us]"),
-            time_ubs=np.full(len(x), time_ub, dtype="datetime64[us]"),
-            metadata=metadata,
-        )
+        param_labels = [
+            k for k, _ in sorted(design_matrix.column_index_map.items(), key=lambda item: item[1])
+        ]
+        path_labels = [
+            k for k, _ in sorted(design_matrix.row_index_map.items(), key=lambda item: item[1])
+        ]
+
+        return design_matrix.data, b, sigma_b, param_labels, path_labels, time_lb, time_ub
+
+    @staticmethod
+    def _covariance(
+        A: np.ndarray, sigma_b: np.ndarray, x: np.ndarray, free_indices: np.ndarray
+    ) -> np.ndarray:
+        """Pinv-based error propagation covariance for a solution x.
+
+        Args:
+            A: The design matrix.
+            sigma_b: Uncertainty on b.
+            x: The solution vector.
+            free_indices: Indices of parameters not on a constraint boundary.
+        """
+        n = len(x)
+        cov_x = np.zeros((n, n))
+        if free_indices.size > 0:
+            cov_b = np.diag(sigma_b**2)
+            A_S = A[:, free_indices]
+            A_S_pinv = np.linalg.pinv(A_S)
+            cov_x_S = A_S_pinv @ cov_b @ A_S_pinv.T
+            cov_x[np.ix_(free_indices, free_indices)] = cov_x_S
+        return cov_x
 
 
 class NNLSSolve(ModelSolve):
@@ -168,9 +201,18 @@ class NNLSSolve(ModelSolve):
     def __init__(self, **nnls_opts):
         self.nnls_opts = nnls_opts
 
-    def _linear_solve(self, a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, dict]:
-        x, residual = opt.nnls(a_mat, b_vec, **self.nnls_opts)
-        return x, {"residual": residual}
+    def _solve(
+        self,
+        A: np.ndarray,
+        b: np.ndarray,
+        sigma_b: np.ndarray,
+        param_labels: list,
+        path_labels: list[Path],
+    ) -> tuple[np.ndarray, np.ndarray, dict]:
+        x, residual = opt.nnls(A, b, **self.nnls_opts)
+        free_indices = np.where(x > 0)[0]
+        cov_x = self._covariance(A, sigma_b, x, free_indices)
+        return x, cov_x, {"residual": residual}
 
 
 class LSQLinearSolve(ModelSolve):
@@ -187,14 +229,140 @@ class LSQLinearSolve(ModelSolve):
 
     def __init__(self, **lsq_linear_opts):
         self.lsq_linear_opts = lsq_linear_opts
+        self.lsq_linear_opts.setdefault("bounds", (0, np.inf))
+        self.lsq_linear_opts.setdefault("method", "bvls")
 
-        self.lsq_linear_opts["bounds"] = self.lsq_linear_opts.get("bounds", (0, np.inf))
-        self.lsq_linear_opts["method"] = self.lsq_linear_opts.get("method", "bvls")
+    def _solve(
+        self,
+        A: np.ndarray,
+        b: np.ndarray,
+        sigma_b: np.ndarray,
+        param_labels: list,
+        path_labels: list[Path],
+    ) -> tuple[np.ndarray, np.ndarray, dict]:
+        opt_res = opt.lsq_linear(A, b, **self.lsq_linear_opts)
+        x = opt_res.x
 
-    def _linear_solve(self, a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarray, dict]:
-        opt_res = opt.lsq_linear(
-            a_mat,
-            b_vec,
-            **self.lsq_linear_opts,
-        )
-        return opt_res.x, {"opt_res": opt_res}
+        lb, ub = self.lsq_linear_opts["bounds"]
+        at_lower = np.isfinite(lb) & np.isclose(x, lb)
+        at_upper = np.isfinite(ub) if np.isscalar(ub) else np.isfinite(ub) & np.isclose(x, ub)
+        free_indices = np.where(~at_lower & ~at_upper)[0]
+        cov_x = self._covariance(A, sigma_b, x, free_indices)
+
+        return x, cov_x, {"opt_res": opt_res}
+
+
+class PositivityMinSolve(ModelSolve):
+    r"""Solves for the :class:`~.ModelData` while minimizing Pauli-Lindblad rate positivity.
+
+    Requires that the :class:`~.Fit` uses a :class:`~.PauliLindbladModel`.
+
+    For a gate set :math:`\mathcal{G}`, let :math:`\{r_{G, P}}` denote the Pauli-Lindblad rates over
+    gate-dependent generator sets \mathcal{K}(G)`, :math:`A` the design matrix and :math:`b` the
+    observed data. For the user-specified algorithm parameters:
+    - Gate coefficients :math:`\{c_G \in \mathbb{R} : G \in \mathcal{G}\}`,
+    - Global fit bound :math:`\epsilon > 0`, and
+    - Local fit bounds :math:`\delta_P` for each path :math:`P` measured in the design matrix,
+
+    this class solves the convex optimization problem:
+
+    .. math::
+
+        \\min \\sum_{G \in \mathcal{G}} c_G \sum_{P \in \mathcal{K}(G)} \\max(0, r_{P, G})
+
+    subject to:
+
+    - :math:`\\|W (A r - b)\\|_2 \\leq \\epsilon`
+    - :math:`|A_i r - b_i| \\leq \\delta_i` for each row :math:`i`
+    - :math:`r \\geq 0` (optional)
+
+    See :class:`~.ModelSolve` for more details about the general responsibility of a model solver
+    in this library.
+
+    Args:
+        coefficients: Per-gate coefficients for the objective function, as a mapping from gate
+            name to float.
+        epsilon: Tolerance for the overall weighted L2 norm constraint. At least one of
+            ``epsilon`` or ``deltas`` must be provided.
+        deltas: Per-row tolerances as a mapping from :class:`~.Path` to float. At least one of
+            ``epsilon`` or ``deltas`` must be provided.
+        weights: Weight matrix ``W`` for the L2 constraint as an :class:`~.IndexedMatrix` whose
+            row and column indices are :class:`~.Path` objects. Defaults to identity. Only used
+            when ``epsilon`` is provided.
+        non_negative: Whether to enforce ``x >= 0``.
+    """
+
+    def __init__(
+        self,
+        coefficients: dict[str, float],
+        epsilon: float | None = None,
+        deltas: dict[Path, float] | None = None,
+        weights: IndexedMatrix | None = None,
+        non_negative: bool = False,
+    ):
+        if epsilon is None and deltas is None:
+            raise ValueError("At least one of 'epsilon' or 'deltas' must be provided.")
+
+        self.coefficients = coefficients
+        self.epsilon = epsilon
+        self.deltas = deltas
+        self.weights = weights
+        self.non_negative = non_negative
+
+    def _run(self, fit: Fit):
+        if not isinstance(fit.model, PauliLindbladModel):
+            raise TypeError(
+                "PositivityMinSolve requires a PauliLindbladModel, "
+                f"but got {type(fit.model).__name__}."
+            )
+        super()._run(fit)
+
+    def _solve(
+        self,
+        A: np.ndarray,
+        b: np.ndarray,
+        sigma_b: np.ndarray,
+        param_labels: list,
+        path_labels: list[Path],
+    ) -> tuple[np.ndarray, np.ndarray, dict]:
+        HAS_CVXPY.require_now("PositivityMinSolve")
+        import cvxpy as cp
+
+        n = A.shape[1]
+        m = A.shape[0]
+
+        # Build coefficient vector from gate-name mapping
+        coeff_vector = np.array([self.coefficients[label.gate_name] for label in param_labels])
+
+        x = cp.Variable(n)
+        objective = cp.Minimize(coeff_vector @ cp.pos(x))
+
+        residual = A @ x - b
+
+        constraints = []
+
+        if self.epsilon is not None:
+            if self.weights is not None:
+                path_to_row = {path: i for i, path in enumerate(path_labels)}
+                w = np.zeros((m, m))
+                for row_label, row_idx in self.weights.row_index_map.items():
+                    for col_label, col_idx in self.weights.column_index_map.items():
+                        w[path_to_row[row_label], path_to_row[col_label]] = self.weights.data[
+                            row_idx, col_idx
+                        ]
+                weighted_residual = w @ residual
+            else:
+                weighted_residual = residual
+            constraints.append(cp.norm(weighted_residual, 2) <= self.epsilon)
+
+        if self.deltas is not None:
+            deltas_array = np.array([self.deltas[path] for path in path_labels])
+            constraints.append(cp.abs(residual) <= deltas_array)
+
+        if self.non_negative:
+            constraints.append(x >= 0)
+
+        problem = cp.Problem(objective, constraints)
+        problem.solve()
+
+        return x.value, np.zeros((n, n)), {"problem": problem}
