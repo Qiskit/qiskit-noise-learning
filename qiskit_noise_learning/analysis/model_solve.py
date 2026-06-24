@@ -73,6 +73,13 @@ class ModelSolve(AnalysisStage):
         A, b, sigma_b, param_labels, path_labels, time_lb, time_ub = self._build_linear_system(fit)
         x, cov_x, metadata = self._solve(A, b, sigma_b, param_labels, path_labels)
 
+        # add standard fields to metadata
+        residual_vec = A @ x - b
+        metadata["residual"] = np.linalg.norm(residual_vec)
+        metadata["path_residual"] = IndexedVector(
+            {path: val for path, val in zip(path_labels, np.abs(residual_vec))}
+        )
+
         fit[ModelData] = ModelData.from_arrays(
             parameter_indices=param_labels,
             parameter_values=x,
@@ -250,8 +257,7 @@ class LSQLinearSolve(ModelSolve):
         free_indices = np.where(~at_lower & ~at_upper)[0]
         cov_x = self._covariance(A, sigma_b, x, free_indices)
 
-        # cost is 0.5 * ||A x - b||_2^2
-        return x, cov_x, {"opt_res": opt_res, "residual": np.sqrt(2 * opt_res.cost)}
+        return x, cov_x, {"opt_res": opt_res}
 
 
 class PositivityMinSolve(ModelSolve):
@@ -372,10 +378,6 @@ class PositivityMinSolve(ModelSolve):
             np.zeros((n, n)),
             {
                 "problem": problem,
-                "residual": np.linalg.norm(residual.value),
                 "weighted_residual": np.linalg.norm(weighted_residual.value),
-                "path_residual": IndexedVector(
-                    {k: v for k, v in zip(path_labels, np.abs(residual.value))}
-                ),
             },
         )
