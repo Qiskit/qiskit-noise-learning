@@ -17,7 +17,7 @@ from qiskit.quantum_info import QubitSparsePauli, QubitSparsePauliList
 from qiskit_noise_learning.analysis import Fit, PositivityMinSolve
 from qiskit_noise_learning.data import AveragedData
 from qiskit_noise_learning.math import IndexedMatrix, IndexedVector
-from qiskit_noise_learning.models import (
+from qiskit_noise_learning.models._legacy import (
     CompleteFidelityModel,
     GeneratorIndex,
     PauliLindbladModel,

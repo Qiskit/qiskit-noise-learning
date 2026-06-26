@@ -15,7 +15,7 @@ from qiskit.quantum_info import Clifford, QubitSparsePauli
 
 from qiskit_noise_learning.gate_sets import ModelGate
 from qiskit_noise_learning.math import IndexedVector
-from qiskit_noise_learning.models.fidelity_mixers import IdentityMixer
+from qiskit_noise_learning.models._legacy.fidelity_mixers import IdentityMixer
 from qiskit_noise_learning.sequences import FidelityIndex
 
 

@@ -14,7 +14,7 @@ import pytest
 
 from qiskit_noise_learning.experiment_builder.experiment import Experiment
 from qiskit_noise_learning.math import IndexedMatrix
-from qiskit_noise_learning.models import CompleteFidelityModel
+from qiskit_noise_learning.models._legacy import CompleteFidelityModel
 
 
 class TestExperimentConstruction:

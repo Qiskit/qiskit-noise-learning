@@ -20,7 +20,7 @@ from qiskit_noise_learning.analysis import AnalysisStage, Fit
 from qiskit_noise_learning.data import AveragedData, ModelData
 from qiskit_noise_learning.data.xarray_utils import time_bound
 from qiskit_noise_learning.math import IndexedMatrix, IndexedVector
-from qiskit_noise_learning.models.pauli_lindblad_model import PauliLindbladModel
+from qiskit_noise_learning.models._legacy.pauli_lindblad_model import PauliLindbladModel
 from qiskit_noise_learning.optionals import HAS_CVXPY
 from qiskit_noise_learning.sequences import Path
 

@@ -18,7 +18,7 @@ from scipy.linalg import null_space
 from qiskit_noise_learning.analysis.analysis_pipeline import AnalysisStage
 from qiskit_noise_learning.analysis.fit import Fit
 from qiskit_noise_learning.data import ModelData
-from qiskit_noise_learning.models import PauliLindbladModel
+from qiskit_noise_learning.models._legacy import PauliLindbladModel
 
 
 class SymmetrizeGenerators(AnalysisStage):

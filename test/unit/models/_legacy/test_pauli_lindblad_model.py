@@ -21,7 +21,7 @@ from qiskit.transpiler import CouplingMap
 from qiskit_noise_learning.data import ModelData
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
 from qiskit_noise_learning.math import IndexedVector
-from qiskit_noise_learning.models import GeneratorIndex, PauliLindbladModel
+from qiskit_noise_learning.models._legacy import GeneratorIndex, PauliLindbladModel
 from qiskit_noise_learning.sequences import FidelityIndex
 
 

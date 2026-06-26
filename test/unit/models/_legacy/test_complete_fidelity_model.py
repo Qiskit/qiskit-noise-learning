@@ -16,7 +16,7 @@ from qiskit.quantum_info import QubitSparsePauli
 
 from qiskit_noise_learning.data import ModelData
 from qiskit_noise_learning.math import IndexedVector
-from qiskit_noise_learning.models import CompleteFidelityModel
+from qiskit_noise_learning.models._legacy import CompleteFidelityModel
 from qiskit_noise_learning.sequences import FidelityIndex, Path
 
 

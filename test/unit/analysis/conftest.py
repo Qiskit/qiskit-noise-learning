@@ -18,7 +18,7 @@ import pytest
 from qiskit_noise_learning.analysis import Fit
 from qiskit_noise_learning.data import AveragedData, ObservableData, RawData
 from qiskit_noise_learning.gate_sets import ModelGateSet
-from qiskit_noise_learning.models import CompleteFidelityModel
+from qiskit_noise_learning.models._legacy import CompleteFidelityModel
 
 
 @pytest.fixture()
