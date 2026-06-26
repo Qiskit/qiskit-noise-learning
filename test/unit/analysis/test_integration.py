@@ -20,7 +20,7 @@ from qiskit_noise_learning.analysis import (
     NNLSSolve,
 )
 from qiskit_noise_learning.data import ModelData, ObservableData
-from qiskit_noise_learning.models import GeneratorIndex, PauliLindbladModel
+from qiskit_noise_learning.models._legacy import GeneratorIndex, PauliLindbladModel
 
 # Prep and measurement generators required to build the model; they do not appear in the rows of the
 # unbound (decay) paths used here.

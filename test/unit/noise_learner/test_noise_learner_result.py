@@ -16,7 +16,7 @@ from qiskit.quantum_info import PauliLindbladMap, QubitSparsePauli, QubitSparseP
 
 from qiskit_noise_learning.analysis import Fit
 from qiskit_noise_learning.data import ModelData
-from qiskit_noise_learning.models import GeneratorIndex, PauliLindbladModel
+from qiskit_noise_learning.models._legacy import GeneratorIndex, PauliLindbladModel
 from qiskit_noise_learning.noise_learner import NoiseLearnerResult
 
 

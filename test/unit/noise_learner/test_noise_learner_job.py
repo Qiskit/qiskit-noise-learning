@@ -20,7 +20,7 @@ from qiskit.quantum_info import QubitSparsePauliList
 from qiskit_noise_learning.analysis import AnalysisStage
 from qiskit_noise_learning.circuit_generator import ExecutorDataMapper
 from qiskit_noise_learning.data import ModelData, RawData
-from qiskit_noise_learning.models import PauliLindbladModel
+from qiskit_noise_learning.models._legacy import PauliLindbladModel
 from qiskit_noise_learning.noise_learner import NoiseLearnerResult
 from qiskit_noise_learning.noise_learner.noise_learner_job import NoiseLearnerJob
 

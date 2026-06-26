@@ -26,7 +26,7 @@ from scipy.sparse import csr_array
 from qiskit_noise_learning.analysis import AnalysisStage, Fit
 from qiskit_noise_learning.data import AveragedData, ModelData
 from qiskit_noise_learning.data.xarray_utils import time_bound
-from qiskit_noise_learning.models.pauli_lindblad_model import GeneratorIndex
+from qiskit_noise_learning.models._legacy.pauli_lindblad_model import GeneratorIndex
 
 from ..optionals import HAS_CVXPY
 

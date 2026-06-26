@@ -19,7 +19,7 @@ from copy import copy
 
 from qiskit_noise_learning.gate_sets import ModelGateSet
 from qiskit_noise_learning.math import IndexedMatrix
-from qiskit_noise_learning.models import CompleteFidelityModel, FidelityModel
+from qiskit_noise_learning.models._legacy import CompleteFidelityModel, FidelityModel
 from qiskit_noise_learning.sequences import InstructionSequence, Path
 
 

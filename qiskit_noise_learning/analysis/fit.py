@@ -21,7 +21,7 @@ from qiskit_noise_learning.data import (
     ObservableData,
     RawData,
 )
-from qiskit_noise_learning.models import FidelityModel
+from qiskit_noise_learning.models._legacy import FidelityModel
 from qiskit_noise_learning.sequences import InstructionSequence, Path
 
 LEVELS = (RawData, ObservableData, AveragedData, ModelData)
