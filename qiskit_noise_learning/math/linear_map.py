@@ -17,8 +17,8 @@ from collections.abc import Hashable, Iterable, Mapping
 from typing import Generic, TypeVar
 
 from .indexed_matrix import IndexedMatrix
+from .indexed_space import IndexedSpace
 from .indexed_vector import IndexedVector
-from .parameter_space import ParameterSpace
 
 InputIndex = TypeVar("InputIndex", bound=Hashable)
 OutputIndex = TypeVar("OutputIndex", bound=Hashable)
@@ -28,29 +28,29 @@ RowLabel = TypeVar("RowLabel", bound=Hashable)
 
 
 class LinearMap(Generic[InputIndex, OutputIndex], ABC):
-    """An implicit linear map between two parameter spaces.
+    """An implicit linear map between two indexed spaces.
 
     Args:
-        input_space: The input parameter space.
-        output_space: The output parameter space.
+        input_space: The input space.
+        output_space: The output space.
     """
 
     def __init__(
         self,
-        input_space: ParameterSpace[InputIndex],
-        output_space: ParameterSpace[OutputIndex],
+        input_space: IndexedSpace[InputIndex],
+        output_space: IndexedSpace[OutputIndex],
     ):
         self._input_space = input_space
         self._output_space = output_space
 
     @property
-    def input_space(self) -> ParameterSpace[InputIndex]:
-        """The input parameter space."""
+    def input_space(self) -> IndexedSpace[InputIndex]:
+        """The input space."""
         return self._input_space
 
     @property
-    def output_space(self) -> ParameterSpace[OutputIndex]:
-        """The output parameter space."""
+    def output_space(self) -> IndexedSpace[OutputIndex]:
+        """The output space."""
         return self._output_space
 
     @abstractmethod
@@ -77,30 +77,33 @@ class LinearMap(Generic[InputIndex, OutputIndex], ABC):
         """
         return matrix @ self.rows(matrix.column_index_map.keys())
 
-    def evaluate(
+    def projected_output(
         self,
         output_indices: Iterable[OutputIndex],
-        parameters: Mapping[InputIndex, float],
+        vector: Mapping[InputIndex, float],
     ) -> IndexedVector[OutputIndex]:
-        """Compute the projection of the map applied to a parameter vector for some output indices.
+        """Compute a projection of the map applied to a vector.
+
+        The projection is defined by an iterable of output indices: only the component of the vector
+        on those output indices will be returned.
 
         Args:
-            output_indices: The output indices to evaluate.
-            parameters: A mapping from input indices to parameter values.
+            output_indices: The output indices defining the projection.
+            vector: A mapping from input indices to floats.
 
         Returns:
             The projected output vector.
 
         Raises:
-            KeyError: If an input index appearing in the rows is not present in ``parameters``.
+            KeyError: If an input index appearing in the rows is not present in ``vector``.
         """
         matrix = self.rows(output_indices)
 
         parameter_vector = IndexedVector[InputIndex]()
         for input_index in matrix.column_index_map:
-            if input_index not in parameters:
+            if input_index not in vector:
                 raise KeyError(input_index)
-            parameter_vector[input_index] = parameters[input_index]
+            parameter_vector[input_index] = vector[input_index]
 
         return matrix @ parameter_vector
 
