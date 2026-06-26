@@ -65,7 +65,7 @@ class LogPathSpace(IndexedSpace[Path]):
 
 
 class LogPathMap(LinearMap[FidelityIndex, Path]):
-    r"""The linear map from a LogFidelitySpace to its associated LogPathSpace.
+    r"""The linear map from a log fidelity space to its associated log path space.
 
     Args:
         fidelity_space: The log-fidelity space.
