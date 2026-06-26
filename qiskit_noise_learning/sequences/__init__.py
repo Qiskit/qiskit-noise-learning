@@ -12,6 +12,7 @@
 
 """Sequences module."""
 
+from ..math import BaseSequence
 from .apply_gate import ApplyGate
 from .fidelity_index import FidelityIndex
 from .instruction_sequence import InstructionSequence

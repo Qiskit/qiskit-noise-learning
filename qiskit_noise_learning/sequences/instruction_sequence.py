@@ -15,8 +15,8 @@
 from collections.abc import Iterator
 from typing import Self
 
+from ..math import BaseSequence
 from .apply_gate import ApplyGate
-from .base_sequence import BaseSequence
 from .instruction import Instruction
 
 

@@ -14,8 +14,8 @@
 
 from qiskit.quantum_info import PhasedQubitSparsePauli, QubitSparsePauli
 
+from ..math import BaseSequence
 from .apply_gate import ApplyGate
-from .base_sequence import BaseSequence
 from .fidelity_index import FidelityIndex
 from .instruction import Instruction
 from .instruction_sequence import InstructionSequence
@@ -374,18 +374,6 @@ class Path(BaseSequence[FidelityIndex]):
             raise ValueError("Path does not end with identity.")
 
         return start_pauli
-
-    def __hash__(self) -> int:
-        if not hasattr(self, "_hash"):
-            self._hash = hash(
-                (
-                    tuple(self.start_fragment),
-                    tuple(self.repeatable_fragment),
-                    tuple(self.end_fragment),
-                    self.depth,
-                )
-            )
-        return self._hash
 
 
 def _path_fragment_to_instruction_fragment(path_fragment: list[FidelityIndex]) -> list[Instruction]:
