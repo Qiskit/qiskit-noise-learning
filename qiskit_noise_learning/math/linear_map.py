@@ -99,13 +99,13 @@ class LinearMap(Generic[InputIndex, OutputIndex], ABC):
         """
         matrix = self.rows(output_indices)
 
-        parameter_vector = IndexedVector[InputIndex]()
+        vec = IndexedVector[InputIndex]()
         for input_index in matrix.column_index_map:
             if input_index not in vector:
                 raise KeyError(input_index)
-            parameter_vector[input_index] = vector[input_index]
+            vec[input_index] = vector[input_index]
 
-        return matrix @ parameter_vector
+        return matrix @ vec
 
     def compose(
         self, outer: "LinearMap[OutputIndex, OtherOutput]"
@@ -158,8 +158,8 @@ class ComposedLinearMap(LinearMap[InputIndex, OutputIndex]):
         return list(self._maps)
 
     def rows(self, output_indices: Iterable[OutputIndex]) -> IndexedMatrix[OutputIndex, InputIndex]:
-        result = IndexedMatrix.identity(list(output_indices))
-        for current_map in reversed(self._maps):
+        result = self._maps[-1].rows(output_indices)
+        for current_map in reversed(self._maps[:-1]):
             result = current_map.left_multiply(result)
         return result
 

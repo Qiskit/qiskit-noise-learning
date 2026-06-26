@@ -652,3 +652,70 @@ def test_linearly_independent_rows_pivoting():
 
     for k in reduced_matrix.row_index_map:
         assert matrix[k] == reduced_matrix[k]
+
+
+def test_from_rows():
+    matrix = IndexedMatrix.from_rows(
+        ["a", "b"],
+        [IndexedVector({1: 1.0, 2: 2.0}), IndexedVector({2: 3.0})],
+    )
+
+    assert matrix.row_index_map.keys() == {"a", "b"}
+    assert matrix.column_index_map.keys() == {1, 2}
+    assert matrix["a"] == IndexedVector({1: 1.0, 2: 2.0})
+    # omitted columns are filled with zeros
+    assert matrix["b"] == IndexedVector({1: 0.0, 2: 3.0})
+
+
+def test_from_rows_drops_zero_rows():
+    # an all-zero row contributes no columns and is not added (matching add_rows semantics)
+    matrix = IndexedMatrix.from_rows(
+        ["a", "zero"],
+        [IndexedVector({1: 1.0}), IndexedVector()],
+    )
+
+    assert matrix.row_index_map.keys() == {"a"}
+    assert matrix.column_index_map.keys() == {1}
+
+
+def test_matmul_vector():
+    matrix = IndexedMatrix.from_rows(
+        ["r0", "r1"],
+        [IndexedVector({"c0": 1.0, "c1": 2.0}), IndexedVector({"c1": 3.0})],
+    )
+
+    assert matrix @ IndexedVector({"c0": 5.0, "c1": 7.0}) == IndexedVector({"r0": 19.0, "r1": 21.0})
+    # entries absent from the vector are treated as zero
+    assert matrix @ IndexedVector({"c1": 7.0}) == IndexedVector({"r0": 14.0, "r1": 21.0})
+
+
+def test_matmul_matrix():
+    left = IndexedMatrix.from_rows(
+        ["r0", "r1"],
+        [IndexedVector({"k0": 1.0, "k1": 2.0}), IndexedVector({"k1": 3.0})],
+    )
+    right = IndexedMatrix.from_rows(
+        ["k0", "k1"],
+        [IndexedVector({"c0": 1.0}), IndexedVector({"c0": 1.0, "c1": 1.0})],
+    )
+
+    product = left @ right
+
+    assert product.row_index_map.keys() == {"r0", "r1"}
+    assert product.column_index_map.keys() == {"c0", "c1"}
+    # r0 = 1 * right[k0] + 2 * right[k1]
+    assert product["r0"] == IndexedVector({"c0": 3.0, "c1": 2.0})
+    # r1 = 3 * right[k1]
+    assert product["r1"] == IndexedVector({"c0": 3.0, "c1": 3.0})
+
+
+def test_matmul_disjoint_labels():
+    # no shared labels between this matrix's columns and other's rows -> zero product
+    left = IndexedMatrix.from_rows(["r0"], [IndexedVector({"k0": 1.0})])
+    right = IndexedMatrix.from_rows(["x0"], [IndexedVector({"c0": 1.0})])
+
+    product = left @ right
+
+    assert product.row_index_map.keys() == {"r0"}
+    assert product.column_index_map.keys() == {"c0"}
+    assert product["r0"] == IndexedVector({"c0": 0.0})

@@ -119,19 +119,6 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
         matrix.add_rows(row_indices=list(row_indices), rows=list(rows), tol=tol)
         return matrix
 
-    @classmethod
-    def identity(cls, indices: Sequence[RowIndex]) -> Self:
-        """Construct the identity matrix over a collection of indices.
-
-        Args:
-            indices: The indices for the (shared) rows and columns of the identity.
-
-        Returns:
-            A square :class:`IndexedMatrix` whose row and column indices are both ``indices`` and
-            whose data is the identity matrix.
-        """
-        return cls.from_rows(indices, [IndexedVector[RowIndex]({index: 1.0}) for index in indices])
-
     @property
     def row_index_map(self) -> dict[RowIndex, int]:
         """Dictionary mapping row indices to the row axis integer of ``self.data``."""
