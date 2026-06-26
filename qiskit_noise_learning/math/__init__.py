@@ -17,4 +17,3 @@ from .indexed_matrix import IndexedMatrix
 from .indexed_vector import IndexedVector
 from .linear_map import ComposedLinearMap, LinearMap
 from .parameter_space import EnumeratedParameterSpace, ParameterSpace
-from .sequence_map import SequenceMap, SequenceSpace
