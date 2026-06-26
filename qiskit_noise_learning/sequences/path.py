@@ -14,8 +14,8 @@
 
 from qiskit.quantum_info import PhasedQubitSparsePauli, QubitSparsePauli
 
-from ..math import BaseSequence
 from .apply_gate import ApplyGate
+from .base_sequence import BaseSequence
 from .fidelity_index import FidelityIndex
 from .instruction import Instruction
 from .instruction_sequence import InstructionSequence
