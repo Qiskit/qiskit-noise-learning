@@ -60,12 +60,6 @@ class SequenceSpace(ParameterSpace[BaseSequence[Index]]):
 class SequenceMap(LinearMap[Index, BaseSequence[Index]]):
     r"""The linear map sending each sequence to its depth-weighted vector of element multiplicities.
 
-    This realizes the :class:`~.BaseSequence`\ -to-vector linearization as a :class:`~.LinearMap`
-    whose output space is the (infinite-dimensional) :class:`SequenceSpace` over ``element_space``
-    and whose input space is ``element_space`` itself. Pre-composing it with another map evaluates
-    that map on sequences: ``SequenceMap(model.output_space) @ model`` maps the model's input space
-    to sequences over its output indices.
-
     Args:
         element_space: The space whose elements the sequences are built from (the input space).
     """

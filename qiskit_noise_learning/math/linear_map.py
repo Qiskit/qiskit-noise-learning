@@ -30,10 +30,6 @@ RowLabel = TypeVar("RowLabel", bound=Hashable)
 class LinearMap(Generic[InputIndex, OutputIndex], ABC):
     """An implicit linear map between two parameter spaces.
 
-    A linear map is described by its rows: concrete subclasses implement :meth:`rows`, which
-    materializes the rows for a collection of output indices as an :class:`~.IndexedMatrix` indexed
-    by those output indices (rows) and the input indices appearing in them (columns).
-
     Args:
         input_space: The input parameter space.
         output_space: The output parameter space.
@@ -59,32 +55,25 @@ class LinearMap(Generic[InputIndex, OutputIndex], ABC):
 
     @abstractmethod
     def rows(self, output_indices: Iterable[OutputIndex]) -> IndexedMatrix[OutputIndex, InputIndex]:
-        """Materialize the rows for the given output indices.
+        """Construct the sub-matrix whose rows are the given output indices.
 
         Args:
-            output_indices: The output indices whose rows to materialize. These must be supplied
-                explicitly; the full output space is in general too large (or not enumerable) to
-                materialize.
+            output_indices: The labels for the desired rows of the matrix.
 
         Returns:
-            An :class:`~.IndexedMatrix` indexed by the (non-zero) requested output indices and by
-            the input indices appearing in those rows.
+            :class:`~.IndexedMatrix`
         """
 
     def left_multiply(
         self, matrix: IndexedMatrix[RowLabel, OutputIndex]
     ) -> IndexedMatrix[RowLabel, InputIndex]:
-        """Push a matrix whose columns are in this map's output space into the input space.
-
-        Each column of ``matrix`` is an output index of this map; the result rewrites those columns
-        into input indices by contracting through the corresponding rows. Only the output indices
-        present as columns are materialized.
+        """Multiply on the left by an explicit matrix.
 
         Args:
             matrix: A matrix whose column indices are output indices of this map.
 
         Returns:
-            A matrix with the same row indices as ``matrix`` and columns in the input space.
+            The resulting matrix.
         """
         return matrix @ self.rows(matrix.column_index_map.keys())
 
@@ -93,18 +82,14 @@ class LinearMap(Generic[InputIndex, OutputIndex], ABC):
         output_indices: Iterable[OutputIndex],
         parameters: Mapping[InputIndex, float],
     ) -> IndexedVector[OutputIndex]:
-        """Evaluate the rows for a collection of output indices against an input parameter vector.
-
-        Computes ``rows(output_indices) @ parameters``: the dot product of each row with the input
-        parameters.
+        """Compute the projection of the map applied to a parameter vector for some output indices.
 
         Args:
             output_indices: The output indices to evaluate.
             parameters: A mapping from input indices to parameter values.
 
         Returns:
-            An :class:`~.IndexedVector` mapping each output index to its evaluated value (output
-            indices with an all-zero row are omitted).
+            The projected output vector.
 
         Raises:
             KeyError: If an input index appearing in the rows is not present in ``parameters``.
@@ -170,18 +155,15 @@ class ComposedLinearMap(LinearMap[InputIndex, OutputIndex]):
         return list(self._maps)
 
     def rows(self, output_indices: Iterable[OutputIndex]) -> IndexedMatrix[OutputIndex, InputIndex]:
-        """Materialize the composed rows by folding ``left_multiply`` back through the chain."""
         result = IndexedMatrix.identity(list(output_indices))
         for current_map in reversed(self._maps):
             result = current_map.left_multiply(result)
         return result
 
     def compose(self, outer: "LinearMap[OutputIndex, OtherOutput]") -> "ComposedLinearMap":
-        """Post-compose, flattening into a single chain via ``self.__class__``."""
         outer_maps = outer.maps if isinstance(outer, ComposedLinearMap) else [outer]
         return self.__class__(self._maps + outer_maps)
 
     def pre_compose(self, inner: "LinearMap[OtherInput, InputIndex]") -> "ComposedLinearMap":
-        """Pre-compose, flattening into a single chain via ``self.__class__``."""
         inner_maps = inner.maps if isinstance(inner, ComposedLinearMap) else [inner]
         return self.__class__(inner_maps + self._maps)
