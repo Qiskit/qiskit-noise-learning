@@ -11,3 +11,5 @@
 # that they have been altered from the originals.
 
 """Modelling module."""
+
+from .log_fidelity_space import LogFidelitySpace
