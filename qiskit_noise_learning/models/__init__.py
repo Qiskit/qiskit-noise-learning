@@ -13,3 +13,4 @@
 """Modelling module."""
 
 from .log_fidelity_space import LogFidelitySpace
+from .log_path_map import LogPathMap, LogPathSpace
