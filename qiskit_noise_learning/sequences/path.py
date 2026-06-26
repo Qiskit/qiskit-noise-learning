@@ -375,6 +375,18 @@ class Path(BaseSequence[FidelityIndex]):
 
         return start_pauli
 
+    def __hash__(self) -> int:
+        if not hasattr(self, "_hash"):
+            self._hash = hash(
+                (
+                    tuple(self.start_fragment),
+                    tuple(self.repeatable_fragment),
+                    tuple(self.end_fragment),
+                    self.depth,
+                )
+            )
+        return self._hash
+
 
 def _path_fragment_to_instruction_fragment(path_fragment: list[FidelityIndex]) -> list[Instruction]:
     """Given a path fragment, build a minimal instruction fragment that traverses it.
