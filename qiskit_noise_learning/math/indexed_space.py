@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""ParameterSpace"""
+"""IndexedSpace"""
 
 from abc import ABC, abstractmethod
 from collections.abc import Hashable, Iterator
@@ -19,8 +19,8 @@ from typing import Generic, TypeVar
 Index = TypeVar("Index", bound=Hashable)
 
 
-class ParameterSpace(Generic[Index], ABC):
-    """Abstract description of vector space with arbitrary basis index types."""
+class IndexedSpace(Generic[Index], ABC):
+    """Abstract description of a vector space with arbitrary basis index types."""
 
     @property
     @abstractmethod
@@ -35,8 +35,8 @@ class ParameterSpace(Generic[Index], ABC):
         """Check whether an index is a valid member of this space."""
 
 
-class EnumeratedParameterSpace(ParameterSpace[Index]):
-    """A parameter space backed by an explicit finite collection of indices.
+class EnumeratedIndexedSpace(IndexedSpace[Index]):
+    """An indexed space backed by an explicit finite collection of indices.
 
     Args:
         indices: The collection of valid indices in this space.
