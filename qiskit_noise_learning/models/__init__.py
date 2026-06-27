@@ -21,6 +21,11 @@ from .identity_fidelity_model import IdentityFidelityModel
 from .log_fidelity_space import LogFidelitySpace
 from .log_path_map import LogPathMap, LogPathSpace
 from .pauli_lindblad_model import GeneratorIndex, PauliLindbladModel, RateSpace
+from .utils import (
+    contains_pauli_lindblad_model,
+    is_fidelity_model,
+    split_pauli_lindblad_model,
+)
 
 # Annotation-only alias for a fidelity model: a LinearMap whose output indices are FidelityIndex.
 LogFidelityMap = LinearMap[Hashable, FidelityIndex]
