@@ -17,9 +17,9 @@ from qiskit.quantum_info import QubitSparsePauli, QubitSparsePauliList
 from qiskit_noise_learning.analysis import Fit, PositivityMinSolve
 from qiskit_noise_learning.data import AveragedData
 from qiskit_noise_learning.math import IndexedMatrix, IndexedVector
-from qiskit_noise_learning.models._legacy import (
-    CompleteFidelityModel,
+from qiskit_noise_learning.models import (
     GeneratorIndex,
+    IdentityFidelityModel,
     PauliLindbladModel,
 )
 
@@ -43,8 +43,8 @@ class TestPositivityMinSolve:
         self, gate_set_cz, make_cz_path, make_averaged_data
     ):
         """Raises TypeError if model is not a PauliLindbladModel."""
-        # CompleteFidelityModel is a real FidelityModel that is not a PauliLindbladModel.
-        model = CompleteFidelityModel(gate_set_cz)
+        # IdentityFidelityModel is a real FidelityModel that is not a PauliLindbladModel.
+        model = IdentityFidelityModel(gate_set_cz)
         path = make_cz_path("XI")
         solver = PositivityMinSolve(coefficients={"CZ": 1.0}, epsilon=1.0, deltas={path: 1.0})
 

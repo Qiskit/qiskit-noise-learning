@@ -19,7 +19,7 @@ from qiskit_ibm_runtime.fake_provider.backends.fez import FakeFez
 from qiskit_ibm_runtime.quantum_program import QuantumProgram
 
 from qiskit_noise_learning.circuit_generator import ExecutorDataMapper
-from qiskit_noise_learning.models._legacy import PauliLindbladModel
+from qiskit_noise_learning.models import PauliLindbladModel
 from qiskit_noise_learning.noise_learner import LearningOptions, NoiseLearner
 from qiskit_noise_learning.noise_learner.noise_learner_job import NoiseLearnerJob
 

@@ -16,7 +16,7 @@ from qiskit.quantum_info import QubitSparsePauli, QubitSparsePauliList
 
 from qiskit_noise_learning.analysis import Fit, LSQLinearSolve, NNLSSolve
 from qiskit_noise_learning.data import AveragedData
-from qiskit_noise_learning.models._legacy import GeneratorIndex, PauliLindbladModel
+from qiskit_noise_learning.models import GeneratorIndex, PauliLindbladModel
 
 _SOLVERS = [LSQLinearSolve(), NNLSSolve()]
 
