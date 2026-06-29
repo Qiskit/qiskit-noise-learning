@@ -16,6 +16,7 @@ from qiskit.quantum_info import PauliLindbladMap
 
 from qiskit_noise_learning.analysis import Fit
 from qiskit_noise_learning.data import ModelData
+from qiskit_noise_learning.models import split_pauli_lindblad_model
 
 
 class NoiseLearnerResult:
@@ -41,4 +42,5 @@ class NoiseLearnerResult:
         model_data = self._fit.model_data
         if not isinstance(model_data, ModelData):
             raise RuntimeError("Fit does not contain ModelData; analysis may not have completed.")
-        return self._fit.model.to_pauli_lindblad_maps(model_data)
+        pauli_lindblad_model = split_pauli_lindblad_model(self._fit.model)[1]
+        return pauli_lindblad_model.to_pauli_lindblad_maps(model_data)

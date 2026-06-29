@@ -40,7 +40,7 @@ from ..experiment_builder import (
     MergeInstructionSequences,
 )
 from ..gate_sets import QiskitGateSet
-from ..models._legacy import PauliLindbladModel
+from ..models import PauliLindbladModel
 from .learning_options import LearningOptions
 from .noise_learner_job import NoiseLearnerJob
 

@@ -20,7 +20,11 @@ from qiskit_noise_learning.analysis import AnalysisStage, Fit
 from qiskit_noise_learning.data import AveragedData, ModelData
 from qiskit_noise_learning.data.xarray_utils import time_bound
 from qiskit_noise_learning.math import IndexedMatrix, IndexedVector
-from qiskit_noise_learning.models._legacy.pauli_lindblad_model import PauliLindbladModel
+from qiskit_noise_learning.models import (
+    LogPathMap,
+    contains_pauli_lindblad_model,
+    split_pauli_lindblad_model,
+)
 from qiskit_noise_learning.optionals import HAS_CVXPY
 from qiskit_noise_learning.sequences import Path
 
@@ -125,7 +129,6 @@ class ModelSolve(AnalysisStage):
             )
 
         row_indices = []
-        rows = []
         dataset_idxs = []
 
         for lookup_key, path in targets:
@@ -135,7 +138,6 @@ class ModelSolve(AnalysisStage):
                 )
 
             row_indices.append(path)
-            rows.append(fidelity_model.row_from_path(path))
             dataset_idxs.append(idx)
 
         fidelities = dataset["observables"].data[dataset_idxs]
@@ -143,8 +145,10 @@ class ModelSolve(AnalysisStage):
         time_lbs_list = dataset["time_lbs"].data[dataset_idxs]
         time_ubs_list = dataset["time_ubs"].data[dataset_idxs]
 
-        design_matrix = IndexedMatrix()
-        design_matrix.add_rows(row_indices=row_indices, rows=rows)
+        # The design matrix maps the model's input parameters to path log-fidelities: compose the
+        # fidelity model with the path linearization, then materialize the rows for the paths.
+        path_model = LogPathMap(fidelity_model.output_space) @ fidelity_model
+        design_matrix = path_model.rows(row_indices)
 
         # Build b and sigma_b aligned with the design matrix's row order. add_rows may drop all-zero
         # rows, so iterate row_index_map, the surviving rows.
@@ -314,10 +318,15 @@ class PositivityMinSolve(ModelSolve):
         self.non_negative = non_negative
 
     def _run(self, fit: Fit):
-        if not isinstance(fit.model, PauliLindbladModel):
+        if not contains_pauli_lindblad_model(fit.model):
             raise TypeError(
-                "PositivityMinSolve requires a PauliLindbladModel, "
+                "PositivityMinSolve requires a model containing a PauliLindbladModel, "
                 f"but got {type(fit.model).__name__}."
+            )
+        if split_pauli_lindblad_model(fit.model)[2] is not None:
+            raise NotImplementedError(
+                "PositivityMinSolve does not yet support models with maps applied before the "
+                "PauliLindbladModel (the fit parameters would not be the Pauli-Lindblad rates)."
             )
         super()._run(fit)
 

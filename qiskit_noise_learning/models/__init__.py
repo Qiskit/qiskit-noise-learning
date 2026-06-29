@@ -28,4 +28,4 @@ from .utils import (
 )
 
 # Annotation-only alias for a fidelity model: a LinearMap whose output indices are FidelityIndex.
-LogFidelityMap = LinearMap[Hashable, FidelityIndex]
+FidelityModel = LinearMap[Hashable, FidelityIndex]
