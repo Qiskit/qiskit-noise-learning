@@ -19,7 +19,7 @@ from copy import copy
 
 from qiskit_noise_learning.gate_sets import ModelGateSet
 from qiskit_noise_learning.math import IndexedMatrix
-from qiskit_noise_learning.models._legacy import CompleteFidelityModel, FidelityModel
+from qiskit_noise_learning.models import FidelityModel, IdentityFidelityModel, LogPathMap
 from qiskit_noise_learning.sequences import InstructionSequence, Path
 
 
@@ -34,8 +34,8 @@ class Experiment:
     :class:`~.ExperimentBuilderStage` instances.
 
     Args:
-        fidelity_model: A fidelity model or a model gate set (which is wrapped in a
-            :class:`~.CompleteFidelityModel`).
+        fidelity_model: A fidelity model or a model gate set (which is wrapped in an
+            :class:`~.IdentityFidelityModel`).
         paths: Paths to analyze.
         instruction_sequences: Instruction sequences (may include both bound and unbound).
         relations: Set of ``(path_idx, sequence_idx)`` tuples indicating which paths are
@@ -61,7 +61,7 @@ class Experiment:
         validate: bool = True,
     ):
         if isinstance(fidelity_model, ModelGateSet):
-            fidelity_model = CompleteFidelityModel(fidelity_model)
+            fidelity_model = IdentityFidelityModel(fidelity_model)
 
         self._fidelity_model = None
         self._paths = None
@@ -335,12 +335,8 @@ class Experiment:
         )
 
     def _compute_design_matrix(self) -> IndexedMatrix:
-        matrix = IndexedMatrix()
-        rows = []
-        for path in self._paths:
-            rows.append(self._fidelity_model.row_from_path(path))
-        matrix.add_rows(row_indices=self._paths, rows=rows)
-        return matrix
+        path_model = LogPathMap(self._fidelity_model.output_space) @ self._fidelity_model
+        return path_model.rows(self._paths)
 
 
 def _optional_concat(a: list | None, b: list | None) -> list | None:
