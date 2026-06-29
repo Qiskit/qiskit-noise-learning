@@ -20,7 +20,12 @@ from qiskit_noise_learning.gate_sets import ModelGate
 from qiskit_noise_learning.sequences import FidelityIndex, Path
 
 from ...experiment import Experiment
-from ..utils import default_gates, default_meas_gate, default_prep_gate
+from ..utils import (
+    default_input_paulis,
+    default_meas_gate,
+    default_prep_gate,
+    default_unitary_gates,
+)
 from .add_paths import AddPaths
 
 
@@ -33,10 +38,11 @@ class EvenDepthVanillaPaths(AddPaths):
     Args:
         prep_gate: The preparation gate. If ``None``, defaults to the gate named ``"P"``.
         meas_gate: The measurement gate. If ``None``, defaults to the gate named ``"M"``.
-        gates: Gates to generate paths for. If ``None``, defaults to all non-SPAM gates in
-            the gate set.
-        input_paulis: Optional mapping from gate name to the Paulis to use. If ``None``, uses
-            ``fidelity_model.generators[gate_name]`` for each gate.
+        gates: Gates to generate paths for; these must be unitary (no preparation or measurement
+            component). If ``None``, defaults to all unitary gates in the gate set.
+        input_paulis: Optional mapping from gate name to the Paulis to use. If not specified,
+            defaults to the gate generators if the fidelity model contains a
+            :class:`~.PauliLindbladModel`, otherwise a ``ValueError`` is raised.
     """
 
     @property
@@ -64,13 +70,14 @@ class EvenDepthVanillaPaths(AddPaths):
         gate_set = experiment.gate_set
         prep_gate = self._prep_gate or default_prep_gate(gate_set)
         meas_gate = self._meas_gate or default_meas_gate(gate_set)
-        gates = self._gates or default_gates(gate_set)
+        gates = self._gates or default_unitary_gates(gate_set)
+
+        input_paulis = self._input_paulis
+        if input_paulis is None:
+            input_paulis = default_input_paulis(experiment.fidelity_model)
 
         for gate in gates:
-            if self._input_paulis is not None:
-                paulis = self._input_paulis[gate.name]
-            else:
-                paulis = experiment.fidelity_model.generators[gate.name]
+            paulis = input_paulis[gate.name]
 
             yield from _even_depth_vanilla_paths(prep_gate, meas_gate, gate, paulis)
 
