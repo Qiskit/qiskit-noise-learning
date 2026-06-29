@@ -162,12 +162,8 @@ class ModelSolve(AnalysisStage):
         time_lb = time_bound(all_time_lbs, "min")
         time_ub = time_bound(all_time_ubs, "max")
 
-        param_labels = [
-            k for k, _ in sorted(design_matrix.column_index_map.items(), key=lambda item: item[1])
-        ]
-        path_labels = [
-            k for k, _ in sorted(design_matrix.row_index_map.items(), key=lambda item: item[1])
-        ]
+        param_labels = sorted(x := design_matrix.column_index_map, key=x.get)
+        path_labels = sorted(x := design_matrix.row_index_map, key=x.get)
 
         return design_matrix.data, b, sigma_b, param_labels, path_labels, time_lb, time_ub
 
