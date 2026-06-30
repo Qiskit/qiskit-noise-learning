@@ -285,6 +285,36 @@ def test_model_gate_set(target_4q):
     assert model_gs.coupling_map == CouplingMap([(0, 1), (1, 2), (2, 3)])
 
 
+def test_latex_str_propagation():
+    """The ``latex_str`` argument is forwarded by every gate-adding method."""
+    gs = QiskitGateSet(10)
+
+    circuit = QuantumCircuit(5)
+    circuit.cx(1, 2)
+    name = gs.add_circuit_as_gate(circuit, latex_str=r"\alpha")
+    assert gs[name].latex_str == r"\alpha"
+
+    box_circuit = QuantumCircuit(10)
+    with box_circuit.box():
+        box_circuit.cx(3, 4)
+        box_circuit.noop([1, 8])
+    name = gs.add_box_as_gate(box_circuit[0], latex_str=r"\beta")
+    assert gs[name].latex_str == r"\beta"
+
+    name = gs.add_measurement(latex_str=r"\gamma")
+    assert gs[name].latex_str == r"\gamma"
+
+    name = gs.add_preparation(latex_str=r"\delta")
+    assert gs[name].latex_str == r"\delta"
+
+    with gs.build_new_gate(latex_str=r"\epsilon") as builder:
+        builder.circuit.cx(4, 5)
+    assert gs[builder.name].latex_str == r"\epsilon"
+
+    # gates added without an explicit value fall back to the name
+    assert gs["M"].latex_str == "M"
+
+
 def test_repr_html():
     """Test that the HTML repr doesn't fail."""
 
