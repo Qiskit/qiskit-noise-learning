@@ -39,6 +39,9 @@ class GateSet(Mapping[str, GateType], metaclass=ABCMeta):
         target: An optional :class:`~.Target` against which operations will be validated whenever
             gates are added to the gate set. Its number of qubits must match ``num_qubits`` if both
             are present.
+        name: Name for this gate set. If ``None``, :attr:`name` falls back to the class name.
+        latex_str: An optional LaTeX string for rendering this gate set. If ``None``,
+            :attr:`latex_str` falls back to :attr:`name`.
     """
 
     def __init__(
@@ -46,8 +49,12 @@ class GateSet(Mapping[str, GateType], metaclass=ABCMeta):
         num_qubits: int,
         qubit_subset: Iterable[int] | None = None,
         target: Target | None = None,
+        name: str | None = None,
+        latex_str: str | None = None,
     ):
         self._num_qubits = num_qubits
+        self._name = name
+        self._latex_str = latex_str
         if qubit_subset is None:
             self._qubit_subset = frozenset(range(self._num_qubits))
         else:
@@ -62,6 +69,16 @@ class GateSet(Mapping[str, GateType], metaclass=ABCMeta):
     @abstractmethod
     def model_gate_set(self) -> "ModelGateSet":
         """Return a :class:`ModelGateSet` representing this gate set."""
+
+    @property
+    def name(self) -> str:
+        """Name for this gate set, defaulting to the class name."""
+        return self._name if self._name is not None else type(self).__name__
+
+    @property
+    def latex_str(self) -> str:
+        """A LaTeX string for this gate set."""
+        return self._latex_str if self._latex_str is not None else self.name
 
     @property
     def num_qubits(self) -> int:

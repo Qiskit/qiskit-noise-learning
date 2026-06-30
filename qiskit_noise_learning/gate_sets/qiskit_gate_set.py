@@ -105,6 +105,9 @@ class QiskitGateSet(GateSet[QiskitGate]):
         add_default_spam: Whether to initialize the gateset with gates that respectively implement
             state preparation (given name ``"P"``) and state measurement (given name ``"M"``) on
             all qubits in the region of interest.
+        name: Name for this gate set. If ``None``, :attr:`name` falls back to the class name.
+        latex_str: An optional LaTeX string for rendering this gate set. If ``None``,
+            :attr:`latex_str` falls back to :attr:`name`.
     """
 
     def __init__(
@@ -114,6 +117,8 @@ class QiskitGateSet(GateSet[QiskitGate]):
         target: Target | None = None,
         qubit_subset: Iterable[int] | None = None,
         add_default_spam: bool = True,
+        name: str | None = None,
+        latex_str: str | None = None,
     ):
         if num_qubits is None and target is None:
             raise ValueError("At least one of `num_qubits` or `target` must be specified.")
@@ -122,7 +127,11 @@ class QiskitGateSet(GateSet[QiskitGate]):
 
         qubit_subset = list(qubit_subset) if qubit_subset is not None else None
         super().__init__(
-            num_qubits=num_qubits or target.num_qubits, qubit_subset=qubit_subset, target=target
+            num_qubits=num_qubits or target.num_qubits,
+            qubit_subset=qubit_subset,
+            target=target,
+            name=name,
+            latex_str=latex_str,
         )
 
         self._name_iter = (f"L{idx}" for idx in count())
@@ -148,6 +157,8 @@ class QiskitGateSet(GateSet[QiskitGate]):
             num_qubits=self.num_qubits,
             qubit_subset=self.qubit_subset,
             coupling_map=self._target.build_coupling_map() if self._target else None,
+            name=self._name,
+            latex_str=self._latex_str,
         )
         for gate in self._gates.values():
             model_gate_set.add_gate(gate=gate.model_gate)

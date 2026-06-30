@@ -315,6 +315,36 @@ def test_latex_str_propagation():
     assert gs["M"].latex_str == "M"
 
 
+def test_name_and_latex_str():
+    # default to the class name, with latex_str falling back to name
+    gs = QiskitGateSet(10)
+    assert gs.name == "QiskitGateSet"
+    assert gs.latex_str == "QiskitGateSet"
+
+    # explicit name, latex_str still falls back to it
+    gs = QiskitGateSet(10, name="my_set")
+    assert gs.name == "my_set"
+    assert gs.latex_str == "my_set"
+
+    # both supplied explicitly
+    gs = QiskitGateSet(10, name="my_set", latex_str=r"\mathcal{G}")
+    assert gs.name == "my_set"
+    assert gs.latex_str == r"\mathcal{G}"
+
+
+def test_name_and_latex_str_propagate_to_model_gate_set():
+    # an explicit name/latex_str carries over to the derived model gate set
+    gs = QiskitGateSet(4, name="my_set", latex_str=r"\mathcal{G}")
+    model_gs = gs.model_gate_set
+    assert model_gs.name == "my_set"
+    assert model_gs.latex_str == r"\mathcal{G}"
+
+    # when unset, the model gate set falls back to its own class name rather than inheriting
+    # the QiskitGateSet class name
+    model_gs = QiskitGateSet(4).model_gate_set
+    assert model_gs.name == "ModelGateSet"
+
+
 def test_repr_html():
     """Test that the HTML repr doesn't fail."""
 
