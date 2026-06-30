@@ -152,7 +152,7 @@ class GateSet(Mapping[str, GateType], metaclass=ABCMeta):
         return [], []
 
     def _repr_html_(self) -> str:
-        caption = f"{type(self).__name__} — {self.num_qubits} qubits, {len(self)} gates"
+        caption = f"{self.name} — {self.num_qubits} qubits, {len(self)} gates"
 
         table = (
             HTMLTable()
