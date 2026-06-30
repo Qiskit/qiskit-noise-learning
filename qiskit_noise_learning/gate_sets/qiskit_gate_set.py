@@ -34,10 +34,17 @@ from .qiskit_gate import QiskitGate
 class GateBuilder:
     """Helper context to build new gates for a :class:`~.QiskitGateSet`."""
 
-    def __init__(self, gate_set: "QiskitGateSet", name: str, idle_unused: bool = True):
+    def __init__(
+        self,
+        gate_set: "QiskitGateSet",
+        name: str,
+        idle_unused: bool = True,
+        latex_str: str | None = None,
+    ):
         self.name = name
         self._gate_set = gate_set
         self._idle_unused = idle_unused
+        self._latex_str = latex_str
         self.circuit = QuantumCircuit(gate_set.num_qubits)
         self._box = None
 
@@ -54,7 +61,7 @@ class GateBuilder:
             self._box.__exit__(exc_type, exc_value, traceback)
         finally:
             self._box = None
-        self._gate_set.add_box_as_gate(self.circuit[0], name=self.name)
+        self._gate_set.add_box_as_gate(self.circuit[0], name=self.name, latex_str=self._latex_str)
         return False
 
 
@@ -181,7 +188,13 @@ class QiskitGateSet(GateSet[QiskitGate]):
 
         super().add_gate(gate)
 
-    def add_box_as_gate(self, box_instr: CircuitInstruction, *, name: str | None = None) -> str:
+    def add_box_as_gate(
+        self,
+        box_instr: CircuitInstruction,
+        *,
+        name: str | None = None,
+        latex_str: str | None = None,
+    ) -> str:
         """Add a Qiskit circuit instruction containing a box operation as a gate.
 
         .. code:: python
@@ -204,6 +217,7 @@ class QiskitGateSet(GateSet[QiskitGate]):
         Args:
             box_instr: The circuit instruction containing a box operation.
             name: The name of the gate, or ``None`` to have a name chosen for you.
+            latex_str: An optional LaTeX string for this gate.
 
         Returns:
             The name of the added gate.
@@ -227,7 +241,9 @@ class QiskitGateSet(GateSet[QiskitGate]):
 
         name = name or next(self._name_iter)
         annotations = box.annotations or [Twirl()]
-        self.add_gate(QiskitGate(name, box.body, qubit_idxs, annotations=annotations))
+        self.add_gate(
+            QiskitGate(name, box.body, qubit_idxs, annotations=annotations, latex_str=latex_str)
+        )
         return name
 
     def add_circuit_as_gate(
@@ -237,6 +253,7 @@ class QiskitGateSet(GateSet[QiskitGate]):
         *,
         annotations: Iterable[Annotation] | None = None,
         name: str | None = None,
+        latex_str: str | None = None,
     ) -> str:
         """Add a quantum circuit object as a gate.
 
@@ -266,6 +283,7 @@ class QiskitGateSet(GateSet[QiskitGate]):
             annotations: The annotations that describe how to implement the circuit, or ``None``
                 to use the default annotations of :class:`~.QiskitGate`.
             name: The name of the gate, or ``None`` to have a name chosen for you.
+            latex_str: An optional LaTeX string for this gate.
 
         Returns:
             The name of the added gate.
@@ -273,10 +291,17 @@ class QiskitGateSet(GateSet[QiskitGate]):
         if qubit_idxs is None:
             qubit_idxs = range(circuit.num_qubits)
         name = name or next(self._name_iter)
-        self.add_gate(QiskitGate(name, circuit, qubit_idxs, annotations=annotations))
+        self.add_gate(
+            QiskitGate(name, circuit, qubit_idxs, annotations=annotations, latex_str=latex_str)
+        )
         return name
 
-    def build_new_gate(self, name: str | None = None, idle_unused: bool = True) -> GateBuilder:
+    def build_new_gate(
+        self,
+        name: str | None = None,
+        idle_unused: bool = True,
+        latex_str: str | None = None,
+    ) -> GateBuilder:
         """Return a circuit builder whose contents will be added as a gate.
 
         .. code:: python
@@ -295,11 +320,12 @@ class QiskitGateSet(GateSet[QiskitGate]):
             name: The name of the gate, or ``None`` to have a name chosen for you.
             idle_unused: Whether all qubits in :attr:`~.GateSet.qubit_subset` that are not
                 already part of the gate will be automatically included as idling qubits.
+            latex_str: An optional LaTeX string for this gate.
 
         Returns:
             A circuit builder.
         """
-        return GateBuilder(self, name or next(self._name_iter), idle_unused)
+        return GateBuilder(self, name or next(self._name_iter), idle_unused, latex_str)
 
     def add_measurement(
         self,
@@ -308,6 +334,7 @@ class QiskitGateSet(GateSet[QiskitGate]):
         *,
         annotations: Iterable[Annotation] | None = None,
         name: str | None = None,
+        latex_str: str | None = None,
     ) -> str:
         """Add a gate to this gate set that measures specified qubits.
 
@@ -317,6 +344,7 @@ class QiskitGateSet(GateSet[QiskitGate]):
             annotations: The annotations that describe how to implement the measurement, or ``None``
                 to use the default annotations of :class:`~.QiskitGate`.
             name: The name of the gate, or ``None`` to have a name chosen for you.
+            latex_str: An optional LaTeX string for this gate.
 
         Returns:
             The name of the added gate.
@@ -327,7 +355,9 @@ class QiskitGateSet(GateSet[QiskitGate]):
             circuit.append(operation_type(), [idx], [idx])
 
         name = name or next(self._name_iter)
-        self.add_gate(QiskitGate(name, circuit, qubit_idxs, annotations=annotations))
+        self.add_gate(
+            QiskitGate(name, circuit, qubit_idxs, annotations=annotations, latex_str=latex_str)
+        )
         return name
 
     def add_preparation(
@@ -336,6 +366,7 @@ class QiskitGateSet(GateSet[QiskitGate]):
         *,
         annotations: Iterable[Annotation] | None = None,
         name: str | None = None,
+        latex_str: str | None = None,
     ) -> str:
         """Add a gate to this gate set that prepares (or resets) specified qubits.
 
@@ -344,6 +375,7 @@ class QiskitGateSet(GateSet[QiskitGate]):
             annotations: The annotations that describe how to implement the preparation, or ``None``
                 to use the default annotations of :class:`~.QiskitGate`.
             name: The name of the gate, or ``None`` to have a name chosen for you.
+            latex_str: An optional LaTeX string for this gate.
 
         Returns:
             The name of the added gate.
@@ -352,6 +384,13 @@ class QiskitGateSet(GateSet[QiskitGate]):
         circuit = QuantumCircuit(len(qubit_idxs))
         name = name or next(self._name_iter)
         self.add_gate(
-            QiskitGate(name, circuit, qubit_idxs, prep_idxs=qubit_idxs, annotations=annotations),
+            QiskitGate(
+                name,
+                circuit,
+                qubit_idxs,
+                prep_idxs=qubit_idxs,
+                annotations=annotations,
+                latex_str=latex_str,
+            ),
         )
         return name
