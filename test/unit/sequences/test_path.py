@@ -13,10 +13,9 @@
 
 import pytest
 from qiskit import QuantumCircuit
-from qiskit.circuit.library import CZGate, XGate
 from qiskit.quantum_info import Clifford, PhasedQubitSparsePauli, QubitSparsePauli
 
-from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
+from qiskit_noise_learning.gate_sets import ModelGate
 from qiskit_noise_learning.sequences import (
     ApplyGate,
     FidelityIndex,
@@ -24,33 +23,6 @@ from qiskit_noise_learning.sequences import (
     PartialPauliPermutation,
     Path,
 )
-
-
-@pytest.fixture()
-def gate_set_1q():
-    model_gate_set = ModelGateSet(1)
-    ident = [((0,), Clifford(QuantumCircuit(1)))]
-    model_gate_set.add_gate(ModelGate("P", ident, prep_idxs=range(1)))
-    model_gate_set.add_gate(ModelGate("M", ident, meas_idxs=range(1)))
-    # Clifford maps X -> -Y, Y -> Z, Z -> -X
-    model_gate_set.add_gate(
-        ModelGate("L0", [((0,), Clifford([[True, True, True], [True, False, True]]))])
-    )
-    model_gate_set.add_gate(ModelGate("L1", [((0,), Clifford(XGate()))]))
-    return model_gate_set
-
-
-@pytest.fixture()
-def gate_set_cz():
-    model_gate_set = ModelGateSet(2)
-    model_gate_set.add_gate(ModelGate("CZ", [((0, 1), Clifford(CZGate()))]))
-    model_gate_set.add_gate(
-        ModelGate("P", [((0, 1), Clifford(QuantumCircuit(2)))], prep_idxs=range(2))
-    )
-    model_gate_set.add_gate(
-        ModelGate("M", [((0, 1), Clifford(QuantumCircuit(2)))], meas_idxs=range(2))
-    )
-    return model_gate_set
 
 
 def test_construction():

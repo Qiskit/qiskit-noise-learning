@@ -32,11 +32,9 @@ class TestIdentifyRelations:
         with pytest.raises(ValueError, match="requires 'instruction_sequences'"):
             stage.run(Experiment(paths=[]))
 
-    def test_unbound_paths_full_relations(
-        self, gate_set_cz, unbound_path_ix, unbound_path_xi, unbound_path_xx
-    ):
+    def test_unbound_paths_full_relations(self, gate_set_cz, make_cz_path):
         """All instruction sequences are mutually mergeable, so extension gives full relations."""
-        paths = [unbound_path_ix, unbound_path_xi, unbound_path_xx]
+        paths = [make_cz_path("IX"), make_cz_path("XI"), make_cz_path("XX")]
         seqs = [p.to_instruction_sequence() for p in paths]
         exp = Experiment(
             fidelity_model=gate_set_cz,
@@ -49,11 +47,9 @@ class TestIdentifyRelations:
 
         assert result.relations == {(a, b) for a, b in product(range(3), range(3))}
 
-    def test_bound_paths_full_relations(
-        self, gate_set_cz, unbound_path_ix, unbound_path_xi, unbound_path_xx
-    ):
+    def test_bound_paths_full_relations(self, gate_set_cz, make_cz_path):
         """All instruction sequences are mutually mergeable, so extension gives full relations."""
-        paths = [p.bind_at(2) for p in [unbound_path_ix, unbound_path_xi, unbound_path_xx]]
+        paths = [p.bind_at(2) for p in [make_cz_path("IX"), make_cz_path("XI"), make_cz_path("XX")]]
         seqs = [p.to_instruction_sequence() for p in paths]
 
         exp = Experiment(
@@ -67,10 +63,8 @@ class TestIdentifyRelations:
 
         assert result.relations == {(a, b) for a, b in product(range(3), range(3))}
 
-    def test_no_extension_limits_relations(
-        self, gate_set_cz, unbound_path_ix, unbound_path_xi, unbound_path_xx
-    ):
-        paths = [unbound_path_ix, unbound_path_xi, unbound_path_xx]
+    def test_no_extension_limits_relations(self, gate_set_cz, make_cz_path):
+        paths = [make_cz_path("IX"), make_cz_path("XI"), make_cz_path("XX")]
         seqs = [p.to_instruction_sequence() for p in paths]
         exp = Experiment(
             fidelity_model=gate_set_cz,
@@ -83,10 +77,8 @@ class TestIdentifyRelations:
 
         assert result.relations == {(0, 0), (1, 1), (2, 2)}
 
-    def test_manual_sequences_without_extension(
-        self, gate_set_cz, unbound_path_ix, unbound_path_xi, unbound_path_xx
-    ):
-        paths = [unbound_path_ix, unbound_path_xi, unbound_path_xx]
+    def test_manual_sequences_without_extension(self, gate_set_cz, make_cz_path):
+        paths = [make_cz_path("IX"), make_cz_path("XI"), make_cz_path("XX")]
 
         instruction_sequence_ix = InstructionSequence(
             start_fragment=[

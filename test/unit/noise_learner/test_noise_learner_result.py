@@ -12,23 +12,12 @@
 
 import numpy as np
 import pytest
-from qiskit.circuit.library import CZGate
-from qiskit.quantum_info import Clifford, PauliLindbladMap, QubitSparsePauli, QubitSparsePauliList
+from qiskit.quantum_info import PauliLindbladMap, QubitSparsePauli, QubitSparsePauliList
 
 from qiskit_noise_learning.analysis import Fit
 from qiskit_noise_learning.data import ModelData
-from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
 from qiskit_noise_learning.models import GeneratorIndex, PauliLindbladModel
 from qiskit_noise_learning.noise_learner import NoiseLearnerResult
-
-
-@pytest.fixture()
-def gate_set_cz():
-    model_gate_set = ModelGateSet(2)
-    model_gate_set.add_gate(ModelGate("CZ", [((0, 1), Clifford(CZGate()))]))
-    model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(2), prep_idxs=range(2)))
-    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), meas_idxs=range(2)))
-    return model_gate_set
 
 
 @pytest.fixture()

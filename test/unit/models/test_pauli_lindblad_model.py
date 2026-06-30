@@ -52,15 +52,6 @@ def two_q_pauli_str():
 
 
 @pytest.fixture()
-def gate_set_cz():
-    model_gate_set = ModelGateSet(2)
-    model_gate_set.add_gate(ModelGate("CZ", [((0, 1), Clifford(CZGate()))]))
-    model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(2), prep_idxs=range(2)))
-    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), meas_idxs=range(2)))
-    return model_gate_set
-
-
-@pytest.fixture()
 def generators_cz():
     return {
         "CZ": QubitSparsePauliList(

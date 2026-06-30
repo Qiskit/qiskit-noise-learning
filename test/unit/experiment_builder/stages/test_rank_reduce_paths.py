@@ -82,7 +82,9 @@ class TestRankReducePaths:
         assert len(result.instruction_sequences) == 1
         assert result.relations == {(0, 0)}
 
-    def test_independent_paths_kept(self, gate_set_cz, unbound_path_ix, unbound_path_xi):
+    def test_independent_paths_kept(self, gate_set_cz, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
+        unbound_path_xi = make_cz_path("XI")
         seq_ix = unbound_path_ix.to_instruction_sequence()
         seq_xi = unbound_path_xi.to_instruction_sequence()
         exp = Experiment(

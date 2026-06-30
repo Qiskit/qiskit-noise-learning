@@ -14,21 +14,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from qiskit.circuit import BoxOp, QuantumCircuit
+from qiskit.quantum_info import QubitSparsePauliList
+from qiskit_ibm_runtime.fake_provider.backends.fez import FakeFez
 from qiskit_ibm_runtime.quantum_program import QuantumProgram
 
 from qiskit_noise_learning.circuit_generator import ExecutorDataMapper
+from qiskit_noise_learning.models import PauliLindbladModel
 from qiskit_noise_learning.noise_learner import LearningOptions, NoiseLearner
 from qiskit_noise_learning.noise_learner.noise_learner_job import NoiseLearnerJob
-
-
-class _MockTarget:
-    pass
-
-
-class _MockBackend:
-    @property
-    def target(self):
-        return _MockTarget()
 
 
 def _make_box_instruction(num_qubits=2):
@@ -48,26 +41,21 @@ def _make_non_box_instruction(num_qubits=2):
 
 
 @pytest.fixture()
-def backend():
-    return _MockBackend()
-
-
-@pytest.fixture()
 def options():
     return LearningOptions(num_randomizations=4, shots_per_randomizations=16, depths=[0, 1, 2])
 
 
 @pytest.fixture()
-def learner(backend, options):
-    return NoiseLearner(backend, options)
+def learner(options):
+    return NoiseLearner(FakeFez(), options)
 
 
-def test_noise_learner_init(backend):
+def test_noise_learner_init():
     """Test NoiseLearner construction."""
+    backend = FakeFez()
     learner = NoiseLearner(backend, None)
     assert learner.options == LearningOptions()
     assert learner.backend is backend
-    assert isinstance(learner.backend, _MockBackend)
     assert isinstance(learner.options, LearningOptions)
 
 
@@ -83,12 +71,28 @@ def test_noise_learner_run_rejects_non_box_instruction(learner):
 
 
 @patch("qiskit_noise_learning.noise_learner.noise_learner.Executor")
-def test_noise_learner_run_orchestration(mock_executor_cls, learner):
+def test_noise_learner_run_orchestration(mock_executor_cls, learner, gate_set_cz):
     """Test run() orchestration with monkeypatched _generate."""
     generate_calls = []
 
-    fake_program = MagicMock(spec=QuantumProgram)
-    fake_data_mapper = MagicMock(spec=ExecutorDataMapper)
+    fake_program = QuantumProgram(shots=16, items=[])
+    model = PauliLindbladModel(
+        gate_set_cz,
+        {
+            "CZ": QubitSparsePauliList(["ZI"]),
+            "P": QubitSparsePauliList(["XI"]),
+            "M": QubitSparsePauliList(["XI"]),
+        },
+    )
+    fake_data_mapper = ExecutorDataMapper(
+        item_sequence_indices=[],
+        creg_names=[],
+        measurement_maps=[],
+        instruction_sequences=[],
+        num_randomizations=1,
+        fidelity_model=model,
+        paths=[],
+    )
     fake_job = MagicMock()
     mock_executor_cls.return_value.run.return_value = fake_job
 

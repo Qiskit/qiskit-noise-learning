@@ -15,13 +15,11 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from qiskit.circuit.library import CZGate
-from qiskit.quantum_info import Clifford, QubitSparsePauliList
+from qiskit.quantum_info import QubitSparsePauliList
 
 from qiskit_noise_learning.analysis import AnalysisStage
 from qiskit_noise_learning.circuit_generator import ExecutorDataMapper
 from qiskit_noise_learning.data import ModelData, RawData
-from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
 from qiskit_noise_learning.models import PauliLindbladModel
 from qiskit_noise_learning.noise_learner import NoiseLearnerResult
 from qiskit_noise_learning.noise_learner.noise_learner_job import NoiseLearnerJob
@@ -70,15 +68,6 @@ class _StubAnalysisStage(AnalysisStage):
             time_lbs=np.empty(0, dtype="datetime64[us]"),
             time_ubs=np.empty(0, dtype="datetime64[us]"),
         )
-
-
-@pytest.fixture()
-def gate_set_cz():
-    model_gate_set = ModelGateSet(2)
-    model_gate_set.add_gate(ModelGate("CZ", [((0, 1), Clifford(CZGate()))]))
-    model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(2), prep_idxs=range(2)))
-    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), meas_idxs=range(2)))
-    return model_gate_set
 
 
 @pytest.fixture()

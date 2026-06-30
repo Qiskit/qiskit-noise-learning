@@ -12,29 +12,12 @@
 
 import numpy as np
 import pytest
-from qiskit import QuantumCircuit
-from qiskit.circuit.library import XGate
-from qiskit.quantum_info import Clifford, QubitSparsePauli
+from qiskit.quantum_info import QubitSparsePauli
 
 from qiskit_noise_learning.data import ModelData
-from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
 from qiskit_noise_learning.math import IndexedVector
 from qiskit_noise_learning.models import CompleteFidelityModel
 from qiskit_noise_learning.sequences import FidelityIndex, Path
-
-
-@pytest.fixture()
-def gate_set_1q():
-    model_gate_set = ModelGateSet(1)
-    ident = Clifford(QuantumCircuit(1))
-    model_gate_set.add_gate(ModelGate("P", [((0,), ident)], prep_idxs=range(1)))
-    model_gate_set.add_gate(ModelGate("M", [((0,), ident)], meas_idxs=range(1)))
-    # Clifford maps X -> -Y, Y -> Z, Z -> -X
-    model_gate_set.add_gate(
-        ModelGate("L0", [((0,), Clifford([[True, True, True], [True, False, True]]))])
-    )
-    model_gate_set.add_gate(ModelGate("L1", [((0,), Clifford(XGate()))]))
-    return model_gate_set
 
 
 def _make_model_data(parameter_indices, parameter_values):

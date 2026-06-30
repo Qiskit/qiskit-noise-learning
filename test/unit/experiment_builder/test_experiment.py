@@ -42,7 +42,8 @@ class TestExperimentConstruction:
         assert exp.fidelity_model is model
         assert exp.gate_set == gate_set_cz
 
-    def test_missing_multipliers(self, gate_set_cz, unbound_path_ix):
+    def test_missing_multipliers(self, gate_set_cz, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
         seq = unbound_path_ix.to_instruction_sequence().bind_at(2).complete()
         with pytest.raises(ValueError, match="must both be None or both be non-None"):
             Experiment(
@@ -53,7 +54,8 @@ class TestExperimentConstruction:
                 randomizations=50,
             )
 
-    def test_construction_with_all_fields(self, gate_set_cz, unbound_path_ix):
+    def test_construction_with_all_fields(self, gate_set_cz, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
         seq = unbound_path_ix.to_instruction_sequence()
         exp = Experiment(
             fidelity_model=gate_set_cz,
@@ -75,7 +77,9 @@ class TestExperimentConstruction:
 class TestExperimentDesignMatrix:
     """Tests for the design_matrix property."""
 
-    def test_design_matrix_computed(self, gate_set_cz, unbound_path_ix, unbound_path_xi):
+    def test_design_matrix_computed(self, gate_set_cz, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
+        unbound_path_xi = make_cz_path("XI")
         exp = Experiment(fidelity_model=gate_set_cz, paths=[unbound_path_ix, unbound_path_xi])
         model = CompleteFidelityModel(gate_set_cz)
 
@@ -86,8 +90,8 @@ class TestExperimentDesignMatrix:
         )
         assert exp.design_matrix == expected
 
-    def test_design_matrix_raises_without_model(self, unbound_path_ix):
-        exp = Experiment(paths=[unbound_path_ix])
+    def test_design_matrix_raises_without_model(self, make_cz_path):
+        exp = Experiment(paths=[make_cz_path("IX")])
         with pytest.raises(ValueError, match="fidelity_model is None"):
             _ = exp.design_matrix
 
@@ -96,8 +100,8 @@ class TestExperimentDesignMatrix:
         with pytest.raises(ValueError, match="paths is None"):
             _ = exp.design_matrix
 
-    def test_design_matrix_cached(self, gate_set_cz, unbound_path_ix):
-        exp = Experiment(fidelity_model=gate_set_cz, paths=[unbound_path_ix])
+    def test_design_matrix_cached(self, gate_set_cz, make_cz_path):
+        exp = Experiment(fidelity_model=gate_set_cz, paths=[make_cz_path("IX")])
         dm1 = exp.design_matrix
         dm2 = exp.design_matrix
         assert dm1 is dm2
@@ -106,11 +110,12 @@ class TestExperimentDesignMatrix:
 class TestExperimentIsExecutable:
     """Tests for the is_executable property."""
 
-    def test_not_executable_no_sequences(self, gate_set_cz, unbound_path_ix):
-        exp = Experiment(fidelity_model=gate_set_cz, paths=[unbound_path_ix])
+    def test_not_executable_no_sequences(self, gate_set_cz, make_cz_path):
+        exp = Experiment(fidelity_model=gate_set_cz, paths=[make_cz_path("IX")])
         assert not exp.is_executable
 
-    def test_not_executable_unbound_sequences(self, gate_set_cz, unbound_path_ix):
+    def test_not_executable_unbound_sequences(self, gate_set_cz, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
         seq = unbound_path_ix.to_instruction_sequence()
         exp = Experiment(
             fidelity_model=gate_set_cz,
@@ -122,7 +127,8 @@ class TestExperimentIsExecutable:
         )
         assert not exp.is_executable
 
-    def test_executable(self, gate_set_cz, unbound_path_ix):
+    def test_executable(self, gate_set_cz, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
         seq = unbound_path_ix.to_instruction_sequence().bind_at(2).complete()
         exp = Experiment(
             fidelity_model=gate_set_cz,
@@ -138,7 +144,7 @@ class TestExperimentIsExecutable:
 class TestExperimentReplace:
     """Tests for the replace() method."""
 
-    def test_basic_replace(self, gate_set_cz, unbound_path_ix):
+    def test_basic_replace(self, gate_set_cz):
         exp = Experiment(fidelity_model=gate_set_cz)
         new_exp = exp.replace(shots=100)
         assert new_exp.shots == 100
@@ -149,19 +155,20 @@ class TestExperimentReplace:
         with pytest.raises(TypeError, match="no field 'unknown'"):
             exp.replace(unknown=42)
 
-    def test_replace_co_replacement_violation(self, gate_set_cz, unbound_path_ix):
-        seq = unbound_path_ix.to_instruction_sequence()
+    def test_replace_co_replacement_violation(self, gate_set_cz, make_cz_path):
+        seq = make_cz_path("IX").to_instruction_sequence()
         exp = Experiment(fidelity_model=gate_set_cz)
         with pytest.raises(ValueError, match="both be None or both be non-None"):
             exp.replace(instruction_sequences=[seq])
 
-    def test_replace_length_consistency(self, gate_set_cz, unbound_path_ix):
-        seq = unbound_path_ix.to_instruction_sequence()
+    def test_replace_length_consistency(self, gate_set_cz, make_cz_path):
+        seq = make_cz_path("IX").to_instruction_sequence()
         exp = Experiment(fidelity_model=gate_set_cz)
         with pytest.raises(ValueError, match="does not match"):
             exp.replace(instruction_sequences=[seq], randomization_multipliers=[1, 2])
 
-    def test_replace_relations_bounds_check(self, gate_set_cz, unbound_path_ix):
+    def test_replace_relations_bounds_check(self, gate_set_cz, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
         seq = unbound_path_ix.to_instruction_sequence()
         exp = Experiment(
             fidelity_model=gate_set_cz,
@@ -172,7 +179,9 @@ class TestExperimentReplace:
         with pytest.raises(ValueError, match="out of bounds"):
             exp.replace(relations={(5, 0)})
 
-    def test_replace_soft_invalidation(self, gate_set_cz, unbound_path_ix, unbound_path_xi):
+    def test_replace_soft_invalidation(self, gate_set_cz, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
+        unbound_path_xi = make_cz_path("XI")
         seq_ix = unbound_path_ix.to_instruction_sequence()
         seq_xi = unbound_path_xi.to_instruction_sequence()
         exp = Experiment(
@@ -186,16 +195,16 @@ class TestExperimentReplace:
             new_exp = exp.replace(paths=[unbound_path_ix])
         assert new_exp.relations is None
 
-    def test_replace_no_validate(self, gate_set_cz, unbound_path_ix):
-        seq = unbound_path_ix.to_instruction_sequence()
+    def test_replace_no_validate(self, gate_set_cz, make_cz_path):
+        seq = make_cz_path("IX").to_instruction_sequence()
         exp = Experiment(fidelity_model=gate_set_cz)
         new_exp = exp.replace(validate=False, instruction_sequences=[seq])
         assert new_exp.instruction_sequences == [seq]
         assert new_exp.randomization_multipliers is None
 
-    def test_replace_invalidates_design_matrix_cache(
-        self, gate_set_cz, unbound_path_ix, unbound_path_xi
-    ):
+    def test_replace_invalidates_design_matrix_cache(self, gate_set_cz, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
+        unbound_path_xi = make_cz_path("XI")
         exp = Experiment(fidelity_model=gate_set_cz, paths=[unbound_path_ix, unbound_path_xi])
         _ = exp.design_matrix
         new_exp = exp.replace(validate=False, paths=[unbound_path_ix])
@@ -205,7 +214,9 @@ class TestExperimentReplace:
 class TestExperimentAdd:
     """Tests for the __add__() method."""
 
-    def test_add_concatenates_lists(self, gate_set_cz, unbound_path_ix, unbound_path_xi):
+    def test_add_concatenates_lists(self, gate_set_cz, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
+        unbound_path_xi = make_cz_path("XI")
         model = CompleteFidelityModel(gate_set_cz)
         seq_ix = unbound_path_ix.to_instruction_sequence()
         seq_xi = unbound_path_xi.to_instruction_sequence()
@@ -248,14 +259,17 @@ class TestExperimentAdd:
         assert result.paths is None
         assert result.instruction_sequences is None
 
-    def test_add_one_none_one_list(self, gate_set_cz, unbound_path_ix):
+    def test_add_one_none_one_list(self, gate_set_cz, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
         model = CompleteFidelityModel(gate_set_cz)
         exp1 = Experiment(fidelity_model=model, paths=[unbound_path_ix])
         exp2 = Experiment(fidelity_model=model)
         result = exp1 + exp2
         assert result.paths == [unbound_path_ix]
 
-    def test_add_relation_offsetting(self, gate_set_cz, unbound_path_ix, unbound_path_xi):
+    def test_add_relation_offsetting(self, gate_set_cz, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
+        unbound_path_xi = make_cz_path("XI")
         model = CompleteFidelityModel(gate_set_cz)
         seq_ix = unbound_path_ix.to_instruction_sequence()
         seq_xi = unbound_path_xi.to_instruction_sequence()

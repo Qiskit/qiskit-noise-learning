@@ -10,61 +10,12 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from dataclasses import dataclass
-
 import numpy as np
 import pytest
 
 from qiskit_noise_learning.analysis import CurveFitObservables, Fit
 from qiskit_noise_learning.analysis.curve_fit_observables import fit_exponential
 from qiskit_noise_learning.data import ObservableData
-
-
-@dataclass(frozen=True)
-class MockPath:
-    name: str
-    is_unbound: bool = True
-
-
-def _make_observable_data(
-    unbound_path_depths: dict,
-    a_values: dict,
-    f_values: dict,
-    n_rand: int = 20,
-    noise_std: float = 0.005,
-    seed: int = 42,
-) -> tuple[ObservableData, dict[str, MockPath]]:
-    """Build synthetic ObservableData with MockPath keys.
-
-    Returns the ObservableData and a dict mapping path name to MockPath.
-    """
-    rng = np.random.default_rng(seed)
-
-    all_observables = []
-    all_unbound_paths = []
-    all_depths = []
-    unbound_paths = {}
-
-    for pp_name, depths in unbound_path_depths.items():
-        pp = MockPath(pp_name)
-        unbound_paths[pp_name] = pp
-        for d in depths:
-            true_val = a_values[pp_name] * f_values[pp_name] ** d
-            noise = rng.normal(0, noise_std, size=n_rand)
-            values = true_val + noise
-            all_observables.append(values)
-            all_unbound_paths.append(pp)
-            all_depths.append(d)
-
-    n = len(all_observables)
-    observables = np.stack(all_observables)
-    return ObservableData.from_arrays(
-        unbound_paths=all_unbound_paths,
-        depths=all_depths,
-        observables=observables,
-        time_lbs=np.empty((n, n_rand), dtype="datetime64[us]"),
-        time_ubs=np.empty((n, n_rand), dtype="datetime64[us]"),
-    ), unbound_paths
 
 
 def _run_stage(obs_data, paths=None):
@@ -77,99 +28,85 @@ def _run_stage(obs_data, paths=None):
 class TestCurveFitObservables:
     """Tests for the CurveFitObservables analysis stage."""
 
-    def test_single_unbound_path(self):
+    def test_single_unbound_path(self, make_cz_path, make_observable_data):
         """Test fitting a single unbound path."""
         a_true, f_true = 0.9, 0.8
-        pp = "pp0"
-        obs, unbound_paths = _make_observable_data(
-            unbound_path_depths={pp: [1, 2, 3, 4, 5]},
-            a_values={pp: a_true},
-            f_values={pp: f_true},
-        )
+        pp = make_cz_path("IX")
+        obs = make_observable_data([(pp, a_true, f_true, [1, 2, 3, 4, 5])])
         result = _run_stage(obs)
         ds = result.averaged_data.dataset
-        mask = (ds["unbound_path"].data == unbound_paths[pp]) & (ds["depth"].data == -1)
+        mask = (ds["unbound_path"].data == pp) & (ds["depth"].data == -1)
         assert np.isclose(ds["metadata"].data[mask][0]["spam_fidelity"], a_true, atol=0.02)
         assert np.isclose(ds["observables"].data[mask][0], f_true, atol=0.02)
 
-    def test_multiple_unbound_paths(self):
+    def test_multiple_unbound_paths(self, make_cz_path, make_observable_data):
         """Test fitting multiple unbound paths."""
-        pp0, pp1 = "pp0", "pp1"
-        obs, unbound_paths = _make_observable_data(
-            unbound_path_depths={pp0: [1, 2, 3, 4, 5], pp1: [1, 2, 3, 4, 5]},
-            a_values={pp0: 0.95, pp1: 0.85},
-            f_values={pp0: 0.9, pp1: 0.7},
+        pp0, pp1 = make_cz_path("IX"), make_cz_path("XI")
+        obs = make_observable_data(
+            [
+                (pp0, 0.95, 0.9, [1, 2, 3, 4, 5]),
+                (pp1, 0.85, 0.7, [1, 2, 3, 4, 5]),
+            ]
         )
         result = _run_stage(obs)
         ds = result.averaged_data.dataset
         decay_mask = ds["depth"].data == -1
 
-        mask0 = (ds["unbound_path"].data == unbound_paths[pp0]) & decay_mask
+        mask0 = (ds["unbound_path"].data == pp0) & decay_mask
         assert np.isclose(ds["observables"].data[mask0][0], 0.9, atol=0.02)
 
-        mask1 = (ds["unbound_path"].data == unbound_paths[pp1]) & decay_mask
+        mask1 = (ds["unbound_path"].data == pp1) & decay_mask
         assert np.isclose(ds["observables"].data[mask1][0], 0.7, atol=0.02)
 
-    def test_decay_fidelity_value(self):
+    def test_decay_fidelity_value(self, make_cz_path, make_observable_data):
         """Test the decay fidelity is close to the true value."""
-        pp = "pp0"
-        obs, unbound_paths = _make_observable_data(
-            unbound_path_depths={pp: [1, 2, 3, 4, 5]},
-            a_values={pp: 0.9},
-            f_values={pp: 0.8},
-        )
+        pp = make_cz_path("IX")
+        obs = make_observable_data([(pp, 0.9, 0.8, [1, 2, 3, 4, 5])])
         result = _run_stage(obs)
         ds = result.averaged_data.dataset
-        mask = (ds["unbound_path"].data == unbound_paths[pp]) & (ds["depth"].data == -1)
+        mask = (ds["unbound_path"].data == pp) & (ds["depth"].data == -1)
         fidelity = ds["observables"].data[mask][0]
         assert np.isclose(fidelity, 0.8, atol=0.02)
 
-    def test_unbound_path_in_fit_paths_triggers_curve_fit(self):
+    def test_unbound_path_in_fit_paths_triggers_curve_fit(self, make_cz_path, make_observable_data):
         """Test that an unbound path in fit.paths is curve-fit."""
-        pp = "pp0"
-        obs, unbound_paths = _make_observable_data(
-            unbound_path_depths={pp: [1, 2, 3, 4, 5]},
-            a_values={pp: 0.9},
-            f_values={pp: 0.8},
-        )
-        result = _run_stage(obs, paths=[unbound_paths[pp]])
+        pp = make_cz_path("IX")
+        obs = make_observable_data([(pp, 0.9, 0.8, [1, 2, 3, 4, 5])])
+        result = _run_stage(obs, paths=[pp])
         ds = result.averaged_data.dataset
-        mask = (ds["unbound_path"].data == unbound_paths[pp]) & (ds["depth"].data == -1)
+        mask = (ds["unbound_path"].data == pp) & (ds["depth"].data == -1)
         assert np.isclose(ds["observables"].data[mask][0], 0.8, atol=0.02)
 
-    def test_bound_path_in_fit_paths_triggers_average(self):
+    def test_bound_path_in_fit_paths_triggers_average(self, make_cz_path, make_observable_data):
         """Test that a bound path (not in curve_fit_paths) is averaged, not curve-fit."""
-        pp0, pp1 = "pp0", "pp1"
-        obs, unbound_paths = _make_observable_data(
-            unbound_path_depths={pp0: [1, 2, 3, 4, 5], pp1: [1, 2, 3]},
-            a_values={pp0: 0.9, pp1: 0.85},
-            f_values={pp0: 0.8, pp1: 0.7},
+        pp0, pp1 = make_cz_path("IX"), make_cz_path("XI")
+        obs = make_observable_data(
+            [
+                (pp0, 0.9, 0.8, [1, 2, 3, 4, 5]),
+                (pp1, 0.85, 0.7, [1, 2, 3]),
+            ]
         )
         # Only pp0 is unbound (curve-fit); pp1 is not in fit.paths unbound set → averaged
-        result = _run_stage(obs, paths=[unbound_paths[pp0]])
+        result = _run_stage(obs, paths=[pp0])
         ds = result.averaged_data.dataset
 
         # pp0 was curve-fit (depth = -1)
-        mask0 = (ds["unbound_path"].data == unbound_paths[pp0]) & (ds["depth"].data == -1)
+        mask0 = (ds["unbound_path"].data == pp0) & (ds["depth"].data == -1)
         assert mask0.any()
 
         # pp1 was averaged (depths 1, 2, 3 present, not depth -1)
-        mask1_decay = (ds["unbound_path"].data == unbound_paths[pp1]) & (ds["depth"].data == -1)
+        mask1_decay = (ds["unbound_path"].data == pp1) & (ds["depth"].data == -1)
         assert not mask1_decay.any()
         for d in [1, 2, 3]:
-            mask1_d = (ds["unbound_path"].data == unbound_paths[pp1]) & (ds["depth"].data == d)
+            mask1_d = (ds["unbound_path"].data == pp1) & (ds["depth"].data == d)
             assert mask1_d.any()
 
-    def test_unbound_path_single_depth_raises(self):
+    def test_unbound_path_single_depth_raises(self, make_cz_path, make_observable_data):
         """Test that an unbound path in fit.paths with only 1 depth raises ValueError."""
-        pp = "pp0"
-        obs, unbound_paths = _make_observable_data(
-            unbound_path_depths={pp: [3]},
-            a_values={pp: 0.9},
-            f_values={pp: 0.8},
-        )
+        pp = make_cz_path("IX")
+        obs = make_observable_data([(pp, 0.9, 0.8, [3])])
         with pytest.raises(ValueError, match="At least 2 depths are required"):
-            _run_stage(obs, paths=[unbound_paths[pp]])
+            _run_stage(obs, paths=[pp])
 
 
 class TestFitExponential:

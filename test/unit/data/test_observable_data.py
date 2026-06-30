@@ -10,21 +10,14 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from dataclasses import dataclass
-
 import numpy as np
 
 from qiskit_noise_learning.data import ObservableData
 
 
-@dataclass(frozen=True)
-class MockPath:
-    name: str
-
-
-def test_from_arrays():
+def test_from_arrays(make_cz_path):
     """Test constructing ObservableData with a single observable."""
-    p = MockPath("p0")
+    p = make_cz_path("IX")
     obs = ObservableData.from_arrays(
         unbound_paths=[p],
         depths=[3],
@@ -38,9 +31,9 @@ def test_from_arrays():
     assert ds["depth"].values[0] == 3
 
 
-def test_filter_time():
+def test_filter_time(make_cz_path):
     """Test that filter_time keeps only data within the time window."""
-    p = MockPath("p0")
+    p = make_cz_path("IX")
     t_lbs = np.array([["2026-01-01", "2026-01-03", "2026-01-05"]], dtype="datetime64[us]")
     t_ubs = np.array([["2026-01-02", "2026-01-04", "2026-01-06"]], dtype="datetime64[us]")
     obs = ObservableData.from_arrays(
