@@ -12,6 +12,7 @@
 
 """PauliLindbladModel"""
 
+from collections.abc import Iterable
 from copy import copy
 from dataclasses import dataclass
 from itertools import chain, product
@@ -23,11 +24,10 @@ from qiskit.transpiler import CouplingMap
 
 from qiskit_noise_learning.data import ModelData
 from qiskit_noise_learning.gate_sets import GateSet, ModelGateSet
-from qiskit_noise_learning.math import IndexedVector
+from qiskit_noise_learning.math import IndexedMatrix, IndexedSpace, IndexedVector, LinearMap
 from qiskit_noise_learning.sequences import FidelityIndex
 
-from .fidelity_mixers import FidelityMixer
-from .mixed_fidelity_model import MixedFidelityModel
+from .log_fidelity_space import LogFidelitySpace
 
 
 @dataclass
@@ -43,8 +43,33 @@ class GeneratorIndex:
         return self._hash
 
 
-class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
-    r"""A fidelity model parameterized in terms of the rates of sparse Pauli Lindblad maps.
+class RateSpace(IndexedSpace[GeneratorIndex]):
+    """Space of Pauli-Lindblad generator rates, indexed by :class:`GeneratorIndex`.
+
+    Args:
+        generators: A dictionary mapping gate name to the gate's Pauli-Lindblad generators.
+    """
+
+    def __init__(self, generators: dict[str, QubitSparsePauliList]):
+        self._generators = generators
+
+    @property
+    def generators(self) -> dict[str, QubitSparsePauliList]:
+        """The Pauli-Lindblad generators for each gate."""
+        return self._generators
+
+    @property
+    def dim(self) -> int | float:
+        return sum(len(gate_generators) for gate_generators in self._generators.values())
+
+    def __contains__(self, index: object) -> bool:
+        if not isinstance(index, GeneratorIndex) or index.gate_name not in self._generators:
+            return False
+        return any(index.generator == generator for generator in self._generators[index.gate_name])
+
+
+class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
+    r"""A linear mapping from Pauli-Lindblad generator rates to log fidelities.
 
     This model class assumes that every gate in the gate set is either a unitary, a pure preparation
     (all qubits are prepared and the unitary part is trivial), or a pure measurement (all qubits are
@@ -67,7 +92,6 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
             for unitary gates and pure measurement gates, and ``"after"`` for pure preparation. An
             error will be raised if a value for pure measurement or preparation is specified that
             differs from the default.
-        fidelity_mixer: The fidelity mixer to use. Defaults to the identity mixer.
 
     Raises:
         ValueError: If the gate set is not of the required form, or if ``noise_model_before_gate``
@@ -79,7 +103,6 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         gate_set: GateSet,
         generators: dict[str, QubitSparsePauliList],
         noise_site: dict[str, str] | None = None,
-        fidelity_mixer: FidelityMixer | None = None,
     ):
         gate_set = gate_set.model_gate_set
         prep_names, meas_names = _validate_gate_set_form(gate_set)
@@ -88,17 +111,25 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         self._prep_names = set(prep_names)
 
         _validate_generators(gate_set, generators)
-        self._generators = generators
 
         self._noise_site = _validate_and_complete_noise_site_dict(
             gate_set, noise_site, prep_names, meas_names
         )
-        super().__init__(gate_set=gate_set, fidelity_mixer=fidelity_mixer)
+
+        super().__init__(
+            input_space=RateSpace(generators),
+            output_space=LogFidelitySpace(gate_set),
+        )
+
+    @property
+    def gate_set(self) -> ModelGateSet:
+        """The gate set whose fidelities are being modelled."""
+        return self.output_space.gate_set
 
     @property
     def generators(self) -> dict[str, QubitSparsePauliList]:
         """The generators for the noise model."""
-        return self._generators
+        return self.input_space.generators
 
     @property
     def meas_names(self) -> set[str]:
@@ -115,16 +146,31 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         """The names of the preparation in this model."""
         return self._prep_names
 
-    def row_from_unmixed_fidelity(
-        self, fidelity_index: FidelityIndex
-    ) -> IndexedVector[GeneratorIndex]:
-        """The row in the base parameterization matrix, unmodified by the fidelity mixer.
+    def rows(
+        self, output_indices: Iterable[FidelityIndex]
+    ) -> IndexedMatrix[FidelityIndex, GeneratorIndex]:
+        """Construct the sub-matrix whose rows are the given fidelity indices.
 
-        For a Pauli-Lindblad model, this returns a :class:`IndexedVector` instance whose labels
-        correspond to the generators of the gate noise model that anti-commute with the relevant
-        Pauli operator (`fidelity_index.transition[0]` if the noise model is before the gate, and
-        `fidelity_index.transition[1]` if the noise model is after the gate). The data values of the
-        indexed vector are all :math:`2`.
+        Args:
+            output_indices: The fidelity indices labelling the desired rows.
+
+        Returns:
+            An :class:`~.IndexedMatrix` indexed by the (non-zero) requested fidelity indices and by
+            the generator indices appearing in those rows.
+        """
+        output_indices = list(output_indices)
+        return IndexedMatrix.from_rows(
+            output_indices, [self._row(fidelity_index) for fidelity_index in output_indices]
+        )
+
+    def _row(self, fidelity_index: FidelityIndex) -> IndexedVector[GeneratorIndex]:
+        """The row of the log-fidelity parameterization matrix for a fidelity index.
+
+        Returns an :class:`~.IndexedVector` whose labels correspond to the generators of the gate
+        noise model that anti-commute with the relevant Pauli operator
+        (``fidelity_index.transition[0]`` if the noise model is before the gate, and
+        ``fidelity_index.transition[1]`` if the noise model is after the gate). The data values of
+        the indexed vector are all :math:`2`.
 
         Args:
             fidelity_index: The fidelity index labelling the requested row.
@@ -158,7 +204,6 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         qubit_partitions: dict[str, list[set[int]]] | None = None,
         local_paulis: dict[str, list[QubitSparsePauliList]] | None = None,
         noise_site: dict[str, Literal["before"] | Literal["after"]] | None = None,
-        fidelity_mixer: FidelityMixer | None = None,
     ) -> Self:
         r"""Construct a k-local model according to qubit partitions.
 
@@ -207,7 +252,6 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
                 :math:`\{I, X}\}` on ``k`` qubits.
             noise_site: Dictionary indicating whether to model gate noise as ``"before"``
                 or ``"after"`` the gate.
-            fidelity_mixer: The fidelity mixer to use. Defaults to the identity mixer.
 
         Returns:
             A new :class:`~.PauliLindbladModel` instance.
@@ -339,7 +383,6 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
             gate_set=gate_set,
             generators=generators,
             noise_site=noise_site,
-            fidelity_mixer=fidelity_mixer,
         )
 
     @staticmethod
@@ -349,7 +392,6 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
         gate_k: dict[str, int] | None = None,
         paulis: dict[str, QubitSparsePauliList] | None = None,
         noise_site: dict[str, Literal["before"] | Literal["after"]] | None = None,
-        fidelity_mixer: FidelityMixer | None = None,
     ) -> Self:
         r"""Construct a k-local model.
 
@@ -368,7 +410,6 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
                 for measurement and preparation, defaults to :math:`\{I, X}\}`.
             noise_site: Dictionary indicating whether to model gate noise as ``"before"``
                 or ``"after"`` the gate.
-            fidelity_mixer: The fidelity mixer to use. Defaults to the identity mixer.
 
         Returns:
             A new :class:`~.PauliFidelityModel` instance.
@@ -383,7 +424,6 @@ class PauliLindbladModel(MixedFidelityModel[GeneratorIndex]):
             },
             local_paulis=None if paulis is None else {name: [p] for name, p in paulis.items()},
             noise_site=noise_site,
-            fidelity_mixer=fidelity_mixer,
         )
 
     def to_pauli_lindblad_maps(

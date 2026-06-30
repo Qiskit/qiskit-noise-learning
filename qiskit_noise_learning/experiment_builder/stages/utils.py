@@ -12,7 +12,14 @@
 
 """Utility functions."""
 
+from qiskit.quantum_info import QubitSparsePauliList
+
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
+from qiskit_noise_learning.math import LinearMap
+from qiskit_noise_learning.models import (
+    contains_pauli_lindblad_model,
+    split_pauli_lindblad_model,
+)
 
 
 def default_prep_gate(gate_set: ModelGateSet) -> ModelGate:
@@ -31,6 +38,29 @@ def default_meas_gate(gate_set: ModelGateSet) -> ModelGate:
     return meas_gate
 
 
-def default_gates(gate_set: ModelGateSet) -> list[ModelGate]:
-    """Get all non-SPAM gates."""
+def default_unitary_gates(gate_set: ModelGateSet) -> list[ModelGate]:
+    """Get all unitary gates."""
     return [gate for _, gate in gate_set.items() if not gate.prep_idxs and not gate.meas_idxs]
+
+
+def default_input_paulis(model: LinearMap) -> dict[str, QubitSparsePauliList]:
+    """A default set of Paulis for path generators.
+
+    Currently requires ``model`` to contain a :class:`~.PauliLindbladModel`, and will return the
+    generators.
+
+    Args:
+        model: The fidelity model.
+
+    Returns:
+        A mapping from gate name to that gate's Pauli-Lindblad generators.
+
+    Raises:
+        ValueError: If ``model`` does not contain a :class:`~.PauliLindbladModel`.
+    """
+    if not contains_pauli_lindblad_model(model):
+        raise ValueError(
+            "Cannot determine default input Paulis: the fidelity model does not contain a "
+            "PauliLindbladModel. Provide input_paulis explicitly."
+        )
+    return split_pauli_lindblad_model(model)[1].generators
