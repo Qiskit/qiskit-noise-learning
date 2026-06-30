@@ -207,6 +207,19 @@ def test_draw_with_measurements():
     assert any("c:" in line for line in lines)
 
 
+def test_latex_str():
+    circuit = QuantumCircuit(2)
+    circuit.cx(0, 1)
+
+    # falls back to the name when not provided
+    assert QiskitGate("cx", circuit, [0, 1]).latex_str == "cx"
+
+    # uses the explicit value when provided, and propagates to the model gate
+    gate = QiskitGate("cx", circuit, [0, 1], latex_str=r"\mathrm{CX}")
+    assert gate.latex_str == r"\mathrm{CX}"
+    assert gate.model_gate.latex_str == r"\mathrm{CX}"
+
+
 def test_model_gate_raises():
     with pytest.raises(ValueError, match="two resets occur"):
         qc = QuantumCircuit(4, 4)

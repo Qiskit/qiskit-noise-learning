@@ -128,6 +128,11 @@ def gate_set_topology(gate_set: GateSet[Gate]) -> go.Figure:
     gate_names = list(gate_set)
     gate_colors = {name: palette[idx % len(palette)] for idx, name in enumerate(gate_names)}
 
+    # legend labels are the gate's latex_str wrapped as a single MathJax expression; Plotly expects
+    # the whole label to be one $...$ expression. latex_str falls back to the gate name, which is
+    # then rendered as LaTeX too.
+    gate_labels = {name: f"${gate_set[name].latex_str}$" for name in gate_names}
+
     # for each gate: edge_type_pairs holds 2-qubit pairs (drawn as colored edges);
     # arc_type_active holds single-qubit non-idling qubits not in a multi-qubit op
     # (drawn as colored arcs). a mixed gate participates in both.
@@ -229,7 +234,7 @@ def gate_set_topology(gate_set: GateSet[Gate]) -> go.Figure:
                 y=edge_y,
                 mode="lines",
                 line={"width": 4, "color": color},
-                name=gate_name,
+                name=gate_labels[gate_name],
                 legendgroup=gate_name,
                 showlegend=True,
                 hoverinfo="text",
@@ -264,7 +269,7 @@ def gate_set_topology(gate_set: GateSet[Gate]) -> go.Figure:
                 y=arc_y,
                 mode="lines",
                 line={"width": 5, "color": color},
-                name=gate_name,
+                name=gate_labels[gate_name],
                 legendgroup=gate_name,
                 legendgrouptitle=None,
                 showlegend=gate_name not in shown_in_legend,
@@ -298,7 +303,7 @@ def gate_set_topology(gate_set: GateSet[Gate]) -> go.Figure:
                 mode="lines",
                 line={"width": 5, "color": color},
                 opacity=0.35,
-                name=gate_name,
+                name=gate_labels[gate_name],
                 legendgroup=gate_name,
                 showlegend=gate_name not in shown_in_legend,
                 visible=visible,
@@ -359,7 +364,7 @@ def gate_set_topology(gate_set: GateSet[Gate]) -> go.Figure:
 
     fig = go.Figure(data=traces)
     fig.update_layout(
-        title=f"{type(gate_set).__name__} on {len(gate_set.qubit_subset)} Qubits",
+        title=f"{gate_set.name} on {len(gate_set.qubit_subset)} Qubits",
         showlegend=True,
         legend={"yanchor": "middle", "y": 0.5},
         paper_bgcolor=_COLOR_FIGURE_BG,
