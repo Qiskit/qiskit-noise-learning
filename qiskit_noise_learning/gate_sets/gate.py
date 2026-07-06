@@ -81,8 +81,8 @@ class Gate(ABC):
         return self.name
 
     @property
-    def latex_label(self) -> str:
-        """A string label for use within latex formulas."""
+    def math_label(self) -> str:
+        """A string label for use within latex math mode."""
         if self.latex_str:
             return self.latex_str
         return r"\text{" + self.name + r"}"
