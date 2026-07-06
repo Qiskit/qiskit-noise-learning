@@ -40,8 +40,7 @@ class GateSet(Mapping[str, GateType], metaclass=ABCMeta):
             gates are added to the gate set. Its number of qubits must match ``num_qubits`` if both
             are present.
         name: Name for this gate set. If ``None``, :attr:`name` falls back to the class name.
-        latex_str: An optional LaTeX string for rendering this gate set. If ``None``,
-            :attr:`latex_str` falls back to :attr:`name`.
+        latex_str: An optional LaTeX string for rendering this gate set.
     """
 
     def __init__(
@@ -78,7 +77,7 @@ class GateSet(Mapping[str, GateType], metaclass=ABCMeta):
     @property
     def latex_str(self) -> str:
         """A LaTeX string for this gate set."""
-        return self._latex_str if self._latex_str is not None else self.name
+        return self._latex_str
 
     @property
     def num_qubits(self) -> int:

@@ -131,8 +131,5 @@ def test_hash():
 
 
 def test_latex_str():
-    # falls back to the name when not provided
-    assert ModelGate("L0", qubit_idxs=[0]).latex_str == "L0"
-
-    # uses the explicit value when provided
+    assert ModelGate("L0", qubit_idxs=[0]).latex_str is None
     assert ModelGate("L0", qubit_idxs=[0], latex_str=r"\Lambda_0").latex_str == r"\Lambda_0"

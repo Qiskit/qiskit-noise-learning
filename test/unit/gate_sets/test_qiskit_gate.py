@@ -211,8 +211,8 @@ def test_latex_str():
     circuit = QuantumCircuit(2)
     circuit.cx(0, 1)
 
-    # falls back to the name when not provided
-    assert QiskitGate("cx", circuit, [0, 1]).latex_str == "cx"
+    # None case
+    assert QiskitGate("cx", circuit, [0, 1]).latex_str is None
 
     # uses the explicit value when provided, and propagates to the model gate
     gate = QiskitGate("cx", circuit, [0, 1], latex_str=r"\mathrm{CX}")

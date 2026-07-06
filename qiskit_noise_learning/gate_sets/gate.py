@@ -34,8 +34,7 @@ class Gate(ABC):
         qubit_idxs: The physical qubit indices that the gate acts on.
         prep_idxs: The physical qubit indices that this gate prepares, or resets to the 0 state.
         meas_idxs: The physical qubit indices that this gate measures.
-        latex_str: An optional LaTeX string for rendering this gate. If ``None``,
-            :attr:`latex_str` falls back to :attr:`name`.
+        latex_str: An optional LaTeX string for rendering this gate.
     """
 
     def __init__(
@@ -71,7 +70,7 @@ class Gate(ABC):
     @property
     def latex_str(self) -> str:
         """A LaTeX string for this gate."""
-        return self._latex_str if self._latex_str is not None else self._name
+        return self._latex_str
 
     @property
     def num_qubits(self) -> int:

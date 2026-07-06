@@ -38,15 +38,15 @@ def test_construction_with_qubit_subset():
 
 
 def test_name_and_latex_str():
-    # default to the class name, with latex_str falling back to name
+    # default to the class name
     gs = ModelGateSet(4)
     assert gs.name == "ModelGateSet"
-    assert gs.latex_str == "ModelGateSet"
+    assert gs.latex_str is None
 
-    # explicit name, latex_str still falls back to it
+    # explicit name
     gs = ModelGateSet(4, name="my_set")
     assert gs.name == "my_set"
-    assert gs.latex_str == "my_set"
+    assert gs.latex_str is None
 
     # both supplied explicitly
     gs = ModelGateSet(4, name="my_set", latex_str=r"\mathcal{G}")

@@ -311,20 +311,20 @@ def test_latex_str_propagation():
         builder.circuit.cx(4, 5)
     assert gs[builder.name].latex_str == r"\epsilon"
 
-    # gates added without an explicit value fall back to the name
-    assert gs["M"].latex_str == "M"
+    # None case
+    assert gs["M"].latex_str is None
 
 
 def test_name_and_latex_str():
-    # default to the class name, with latex_str falling back to name
+    # default to the class name, with latex_str being name
     gs = QiskitGateSet(10)
     assert gs.name == "QiskitGateSet"
-    assert gs.latex_str == "QiskitGateSet"
+    assert gs.latex_str is None
 
-    # explicit name, latex_str still falls back to it
+    # explicit name, no latex_str
     gs = QiskitGateSet(10, name="my_set")
     assert gs.name == "my_set"
-    assert gs.latex_str == "my_set"
+    assert gs.latex_str is None
 
     # both supplied explicitly
     gs = QiskitGateSet(10, name="my_set", latex_str=r"\mathcal{G}")

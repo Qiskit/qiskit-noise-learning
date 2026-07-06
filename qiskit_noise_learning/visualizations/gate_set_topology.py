@@ -128,10 +128,13 @@ def gate_set_topology(gate_set: GateSet[Gate]) -> go.Figure:
     gate_names = list(gate_set)
     gate_colors = {name: palette[idx % len(palette)] for idx, name in enumerate(gate_names)}
 
-    # legend labels are the gate's latex_str wrapped as a single MathJax expression; Plotly expects
-    # the whole label to be one $...$ expression. latex_str falls back to the gate name, which is
-    # then rendered as LaTeX too.
-    gate_labels = {name: f"${gate_set[name].latex_str}$" for name in gate_names}
+    # use latex names where possible as labels
+    gate_labels = dict()
+    for name, gate in gate_set.items():
+        if gate.latex_str is None:
+            gate_labels[name] = name
+        else:
+            gate_labels[name] = f"${gate_set[name].latex_str}$"
 
     # for each gate: edge_type_pairs holds 2-qubit pairs (drawn as colored edges);
     # arc_type_active holds single-qubit non-idling qubits not in a multi-qubit op

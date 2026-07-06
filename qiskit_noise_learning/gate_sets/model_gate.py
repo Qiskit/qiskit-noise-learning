@@ -39,6 +39,7 @@ class ModelGate(Gate):
         qubit_idxs: The physical qubit indices.
         meas_idxs: The physical qubit indices that this gate measures.
         prep_idxs: The physical qubit indices that this gate prepares, or resets.
+        latex_str: An optional LaTeX string for rendering this gate.
 
     Raises:
         ValueError: If both ``cliffords`` and ``qubit_idxs`` are not specified.

@@ -106,8 +106,7 @@ class QiskitGateSet(GateSet[QiskitGate]):
             state preparation (given name ``"P"``) and state measurement (given name ``"M"``) on
             all qubits in the region of interest.
         name: Name for this gate set. If ``None``, :attr:`name` falls back to the class name.
-        latex_str: An optional LaTeX string for rendering this gate set. If ``None``,
-            :attr:`latex_str` falls back to :attr:`name`.
+        latex_str: An optional LaTeX string for rendering this gate set.
     """
 
     def __init__(
