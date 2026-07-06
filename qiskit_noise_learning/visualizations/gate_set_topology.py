@@ -91,7 +91,7 @@ def gate_set_topology(gate_set: GateSet[Gate]) -> go.Figure:
 
     Args:
         gate_set: The gate set to visualize. Must have a non-``None``:attr:`~.GateSet.target` so
-        that qubit coordinates and the device topology can be determined.
+            that qubit coordinates and the device topology can be determined.
 
     Returns:
         A plotly Figure.
@@ -181,13 +181,10 @@ def gate_set_topology(gate_set: GateSet[Gate]) -> go.Figure:
     traces: list = []
     shown_in_legend: set[str] = set()
 
-    # background edges (topology edges not covered by any gate)
-    gate_edges: set[tuple[int, int]] = {
-        pair for pairs in edge_type_pairs.values() for pair in pairs
-    }
+    # add device topology edges
     bg_x: list[float | None] = []
     bg_y: list[float | None] = []
-    for q1, q2 in sorted(topo_edges - gate_edges):
+    for q1, q2 in sorted(topo_edges):
         bg_x += [xs[q1], xs[q2], None]
         bg_y += [ys[q1], ys[q2], None]
     if bg_x:
