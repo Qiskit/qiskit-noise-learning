@@ -29,6 +29,8 @@ class ModelGateSet(GateSet[ModelGate]):
             QPU. All gates added must act within this subset. By default, contains all qubits.
         coupling_map: A coupling map for the device. Defaults to the full coupling map on
             ``num_qubits``.
+        name: Name for this gate set. If ``None``, :attr:`name` falls back to the class name.
+        latex_str: An optional LaTeX string for rendering this gate set.
     """
 
     def __init__(
@@ -37,9 +39,13 @@ class ModelGateSet(GateSet[ModelGate]):
         *,
         qubit_subset: Iterable[int] | None = None,
         coupling_map: CouplingMap | None = None,
+        name: str | None = None,
+        latex_str: str | None = None,
     ):
         self._coupling_map = coupling_map or CouplingMap.from_full(num_qubits)
-        super().__init__(num_qubits=num_qubits, qubit_subset=qubit_subset)
+        super().__init__(
+            num_qubits=num_qubits, qubit_subset=qubit_subset, name=name, latex_str=latex_str
+        )
 
     @property
     def coupling_map(self) -> CouplingMap:

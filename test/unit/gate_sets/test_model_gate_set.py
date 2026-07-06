@@ -37,6 +37,23 @@ def test_construction_with_qubit_subset():
     assert set(gs) == set()
 
 
+def test_name_and_latex_str():
+    # default to the class name
+    gs = ModelGateSet(4)
+    assert gs.name == "ModelGateSet"
+    assert gs.latex_str is None
+
+    # explicit name
+    gs = ModelGateSet(4, name="my_set")
+    assert gs.name == "my_set"
+    assert gs.latex_str is None
+
+    # both supplied explicitly
+    gs = ModelGateSet(4, name="my_set", latex_str=r"\mathcal{G}")
+    assert gs.name == "my_set"
+    assert gs.latex_str == r"\mathcal{G}"
+
+
 def test_constructor_raises():
     with pytest.raises(ValueError, match=r"must be a subset of range\(20\)"):
         ModelGateSet(20, qubit_subset=range(25))

@@ -34,6 +34,7 @@ class Gate(ABC):
         qubit_idxs: The physical qubit indices that the gate acts on.
         prep_idxs: The physical qubit indices that this gate prepares, or resets to the 0 state.
         meas_idxs: The physical qubit indices that this gate measures.
+        latex_str: An optional LaTeX string for rendering this gate.
     """
 
     def __init__(
@@ -42,8 +43,10 @@ class Gate(ABC):
         qubit_idxs: Iterable[int],
         prep_idxs: Iterable[int] = (),
         meas_idxs: Iterable[int] = (),
+        latex_str: str | None = None,
     ):
         self._name = name
+        self._latex_str = latex_str
         self._qubit_idxs = tuple(qubit_idxs)
 
         self._prep_idxs = frozenset(prep_idxs)
@@ -63,6 +66,26 @@ class Gate(ABC):
     def name(self) -> str:
         """The gate name."""
         return self._name
+
+    @property
+    def latex_str(self) -> str:
+        """A LaTeX string for this gate."""
+        return self._latex_str
+
+    @property
+    def label(self) -> str:
+        """A string label for use in plotter legends."""
+        if self.latex_str:
+            return f"${self.latex_str}$"
+
+        return self.name
+
+    @property
+    def math_label(self) -> str:
+        """A string label for use within latex math mode."""
+        if self.latex_str:
+            return self.latex_str
+        return r"\text{" + self.name + r"}"
 
     @property
     def num_qubits(self) -> int:

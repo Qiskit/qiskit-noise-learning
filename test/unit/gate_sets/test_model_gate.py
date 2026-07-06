@@ -128,3 +128,8 @@ def test_clifford_propagate():
 def test_hash():
     """Ensure hash call works."""
     assert isinstance(hash(ModelGate(name="gate_name", qubit_idxs=[1, 2, 3])), int)
+
+
+def test_latex_str():
+    assert ModelGate("L0", qubit_idxs=[0]).latex_str is None
+    assert ModelGate("L0", qubit_idxs=[0], latex_str=r"\Lambda_0").latex_str == r"\Lambda_0"

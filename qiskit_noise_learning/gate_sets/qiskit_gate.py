@@ -68,6 +68,7 @@ class QiskitGate(Gate):
         annotations: The annotations that describe how to implement the gate. If ``None``, this
             defaults to Pauli twirling. If no :class:`samplomatic.Tag` annotation is provided,
             then one is added automatically whose tag name is equal to ``name``.
+        latex_str: An optional LaTeX string for this gate.
     """
 
     def __init__(
@@ -77,6 +78,7 @@ class QiskitGate(Gate):
         qubit_idxs: Iterable[int],
         prep_idxs: Iterable[int] = (),
         annotations: Sequence[Annotation] | None = None,
+        latex_str: str | None = None,
     ):
         meas_idxs = []
         other_preps = []
@@ -95,6 +97,7 @@ class QiskitGate(Gate):
             qubit_idxs=qubit_idxs,
             prep_idxs=chain(prep_idxs, other_preps),
             meas_idxs=meas_idxs,
+            latex_str=latex_str,
         )
         self._qubit_map = qubit_map
         self._circuit = circuit
@@ -188,6 +191,7 @@ class QiskitGate(Gate):
             qubit_idxs=self.qubit_idxs,
             meas_idxs=self.meas_idxs,
             prep_idxs=self.prep_idxs,
+            latex_str=self._latex_str,
         )
 
     def draw(self, *args, **kwargs):
