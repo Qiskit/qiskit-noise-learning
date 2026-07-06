@@ -80,6 +80,21 @@ class GateSet(Mapping[str, GateType], metaclass=ABCMeta):
         return self._latex_str
 
     @property
+    def label(self) -> str:
+        """A string label for use in plotter legends."""
+        if self.latex_str:
+            return f"${self.latex_str}$"
+
+        return self.name
+
+    @property
+    def latex_label(self) -> str:
+        """A string label for use within latex formulas."""
+        if self.latex_str:
+            return self.latex_str
+        return r"\text{" + self.name + r"}"
+
+    @property
     def num_qubits(self) -> int:
         """The total number of qubits of the device this gateset acts on."""
         return self._num_qubits

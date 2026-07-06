@@ -128,13 +128,7 @@ def gate_set_topology(gate_set: GateSet[Gate]) -> go.Figure:
     gate_names = list(gate_set)
     gate_colors = {name: palette[idx % len(palette)] for idx, name in enumerate(gate_names)}
 
-    # use latex names where possible as labels
-    gate_labels = dict()
-    for name, gate in gate_set.items():
-        if gate.latex_str is None:
-            gate_labels[name] = name
-        else:
-            gate_labels[name] = f"${gate_set[name].latex_str}$"
+    gate_labels = {name: gate.label for name, gate in gate_set.items()}
 
     # for each gate: edge_type_pairs holds 2-qubit pairs (drawn as colored edges);
     # arc_type_active holds single-qubit non-idling qubits not in a multi-qubit op
