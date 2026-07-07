@@ -12,4 +12,5 @@
 
 """Visualization utilities"""
 
+from .fidelity_math_labels import fidelity_index_math_label, path_math_label
 from .gate_set_topology import gate_set_topology
