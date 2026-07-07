@@ -35,11 +35,10 @@ def fidelity_index_math_label(
         fidelity_index: The fidelity index to label.
         style: Either ``"transition"`` (shows input :math:`\to` output Pauli) or ``"formula"``
             (shows index data ``pauli``, ``in_bit_indices``, ``out_bit_indices``).
-        noise_site: An optional mapping from gate name to ``"before"`` or ``"after"``, as provided
-            by :attr:`.PauliLindbladModel.noise_site`. When given together with
-            ``style="formula"``, the compact Pauli-Lindblad form :math:`f^{G}_{P}` is rendered
-            instead of the general formula, where :math:`P` is the transition Pauli at the model's
-            noise site.
+        noise_site: An optional mapping from gate name to ``"before"`` or ``"after"``, indicating
+            the gate noise is modelled as a Pauli-channel occuring either before or after the gate.
+            This simplifies the ``style="formula"`` label to only display the Pauli passing through
+            the Pauli channel.
 
     Returns:
         A math-mode LaTeX label.
