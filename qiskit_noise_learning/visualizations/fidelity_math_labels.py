@@ -54,7 +54,7 @@ def fidelity_index_math_label(
         out_str = _qubit_sparse_pauli_math_label(out_pauli)
         return rf"{in_str} \xrightarrow{{{gate_sym}}} {out_str}"
     elif style == "formula":
-        if noise_site is not None:
+        if noise_site is not None and fidelity_index.gate_name in noise_site:
             pauli = (
                 fidelity_index.transition[0]
                 if noise_site[fidelity_index.gate_name] == "before"
