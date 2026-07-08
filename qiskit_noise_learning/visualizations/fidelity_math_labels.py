@@ -83,9 +83,9 @@ def fidelity_index_math_label(
 def path_math_label(
     gate_set: GateSet,
     path: Path,
-    style: str = "transition",
+    style: Literal["transition", "formula"] = "transition",
+    noise_site: Mapping[str, Literal["before", "after"]] | None = None,
     repeatable_only: bool = False,
-    noise_site: Mapping[str, str] | None = None,
 ) -> str:
     r"""Return a math-mode LaTeX label for a path.
 
@@ -96,10 +96,10 @@ def path_math_label(
         style: The style to use for each fidelity index label. ``"transition"`` displays the
             Pauli operator transitions induced by each gate, and ``"formula"`` displays the
             fidelity label formula associated with this path.
-        repeatable_only: If ``True``, only render the repeatable fragment without brackets
-            or depth exponent.
         noise_site: An optional noise-site mapping forwarded to :func:`fidelity_index_math_label`
             for the ``"formula"`` style (see that function for details).
+        repeatable_only: If ``True``, only render the repeatable fragment without brackets
+            or depth exponent.
 
     Returns:
         A math-mode LaTeX label.
