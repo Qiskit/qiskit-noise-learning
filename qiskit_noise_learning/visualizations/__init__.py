@@ -12,5 +12,17 @@
 
 """Visualization utilities"""
 
+from .decay_plots import (
+    PointSeries,
+    averaged_data_curves,
+    averaged_data_points,
+    model_curves,
+    observable_data_points,
+    path_labels,
+    plot_decay_curves,
+    plot_decay_grid,
+    plot_decays,
+    plot_path_scatter,
+)
 from .fidelity_math_labels import fidelity_index_math_label, path_math_label
 from .gate_set_topology import gate_set_topology
