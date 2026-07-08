@@ -14,6 +14,7 @@
 
 from collections import Counter
 from collections.abc import Mapping
+from typing import Literal
 
 from qiskit.quantum_info import QubitSparsePauli
 
