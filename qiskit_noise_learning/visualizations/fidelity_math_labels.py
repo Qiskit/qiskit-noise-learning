@@ -24,8 +24,8 @@ from qiskit_noise_learning.sequences import FidelityIndex, Path
 def fidelity_index_math_label(
     gate_set: GateSet,
     fidelity_index: FidelityIndex,
-    style: str = "transition",
-    noise_site: Mapping[str, str] | None = None,
+    style: Literal["transition", "formula"] = "transition",
+    noise_site: Mapping[str, Literal["before", "after"]] | None = None,
 ) -> str:
     r"""Return a math-mode LaTeX label for a fidelity index.
 
