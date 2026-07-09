@@ -59,6 +59,7 @@ def plot_path_scatter(
     fig: go.Figure | None = None,
     colors: Mapping[Path, str] | None = None,
     labels: Mapping[Path, str] | None = None,
+    groups: Mapping[Path, str] | None = None,
     row: int | None = None,
     col: int | None = None,
 ) -> go.Figure:
@@ -69,8 +70,11 @@ def plot_path_scatter(
             with symmetric error bars.
         fig: An existing figure to add traces to. If ``None``, a new figure is created.
         colors: An optional mapping from path to a plotly color string for its markers.
-        labels: An optional mapping from path to a legend label. A path's label also serves as its
-            ``legendgroup``; paths without a label are omitted from the legend.
+        labels: An optional mapping from path to a legend label (the trace ``name``). Paths without
+            a label are omitted from the legend.
+        groups: An optional mapping from path to a ``legendgroup`` key, controlling which traces
+            share a legend entry and toggle together. Defaults to ``labels`` (each label is its own
+            group); pass this to make the grouping identity differ from the displayed label.
         row: The subplot row to add traces to (1-indexed), for figures created with subplots.
         col: The subplot column to add traces to (1-indexed), for figures created with subplots.
 
@@ -84,6 +88,7 @@ def plot_path_scatter(
 
     for path, series in points.items():
         label = labels.get(path) if labels else None
+        group = groups.get(path) if groups else label
         color = colors.get(path) if colors else None
         error_y = None
         if series.stds is not None:
@@ -94,7 +99,7 @@ def plot_path_scatter(
                 y=np.asarray(series.ys),
                 mode="markers",
                 name=label,
-                legendgroup=label,
+                legendgroup=group,
                 showlegend=label is not None,
                 marker={"color": color},
                 error_y=error_y,
@@ -115,6 +120,7 @@ def plot_decay_curves(
     fig: go.Figure | None = None,
     colors: Mapping[Path, str] | None = None,
     labels: Mapping[Path, str] | None = None,
+    groups: Mapping[Path, str] | None = None,
     dash: str = "solid",
     row: int | None = None,
     col: int | None = None,
@@ -128,7 +134,11 @@ def plot_decay_curves(
         depths: The depth values (x) at which to evaluate the curve.
         fig: An existing figure to add traces to. If ``None``, a new figure is created.
         colors: An optional mapping from path to a plotly color string for its line.
-        labels: An optional mapping from path to a legend label, also used as the ``legendgroup``.
+        labels: An optional mapping from path to a legend label (the trace ``name``). Paths without
+            a label are omitted from the legend.
+        groups: An optional mapping from path to a ``legendgroup`` key, controlling which traces
+            share a legend entry and toggle together. Defaults to ``labels`` (each label is its own
+            group); pass this to make the grouping identity differ from the displayed label.
         dash: The plotly line dash style (e.g. ``"solid"``, ``"dash"``, ``"dot"``).
         row: The subplot row to add traces to (1-indexed), for figures created with subplots.
         col: The subplot column to add traces to (1-indexed), for figures created with subplots.
@@ -144,6 +154,7 @@ def plot_decay_curves(
     depths_arr = np.asarray(depths, dtype=float)
     for path, base in bases.items():
         label = labels.get(path) if labels else None
+        group = groups.get(path) if groups else label
         color = colors.get(path) if colors else None
         y = intercepts[path] * base**depths_arr
         fig.add_trace(
@@ -152,7 +163,7 @@ def plot_decay_curves(
                 y=y,
                 mode="lines",
                 name=label,
-                legendgroup=label,
+                legendgroup=group,
                 showlegend=label is not None,
                 line={"color": color, "dash": dash},
             ),
@@ -347,29 +358,29 @@ def path_labels(
 
 
 def _palette() -> list[str]:
-    """The qualitative color palette used to assign per-series colors."""
+    """Color palette for assigning default colors."""
     import plotly.colors as pc
 
     return pc.qualitative.Plotly
 
 
-def _colors_by_label(
-    labels: Mapping[Path, str | None],
+def _colors_by_group(
+    groups: Mapping[Path, Hashable | None],
     overrides: Mapping[Path, str] | None,
 ) -> dict[Path, str | None]:
-    """Assign a color per path, keyed by label so paths sharing a label share a color."""
+    """Assign a color per path, keyed by group so paths in the same group share a color."""
     palette = _palette()
-    label_to_color: dict[str, str] = {}
+    group_to_color: dict[Hashable, str] = {}
     result: dict[Path, str | None] = {}
-    for path, label in labels.items():
+    for path, group in groups.items():
         if overrides and path in overrides:
             result[path] = overrides[path]
-        elif label is None:
+        elif group is None:
             result[path] = None
         else:
-            if label not in label_to_color:
-                label_to_color[label] = palette[len(label_to_color) % len(palette)]
-            result[path] = label_to_color[label]
+            if group not in group_to_color:
+                group_to_color[group] = palette[len(group_to_color) % len(palette)]
+            result[path] = group_to_color[group]
     return result
 
 
@@ -447,9 +458,9 @@ def plot_decays(
         paths: The paths to plot. Defaults to the union of paths present in the supplied data.
         gate_set: The gate set used to build default labels. Defaults to the model's gate set.
         fig: An existing figure to add traces to. If ``None``, a new figure is created.
-        colors: Optional per-path color overrides. Paths sharing a label otherwise share a color.
-        labels: Optional per-path legend labels. Defaults to :func:`path_labels` when a gate set is
-            available, otherwise to index strings.
+        colors: Optional per-path color overrides. Each path is otherwise assigned its own color.
+        labels: Optional per-path legend labels. Defaults to the output of :func:`path_labels` when
+            a gate set is available, otherwise to index strings.
         label_style: The :func:`~.path_math_label` style for default labels.
         depths: The depth range for the curves. Defaults to ``0`` through the largest observed
             depth.
@@ -461,8 +472,7 @@ def plot_decays(
     """
     import plotly.graph_objects as go
 
-    created = fig is None
-    if fig is None:
+    if is_new_fig := fig is None:
         fig = go.Figure()
 
     observable_points = (
@@ -490,13 +500,32 @@ def plot_decays(
         else:
             labels = {path: str(index) for index, path in enumerate(path_list)}
 
-    color_map = _colors_by_label({path: labels.get(path) for path in path_list}, colors)
+    # Each path is its own series: it gets one color and one (deduplicated) legend entry, shared by
+    # its points and both curves. Identity is the path, independent of the displayed label.
+    group_map = {path: str(index) for index, path in enumerate(path_list)}
+    color_map = _colors_by_group(group_map, colors)
 
     if depths is None:
         depths = _default_depths(observable_points, averaged_points)
 
-    plot_path_scatter(observable_points, fig=fig, colors=color_map, labels=labels, row=row, col=col)
-    plot_path_scatter(averaged_points, fig=fig, colors=color_map, labels=labels, row=row, col=col)
+    plot_path_scatter(
+        observable_points,
+        fig=fig,
+        colors=color_map,
+        labels=labels,
+        groups=group_map,
+        row=row,
+        col=col,
+    )
+    plot_path_scatter(
+        averaged_points,
+        fig=fig,
+        colors=color_map,
+        labels=labels,
+        groups=group_map,
+        row=row,
+        col=col,
+    )
     if fit_fidelities:
         plot_decay_curves(
             fit_fidelities,
@@ -505,6 +534,7 @@ def plot_decays(
             fig=fig,
             colors=color_map,
             labels=labels,
+            groups=group_map,
             dash="solid",
             row=row,
             col=col,
@@ -517,13 +547,14 @@ def plot_decays(
             fig=fig,
             colors=color_map,
             labels=labels,
+            groups=group_map,
             dash="dash",
             row=row,
             col=col,
         )
 
     _dedupe_legend(fig)
-    if created:
+    if is_new_fig:
         fig.update_layout(xaxis_title="depth", yaxis_title="observable")
 
     return fig
@@ -540,16 +571,18 @@ def plot_decay_grid(
     gate_set: GateSet | None = None,
     num_cols: int = 3,
     label: Callable[[Path, Hashable], str] | None = None,
-    colors: Mapping[str, str] | None = None,
+    series_key: Callable[[Path, Hashable], Hashable] | None = None,
+    colors: Mapping[Hashable, str] | None = None,
     label_style: str = "formula",
     depths: Sequence[float] | np.ndarray | None = None,
 ) -> go.Figure:
     """Draw a grid of decay overlays, one subplot per group.
 
-    Subplot membership and series identity are independent: ``groups`` decides which subplot a path
-    is drawn in (a path may appear in several), while the ``label`` callable's returned string
-    decides a path's color and legend entry. Labels equal across subplots share a color and collapse
-    to a single legend entry, giving one coherent legend for the whole grid.
+    Subplot membership and series identity are independent. The ``groups`` mapping decides which
+    subplot a path is drawn in (a path may appear in several). Color and the (deduplicated) legend
+    entry are keyed by the ``series_key`` callable's return value, so paths that resolve to the same
+    series key share a color and collapse to one legend entry across the whole grid, while ``label``
+    controls only the displayed text.
 
     Args:
         groups: A mapping from a group key (used as the subplot title) to the paths in that subplot.
@@ -559,9 +592,12 @@ def plot_decay_grid(
         model_data: Optional fitted parameters for predicted curves (requires ``model``).
         gate_set: The gate set for default labels. Defaults to the model's gate set.
         num_cols: The number of subplot columns; rows are derived from the group count.
-        label: A callable ``(path, group_key) -> str`` giving each path's label within a subplot.
-            Defaults to a group-independent :func:`~.path_math_label` (formula, repeatable only).
-        colors: Optional overrides mapping a label string to a color.
+        label: A callable ``(path, group_key) -> str`` giving each path's displayed label within a
+            subplot. Defaults to a group-independent :func:`~.path_math_label` (formula, repeatable
+            only).
+        series_key: A callable ``(path, group_key) -> Hashable`` giving each path's series identity
+            (its color and shared legend entry). Defaults to the displayed ``label``.
+        colors: Optional overrides mapping a series key to a color.
         label_style: The :func:`~.path_math_label` style for the default label.
         depths: The depth range for the curves. Defaults to ``0`` through the largest observed
             depth.
@@ -592,7 +628,7 @@ def plot_decay_grid(
         depths = _default_depths(observable_points, averaged_points)
 
     palette = _palette()
-    label_to_color: dict[str, str] = {}
+    series_to_color: dict[Hashable, str] = {}
 
     def _label_for(path: Path, key: Hashable) -> str | None:
         if label is not None:
@@ -605,14 +641,19 @@ def plot_decay_grid(
             )
         return None
 
-    def _color_for(label_str: str | None) -> str | None:
-        if label_str is None:
+    def _series_for(path: Path, key: Hashable, label_str: str | None) -> Hashable | None:
+        if series_key is not None:
+            return series_key(path, key)
+        return label_str
+
+    def _color_for(series_val: Hashable | None) -> str | None:
+        if series_val is None:
             return None
-        if colors and label_str in colors:
-            return colors[label_str]
-        if label_str not in label_to_color:
-            label_to_color[label_str] = palette[len(label_to_color) % len(palette)]
-        return label_to_color[label_str]
+        if colors and series_val in colors:
+            return colors[series_val]
+        if series_val not in series_to_color:
+            series_to_color[series_val] = palette[len(series_to_color) % len(palette)]
+        return series_to_color[series_val]
 
     for index, (key, group_paths) in enumerate(group_items):
         grid_row = index // num_cols + 1
@@ -620,13 +661,19 @@ def plot_decay_grid(
         group_paths = list(group_paths)
 
         cell_labels = {path: _label_for(path, key) for path in group_paths}
-        cell_colors = {path: _color_for(cell_labels[path]) for path in group_paths}
+        cell_series = {path: _series_for(path, key, cell_labels[path]) for path in group_paths}
+        cell_colors = {path: _color_for(cell_series[path]) for path in group_paths}
+        cell_groups = {
+            path: None if cell_series[path] is None else str(cell_series[path])
+            for path in group_paths
+        }
 
         plot_path_scatter(
             {path: observable_points[path] for path in group_paths if path in observable_points},
             fig=fig,
             colors=cell_colors,
             labels=cell_labels,
+            groups=cell_groups,
             row=grid_row,
             col=grid_col,
         )
@@ -635,6 +682,7 @@ def plot_decay_grid(
             fig=fig,
             colors=cell_colors,
             labels=cell_labels,
+            groups=cell_groups,
             row=grid_row,
             col=grid_col,
         )
@@ -648,6 +696,7 @@ def plot_decay_grid(
                 fig=fig,
                 colors=cell_colors,
                 labels=cell_labels,
+                groups=cell_groups,
                 dash="solid",
                 row=grid_row,
                 col=grid_col,
@@ -662,6 +711,7 @@ def plot_decay_grid(
                 fig=fig,
                 colors=cell_colors,
                 labels=cell_labels,
+                groups=cell_groups,
                 dash="dash",
                 row=grid_row,
                 col=grid_col,
