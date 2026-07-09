@@ -47,6 +47,17 @@ class PointSeries:
     stds: np.ndarray | None = None
 
 
+# Default per-layer marker symbols / line dashes, shared by the per-type plotters and by the layer
+# metadata used to build the symbol legend (so an overridden symbol/dash is reflected there too).
+_OBSERVABLE_POINTS_SYMBOL = "circle"
+_AVERAGED_POINTS_SYMBOL = "circle-open"
+_FIT_DASH = "solid"
+_MODEL_DASH = "dash"
+
+# Neutral color for the symbol-legend proxy traces (symbols there denote layer type, not path).
+_SYMBOL_LEGEND_COLOR = "rgb(120,120,120)"
+
+
 # --------------------------------------------------------------------------------------------------
 # Core plotting primitives
 # --------------------------------------------------------------------------------------------------
@@ -509,7 +520,7 @@ def plot_observable_points(
         colors=colors,
         labels=labels,
         groups=groups,
-        marker_kwargs={"symbol": "circle", **(marker_kwargs or {})},
+        marker_kwargs={"symbol": _OBSERVABLE_POINTS_SYMBOL, **(marker_kwargs or {})},
         row=row,
         col=col,
     )
@@ -550,7 +561,7 @@ def plot_averaged_points(
         colors=colors,
         labels=labels,
         groups=groups,
-        marker_kwargs={"symbol": "circle-open", **(marker_kwargs or {})},
+        marker_kwargs={"symbol": _AVERAGED_POINTS_SYMBOL, **(marker_kwargs or {})},
         row=row,
         col=col,
     )
@@ -599,7 +610,7 @@ def plot_fit_curves(
         colors=colors,
         labels=labels,
         groups=groups,
-        line_kwargs={"dash": "solid", **(line_kwargs or {})},
+        line_kwargs={"dash": _FIT_DASH, **(line_kwargs or {})},
         row=row,
         col=col,
     )
@@ -657,7 +668,7 @@ def plot_model_curves(
         colors=colors,
         labels=labels,
         groups=groups,
-        line_kwargs={"dash": "dash", **(line_kwargs or {})},
+        line_kwargs={"dash": _MODEL_DASH, **(line_kwargs or {})},
         row=row,
         col=col,
     )
@@ -724,6 +735,13 @@ def plot_observable_means(
 Layer = Callable[..., "go.Figure"]
 
 
+def _tag(render: Layer, name: str, proxy: dict) -> Layer:
+    """Attach symbol-legend metadata (display name + proxy trace style) to a layer callable."""
+    render.legend_name = name
+    render.legend_proxy = proxy
+    return render
+
+
 def observable_points_layer(
     observable_data: ObservableData, *, marker_kwargs: Mapping[str, object] | None = None
 ) -> Layer:
@@ -742,7 +760,14 @@ def observable_points_layer(
             col=col,
         )
 
-    return render
+    return _tag(
+        render,
+        "Observable points",
+        {
+            "mode": "markers",
+            "marker": {"symbol": _OBSERVABLE_POINTS_SYMBOL, **(marker_kwargs or {})},
+        },
+    )
 
 
 def observable_means_layer(
@@ -763,7 +788,11 @@ def observable_means_layer(
             col=col,
         )
 
-    return render
+    return _tag(
+        render,
+        "Observable means",
+        {"mode": "markers", "marker": {"symbol": _AVERAGED_POINTS_SYMBOL, **(marker_kwargs or {})}},
+    )
 
 
 def averaged_points_layer(
@@ -784,7 +813,11 @@ def averaged_points_layer(
             col=col,
         )
 
-    return render
+    return _tag(
+        render,
+        "Averaged points",
+        {"mode": "markers", "marker": {"symbol": _AVERAGED_POINTS_SYMBOL, **(marker_kwargs or {})}},
+    )
 
 
 def fit_curves_layer(
@@ -806,7 +839,11 @@ def fit_curves_layer(
             col=col,
         )
 
-    return render
+    return _tag(
+        render,
+        "Fit",
+        {"mode": "lines", "line": {"dash": _FIT_DASH, **(line_kwargs or {})}},
+    )
 
 
 def model_curves_layer(
@@ -829,12 +866,69 @@ def model_curves_layer(
             col=col,
         )
 
-    return render
+    return _tag(
+        render,
+        "Model",
+        {"mode": "lines", "line": {"dash": _MODEL_DASH, **(line_kwargs or {})}},
+    )
 
 
 # --------------------------------------------------------------------------------------------------
 # Orchestrators: lay out a list of layers with shared coordination
 # --------------------------------------------------------------------------------------------------
+
+
+def _add_symbol_legend(fig: go.Figure, layers: Iterable[Layer]) -> None:
+    """Add a second legend (``legend2``) mapping each layer's symbol/dash to its name.
+
+    Emits one neutral-colored proxy trace per distinct layer that carries metadata; a symbol
+    legend is only added when at least two distinct layer types are present. No-op otherwise.
+
+    This legend is a static reference key: its clicks are disabled (``itemclick=False``). Plotly
+    ties a trace to a single ``legendgroup``/legend, and the data traces use that to group and
+    toggle by path in the main legend, so the symbol legend cannot also toggle whole layers.
+    """
+    import plotly.graph_objects as go
+
+    entries: list[tuple[str, dict]] = []
+    seen: set[str] = set()
+    for layer in layers:
+        name = getattr(layer, "legend_name", None)
+        proxy = getattr(layer, "legend_proxy", None)
+        if name is None or proxy is None or name in seen:
+            continue
+        seen.add(name)
+        entries.append((name, proxy))
+
+    if len(entries) < 2:
+        return
+
+    for name, proxy in entries:
+        trace = {
+            "x": [None],
+            "y": [None],
+            "mode": proxy.get("mode", "markers"),
+            "name": name,
+            "legend": "legend2",
+            "showlegend": True,
+            "hoverinfo": "skip",
+        }
+        if "marker" in proxy:
+            trace["marker"] = {**proxy["marker"], "color": _SYMBOL_LEGEND_COLOR}
+        if "line" in proxy:
+            trace["line"] = {**proxy["line"], "color": _SYMBOL_LEGEND_COLOR}
+        fig.add_trace(go.Scatter(**trace))
+
+    fig.update_layout(
+        legend={"title_text": "Path", "y": 1.0, "yanchor": "top"},
+        legend2={
+            "title_text": "Series",
+            "y": 0.48,
+            "yanchor": "top",
+            "itemclick": False,
+            "itemdoubleclick": False,
+        },
+    )
 
 
 @HAS_PLOTLY.require_in_call
@@ -877,6 +971,7 @@ def plot_overlay(
     if is_new_fig := fig is None:
         fig = go.Figure()
 
+    layers = list(layers)
     path_list = list(paths)
     if labels is None:
         if gate_set is not None:
@@ -902,6 +997,7 @@ def plot_overlay(
         )
 
     _dedupe_legend(fig)
+    _add_symbol_legend(fig, layers)
     if is_new_fig:
         fig.update_layout(xaxis_title="depth", yaxis_title="observable")
     return fig
@@ -1007,6 +1103,7 @@ def plot_grid(
             )
 
     _dedupe_legend(fig)
+    _add_symbol_legend(fig, layers)
     fig.update_xaxes(title_text="depth")
     fig.update_yaxes(title_text="observable")
     return fig
