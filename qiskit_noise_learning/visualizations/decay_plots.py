@@ -64,7 +64,7 @@ _SYMBOL_LEGEND_COLOR = "rgb(120,120,120)"
 
 
 @HAS_PLOTLY.require_in_call
-def plot_path_scatter(
+def plot_path_scatters(
     points: Mapping[Path, PointSeries],
     *,
     fig: go.Figure | None = None,
@@ -503,9 +503,9 @@ def plot_observable_points(
     Args:
         observable_data: The raw observable data.
         fig: An existing figure to add traces to. If ``None``, a new figure is created.
-        colors: Optional per-path marker colors, forwarded to :func:`plot_path_scatter`.
-        labels: Optional per-path legend labels, forwarded to :func:`plot_path_scatter`.
-        groups: Optional per-path ``legendgroup`` keys, forwarded to :func:`plot_path_scatter`.
+        colors: Optional per-path marker colors, forwarded to :func:`plot_path_scatters`.
+        labels: Optional per-path legend labels, forwarded to :func:`plot_path_scatters`.
+        groups: Optional per-path ``legendgroup`` keys, forwarded to :func:`plot_path_scatters`.
         marker_kwargs: Optional ``marker`` overrides; defaults to a filled-circle ``symbol``.
         paths: Optional paths to restrict to. Defaults to all paths in the data.
         row: The subplot row to add traces to (1-indexed).
@@ -514,7 +514,7 @@ def plot_observable_points(
     Returns:
         The figure with the added traces.
     """
-    return plot_path_scatter(
+    return plot_path_scatters(
         observable_data_points(observable_data, paths),
         fig=fig,
         colors=colors,
@@ -544,9 +544,9 @@ def plot_averaged_points(
     Args:
         averaged_data: The averaged data.
         fig: An existing figure to add traces to. If ``None``, a new figure is created.
-        colors: Optional per-path marker colors, forwarded to :func:`plot_path_scatter`.
-        labels: Optional per-path legend labels, forwarded to :func:`plot_path_scatter`.
-        groups: Optional per-path ``legendgroup`` keys, forwarded to :func:`plot_path_scatter`.
+        colors: Optional per-path marker colors, forwarded to :func:`plot_path_scatters`.
+        labels: Optional per-path legend labels, forwarded to :func:`plot_path_scatters`.
+        groups: Optional per-path ``legendgroup`` keys, forwarded to :func:`plot_path_scatters`.
         marker_kwargs: Optional ``marker`` overrides; defaults to an ``x`` symbol.
         paths: Optional paths to restrict to. Defaults to all paths in the data.
         row: The subplot row to add traces to (1-indexed).
@@ -555,7 +555,7 @@ def plot_averaged_points(
     Returns:
         The figure with the added traces.
     """
-    return plot_path_scatter(
+    return plot_path_scatters(
         averaged_data_points(averaged_data, paths),
         fig=fig,
         colors=colors,
@@ -937,13 +937,14 @@ def _add_symbol_legend(fig: go.Figure, layers: Iterable[Layer]) -> None:
 
 
 @HAS_PLOTLY.require_in_call
-def plot_overlay(
+def plot_path_overlay(
     layers: Iterable[Layer],
     paths: Iterable[Path],
     *,
     gate_set: GateSet | None = None,
     colors: Mapping[Path, str] | None = None,
     labels: Mapping[Path, str] | None = None,
+    groups: Mapping[Path, str] | None = None,
     label_style: str = "formula",
     depths: Sequence[float] | np.ndarray | None = None,
     title: str | None = None,
@@ -956,6 +957,10 @@ def plot_overlay(
     Each path is its own series: one color and one deduplicated legend entry shared across every
     layer. Labels default to :func:`path_labels` when a gate set is available, else index strings.
 
+    When ``fig`` is ``None`` this creates the figure and finalizes it (dedupe legend, symbol legend,
+    axis titles). When an existing ``fig`` is passed (e.g. a subplot cell) it only adds traces and
+    leaves finalization to the caller — how :func:`plot_path_grid_overlay` renders each cell.
+
     Args:
         layers: The layers to draw (e.g. from :func:`averaged_points_layer`,
             :func:`model_curves_layer`), each invoked with the shared coordination.
@@ -963,10 +968,12 @@ def plot_overlay(
         gate_set: The gate set used to build default labels.
         colors: Optional per-path color overrides; each path is otherwise assigned its own color.
         labels: Optional per-path legend labels.
+        groups: Optional per-path ``legendgroup``/color-identity keys. Defaults to a per-path
+            identity (each path its own color and legend entry).
         label_style: The :func:`~.path_math_label` style for default labels.
         depths: The depth range passed to curve layers. Defaults to ``0``–``10``.
         title: An optional figure title.
-        fig: An existing figure to add traces to. If ``None``, a new figure is created.
+        fig: An existing figure to add traces to. If ``None``, a new figure is created + finalized.
         row: The subplot row to add traces to (1-indexed).
         col: The subplot column to add traces to (1-indexed).
 
@@ -986,8 +993,8 @@ def plot_overlay(
         else:
             labels = {path: str(index) for index, path in enumerate(path_list)}
 
-    group_map = {path: str(index) for index, path in enumerate(path_list)}
-    color_map = _colors_by_group(group_map, colors)
+    identity = groups if groups is not None else {p: str(i) for i, p in enumerate(path_list)}
+    color_map = _colors_by_group(identity, colors)
     if depths is None:
         depths = _default_depths()
 
@@ -996,24 +1003,25 @@ def plot_overlay(
             fig=fig,
             colors=color_map,
             labels=labels,
-            groups=group_map,
+            groups=identity,
             depths=depths,
             paths=path_list,
             row=row,
             col=col,
         )
 
-    _dedupe_legend(fig)
-    _add_symbol_legend(fig, layers)
+    # Finalize only when we own the figure; a caller passing ``fig`` (e.g. a grid cell) finalizes.
     if is_new_fig:
+        _dedupe_legend(fig)
+        _add_symbol_legend(fig, layers)
         fig.update_layout(xaxis_title="depth", yaxis_title="observable")
-    if title is not None:
-        fig.update_layout(title_text=title)
+        if title is not None:
+            fig.update_layout(title_text=title)
     return fig
 
 
 @HAS_PLOTLY.require_in_call
-def plot_grid(
+def plot_path_grid_overlay(
     groups: Mapping[Hashable, Sequence[Path]],
     layers: Iterable[Layer],
     *,
@@ -1101,17 +1109,19 @@ def plot_grid(
             for path in group_paths
         }
 
-        for layer in layers:
-            layer(
-                fig=fig,
-                colors=cell_colors,
-                labels=cell_labels,
-                groups=cell_groups,
-                depths=depths,
-                paths=group_paths,
-                row=grid_row,
-                col=grid_col,
-            )
+        # Render this cell through the single-axes overlay (passing our resolved coordination and an
+        # existing ``fig`` so it only adds traces; we finalize the whole grid once below).
+        plot_path_overlay(
+            layers,
+            group_paths,
+            colors=cell_colors,
+            labels=cell_labels,
+            groups=cell_groups,
+            depths=depths,
+            fig=fig,
+            row=grid_row,
+            col=grid_col,
+        )
 
     _dedupe_legend(fig)
     _add_symbol_legend(fig, layers)
@@ -1127,18 +1137,36 @@ def plot_grid(
 # --------------------------------------------------------------------------------------------------
 
 
-def _standard_decay_layers(
+def standard_decay_layers(
     *,
-    observable_data: ObservableData | None,
-    observable_marker_kwargs: Mapping[str, object] | None,
-    averaged_data: AveragedData | None,
-    averaged_marker_kwargs: Mapping[str, object] | None,
-    averaged_line_kwargs: Mapping[str, object] | None,
-    model: LinearMap | None,
-    model_data: ModelData | None,
-    model_line_kwargs: Mapping[str, object] | None,
+    observable_data: ObservableData | None = None,
+    observable_marker_kwargs: Mapping[str, object] | None = None,
+    averaged_data: AveragedData | None = None,
+    averaged_marker_kwargs: Mapping[str, object] | None = None,
+    averaged_line_kwargs: Mapping[str, object] | None = None,
+    model: LinearMap | None = None,
+    model_data: ModelData | None = None,
+    model_line_kwargs: Mapping[str, object] | None = None,
 ) -> list[Layer]:
-    """The standard layer stack: observable points, averaged points, fit curve, model curve."""
+    """Build the standard decay layer stack for the supplied data sources.
+
+    Includes an observable-scatter layer (if ``observable_data``), averaged-points and fit-curve
+    layers (if ``averaged_data``), and a model-curve layer (if ``model`` and ``model_data``). Pass
+    the result to :func:`plot_path_overlay` or :func:`plot_path_grid_overlay`.
+
+    Args:
+        observable_data: Optional raw observable data (raw scatter points).
+        observable_marker_kwargs: Optional ``marker`` overrides for the observable points.
+        averaged_data: Optional averaged data (averaged points + fitted curve).
+        averaged_marker_kwargs: Optional ``marker`` overrides for the averaged points.
+        averaged_line_kwargs: Optional ``line`` overrides for the fitted curve.
+        model: Optional fidelity model for predicted curves (requires ``model_data``).
+        model_data: Optional fitted parameters for predicted curves (requires ``model``).
+        model_line_kwargs: Optional ``line`` overrides for the model curve.
+
+    Returns:
+        The list of layers, in draw order.
+    """
     layers: list[Layer] = []
     if observable_data is not None:
         layers.append(
@@ -1150,182 +1178,6 @@ def _standard_decay_layers(
     if model is not None and model_data is not None:
         layers.append(model_curves_layer(model, model_data, line_kwargs=model_line_kwargs))
     return layers
-
-
-@HAS_PLOTLY.require_in_call
-def plot_decays(
-    *,
-    observable_data: ObservableData | None = None,
-    observable_marker_kwargs: Mapping[str, object] | None = None,
-    averaged_data: AveragedData | None = None,
-    averaged_marker_kwargs: Mapping[str, object] | None = None,
-    averaged_line_kwargs: Mapping[str, object] | None = None,
-    model: LinearMap | None = None,
-    model_data: ModelData | None = None,
-    model_line_kwargs: Mapping[str, object] | None = None,
-    paths: Iterable[Path] | None = None,
-    gate_set: GateSet | None = None,
-    fig: go.Figure | None = None,
-    colors: Mapping[Path, str] | None = None,
-    labels: Mapping[Path, str] | None = None,
-    label_style: str = "formula",
-    depths: Sequence[float] | np.ndarray | None = None,
-    title: str | None = None,
-    row: int | None = None,
-    col: int | None = None,
-) -> go.Figure:
-    """Overlay decay points and fitted / model-predicted decay curves on a single axes.
-
-    Draws, per unbound path: raw scatter points (from ``observable_data``), averaged points with
-    error bars (from ``averaged_data``), the fitted decay curve (solid, from ``averaged_data``), and
-    the model-predicted decay curve (dashed, from ``model`` + ``model_data``). Points and both
-    curves for a path share a color and a single legend entry.
-
-    Args:
-        observable_data: Optional raw observable data for scatter points.
-        observable_marker_kwargs: Optional ``marker`` properties for the observable scatter points
-            (e.g. ``symbol``, ``size``), merged over the per-path color; defaults to a filled-circle
-            ``symbol`` when one is not given.
-        averaged_data: Optional averaged data for averaged points and the fitted curve.
-        averaged_marker_kwargs: Optional ``marker`` properties for the averaged points; defaults to
-            an ``x`` symbol when one is not given.
-        averaged_line_kwargs: Optional ``line`` properties for the fitted curve (e.g. ``dash``,
-            ``width``); defaults to a solid ``dash`` when one is not given.
-        model: Optional fidelity model for the predicted curve (requires ``model_data``).
-        model_data: Optional fitted parameters for the predicted curve (requires ``model``).
-        model_line_kwargs: Optional ``line`` properties for the model curve; defaults to a dashed
-            ``dash`` when one is not given.
-        paths: The paths to plot. Defaults to the union of paths present in the supplied data.
-        gate_set: The gate set used to build default labels. Defaults to the model's gate set.
-        fig: An existing figure to add traces to. If ``None``, a new figure is created.
-        colors: Optional per-path color overrides. Each path is otherwise assigned its own color.
-        labels: Optional per-path legend labels. Defaults to the output of :func:`path_labels` when
-            a gate set is available, otherwise to index strings.
-        label_style: The :func:`~.path_math_label` style for default labels.
-        depths: The depth range for the curves. Defaults to ``0`` through the largest observed
-            depth.
-        title: An optional figure title.
-        row: The subplot row to add traces to (1-indexed).
-        col: The subplot column to add traces to (1-indexed).
-
-    Returns:
-        The figure with the overlaid traces.
-    """
-    layers = _standard_decay_layers(
-        observable_data=observable_data,
-        observable_marker_kwargs=observable_marker_kwargs,
-        averaged_data=averaged_data,
-        averaged_marker_kwargs=averaged_marker_kwargs,
-        averaged_line_kwargs=averaged_line_kwargs,
-        model=model,
-        model_data=model_data,
-        model_line_kwargs=model_line_kwargs,
-    )
-    path_list = list(paths) if paths is not None else _dataset_paths(observable_data, averaged_data)
-    if depths is None:
-        max_depth = _dataset_max_depth(observable_data, averaged_data)
-        depths = np.linspace(0.0, float(max_depth) if max_depth else 10.0, 100)
-
-    return plot_overlay(
-        layers,
-        path_list,
-        gate_set=_resolve_gate_set(gate_set, model),
-        colors=colors,
-        labels=labels,
-        label_style=label_style,
-        depths=depths,
-        title=title,
-        fig=fig,
-        row=row,
-        col=col,
-    )
-
-
-@HAS_PLOTLY.require_in_call
-def plot_decay_grid(
-    groups: Mapping[Hashable, Sequence[Path]],
-    *,
-    observable_data: ObservableData | None = None,
-    observable_marker_kwargs: Mapping[str, object] | None = None,
-    averaged_data: AveragedData | None = None,
-    averaged_marker_kwargs: Mapping[str, object] | None = None,
-    averaged_line_kwargs: Mapping[str, object] | None = None,
-    model: LinearMap | None = None,
-    model_data: ModelData | None = None,
-    model_line_kwargs: Mapping[str, object] | None = None,
-    gate_set: GateSet | None = None,
-    num_cols: int = 3,
-    label: Callable[[Path, Hashable], str] | None = None,
-    series_key: Callable[[Path, Hashable], Hashable] | None = None,
-    colors: Mapping[Hashable, str] | None = None,
-    label_style: str = "formula",
-    depths: Sequence[float] | np.ndarray | None = None,
-    title: str | None = None,
-) -> go.Figure:
-    """Draw a grid of decay overlays, one subplot per group.
-
-    Subplot membership and series identity are independent. The ``groups`` mapping decides which
-    subplot a path is drawn in (a path may appear in several). Color and the (deduplicated) legend
-    entry are keyed by the ``series_key`` callable's return value, so paths that resolve to the same
-    series key share a color and collapse to one legend entry across the whole grid, while ``label``
-    controls only the displayed text.
-
-    Args:
-        groups: A mapping from a group key (used as the subplot title) to the paths in that subplot.
-        observable_data: Optional raw observable data for scatter points.
-        observable_marker_kwargs: Optional ``marker`` properties for the observable scatter points;
-            defaults to a filled-circle ``symbol`` when one is not given.
-        averaged_data: Optional averaged data for averaged points and fitted curves.
-        averaged_marker_kwargs: Optional ``marker`` properties for the averaged points; defaults to
-            an ``x`` symbol when one is not given.
-        averaged_line_kwargs: Optional ``line`` properties for the fitted curves (overrides the
-            default solid dash).
-        model: Optional fidelity model for predicted curves (requires ``model_data``).
-        model_data: Optional fitted parameters for predicted curves (requires ``model``).
-        model_line_kwargs: Optional ``line`` properties for the model curves (overrides the default
-            dashed dash).
-        gate_set: The gate set for default labels. Defaults to the model's gate set.
-        num_cols: The number of subplot columns; rows are derived from the group count.
-        label: A callable ``(path, group_key) -> str`` giving each path's displayed label within a
-            subplot. Defaults to a group-independent :func:`~.path_math_label` (formula, repeatable
-            only).
-        series_key: A callable ``(path, group_key) -> Hashable`` giving each path's series identity
-            (its color and shared legend entry). Defaults to the displayed ``label``.
-        colors: Optional overrides mapping a series key to a color.
-        label_style: The :func:`~.path_math_label` style for the default label.
-        depths: The depth range for the curves. Defaults to ``0`` through the largest observed
-            depth.
-        title: An optional figure title.
-
-    Returns:
-        The subplot-grid figure.
-    """
-    layers = _standard_decay_layers(
-        observable_data=observable_data,
-        observable_marker_kwargs=observable_marker_kwargs,
-        averaged_data=averaged_data,
-        averaged_marker_kwargs=averaged_marker_kwargs,
-        averaged_line_kwargs=averaged_line_kwargs,
-        model=model,
-        model_data=model_data,
-        model_line_kwargs=model_line_kwargs,
-    )
-    if depths is None:
-        max_depth = _dataset_max_depth(observable_data, averaged_data)
-        depths = np.linspace(0.0, float(max_depth) if max_depth else 10.0, 100)
-
-    return plot_grid(
-        groups,
-        layers,
-        num_cols=num_cols,
-        gate_set=_resolve_gate_set(gate_set, model),
-        label=label,
-        series_key=series_key,
-        colors=colors,
-        label_style=label_style,
-        depths=depths,
-        title=title,
-    )
 
 
 @HAS_PLOTLY.require_in_call
@@ -1415,8 +1267,7 @@ def plot_2_qubit_decays(
             + "$"
         )
 
-    return plot_decay_grid(
-        groups,
+    layers = standard_decay_layers(
         observable_data=observable_data,
         observable_marker_kwargs=observable_marker_kwargs,
         averaged_data=averaged_data,
@@ -1425,8 +1276,12 @@ def plot_2_qubit_decays(
         model=model,
         model_data=model_data,
         model_line_kwargs=model_line_kwargs,
-        gate_set=resolved_gate_set,
+    )
+    return plot_path_grid_overlay(
+        groups,
+        layers,
         num_cols=num_cols,
+        gate_set=resolved_gate_set,
         label=_label,
         colors=colors,
         depths=depths,

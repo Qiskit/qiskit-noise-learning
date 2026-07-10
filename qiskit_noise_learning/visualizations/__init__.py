@@ -26,16 +26,15 @@ from .decay_plots import (
     path_labels,
     plot_2_qubit_decays,
     plot_averaged_points,
-    plot_decay_grid,
-    plot_decays,
     plot_fit_curves,
-    plot_grid,
     plot_model_curves,
     plot_observable_means,
     plot_observable_points,
-    plot_overlay,
     plot_path_decay_curves,
-    plot_path_scatter,
+    plot_path_grid_overlay,
+    plot_path_overlay,
+    plot_path_scatters,
+    standard_decay_layers,
 )
 from .fidelity_math_labels import fidelity_index_math_label, path_math_label
 from .gate_set_topology import gate_set_topology
