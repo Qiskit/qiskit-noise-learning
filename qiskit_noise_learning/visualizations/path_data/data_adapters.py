@@ -27,11 +27,11 @@ if TYPE_CHECKING:
     from ...sequences import Path
 
 
-def averaged_data_curves(
+def exponential_fit_curves(
     averaged_data: AveragedData,
     paths: Iterable[Path] | None = None,
 ) -> tuple[dict[Path, float], dict[Path, float]]:
-    """Extract exponential decay parameters from averaged data.
+    """Extract exponential-fit decay parameters from averaged data.
 
     Extracts the ``base`` and ``intercept`` for entries with ``depth == -1``, for use in
     :func:`plot_path_decay_curves`. The ``intercept`` is drawn from ``metadata["spam_fidelity"]``,

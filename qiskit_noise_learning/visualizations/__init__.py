@@ -17,10 +17,9 @@ from .gate_set_topology import gate_set_topology
 from .path_data import (
     Layer,
     PointSeries,
-    averaged_data_curves,
     averaged_data_points,
-    averaged_points_layer,
-    fit_curves_layer,
+    exponential_fit_curves,
+    exponential_fit_curves_layer,
     model_curves,
     model_curves_layer,
     observable_data_points,

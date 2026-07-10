@@ -206,7 +206,7 @@ class Fit:
         model_prediction: bool = True,
         observable_marker_kwargs: Mapping[str, object] | None = None,
         means_marker_kwargs: Mapping[str, object] | None = None,
-        fit_line_kwargs: Mapping[str, object] | None = None,
+        exponential_fit_line_kwargs: Mapping[str, object] | None = None,
         model_line_kwargs: Mapping[str, object] | None = None,
         num_cols: int = 3,
         noise_site: Mapping[str, str] | None = None,
@@ -230,7 +230,7 @@ class Fit:
                 model and :class:`~.ModelData`.
             observable_marker_kwargs: Optional ``marker`` overrides for the raw observable points.
             means_marker_kwargs: Optional ``marker`` overrides for the observable-means points.
-            fit_line_kwargs: Optional ``line`` overrides for the fitted curve.
+            exponential_fit_line_kwargs: Optional ``line`` overrides for the exponential-fit curve.
             model_line_kwargs: Optional ``line`` overrides for the model curve.
             num_cols: The number of subplot columns; rows are derived from the pair count.
             noise_site: An optional noise-site mapping forwarded to the label formatter (with the
@@ -268,8 +268,7 @@ class Fit:
             observable_marker_kwargs=observable_marker_kwargs,
             means_marker_kwargs=means_marker_kwargs,
             averaged_data=averaged_data,
-            averaged_points=False,
-            averaged_line_kwargs=fit_line_kwargs,
+            exponential_fit_line_kwargs=exponential_fit_line_kwargs,
             model=model,
             model_data=model_data,
             model_line_kwargs=model_line_kwargs,

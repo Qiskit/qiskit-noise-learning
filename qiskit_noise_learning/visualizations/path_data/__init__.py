@@ -13,15 +13,14 @@
 """Path-referenced decay plotting."""
 
 from .data_adapters import (
-    averaged_data_curves,
     averaged_data_points,
+    exponential_fit_curves,
     model_curves,
     observable_data_points,
 )
 from .layers import (
     Layer,
-    averaged_points_layer,
-    fit_curves_layer,
+    exponential_fit_curves_layer,
     model_curves_layer,
     observable_means_layer,
     observable_points_layer,
