@@ -222,6 +222,7 @@ def standard_decay_layers(
     observable_marker_kwargs: Mapping[str, object] | None = None,
     means_marker_kwargs: Mapping[str, object] | None = None,
     averaged_data: AveragedData | None = None,
+    averaged_points: bool = True,
     averaged_marker_kwargs: Mapping[str, object] | None = None,
     averaged_line_kwargs: Mapping[str, object] | None = None,
     model: LinearMap | None = None,
@@ -243,6 +244,9 @@ def standard_decay_layers(
         observable_marker_kwargs: Optional ``marker`` overrides for the raw observable scatter.
         means_marker_kwargs: Optional ``marker`` overrides for the observable-means scatter.
         averaged_data: Optional averaged data (averaged points + fitted curve).
+        averaged_points: Whether to include the averaged-points layer. The fitted curve is always
+            drawn when ``averaged_data`` is given; set this ``False`` to draw only the curve (e.g.
+            when empirical points are already supplied via ``observable_data``).
         averaged_marker_kwargs: Optional ``marker`` overrides for the averaged points.
         averaged_line_kwargs: Optional ``line`` overrides for the fitted curve.
         model: Optional fidelity model for predicted curves (requires ``model_data``).
@@ -271,7 +275,10 @@ def standard_decay_layers(
                 observable_means_layer(observable_data, marker_kwargs=means_marker_kwargs)
             )
     if averaged_data is not None:
-        layers.append(averaged_points_layer(averaged_data, marker_kwargs=averaged_marker_kwargs))
+        if averaged_points:
+            layers.append(
+                averaged_points_layer(averaged_data, marker_kwargs=averaged_marker_kwargs)
+            )
         layers.append(fit_curves_layer(averaged_data, line_kwargs=averaged_line_kwargs))
     if model is not None and model_data is not None:
         layers.append(model_curves_layer(model, model_data, line_kwargs=model_line_kwargs))

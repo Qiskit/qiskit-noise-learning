@@ -12,7 +12,8 @@
 
 """Fit."""
 
-from typing import Self
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Literal, Self
 
 from qiskit_noise_learning.data import (
     AveragedData,
@@ -23,6 +24,9 @@ from qiskit_noise_learning.data import (
 )
 from qiskit_noise_learning.models import FidelityModel, is_fidelity_model
 from qiskit_noise_learning.sequences import InstructionSequence, Path
+
+if TYPE_CHECKING:
+    import plotly.graph_objects as go
 
 LEVELS = (RawData, ObservableData, AveragedData, ModelData)
 """The levels of the analysis hierarchy."""
@@ -192,3 +196,85 @@ class Fit:
     def relations(self) -> set[tuple[int, int]] | None:
         """Path-to-sequence relations, or ``None`` if not set."""
         return self._relations
+
+    def plot_2_qubit_decays(
+        self,
+        pairs: Sequence[tuple[int, int]],
+        *,
+        observable_type: Literal["raw", "means", "both"] | None = "means",
+        exponential_fit: bool = True,
+        model_prediction: bool = True,
+        observable_marker_kwargs: Mapping[str, object] | None = None,
+        means_marker_kwargs: Mapping[str, object] | None = None,
+        fit_line_kwargs: Mapping[str, object] | None = None,
+        model_line_kwargs: Mapping[str, object] | None = None,
+        num_cols: int = 3,
+        noise_site: Mapping[str, str] | None = None,
+        title: str | None = None,
+    ) -> "go.Figure":
+        """Plot a grid of fidelity decays over qubit pairs, drawn from this fit's data.
+
+        One subplot per pair, sharing labels/colors across pairs. Which decays are drawn is
+        controlled by the toggles below, each of which is silently skipped when the corresponding
+        data has not been computed on this fit yet.
+
+        Args:
+            pairs: The qubit pairs to plot, one subplot each.
+            observable_type: How to draw the empirical observable data: ``"raw"`` (raw
+                per-randomization scatter), ``"means"`` (per-depth means with error bars),
+                ``"both"``, or ``None`` to omit the empirical points. Uses this fit's
+                :class:`~.ObservableData`.
+            exponential_fit: Whether to draw the fitted exponential decay curve, from this fit's
+                :class:`~.AveragedData` (its ``depth == -1`` fitted parameters).
+            model_prediction: Whether to draw the model-predicted decay curve, from this fit's
+                model and :class:`~.ModelData`.
+            observable_marker_kwargs: Optional ``marker`` overrides for the raw observable points.
+            means_marker_kwargs: Optional ``marker`` overrides for the observable-means points.
+            fit_line_kwargs: Optional ``line`` overrides for the fitted curve.
+            model_line_kwargs: Optional ``line`` overrides for the model curve.
+            num_cols: The number of subplot columns; rows are derived from the pair count.
+            noise_site: An optional noise-site mapping forwarded to the label formatter (with the
+                default ``"formula"`` label style this yields the compact ``f^{gate}_{pauli}``
+                label).
+            title: An optional figure title.
+
+        Returns:
+            A plotly Figure.
+
+        Raises:
+            ValueError: If the fit has no model (and hence no gate set) to build labels from.
+            ImportError: If ``plotly`` is not installed.
+        """
+        from ..visualizations import plot_2_qubit_decays as _plot_2_qubit_decays
+
+        def _present(level: _LevelData) -> LeveledData | None:
+            return level if isinstance(level, LeveledData) else None
+
+        gate_set = getattr(self._model, "gate_set", None)
+        if gate_set is None:
+            raise ValueError(
+                "Fit.plot_2_qubit_decays needs a model carrying a gate set to build labels."
+            )
+
+        observable_data = _present(self.observable_data) if observable_type is not None else None
+        averaged_data = _present(self.averaged_data) if exponential_fit else None
+        model_data = _present(self.model_data) if model_prediction else None
+        model = self._model if model_data is not None else None
+
+        return _plot_2_qubit_decays(
+            pairs,
+            observable_data=observable_data,
+            observable_type=observable_type or "raw",
+            observable_marker_kwargs=observable_marker_kwargs,
+            means_marker_kwargs=means_marker_kwargs,
+            averaged_data=averaged_data,
+            averaged_points=False,
+            averaged_line_kwargs=fit_line_kwargs,
+            model=model,
+            model_data=model_data,
+            model_line_kwargs=model_line_kwargs,
+            gate_set=gate_set,
+            num_cols=num_cols,
+            noise_site=noise_site,
+            title=title,
+        )

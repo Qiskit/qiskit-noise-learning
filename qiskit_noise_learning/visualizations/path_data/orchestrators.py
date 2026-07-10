@@ -385,6 +385,7 @@ def plot_2_qubit_decays(
     observable_marker_kwargs: Mapping[str, object] | None = None,
     means_marker_kwargs: Mapping[str, object] | None = None,
     averaged_data: AveragedData | None = None,
+    averaged_points: bool = True,
     averaged_marker_kwargs: Mapping[str, object] | None = None,
     averaged_line_kwargs: Mapping[str, object] | None = None,
     model: LinearMap | None = None,
@@ -415,6 +416,8 @@ def plot_2_qubit_decays(
         observable_marker_kwargs: Optional ``marker`` properties for the raw observable points.
         means_marker_kwargs: Optional ``marker`` properties for the observable-means points.
         averaged_data: Optional averaged data for averaged points and fitted curves.
+        averaged_points: Whether to include the averaged-points layer (the fitted curve is always
+            drawn when ``averaged_data`` is given). See :func:`standard_decay_layers`.
         averaged_marker_kwargs: Optional ``marker`` properties for the averaged points.
         averaged_line_kwargs: Optional ``line`` properties for the fitted curves.
         model: Optional fidelity model for predicted curves (requires ``model_data``).
@@ -474,6 +477,7 @@ def plot_2_qubit_decays(
         observable_marker_kwargs=observable_marker_kwargs,
         means_marker_kwargs=means_marker_kwargs,
         averaged_data=averaged_data,
+        averaged_points=averaged_points,
         averaged_marker_kwargs=averaged_marker_kwargs,
         averaged_line_kwargs=averaged_line_kwargs,
         model=model,
