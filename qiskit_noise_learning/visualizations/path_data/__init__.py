@@ -28,8 +28,8 @@ from .layers import (
 )
 from .orchestrators import (
     path_labels,
-    plot_2_qubit_decays,
     plot_path_grid_overlay,
     plot_path_overlay,
+    plot_qubit_pair_decays,
 )
 from .primitives import PointSeries, plot_path_decay_curves, plot_path_scatters

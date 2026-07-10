@@ -21,7 +21,7 @@ import numpy as np
 
 from ...optionals import HAS_PLOTLY
 from ..fidelity_math_labels import path_math_label
-from .data_adapters import _dataset_paths
+from .data_adapters import _dataset_paths, averaged_data_points, observable_data_points
 from .layers import Layer, standard_decay_layers
 from .primitives import _default_depths
 
@@ -377,7 +377,7 @@ def plot_path_grid_overlay(
 
 
 @HAS_PLOTLY.require_in_call
-def plot_2_qubit_decays(
+def plot_qubit_pair_decays(
     pairs: Sequence[tuple[int, int]],
     *,
     observable_data: ObservableData | None = None,
@@ -426,8 +426,8 @@ def plot_2_qubit_decays(
         noise_site: An optional noise-site mapping forwarded to :func:`~.path_math_label` (with
             ``style="formula"`` this yields the compact ``f^{gate}_{pauli}`` label).
         placeholders: The two display symbols for the pair's (min, max) qubit indices.
-        depths: The depth range for the curves. Defaults to ``0`` through the largest observed
-            depth.
+        depths: The depth range for the curves. Defaults to ``0`` through the largest depth in the
+            empirical data present (observable and averaged-data points).
         title: An optional figure title.
 
     Returns:
@@ -441,6 +441,17 @@ def plot_2_qubit_decays(
         raise ValueError("A gate_set (or a model carrying one) is required to label the decays.")
 
     paths = _dataset_paths(observable_data, averaged_data)
+
+    # Default the depth range to span the empirical data actually present, so the fitted and model
+    # curves extend across the observed depths rather than the generic 0-10 fallback.
+    if depths is None:
+        empirical_points: list[dict] = []
+        if observable_data is not None:
+            empirical_points.append(observable_data_points(observable_data, paths))
+        if averaged_data is not None:
+            empirical_points.append(averaged_data_points(averaged_data, paths))
+        depths = _default_depths(*empirical_points)
+
     groups: dict[Hashable, list[Path]] = {}
     for pair in pairs:
         pair_set = set(pair)

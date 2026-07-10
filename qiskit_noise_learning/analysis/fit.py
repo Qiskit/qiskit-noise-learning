@@ -23,6 +23,7 @@ from qiskit_noise_learning.data import (
     RawData,
 )
 from qiskit_noise_learning.models import FidelityModel, is_fidelity_model
+from qiskit_noise_learning.models import FidelityModel, get_noise_site
 from qiskit_noise_learning.sequences import InstructionSequence, Path
 
 if TYPE_CHECKING:
@@ -197,7 +198,7 @@ class Fit:
         """Path-to-sequence relations, or ``None`` if not set."""
         return self._relations
 
-    def plot_2_qubit_decays(
+    def plot_qubit_pair_decays(
         self,
         pairs: Sequence[tuple[int, int]],
         *,
@@ -235,7 +236,8 @@ class Fit:
             num_cols: The number of subplot columns; rows are derived from the pair count.
             noise_site: An optional noise-site mapping forwarded to the label formatter (with the
                 default ``"formula"`` label style this yields the compact ``f^{gate}_{pauli}``
-                label).
+                label). Defaults to the noise site of the fit's model when it is, or contains, a
+                single :class:`~.PauliLindbladModel`.
             title: An optional figure title.
 
         Returns:
@@ -245,7 +247,7 @@ class Fit:
             ValueError: If the fit has no model (and hence no gate set) to build labels from.
             ImportError: If ``plotly`` is not installed.
         """
-        from ..visualizations import plot_2_qubit_decays as _plot_2_qubit_decays
+        from ..visualizations import plot_qubit_pair_decays as _plot_qubit_pair_decays
 
         def _present(level: _LevelData) -> LeveledData | None:
             return level if isinstance(level, LeveledData) else None
@@ -253,15 +255,18 @@ class Fit:
         gate_set = getattr(self._model, "gate_set", None)
         if gate_set is None:
             raise ValueError(
-                "Fit.plot_2_qubit_decays needs a model carrying a gate set to build labels."
+                "Fit.plot_qubit_pair_decays needs a model carrying a gate set to build labels."
             )
+
+        if noise_site is None and self._model is not None:
+            noise_site = get_noise_site(self._model)
 
         observable_data = _present(self.observable_data) if observable_type is not None else None
         averaged_data = _present(self.averaged_data) if exponential_fit else None
         model_data = _present(self.model_data) if model_prediction else None
         model = self._model if model_data is not None else None
 
-        return _plot_2_qubit_decays(
+        return _plot_qubit_pair_decays(
             pairs,
             observable_data=observable_data,
             observable_type=observable_type or "raw",

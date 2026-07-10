@@ -26,10 +26,10 @@ from .path_data import (
     observable_means_layer,
     observable_points_layer,
     path_labels,
-    plot_2_qubit_decays,
     plot_path_decay_curves,
     plot_path_grid_overlay,
     plot_path_overlay,
     plot_path_scatters,
+    plot_qubit_pair_decays,
     standard_decay_layers,
 )
