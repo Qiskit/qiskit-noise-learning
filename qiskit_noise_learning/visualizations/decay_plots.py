@@ -127,7 +127,7 @@ def plot_path_scatter(
 
 
 @HAS_PLOTLY.require_in_call
-def plot_decay_curves(
+def plot_path_decay_curves(
     bases: Mapping[Path, float],
     intercepts: Mapping[Path, float],
     depths: Sequence[float] | np.ndarray,
@@ -203,8 +203,8 @@ def averaged_data_curves(
     """Extract exponential decay parameters from averaged data.
 
     Extracts the ``base`` and ``intercept`` for entries with ``depth == -1``, for use in
-    :func:`plot_decay_curves`. The ``intercept`` is drawn from ``metadata["spam_fidelity"]``, and
-    defaults to ``1.0`` if absent.
+    :func:`plot_path_decay_curves`. The ``intercept`` is drawn from ``metadata["spam_fidelity"]``,
+    and defaults to ``1.0`` if absent.
 
     Args:
         averaged_data: The averaged data to extract from.
@@ -586,9 +586,9 @@ def plot_fit_curves(
     Args:
         averaged_data: The averaged data (its ``depth == -1`` entries hold the fitted parameters).
         fig: An existing figure to add traces to. If ``None``, a new figure is created.
-        colors: Optional per-path line colors, forwarded to :func:`plot_decay_curves`.
-        labels: Optional per-path legend labels, forwarded to :func:`plot_decay_curves`.
-        groups: Optional per-path ``legendgroup`` keys, forwarded to :func:`plot_decay_curves`.
+        colors: Optional per-path line colors, forwarded to :func:`plot_path_decay_curves`.
+        labels: Optional per-path legend labels, forwarded to :func:`plot_path_decay_curves`.
+        groups: Optional per-path ``legendgroup`` keys, forwarded to :func:`plot_path_decay_curves`.
         line_kwargs: Optional ``line`` overrides; defaults to a solid ``dash``.
         depths: The depth range for the curves. Defaults to a range derived from the averaged data's
             points, or ``0``–``10`` when it has none.
@@ -602,7 +602,7 @@ def plot_fit_curves(
     bases, intercepts = averaged_data_curves(averaged_data, paths)
     if depths is None:
         depths = _default_depths(averaged_data_points(averaged_data, paths))
-    return plot_decay_curves(
+    return plot_path_decay_curves(
         bases,
         intercepts,
         depths,
@@ -639,9 +639,9 @@ def plot_model_curves(
         paths: The paths to predict decays for. If ``None``, no curves are drawn (the model has no
             paths of its own to enumerate).
         fig: An existing figure to add traces to. If ``None``, a new figure is created.
-        colors: Optional per-path line colors, forwarded to :func:`plot_decay_curves`.
-        labels: Optional per-path legend labels, forwarded to :func:`plot_decay_curves`.
-        groups: Optional per-path ``legendgroup`` keys, forwarded to :func:`plot_decay_curves`.
+        colors: Optional per-path line colors, forwarded to :func:`plot_path_decay_curves`.
+        labels: Optional per-path legend labels, forwarded to :func:`plot_path_decay_curves`.
+        groups: Optional per-path ``legendgroup`` keys, forwarded to :func:`plot_path_decay_curves`.
         line_kwargs: Optional ``line`` overrides; defaults to a dashed ``dash``.
         depths: The depth range for the curves. Defaults to ``0``–``10``.
         row: The subplot row to add traces to (1-indexed).
@@ -660,7 +660,7 @@ def plot_model_curves(
     bases, intercepts = model_curves(model, model_data, paths)
     if depths is None:
         depths = _default_depths()
-    return plot_decay_curves(
+    return plot_path_decay_curves(
         bases,
         intercepts,
         depths,

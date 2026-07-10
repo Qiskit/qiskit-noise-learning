@@ -26,7 +26,6 @@ from .decay_plots import (
     path_labels,
     plot_2_qubit_decays,
     plot_averaged_points,
-    plot_decay_curves,
     plot_decay_grid,
     plot_decays,
     plot_fit_curves,
@@ -35,6 +34,7 @@ from .decay_plots import (
     plot_observable_means,
     plot_observable_points,
     plot_overlay,
+    plot_path_decay_curves,
     plot_path_scatter,
 )
 from .fidelity_math_labels import fidelity_index_math_label, path_math_label
