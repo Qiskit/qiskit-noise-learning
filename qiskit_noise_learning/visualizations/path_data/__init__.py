@@ -10,27 +10,27 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Visualization utilities"""
+"""Path-referenced decay plotting."""
 
-from .fidelity_math_labels import fidelity_index_math_label, path_math_label
-from .gate_set_topology import gate_set_topology
-from .path_data import (
-    Layer,
-    PointSeries,
+from .data_adapters import (
     averaged_data_curves,
     averaged_data_points,
+    model_curves,
+    observable_data_points,
+)
+from .layers import (
+    Layer,
     averaged_points_layer,
     fit_curves_layer,
-    model_curves,
     model_curves_layer,
-    observable_data_points,
     observable_means_layer,
     observable_points_layer,
-    path_labels,
-    plot_2_qubit_decays,
-    plot_path_decay_curves,
-    plot_path_grid_overlay,
-    plot_path_overlay,
-    plot_path_scatters,
     standard_decay_layers,
 )
+from .orchestrators import (
+    path_labels,
+    plot_2_qubit_decays,
+    plot_path_grid_overlay,
+    plot_path_overlay,
+)
+from .primitives import PointSeries, plot_path_decay_curves, plot_path_scatters
