@@ -27,6 +27,7 @@ def fidelity_index_math_label(
     fidelity_index: FidelityIndex,
     style: Literal["transition", "formula"] = "transition",
     noise_site: Mapping[str, Literal["before", "after"]] | None = None,
+    qubit_labels: Mapping[int, str] | None = None,
 ) -> str:
     r"""Return a math-mode LaTeX label for a fidelity index.
 
@@ -40,6 +41,9 @@ def fidelity_index_math_label(
             the gate noise is modelled as a Pauli-channel occuring either before or after the gate.
             This simplifies the ``style="formula"`` label to only display the Pauli passing through
             the Pauli channel.
+        qubit_labels: An optional mapping from qubit index to a display symbol, used to relabel the
+            qubit subscripts (e.g. ``{25: "i", 26: "j"}`` renders ``X_{25}`` as ``X_{i}``). Indices
+            absent from the mapping render as their integer value.
 
     Returns:
         A math-mode LaTeX label.
@@ -51,8 +55,8 @@ def fidelity_index_math_label(
 
     if style == "transition":
         in_pauli, out_pauli = fidelity_index.transition
-        in_str = _qubit_sparse_pauli_math_label(in_pauli)
-        out_str = _qubit_sparse_pauli_math_label(out_pauli)
+        in_str = _qubit_sparse_pauli_math_label(in_pauli, qubit_labels)
+        out_str = _qubit_sparse_pauli_math_label(out_pauli, qubit_labels)
         return rf"{in_str} \xrightarrow{{{gate_sym}}} {out_str}"
     elif style == "formula":
         if noise_site is not None and fidelity_index.gate_name in noise_site:
@@ -61,19 +65,27 @@ def fidelity_index_math_label(
                 if noise_site[fidelity_index.gate_name] == "before"
                 else fidelity_index.transition[1]
             )
-            pauli_str = _qubit_sparse_pauli_math_label(pauli)
+            pauli_str = _qubit_sparse_pauli_math_label(pauli, qubit_labels)
             return rf"f^{{{gate_sym}}}_{{{pauli_str}}}"
 
-        pauli_str = _qubit_sparse_pauli_math_label(fidelity_index.pauli)
+        pauli_str = _qubit_sparse_pauli_math_label(fidelity_index.pauli, qubit_labels)
         parts = [pauli_str]
         if fidelity_index.in_bit_indices:
             in_bits = (
-                r"\{" + ",".join(str(i) for i in sorted(fidelity_index.in_bit_indices)) + r"\}"
+                r"\{"
+                + ",".join(
+                    _bit_label(i, qubit_labels) for i in sorted(fidelity_index.in_bit_indices)
+                )
+                + r"\}"
             )
             parts.append(rf"b_{{in}}={in_bits}")
         if fidelity_index.out_bit_indices:
             out_bits = (
-                r"\{" + ",".join(str(i) for i in sorted(fidelity_index.out_bit_indices)) + r"\}"
+                r"\{"
+                + ",".join(
+                    _bit_label(i, qubit_labels) for i in sorted(fidelity_index.out_bit_indices)
+                )
+                + r"\}"
             )
             parts.append(rf"b_{{out}}={out_bits}")
         return rf"f^{{{gate_sym}}}(" + r",\, ".join(parts) + r")"
@@ -87,6 +99,7 @@ def path_math_label(
     style: Literal["transition", "formula"] = "transition",
     noise_site: Mapping[str, Literal["before", "after"]] | None = None,
     repeatable_only: bool = False,
+    qubit_labels: Mapping[int, str] | None = None,
 ) -> str:
     r"""Return a math-mode LaTeX label for a path.
 
@@ -101,25 +114,36 @@ def path_math_label(
             for the ``"formula"`` style (see that function for details).
         repeatable_only: If ``True``, only render the repeatable fragment without brackets
             or depth exponent.
+        qubit_labels: An optional mapping from qubit index to a display symbol, used to relabel the
+            qubit subscripts (e.g. ``{25: "i", 26: "j"}`` renders ``X_{25}`` as ``X_{i}``). Indices
+            absent from the mapping render as their integer value.
 
     Returns:
         A math-mode LaTeX label.
     """
     if repeatable_only:
-        return _fragment_math_label(gate_set, path.repeatable_fragment, style, noise_site)
+        return _fragment_math_label(
+            gate_set, path.repeatable_fragment, style, noise_site, qubit_labels
+        )
 
     parts = []
 
     if path.start_fragment:
-        parts.append(_fragment_math_label(gate_set, path.start_fragment, style, noise_site))
+        parts.append(
+            _fragment_math_label(gate_set, path.start_fragment, style, noise_site, qubit_labels)
+        )
 
     if path.repeatable_fragment:
-        rep_str = _fragment_math_label(gate_set, path.repeatable_fragment, style, noise_site)
+        rep_str = _fragment_math_label(
+            gate_set, path.repeatable_fragment, style, noise_site, qubit_labels
+        )
         depth_str = str(path.depth) if path.depth is not None else "r"
         parts.append(f"[{rep_str}]^{{{depth_str}}}")
 
     if path.end_fragment:
-        parts.append(_fragment_math_label(gate_set, path.end_fragment, style, noise_site))
+        parts.append(
+            _fragment_math_label(gate_set, path.end_fragment, style, noise_site, qubit_labels)
+        )
 
     delimiter = r" \rightarrow " if style == "transition" else ""
     return delimiter.join(parts)
@@ -130,6 +154,7 @@ def _fragment_math_label(
     fragment: list[FidelityIndex],
     style: str,
     noise_site: Mapping[str, str] | None,
+    qubit_labels: Mapping[int, str] | None = None,
 ) -> str:
     """Return a math-mode LaTeX label for a single fragment of a path."""
     if style != "transition":
@@ -140,7 +165,9 @@ def _fragment_math_label(
             if fi in seen:
                 continue
             seen.add(fi)
-            sym = fidelity_index_math_label(gate_set, fi, style=style, noise_site=noise_site)
+            sym = fidelity_index_math_label(
+                gate_set, fi, style=style, noise_site=noise_site, qubit_labels=qubit_labels
+            )
             count = counts[fi]
             if count > 1:
                 sym = f"{{{sym}}}^{{{count}}}"
@@ -163,9 +190,9 @@ def _fragment_math_label(
 
     chain_strs = []
     for arrow_chain in chains:
-        parts = [_qubit_sparse_pauli_math_label(arrow_chain[0][0])]
+        parts = [_qubit_sparse_pauli_math_label(arrow_chain[0][0], qubit_labels)]
         for _, out_pauli, gate_sym in arrow_chain:
-            out_str = _qubit_sparse_pauli_math_label(out_pauli)
+            out_str = _qubit_sparse_pauli_math_label(out_pauli, qubit_labels)
             parts.append(rf"\xrightarrow{{{gate_sym}}} {out_str}")
         chain_strs.append(" ".join(parts))
 
@@ -175,11 +202,21 @@ def _fragment_math_label(
 _PAULI_LABELS = {1: "Z", 2: "X", 3: "Y"}
 
 
-def _qubit_sparse_pauli_math_label(pauli: QubitSparsePauli) -> str:
-    """Convert a QubitSparsePauli to a math-mode LaTeX label like ``X_{0} Z_{2}``."""
+def _bit_label(index: int, qubit_labels: Mapping[int, str] | None) -> str:
+    """The display string for a qubit/bit index, honoring an optional relabeling map."""
+    return (qubit_labels or {}).get(int(index), str(int(index)))
+
+
+def _qubit_sparse_pauli_math_label(
+    pauli: QubitSparsePauli, qubit_labels: Mapping[int, str] | None = None
+) -> str:
+    """Convert a QubitSparsePauli to a math-mode LaTeX label like ``X_{0} Z_{2}``.
+
+    ``qubit_labels`` optionally remaps qubit-index subscripts to display symbols.
+    """
     if len(pauli.paulis) == 0:
         return "I"
     parts = []
     for p, idx in zip(pauli.paulis, pauli.indices):
-        parts.append(f"{_PAULI_LABELS[int(p)]}_{{{int(idx)}}}")
+        parts.append(f"{_PAULI_LABELS[int(p)]}_{{{_bit_label(idx, qubit_labels)}}}")
     return " ".join(parts)

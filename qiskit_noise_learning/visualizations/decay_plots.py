@@ -50,7 +50,7 @@ class PointSeries:
 # Default per-layer marker symbols / line dashes, shared by the per-type plotters and by the layer
 # metadata used to build the symbol legend (so an overridden symbol/dash is reflected there too).
 _OBSERVABLE_POINTS_SYMBOL = "circle"
-_AVERAGED_POINTS_SYMBOL = "circle-open"
+_AVERAGED_POINTS_SYMBOL = "x"
 _FIT_DASH = "solid"
 _MODEL_DASH = "dash"
 
@@ -547,7 +547,7 @@ def plot_averaged_points(
         colors: Optional per-path marker colors, forwarded to :func:`plot_path_scatter`.
         labels: Optional per-path legend labels, forwarded to :func:`plot_path_scatter`.
         groups: Optional per-path ``legendgroup`` keys, forwarded to :func:`plot_path_scatter`.
-        marker_kwargs: Optional ``marker`` overrides; defaults to an open-circle ``symbol``.
+        marker_kwargs: Optional ``marker`` overrides; defaults to an ``x`` symbol.
         paths: Optional paths to restrict to. Defaults to all paths in the data.
         row: The subplot row to add traces to (1-indexed).
         col: The subplot column to add traces to (1-indexed).
@@ -699,7 +699,7 @@ def plot_observable_means(
         colors: Optional per-path marker colors, forwarded to :func:`plot_averaged_points`.
         labels: Optional per-path legend labels, forwarded to :func:`plot_averaged_points`.
         groups: Optional per-path ``legendgroup`` keys, forwarded to :func:`plot_averaged_points`.
-        marker_kwargs: Optional ``marker`` overrides; defaults to an open-circle ``symbol``.
+        marker_kwargs: Optional ``marker`` overrides; defaults to an ``x`` symbol.
         paths: Optional paths to restrict to. Defaults to all paths in the data.
         row: The subplot row to add traces to (1-indexed).
         col: The subplot column to add traces to (1-indexed).
@@ -920,11 +920,16 @@ def _add_symbol_legend(fig: go.Figure, layers: Iterable[Layer]) -> None:
         fig.add_trace(go.Scatter(**trace))
 
     fig.update_layout(
+        # Path legend: vertical, top-right (plotly default position). Series legend: a horizontal
+        # strip along the top so it never stacks on top of the (variable-height) path legend.
         legend={"title_text": "Path", "y": 1.0, "yanchor": "top"},
         legend2={
             "title_text": "Series",
-            "y": 0.48,
-            "yanchor": "top",
+            "orientation": "h",
+            "yanchor": "bottom",
+            "y": 1.02,
+            "xanchor": "left",
+            "x": 0.0,
             "itemclick": False,
             "itemdoubleclick": False,
         },
@@ -941,6 +946,7 @@ def plot_overlay(
     labels: Mapping[Path, str] | None = None,
     label_style: str = "formula",
     depths: Sequence[float] | np.ndarray | None = None,
+    title: str | None = None,
     fig: go.Figure | None = None,
     row: int | None = None,
     col: int | None = None,
@@ -959,6 +965,7 @@ def plot_overlay(
         labels: Optional per-path legend labels.
         label_style: The :func:`~.path_math_label` style for default labels.
         depths: The depth range passed to curve layers. Defaults to ``0``–``10``.
+        title: An optional figure title.
         fig: An existing figure to add traces to. If ``None``, a new figure is created.
         row: The subplot row to add traces to (1-indexed).
         col: The subplot column to add traces to (1-indexed).
@@ -1000,6 +1007,8 @@ def plot_overlay(
     _add_symbol_legend(fig, layers)
     if is_new_fig:
         fig.update_layout(xaxis_title="depth", yaxis_title="observable")
+    if title is not None:
+        fig.update_layout(title_text=title)
     return fig
 
 
@@ -1015,6 +1024,7 @@ def plot_grid(
     colors: Mapping[Hashable, str] | None = None,
     label_style: str = "formula",
     depths: Sequence[float] | np.ndarray | None = None,
+    title: str | None = None,
 ) -> go.Figure:
     """Lay out an arbitrary list of decay layers across a grid of subplots (one per group).
 
@@ -1035,6 +1045,7 @@ def plot_grid(
         colors: Optional overrides mapping a series key to a color.
         label_style: The :func:`~.path_math_label` style for the default label.
         depths: The depth range passed to curve layers. Defaults to ``0``–``10``.
+        title: An optional figure title.
 
     Returns:
         The subplot-grid figure.
@@ -1106,6 +1117,8 @@ def plot_grid(
     _add_symbol_legend(fig, layers)
     fig.update_xaxes(title_text="depth")
     fig.update_yaxes(title_text="observable")
+    if title is not None:
+        fig.update_layout(title_text=title)
     return fig
 
 
@@ -1157,6 +1170,7 @@ def plot_decays(
     labels: Mapping[Path, str] | None = None,
     label_style: str = "formula",
     depths: Sequence[float] | np.ndarray | None = None,
+    title: str | None = None,
     row: int | None = None,
     col: int | None = None,
 ) -> go.Figure:
@@ -1174,7 +1188,7 @@ def plot_decays(
             ``symbol`` when one is not given.
         averaged_data: Optional averaged data for averaged points and the fitted curve.
         averaged_marker_kwargs: Optional ``marker`` properties for the averaged points; defaults to
-            an open-circle ``symbol`` when one is not given.
+            an ``x`` symbol when one is not given.
         averaged_line_kwargs: Optional ``line`` properties for the fitted curve (e.g. ``dash``,
             ``width``); defaults to a solid ``dash`` when one is not given.
         model: Optional fidelity model for the predicted curve (requires ``model_data``).
@@ -1190,6 +1204,7 @@ def plot_decays(
         label_style: The :func:`~.path_math_label` style for default labels.
         depths: The depth range for the curves. Defaults to ``0`` through the largest observed
             depth.
+        title: An optional figure title.
         row: The subplot row to add traces to (1-indexed).
         col: The subplot column to add traces to (1-indexed).
 
@@ -1219,6 +1234,7 @@ def plot_decays(
         labels=labels,
         label_style=label_style,
         depths=depths,
+        title=title,
         fig=fig,
         row=row,
         col=col,
@@ -1244,6 +1260,7 @@ def plot_decay_grid(
     colors: Mapping[Hashable, str] | None = None,
     label_style: str = "formula",
     depths: Sequence[float] | np.ndarray | None = None,
+    title: str | None = None,
 ) -> go.Figure:
     """Draw a grid of decay overlays, one subplot per group.
 
@@ -1260,7 +1277,7 @@ def plot_decay_grid(
             defaults to a filled-circle ``symbol`` when one is not given.
         averaged_data: Optional averaged data for averaged points and fitted curves.
         averaged_marker_kwargs: Optional ``marker`` properties for the averaged points; defaults to
-            an open-circle ``symbol`` when one is not given.
+            an ``x`` symbol when one is not given.
         averaged_line_kwargs: Optional ``line`` properties for the fitted curves (overrides the
             default solid dash).
         model: Optional fidelity model for predicted curves (requires ``model_data``).
@@ -1278,6 +1295,7 @@ def plot_decay_grid(
         label_style: The :func:`~.path_math_label` style for the default label.
         depths: The depth range for the curves. Defaults to ``0`` through the largest observed
             depth.
+        title: An optional figure title.
 
     Returns:
         The subplot-grid figure.
@@ -1306,4 +1324,111 @@ def plot_decay_grid(
         colors=colors,
         label_style=label_style,
         depths=depths,
+        title=title,
+    )
+
+
+@HAS_PLOTLY.require_in_call
+def plot_2_qubit_decays(
+    pairs: Sequence[tuple[int, int]],
+    *,
+    observable_data: ObservableData | None = None,
+    observable_marker_kwargs: Mapping[str, object] | None = None,
+    averaged_data: AveragedData | None = None,
+    averaged_marker_kwargs: Mapping[str, object] | None = None,
+    averaged_line_kwargs: Mapping[str, object] | None = None,
+    model: LinearMap | None = None,
+    model_data: ModelData | None = None,
+    model_line_kwargs: Mapping[str, object] | None = None,
+    gate_set: GateSet | None = None,
+    num_cols: int = 3,
+    colors: Mapping[Hashable, str] | None = None,
+    label_style: str = "formula",
+    noise_site: Mapping[str, str] | None = None,
+    placeholders: tuple[str, str] = ("i", "j"),
+    depths: Sequence[float] | np.ndarray | None = None,
+    title: str | None = None,
+) -> go.Figure:
+    """Grid of fidelity decays over qubit pairs, one subplot per pair, with shared labels.
+
+    Each subplot shows the decays for the paths acting on that pair (assigned by the rule
+    ``set(pair) >= path.start_fragment[0].out_bit_indices``). Series labels are **canonicalized**:
+    the pair's qubits are relabeled to ``placeholders`` (min qubit -> ``"i"``, max -> ``"j"``), so a
+    given Pauli fidelity (e.g. ``X_{i} X_{j}``) shares a color and a single legend entry across
+    every pair it appears in. Subplot titles show the actual pair.
+
+    Args:
+        pairs: The qubit pairs to plot, one subplot each.
+        observable_data: Optional raw observable data for scatter points.
+        observable_marker_kwargs: Optional ``marker`` properties for the observable points.
+        averaged_data: Optional averaged data for averaged points and fitted curves.
+        averaged_marker_kwargs: Optional ``marker`` properties for the averaged points.
+        averaged_line_kwargs: Optional ``line`` properties for the fitted curves.
+        model: Optional fidelity model for predicted curves (requires ``model_data``).
+        model_data: Optional fitted parameters for predicted curves (requires ``model``).
+        model_line_kwargs: Optional ``line`` properties for the model curves.
+        gate_set: The gate set used to build labels. Defaults to the model's gate set; required
+            (here or via the model) since labels are always drawn.
+        num_cols: The number of subplot columns; rows are derived from the pair count.
+        colors: Optional overrides mapping a (canonicalized) series label to a color.
+        label_style: The :func:`~.path_math_label` style for the series labels.
+        noise_site: An optional noise-site mapping forwarded to :func:`~.path_math_label` (with
+            ``style="formula"`` this yields the compact ``f^{gate}_{pauli}`` label).
+        placeholders: The two display symbols for the pair's (min, max) qubit indices.
+        depths: The depth range for the curves. Defaults to ``0`` through the largest observed
+            depth.
+        title: An optional figure title.
+
+    Returns:
+        The subplot-grid figure.
+
+    Raises:
+        ValueError: If no gate set is available (neither ``gate_set`` nor a model with one).
+    """
+    resolved_gate_set = _resolve_gate_set(gate_set, model)
+    if resolved_gate_set is None:
+        raise ValueError("A gate_set (or a model carrying one) is required to label the decays.")
+
+    paths = _dataset_paths(observable_data, averaged_data)
+    groups: dict[Hashable, list[Path]] = {}
+    for pair in pairs:
+        pair_set = set(pair)
+        groups[tuple(pair)] = [
+            path
+            for path in paths
+            if path.start_fragment and pair_set.issuperset(path.start_fragment[0].out_bit_indices)
+        ]
+
+    def _label(path: Path, pair: Hashable) -> str:
+        low, high = sorted(pair)
+        qubit_labels = {low: placeholders[0], high: placeholders[1]}
+        return (
+            "$"
+            + path_math_label(
+                resolved_gate_set,
+                path,
+                style=label_style,
+                noise_site=noise_site,
+                repeatable_only=True,
+                qubit_labels=qubit_labels,
+            )
+            + "$"
+        )
+
+    return plot_decay_grid(
+        groups,
+        observable_data=observable_data,
+        observable_marker_kwargs=observable_marker_kwargs,
+        averaged_data=averaged_data,
+        averaged_marker_kwargs=averaged_marker_kwargs,
+        averaged_line_kwargs=averaged_line_kwargs,
+        model=model,
+        model_data=model_data,
+        model_line_kwargs=model_line_kwargs,
+        gate_set=resolved_gate_set,
+        num_cols=num_cols,
+        label=_label,
+        colors=colors,
+        depths=depths,
+        title=title,
     )

@@ -24,6 +24,7 @@ from .decay_plots import (
     observable_means_layer,
     observable_points_layer,
     path_labels,
+    plot_2_qubit_decays,
     plot_averaged_points,
     plot_decay_curves,
     plot_decay_grid,
