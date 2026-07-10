@@ -1140,7 +1140,9 @@ def plot_path_grid_overlay(
 def standard_decay_layers(
     *,
     observable_data: ObservableData | None = None,
+    observable_type: Literal["raw", "means", "both"] = "raw",
     observable_marker_kwargs: Mapping[str, object] | None = None,
+    means_marker_kwargs: Mapping[str, object] | None = None,
     averaged_data: AveragedData | None = None,
     averaged_marker_kwargs: Mapping[str, object] | None = None,
     averaged_line_kwargs: Mapping[str, object] | None = None,
@@ -1150,13 +1152,18 @@ def standard_decay_layers(
 ) -> list[Layer]:
     """Build the standard decay layer stack for the supplied data sources.
 
-    Includes an observable-scatter layer (if ``observable_data``), averaged-points and fit-curve
+    Includes observable-scatter layer(s) (if ``observable_data``), averaged-points and fit-curve
     layers (if ``averaged_data``), and a model-curve layer (if ``model`` and ``model_data``). Pass
     the result to :func:`plot_path_overlay` or :func:`plot_path_grid_overlay`.
 
     Args:
-        observable_data: Optional raw observable data (raw scatter points).
-        observable_marker_kwargs: Optional ``marker`` overrides for the observable points.
+        observable_data: Optional raw observable data.
+        observable_type: Which observable layer(s) to draw from ``observable_data`` — ``"raw"`` (raw
+            per-randomization scatter), ``"means"`` (per-depth means with error bars, averaged via
+            :class:`~.AverageObservables`), or ``"both"``. The raw and means layers are styled
+            independently (defaulting to a ``circle`` and an ``x`` symbol respectively).
+        observable_marker_kwargs: Optional ``marker`` overrides for the raw observable scatter.
+        means_marker_kwargs: Optional ``marker`` overrides for the observable-means scatter.
         averaged_data: Optional averaged data (averaged points + fitted curve).
         averaged_marker_kwargs: Optional ``marker`` overrides for the averaged points.
         averaged_line_kwargs: Optional ``line`` overrides for the fitted curve.
@@ -1166,12 +1173,25 @@ def standard_decay_layers(
 
     Returns:
         The list of layers, in draw order.
+
+    Raises:
+        ValueError: If ``observable_type`` is not ``"raw"``, ``"means"``, or ``"both"``.
     """
+    if observable_type not in ("raw", "means", "both"):
+        raise ValueError(
+            f"Invalid observable_type: {observable_type!r}. Must be 'raw', 'means', or 'both'."
+        )
+
     layers: list[Layer] = []
     if observable_data is not None:
-        layers.append(
-            observable_points_layer(observable_data, marker_kwargs=observable_marker_kwargs)
-        )
+        if observable_type in ("raw", "both"):
+            layers.append(
+                observable_points_layer(observable_data, marker_kwargs=observable_marker_kwargs)
+            )
+        if observable_type in ("means", "both"):
+            layers.append(
+                observable_means_layer(observable_data, marker_kwargs=means_marker_kwargs)
+            )
     if averaged_data is not None:
         layers.append(averaged_points_layer(averaged_data, marker_kwargs=averaged_marker_kwargs))
         layers.append(fit_curves_layer(averaged_data, line_kwargs=averaged_line_kwargs))
@@ -1185,7 +1205,9 @@ def plot_2_qubit_decays(
     pairs: Sequence[tuple[int, int]],
     *,
     observable_data: ObservableData | None = None,
+    observable_type: Literal["raw", "means", "both"] = "raw",
     observable_marker_kwargs: Mapping[str, object] | None = None,
+    means_marker_kwargs: Mapping[str, object] | None = None,
     averaged_data: AveragedData | None = None,
     averaged_marker_kwargs: Mapping[str, object] | None = None,
     averaged_line_kwargs: Mapping[str, object] | None = None,
@@ -1212,7 +1234,10 @@ def plot_2_qubit_decays(
     Args:
         pairs: The qubit pairs to plot, one subplot each.
         observable_data: Optional raw observable data for scatter points.
-        observable_marker_kwargs: Optional ``marker`` properties for the observable points.
+        observable_type: Which observable layer(s) to draw from ``observable_data`` — ``"raw"``,
+            ``"means"``, or ``"both"`` (see :func:`standard_decay_layers`).
+        observable_marker_kwargs: Optional ``marker`` properties for the raw observable points.
+        means_marker_kwargs: Optional ``marker`` properties for the observable-means points.
         averaged_data: Optional averaged data for averaged points and fitted curves.
         averaged_marker_kwargs: Optional ``marker`` properties for the averaged points.
         averaged_line_kwargs: Optional ``line`` properties for the fitted curves.
@@ -1269,7 +1294,9 @@ def plot_2_qubit_decays(
 
     layers = standard_decay_layers(
         observable_data=observable_data,
+        observable_type=observable_type,
         observable_marker_kwargs=observable_marker_kwargs,
+        means_marker_kwargs=means_marker_kwargs,
         averaged_data=averaged_data,
         averaged_marker_kwargs=averaged_marker_kwargs,
         averaged_line_kwargs=averaged_line_kwargs,
