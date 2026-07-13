@@ -36,6 +36,18 @@ if TYPE_CHECKING:
 
 _SYMBOL_LEGEND_COLOR = "rgb(120,120,120)"
 
+# Layout tunables for the subplot grid. The width stays responsive (the figure fills its container);
+# only the height is fixed, scaled by the row count so each row stays tall enough to read. A fixed
+# pixel margin is reserved on the right for the path legend, anchored into that margin so it never
+# overlaps the rightmost column at any container width. ``_PATH_LEGEND_FONT_SIZE`` keeps the (LaTeX)
+# labels compact and ``_LEGEND_TRACEGROUP_GAP`` collapses plotly's per-group legend gap.
+_GRID_ROW_HEIGHT = 340
+_GRID_ROW_ALLOWANCE = 120
+_GRID_ROW_GAP = 120
+_GRID_LEGEND_WIDTH = 220
+_PATH_LEGEND_FONT_SIZE = 13
+_LEGEND_TRACEGROUP_GAP = 1
+
 
 def _palette() -> list[str]:
     """Color palette for assigning default colors."""
@@ -129,12 +141,22 @@ def _add_symbol_legend(fig: go.Figure, layers: Iterable[Layer]) -> None:
     fig.update_layout(
         # Path legend: vertical, top-right (plotly default position). Series legend: a horizontal
         # strip along the top so it never stacks on top of the (variable-height) path legend.
-        legend={"title_text": "Path", "y": 1.0, "yanchor": "top"},
+        legend={
+            "title_text": "Path",
+            "x": 1.01,
+            "xanchor": "left",
+            "y": 1.0,
+            "yanchor": "top",
+            "font": {"size": _PATH_LEGEND_FONT_SIZE},
+            # Each path is its own ``legendgroup`` (for per-path toggling), so plotly's default
+            # per-group gap is inserted between every entry; shrink it to pack the labels together.
+            "tracegroupgap": _LEGEND_TRACEGROUP_GAP,
+        },
         legend2={
             "title_text": "Series",
             "orientation": "h",
             "yanchor": "bottom",
-            "y": 1.02,
+            "y": 1.06,
             "xanchor": "left",
             "x": 0.0,
             "itemclick": False,
@@ -272,6 +294,7 @@ def plot_path_grid_overlay(
     num_cols: int = 3,
     gate_set: GateSet | None = None,
     label: Callable[[Path, Hashable], str] | None = None,
+    group_title: Callable[[Hashable], str] | None = None,
     series_key: Callable[[Path, Hashable], Hashable] | None = None,
     colors: Mapping[Hashable, str] | None = None,
     label_style: str = "formula",
@@ -292,6 +315,8 @@ def plot_path_grid_overlay(
         gate_set: The gate set for default labels.
         label: A callable ``(path, group_key) -> str`` giving each path's displayed label. Defaults
             to a group-independent :func:`~.path_math_label` (formula, repeatable only).
+        group_title: A callable ``(group_key) -> str`` giving each subplot's title. Defaults to
+            ``str(group_key)``.
         series_key: A callable ``(path, group_key) -> Hashable`` giving each path's series identity
             (its color and shared legend entry). Defaults to the displayed ``label``.
         colors: Optional overrides mapping a series key to a color.
@@ -307,8 +332,14 @@ def plot_path_grid_overlay(
     layers = list(layers)
     group_items = list(groups.items())
     num_rows = max(1, -(-len(group_items) // num_cols))  # ceil division
+    # Fix the height by row count and express the inter-row gap as a fraction of it, so the gap is a
+    # consistent pixel size rather than plotly's generous default fraction.
+    figure_height = _GRID_ROW_HEIGHT * num_rows + _GRID_ROW_ALLOWANCE
     fig = make_subplots(
-        rows=num_rows, cols=num_cols, subplot_titles=[str(key) for key, _ in group_items]
+        rows=num_rows,
+        cols=num_cols,
+        subplot_titles=[(group_title or str)(key) for key, _ in group_items],
+        vertical_spacing=_GRID_ROW_GAP / figure_height,
     )
     resolved_gate_set = _resolve_gate_set(gate_set, None)
     if depths is None:
@@ -371,6 +402,10 @@ def plot_path_grid_overlay(
     _add_symbol_legend(fig, layers)
     fig.update_xaxes(title_text="depth")
     fig.update_yaxes(title_text="observable")
+    # Keep the width responsive (fills the container) and fix only the height, scaled by the row
+    # count so plots stay tall. Reserve a fixed right margin for the path legend, which is anchored
+    # into that margin so it never overlaps the rightmost column regardless of container width.
+    fig.update_layout(height=figure_height, margin={"r": _GRID_LEGEND_WIDTH})
     if title is not None:
         fig.update_layout(title_text=title)
     return fig
@@ -482,6 +517,10 @@ def plot_qubit_pair_decays(
             + "$"
         )
 
+    def _group_title(pair: Hashable) -> str:
+        low, high = sorted(pair)
+        return f"({placeholders[0]}, {placeholders[1]}) = ({low}, {high})"
+
     layers = standard_decay_layers(
         observable_data=observable_data,
         observable_type=observable_type,
@@ -499,6 +538,7 @@ def plot_qubit_pair_decays(
         num_cols=num_cols,
         gate_set=resolved_gate_set,
         label=_label,
+        group_title=_group_title,
         colors=colors,
         depths=depths,
         title=title,

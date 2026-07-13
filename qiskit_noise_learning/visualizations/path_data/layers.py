@@ -45,8 +45,8 @@ if TYPE_CHECKING:
 # symbol-legend proxies.
 _OBSERVABLE_POINTS_SYMBOL = "circle"
 _AVERAGED_POINTS_SYMBOL = "x"
-_FIT_DASH = "solid"
-_MODEL_DASH = "dash"
+_FIT_DASH = "dash"
+_MODEL_DASH = "solid"
 
 
 @dataclass(frozen=True, eq=False)
