@@ -440,7 +440,12 @@ def plot_qubit_pair_decays(
     if resolved_gate_set is None:
         raise ValueError("A gate_set (or a model carrying one) is required to label the decays.")
 
-    paths = _dataset_paths(observable_data, averaged_data)
+    # Restrict to decay paths (unbound, non-empty repeatable fragment)
+    paths = [
+        path
+        for path in _dataset_paths(observable_data, averaged_data)
+        if path.is_unbound and path.repeatable_fragment
+    ]
 
     # Default the depth range to span the empirical data actually present, so the fitted and model
     # curves extend across the observed depths rather than the generic 0-10 fallback.

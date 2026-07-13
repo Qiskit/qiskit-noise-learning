@@ -145,22 +145,24 @@ def model_curves(
     model_data: ModelData,
     paths: Iterable[Path],
 ) -> tuple[dict[Path, float], dict[Path, float]]:
-    """Compute model-predicted decay curve parameters for a set of paths.
+    """Compute model-predicted decay curve parameters for a set of unbound paths.
 
     For each path, the base is the product of the fidelities in the repeatable fragment, and the
-    intercept is the product of the fidelities in the start and end fragments.
+    intercept is the product of the fidelities in the start and end fragments. Every path must be
+    unbound, i.e. unbound (:attr:`~.BaseSequence.is_unbound`) with a non-empty repeatable fragment.
 
     Args:
         model: A fidelity model, i.e. a :class:`~.LinearMap` whose output space is a
             :class:`~.LogFidelitySpace`.
         model_data: The fitted model parameters.
-        paths: The paths to predict decays for.
+        paths: The unbound paths to predict decays for.
 
     Returns:
         A ``(bases, intercepts)`` pair of mappings from path to float.
 
     Raises:
-        ValueError: If ``model`` is not a fidelity model.
+        ValueError: If ``model`` is not a fidelity model, or if any path is bound or has an empty
+            repeatable fragment.
     """
     from ...models import LogPathMap, is_fidelity_model
 
@@ -170,6 +172,13 @@ def model_curves(
         )
 
     paths = list(paths)
+    non_decay = [path for path in paths if not (path.is_unbound and path.repeatable_fragment)]
+    if non_decay:
+        raise ValueError(
+            f"model_curves requires unbound decay paths, but received {len(non_decay)} path(s) "
+            "that are bound or have an empty repeatable fragment (e.g. SPAM or depth-1 paths). "
+            "Filter to decay paths before predicting model curves."
+        )
     rates = dict(
         zip(model_data.dataset["parameter"].data, model_data.dataset["parameter_values"].data)
     )
