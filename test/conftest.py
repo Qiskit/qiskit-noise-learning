@@ -12,12 +12,17 @@
 
 """Pytest Configuration"""
 
+from itertools import chain
+
+import numpy as np
 import pytest
 from qiskit import QuantumCircuit
 from qiskit.circuit.library import CZGate, XGate
 from qiskit.quantum_info import Clifford, QubitSparsePauli
 
+from qiskit_noise_learning.data import AveragedData, ModelData, ObservableData
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
+from qiskit_noise_learning.models import IdentityFidelityModel
 from qiskit_noise_learning.sequences import (
     ApplyGate,
     FidelityIndex,
@@ -138,5 +143,108 @@ def make_instruction_sequence():
             end_fragment=[],
             depth=depth,
         )
+
+    return _make
+
+
+# --------------------------------------------------------------------------------------------------
+# Data factory fixtures
+# --------------------------------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def make_averaged_data():
+    """Return a builder ``(entries, std_default=0.001) -> AveragedData``.
+
+    Each entry is ``(unbound_path, depth, value)`` with an optional trailing ``std`` (float) and/or
+    ``meta`` (dict), e.g. ``(path, -1, 0.8, 0.01, {"spam_fidelity": 0.95})``. Use ``depth == -1``
+    for the unbound exponential-fit (base) row and ``depth >= 0`` for empirical point rows.
+    """
+
+    def _make(entries, std_default=0.001):
+        unbound_paths = [e[0] for e in entries]
+        depths = [e[1] for e in entries]
+        observables = np.array([e[2] for e in entries], dtype=float)
+        std = np.array(
+            [next((x for x in e[3:] if not isinstance(x, dict)), std_default) for e in entries],
+            dtype=float,
+        )
+        metas = [next((x for x in e[3:] if isinstance(x, dict)), None) for e in entries]
+        # ``from_arrays`` uses ``metadata or ...``, so only pass an array when something is present.
+        metadata = np.array(metas, dtype=object) if any(m is not None for m in metas) else None
+        n = len(entries)
+        return AveragedData.from_arrays(
+            unbound_paths=unbound_paths,
+            depths=depths,
+            observables=observables,
+            std=std,
+            time_lbs=np.empty(n, dtype="datetime64[us]"),
+            time_ubs=np.empty(n, dtype="datetime64[us]"),
+            metadata=metadata,
+        )
+
+    return _make
+
+
+@pytest.fixture()
+def make_observable_data():
+    """Return a builder for synthetic :class:`~.ObservableData` decay curves.
+
+    ``make(entries, ...)`` takes a list of ``(unbound_path, spam_amplitude, fidelity, depths)``
+    tuples and emits ``observable = spam_amplitude * fidelity**depth`` plus Gaussian noise across
+    ``n_rand`` randomizations for each depth.
+    """
+
+    def _make(entries, n_rand=20, noise_std=0.005, seed=42):
+        rng = np.random.default_rng(seed)
+        all_observables = []
+        all_unbound_paths = []
+        all_depths = []
+        for path, amplitude, fidelity, depths in entries:
+            for depth in depths:
+                true_val = amplitude * fidelity**depth
+                all_observables.append(true_val + rng.normal(0, noise_std, size=n_rand))
+                all_unbound_paths.append(path)
+                all_depths.append(depth)
+        n = len(all_observables)
+        return ObservableData.from_arrays(
+            unbound_paths=all_unbound_paths,
+            depths=all_depths,
+            observables=np.stack(all_observables),
+            time_lbs=np.empty((n, n_rand), dtype="datetime64[us]"),
+            time_ubs=np.empty((n, n_rand), dtype="datetime64[us]"),
+        )
+
+    return _make
+
+
+@pytest.fixture()
+def make_fidelity_model_data(gate_set_cz):
+    """Return a builder ``(paths, rates=None, rate_default=0.05) -> (model, model_data)``.
+
+    The model is a real :class:`~.IdentityFidelityModel` over ``gate_set_cz``, and the
+    :class:`~.ModelData` carries a parameter for every distinct :class:`~.FidelityIndex` in the
+    given paths' repeatable, start, and end fragments.
+    """
+
+    def _make(paths, rates=None, rate_default=0.05):
+        rates = rates or {}
+        fidelities = list(
+            dict.fromkeys(
+                chain.from_iterable(
+                    chain(p.repeatable_fragment, p.start_fragment, p.end_fragment) for p in paths
+                )
+            )
+        )
+        values = np.array([rates.get(f, rate_default) for f in fidelities], dtype=float)
+        n = len(fidelities)
+        model_data = ModelData.from_arrays(
+            parameter_indices=fidelities,
+            parameter_values=values,
+            covariance=np.zeros((n, n)),
+            time_lbs=np.empty(n, dtype="datetime64[us]"),
+            time_ubs=np.empty(n, dtype="datetime64[us]"),
+        )
+        return IdentityFidelityModel(gate_set_cz), model_data
 
     return _make
