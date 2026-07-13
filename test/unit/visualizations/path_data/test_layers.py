@@ -12,7 +12,7 @@
 
 import pytest
 
-from qiskit_noise_learning.visualizations import (
+from qiskit_noise_learning.visualizations.path_data.layers import (
     exponential_fit_curves_layer,
     model_curves_layer,
     observable_points_layer,

@@ -14,13 +14,15 @@ import plotly.graph_objects as go
 import pytest
 
 from qiskit_noise_learning.sequences import Path
-from qiskit_noise_learning.visualizations import (
+from qiskit_noise_learning.visualizations.path_data.layers import (
     observable_points_layer,
+    standard_decay_layers,
+)
+from qiskit_noise_learning.visualizations.path_data.orchestrators import (
     path_labels,
     plot_path_grid_overlay,
     plot_path_overlay,
     plot_qubit_pair_decays,
-    standard_decay_layers,
 )
 
 

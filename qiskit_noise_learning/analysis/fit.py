@@ -247,7 +247,9 @@ class Fit:
             ValueError: If the fit has no model (and hence no gate set) to build labels from.
             ImportError: If ``plotly`` is not installed.
         """
-        from ..visualizations import plot_qubit_pair_decays as _plot_qubit_pair_decays
+        from ..visualizations.path_data.orchestrators import (
+            plot_qubit_pair_decays as _plot_qubit_pair_decays,
+        )
 
         def _present(level: _LevelData) -> LeveledData | None:
             return level if isinstance(level, LeveledData) else None

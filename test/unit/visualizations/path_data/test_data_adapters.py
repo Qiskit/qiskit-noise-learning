@@ -14,13 +14,13 @@ import numpy as np
 import pytest
 
 from qiskit_noise_learning.sequences import Path
-from qiskit_noise_learning.visualizations import (
+from qiskit_noise_learning.visualizations.path_data.data_adapters import (
+    _dataset_paths,
     averaged_data_points,
     exponential_fit_curves,
     model_curves,
     observable_data_points,
 )
-from qiskit_noise_learning.visualizations.path_data.data_adapters import _dataset_paths
 
 # --------------------------------------------------------------------------------------------------
 # exponential_fit_curves

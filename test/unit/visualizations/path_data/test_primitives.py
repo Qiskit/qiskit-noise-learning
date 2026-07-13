@@ -13,12 +13,12 @@
 import numpy as np
 import plotly.graph_objects as go
 
-from qiskit_noise_learning.visualizations import (
+from qiskit_noise_learning.visualizations.path_data.primitives import (
     PointSeries,
+    _default_depths,
     plot_path_decay_curves,
     plot_path_scatters,
 )
-from qiskit_noise_learning.visualizations.path_data.primitives import _default_depths
 
 # --------------------------------------------------------------------------------------------------
 # PointSeries
