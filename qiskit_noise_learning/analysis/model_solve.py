@@ -11,7 +11,7 @@
 # that they have been altered from the originals.
 
 from abc import abstractmethod
-from collections.abc import Hashable, Iterator
+from collections.abc import Callable, Hashable, Iterator, Mapping
 from dataclasses import dataclass
 from typing import Generic, TypeVar
 
@@ -280,6 +280,15 @@ class LSQLinearSolve(ModelSolve):
         return x, cov_x, {"opt_res": opt_res}
 
 
+# A constraint policy computes a constraint value from the solve-time linear system, so a bound can
+# depend on how trustworthy each row's data is. The built-in ``data_scaled_deltas`` is one such
+# delta policy; users may supply their own. Fixed literals are wrapped into constant policies by
+# ``PositivityMinSolve.from_constants``.
+EpsilonPolicy = Callable[[LinearSystemData], float]
+DeltaPolicy = Callable[[LinearSystemData], Mapping[Path, float]]
+WeightsPolicy = Callable[[LinearSystemData], IndexedMatrix]
+
+
 class PositivityMinSolve(ModelSolve):
     r"""Solves for the :class:`~.ModelData` while minimizing Pauli-Lindblad rate positivity.
 
@@ -307,25 +316,28 @@ class PositivityMinSolve(ModelSolve):
     See :class:`~.ModelSolve` for more details about the general responsibility of a model solver
     in this library.
 
+    The constraint bounds are specified as **policies**: callables that receive the solve-time
+    :class:`~.LinearSystemData` and return the corresponding bound.
+
     Args:
         coefficients: Per-gate coefficients for the objective function, as a mapping from gate
             name to float.
-        epsilon: Tolerance for the overall weighted L2 norm constraint. At least one of
-            ``epsilon`` or ``deltas`` must be provided.
-        deltas: Per-row tolerances as a mapping from :class:`~.Path` to float. At least one of
-            ``epsilon`` or ``deltas`` must be provided.
-        weights: Weight matrix ``W`` for the L2 constraint as an :class:`~.IndexedMatrix` whose
-            row and column indices are :class:`~.Path` objects. Defaults to identity. Only used
-            when ``epsilon`` is provided.
+        epsilon: Policy returning the tolerance for the overall weighted L2 norm constraint. At
+            least one of ``epsilon`` or ``deltas`` must be provided.
+        deltas: Policy returning per-row tolerances as a mapping from :class:`~.Path` to float. At
+            least one of ``epsilon`` or ``deltas`` must be provided.
+        weights: Policy returning the weight matrix ``W`` for the L2 constraint as an
+            :class:`~.IndexedMatrix` whose row and column indices are :class:`~.Path` objects.
+            Defaults to identity. Only used when ``epsilon`` is provided.
         non_negative: Whether to enforce ``x >= 0``.
     """
 
     def __init__(
         self,
         coefficients: dict[str, float],
-        epsilon: float | None = None,
-        deltas: dict[Path, float] | None = None,
-        weights: IndexedMatrix | None = None,
+        epsilon: EpsilonPolicy | None = None,
+        deltas: DeltaPolicy | None = None,
+        weights: WeightsPolicy | None = None,
         non_negative: bool = False,
     ):
         if epsilon is None and deltas is None:
@@ -336,6 +348,29 @@ class PositivityMinSolve(ModelSolve):
         self.deltas = deltas
         self.weights = weights
         self.non_negative = non_negative
+
+    @classmethod
+    def from_constants(
+        cls,
+        coefficients: dict[str, float],
+        epsilon: float | None = None,
+        deltas: Mapping[Path, float] | None = None,
+        weights: IndexedMatrix | None = None,
+        non_negative: bool = False,
+    ) -> "PositivityMinSolve":
+        """Construct from fixed constant bounds instead of data-driven policies.
+
+        Each supplied constant is wrapped in a policy that ignores the data and returns it. See
+        the class docstring for the meaning of each argument; here they are fixed values rather
+        than callables.
+        """
+        return cls(
+            coefficients,
+            epsilon=None if epsilon is None else (lambda system, value=epsilon: value),
+            deltas=None if deltas is None else (lambda system, value=deltas: value),
+            weights=None if weights is None else (lambda system, value=weights: value),
+            non_negative=non_negative,
+        )
 
     def _run(self, fit: Fit):
         if not contains_pauli_lindblad_model(fit.model):
@@ -350,19 +385,20 @@ class PositivityMinSolve(ModelSolve):
             )
         super()._run(fit)
 
-    def _solve(
-        self,
-        A: np.ndarray,
-        b: np.ndarray,
-        sigma_b: np.ndarray,
-        param_labels: list,
-        path_labels: list[Path],
-    ) -> tuple[np.ndarray, np.ndarray, dict]:
+    def _solve(self, system: LinearSystemData) -> tuple[np.ndarray, np.ndarray, dict]:
         HAS_CVXPY.require_now("PositivityMinSolve")
         import cvxpy as cp
 
+        A, b = system.A, system.b
+        param_labels, path_labels = system.param_labels, system.path_labels
+
         n = A.shape[1]
         m = A.shape[0]
+
+        # Resolve each constraint policy against the solve-time data.
+        epsilon = self.epsilon(system) if self.epsilon is not None else None
+        deltas = self.deltas(system) if self.deltas is not None else None
+        weights = self.weights(system) if self.weights is not None else None
 
         # Build coefficient vector from gate-name mapping
         coeff_vector = np.array([self.coefficients[label.gate_name] for label in param_labels])
@@ -374,22 +410,22 @@ class PositivityMinSolve(ModelSolve):
 
         constraints = []
 
-        if self.epsilon is not None:
-            if self.weights is not None:
+        if epsilon is not None:
+            if weights is not None:
                 path_to_row = {path: i for i, path in enumerate(path_labels)}
                 w = np.zeros((m, m))
-                for row_label, row_idx in self.weights.row_index_map.items():
-                    for col_label, col_idx in self.weights.column_index_map.items():
-                        w[path_to_row[row_label], path_to_row[col_label]] = self.weights.data[
+                for row_label, row_idx in weights.row_index_map.items():
+                    for col_label, col_idx in weights.column_index_map.items():
+                        w[path_to_row[row_label], path_to_row[col_label]] = weights.data[
                             row_idx, col_idx
                         ]
                 weighted_residual = w @ residual
             else:
                 weighted_residual = residual
-            constraints.append(cp.norm(weighted_residual, 2) <= self.epsilon)
+            constraints.append(cp.norm(weighted_residual, 2) <= epsilon)
 
-        if self.deltas is not None:
-            deltas_array = np.array([self.deltas[path] for path in path_labels])
+        if deltas is not None:
+            deltas_array = np.array([deltas[path] for path in path_labels])
             constraints.append(cp.abs(residual) <= deltas_array)
 
         if self.non_negative:
@@ -398,11 +434,8 @@ class PositivityMinSolve(ModelSolve):
         problem = cp.Problem(objective, constraints)
         problem.solve()
 
-        return (
-            x.value,
-            np.zeros((n, n)),
-            {
-                "problem": problem,
-                "weighted_residual": np.linalg.norm(weighted_residual.value),
-            },
-        )
+        metadata = {"problem": problem}
+        if epsilon is not None:
+            metadata["weighted_residual"] = np.linalg.norm(weighted_residual.value)
+
+        return x.value, np.zeros((n, n)), metadata
