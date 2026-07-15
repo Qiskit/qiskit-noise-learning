@@ -20,6 +20,7 @@ Classes
    Fit
    FlipPostSelect
    LegacySolve
+   LinearSystemData
    LSQLinearSolve
    NNLSSolve
    PositivityMinSolve
