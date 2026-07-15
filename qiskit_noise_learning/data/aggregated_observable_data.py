@@ -97,7 +97,11 @@ class AggregatedObservableData(LeveledData):
                 "time_lbs": xr.DataArray(data=time_lbs, dims=["observable"]),
                 "time_ubs": xr.DataArray(data=time_ubs, dims=["observable"]),
                 "metadata": xr.DataArray(
-                    data=metadata or np.array([None] * len(estimate_values), dtype=object),
+                    data=(
+                        np.array([None] * len(estimate_values), dtype=object)
+                        if metadata is None
+                        else metadata
+                    ),
                     dims=["observable"],
                 ),
             },
