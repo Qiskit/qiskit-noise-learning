@@ -108,6 +108,26 @@ class TestCurveFitObservables:
         with pytest.raises(ValueError, match="At least 2 fragment depths are required"):
             _run_stage(obs, paths=[pp])
 
+    def test_reduced_chi_squared_recorded(self, make_cz_path, make_observable_data):
+        """The per-row metadata records reduced chi-squared as the raw value over the dof."""
+        pp = make_cz_path("IX")
+        obs = make_observable_data([(pp, 0.9, 0.8, [1, 2, 3, 4, 5])])
+        result = _run_stage(obs)
+        ds = result.averaged_data.dataset
+        mask = (ds["unbound_path"].data == pp) & (ds["depth"].data == -1)
+        meta = ds["metadata"].data[mask][0]
+        # dof = M - 2 = 5 - 2 = 3 fit parameters (a, f).
+        assert np.isclose(meta["reduced_chi_squared"], meta["chi_squared"] / 3)
+
+    def test_reduced_chi_squared_nan_without_dof(self, make_cz_path, make_observable_data):
+        """Reduced chi-squared is nan when there are no degrees of freedom (2 depths)."""
+        pp = make_cz_path("IX")
+        obs = make_observable_data([(pp, 0.9, 0.8, [1, 2])])
+        result = _run_stage(obs)
+        ds = result.averaged_data.dataset
+        mask = (ds["unbound_path"].data == pp) & (ds["depth"].data == -1)
+        assert np.isnan(ds["metadata"].data[mask][0]["reduced_chi_squared"])
+
 
 class TestFitExponential:
     """Tests for the fit_exponential helper function."""

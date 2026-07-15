@@ -85,7 +85,11 @@ class AveragedData(LeveledData):
                 "time_lbs": xr.DataArray(data=time_lbs, dims=["observable"]),
                 "time_ubs": xr.DataArray(data=time_ubs, dims=["observable"]),
                 "metadata": xr.DataArray(
-                    data=metadata or np.array([None] * len(observables), dtype=object),
+                    data=(
+                        np.array([None] * len(observables), dtype=object)
+                        if metadata is None
+                        else metadata
+                    ),
                     dims=["observable"],
                 ),
             },

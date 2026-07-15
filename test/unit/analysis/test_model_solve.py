@@ -236,7 +236,9 @@ class TestPositivityMinSolve:
         # IdentityFidelityModel is a real FidelityModel that is not a PauliLindbladModel.
         model = IdentityFidelityModel(gate_set_cz)
         path = make_cz_path("XI")
-        solver = PositivityMinSolve(coefficients={"CZ": 1.0}, epsilon=1.0, deltas={path: 1.0})
+        solver = PositivityMinSolve.from_constants(
+            coefficients={"CZ": 1.0}, epsilon=1.0, deltas={path: 1.0}
+        )
 
         fit = Fit(model=model)
         fit[AveragedData] = make_averaged_data([(path, -1, 0.8)])
@@ -250,7 +252,7 @@ class TestPositivityMinSolve:
         """With loose constraints, the optimizer makes the parameter non-positive."""
         model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
         path = make_cz_path("XI")  # row = {CZ:ZI: 4.0}
-        solver = PositivityMinSolve(
+        solver = PositivityMinSolve.from_constants(
             coefficients={"CZ": 1.0},
             epsilon=10.0,
             deltas={path: 10.0},
@@ -270,7 +272,7 @@ class TestPositivityMinSolve:
         f_true = 0.8
         model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
         path = make_cz_path("XI")  # row = {CZ:ZI: 4.0}
-        solver = PositivityMinSolve(
+        solver = PositivityMinSolve.from_constants(
             coefficients={"CZ": 1.0},
             epsilon=1e-6,
             deltas={path: 1e-6},
@@ -291,7 +293,7 @@ class TestPositivityMinSolve:
         )
         path0 = make_cz_path("XI")  # row = {CZ:ZI: 4.0}
         path1 = make_cz_path("IX")  # row = {CZ:IZ: 4.0}
-        solver = PositivityMinSolve(
+        solver = PositivityMinSolve.from_constants(
             coefficients={"CZ": 1.0},
             epsilon=1e-6,
             deltas={path0: 1e-6, path1: 1e-6},
@@ -313,7 +315,7 @@ class TestPositivityMinSolve:
         unbound = make_cz_path("XI")
         bound = unbound.bind_at(1)
         # unbound row = {CZ:ZI: 4.0}; bound row = {CZ:ZI: 4.0, P:XI: 2.0, M:XI: 2.0}.
-        solver = PositivityMinSolve(
+        solver = PositivityMinSolve.from_constants(
             coefficients={"CZ": 10.0, "P": 1.0, "M": 1.0},
             epsilon=1e-6,
             deltas={unbound: 1e-6, bound: 1e-6},
@@ -338,7 +340,7 @@ class TestPositivityMinSolve:
         path1 = make_cz_path("IX")  # row = {CZ:IZ: 4.0}
         # Loose constraints would let the positivity objective drive the rates negative; the
         # non_negative flag pins them at the zero boundary instead.
-        solver = PositivityMinSolve(
+        solver = PositivityMinSolve.from_constants(
             coefficients={"CZ": 1.0},
             epsilon=10.0,
             deltas={path0: 10.0, path1: 10.0},
@@ -369,7 +371,7 @@ class TestPositivityMinSolve:
             ],
         )
 
-        solver = PositivityMinSolve(
+        solver = PositivityMinSolve.from_constants(
             coefficients={"CZ": 1.0},
             epsilon=1e-6,
             deltas={path0: 10.0, path1: 10.0},
@@ -390,7 +392,7 @@ class TestPositivityMinSolve:
 
         model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
         path = make_cz_path("XI")
-        solver = PositivityMinSolve(
+        solver = PositivityMinSolve.from_constants(
             coefficients={"CZ": 1.0},
             epsilon=10.0,
             deltas={path: 10.0},
@@ -407,7 +409,7 @@ class TestPositivityMinSolve:
         """PositivityMinSolve returns zero covariance."""
         model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
         path = make_cz_path("XI")
-        solver = PositivityMinSolve(
+        solver = PositivityMinSolve.from_constants(
             coefficients={"CZ": 1.0},
             epsilon=10.0,
             deltas={path: 10.0},
@@ -429,7 +431,7 @@ class TestPositivityMinSolve:
             gate_set_cz, {"CZ": QubitSparsePauliList(["ZI", "IZ"]), **_PM_GENS}
         )
         path = make_cz_path("XX")  # one row onto two generators: {CZ:ZI: 4.0, CZ:IZ: 4.0}
-        solver = PositivityMinSolve(
+        solver = PositivityMinSolve.from_constants(
             coefficients={"CZ": 1.0},
             epsilon=1e-6,
             deltas={path: 1e-6},
@@ -446,3 +448,136 @@ class TestPositivityMinSolve:
         # The minimum of max(0,a) + max(0,b) subject to a + b = c > 0 is exactly c.
         pos_sum = max(0, x0) + max(0, x1)
         assert np.isclose(pos_sum, -np.log(0.8) / 4, atol=1e-4)
+
+
+@pytest.mark.skipif(not HAS_CVXPY, reason="cvxpy is required for PositivityMinSolve")
+class TestDataScaledDeltas:
+    """Tests for the PositivityMinSolve.data_scaled_deltas constructor."""
+
+    def _single_generator_model(self, gate_set_cz):
+        return PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
+
+    def _solve_single(self, gate_set_cz, make_cz_path, make_averaged_data, entry, **kwargs):
+        """Solve a one-path system and return the fitted CZ:ZI rate."""
+        model = self._single_generator_model(gate_set_cz)
+        solver = PositivityMinSolve.data_scaled_deltas({"CZ": 1.0}, **kwargs)
+        fit = Fit(model=model)
+        fit[AveragedData] = make_averaged_data([entry])
+        return _get_rate_from_fit(solver.run(fit), "CZ", "ZI")
+
+    def test_low_variance_pins_ls_solution(self, gate_set_cz, make_cz_path, make_averaged_data):
+        """A low-variance row gets a tight delta, pinning the solution near the LS solution."""
+        f_true = 0.8
+        path = make_cz_path("XI")  # row = {CZ:ZI: 4.0}
+        rate = self._solve_single(
+            gate_set_cz,
+            make_cz_path,
+            make_averaged_data,
+            (path, -1, f_true, 1e-8, {"reduced_chi_squared": 1.0}),
+        )
+        assert np.isclose(rate, -np.log(f_true) / 4, atol=1e-4)
+
+    def test_high_variance_relaxes_toward_positivity(
+        self, gate_set_cz, make_cz_path, make_averaged_data
+    ):
+        """A high-variance row gets a loose delta, letting the positivity objective pull it down."""
+        f_true = 0.8
+        path = make_cz_path("XI")
+        ls_rate = -np.log(f_true) / 4
+
+        tight = self._solve_single(
+            gate_set_cz,
+            make_cz_path,
+            make_averaged_data,
+            (path, -1, f_true, 1e-8, {"reduced_chi_squared": 1.0}),
+        )
+        loose = self._solve_single(
+            gate_set_cz,
+            make_cz_path,
+            make_averaged_data,
+            (path, -1, f_true, 0.05, {"reduced_chi_squared": 1.0}),
+        )
+
+        assert np.isclose(tight, ls_rate, atol=1e-4)
+        # The objective minimizes max(0, x), so a looser delta lets the rate drop below the LS
+        # value.
+        assert loose < tight - 1e-3
+
+    def test_poor_fit_loosens_via_chi_squared(self, gate_set_cz, make_cz_path, make_averaged_data):
+        """A larger reduced chi-squared inflates the delta, giving the positivity objective room."""
+        f_true = 0.8
+        path = make_cz_path("XI")
+
+        good_fit = self._solve_single(
+            gate_set_cz,
+            make_cz_path,
+            make_averaged_data,
+            (path, -1, f_true, 0.01, {"reduced_chi_squared": 1.0}),
+        )
+        poor_fit = self._solve_single(
+            gate_set_cz,
+            make_cz_path,
+            make_averaged_data,
+            (path, -1, f_true, 0.01, {"reduced_chi_squared": 100.0}),
+        )
+
+        # sqrt(100) = 10x inflation on the same statistical sigma loosens the row.
+        assert poor_fit < good_fit - 1e-3
+
+    def test_nan_chi_squared_gives_no_inflation(
+        self, gate_set_cz, make_cz_path, make_averaged_data
+    ):
+        """An undefined (nan) reduced chi-squared behaves like a well-fit row (no inflation)."""
+        f_true = 0.8
+        path = make_cz_path("XI")
+
+        nan_rate = self._solve_single(
+            gate_set_cz,
+            make_cz_path,
+            make_averaged_data,
+            (path, -1, f_true, 0.02, {"reduced_chi_squared": float("nan")}),
+        )
+        unit_rate = self._solve_single(
+            gate_set_cz,
+            make_cz_path,
+            make_averaged_data,
+            (path, -1, f_true, 0.02, {"reduced_chi_squared": 1.0}),
+        )
+        assert np.isclose(nan_rate, unit_rate, atol=1e-6)
+
+    def test_works_without_metadata(self, gate_set_cz, make_cz_path, make_averaged_data):
+        """Rows without any metadata (e.g. averaged rows) get no inflation and still solve."""
+        f_true = 0.8
+        path = make_cz_path("XI")
+        rate = self._solve_single(
+            gate_set_cz, make_cz_path, make_averaged_data, (path, -1, f_true, 1e-8)
+        )
+        assert np.isclose(rate, -np.log(f_true) / 4, atol=1e-4)
+
+    def test_median_floor_relaxes_zero_variance_row(
+        self, gate_set_cz, make_cz_path, make_averaged_data
+    ):
+        """The median floor gives a zero-variance row a nonzero delta instead of a hard equality."""
+        f_true = 0.8
+        ls_rate = -np.log(f_true) / 4
+        model = PauliLindbladModel(
+            gate_set_cz, {"CZ": QubitSparsePauliList(["ZI", "IZ"]), **_PM_GENS}
+        )
+        path0 = make_cz_path("XI")  # row = {CZ:ZI: 4.0}, zero variance
+        path1 = make_cz_path("IX")  # row = {CZ:IZ: 4.0}, sets the median
+
+        solver = PositivityMinSolve.data_scaled_deltas({"CZ": 1.0})
+        fit = Fit(model=model)
+        fit[AveragedData] = make_averaged_data(
+            [
+                (path0, -1, f_true, 0.0, {"reduced_chi_squared": 1.0}),
+                (path1, -1, f_true, 0.05, {"reduced_chi_squared": 1.0}),
+            ]
+        )
+        result = solver.run(fit)
+
+        rate0 = _get_rate_from_fit(result, "CZ", "ZI")
+        # Without the floor, delta for the zero-variance row would be 0, pinning it exactly at the
+        # LS solution. The floor gives it a small nonzero delta, so the positivity objective can
+        # pull it slightly below LS.
+        assert rate0 < ls_rate - 1e-4
