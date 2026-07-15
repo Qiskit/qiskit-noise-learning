@@ -53,6 +53,7 @@ class CurveFitObservables(AnalysisStage):
         spam_fidelities = []
         spam_fidelity_stds = []
         chi_squareds = []
+        reduced_chi_squareds = []
         decay_time_lbs_out = []
         decay_time_ubs_out = []
 
@@ -104,12 +105,19 @@ class CurveFitObservables(AnalysisStage):
 
             a, f, a_std, f_std, chisq = fit_exponential(fragment_depths_arr, means_arr, stds_arr)
 
+            # Reduced chi-squared normalizes by the degrees of freedom (M depths minus the 2 fit
+            # parameters a, f). It is nan when the raw value is undefined or there are no degrees of
+            # freedom to normalize by.
+            dof = len(unique_depths) - 2
+            reduced_chisq = chisq / dof if dof > 0 else float("nan")
+
             decay_paths.append(path)
             spam_fidelities.append(a)
             decay_fidelities.append(f)
             spam_fidelity_stds.append(a_std)
             decay_fidelity_stds.append(f_std)
             chi_squareds.append(chisq)
+            reduced_chi_squareds.append(reduced_chisq)
 
             decay_time_lbs_out.append(time_bound(path_dataset["time_lbs"].data, "min"))
             decay_time_ubs_out.append(time_bound(path_dataset["time_ubs"].data, "max"))
@@ -122,9 +130,14 @@ class CurveFitObservables(AnalysisStage):
             time_lbs=np.array(decay_time_lbs_out, dtype="datetime64[us]"),
             time_ubs=np.array(decay_time_ubs_out, dtype="datetime64[us]"),
             metadata=[
-                {"spam_fidelity": sf, "spam_fidelity_std": sf_std, "chi_squared": chi_squared}
-                for sf, sf_std, chi_squared in zip(
-                    spam_fidelities, spam_fidelity_stds, chi_squareds
+                {
+                    "spam_fidelity": sf,
+                    "spam_fidelity_std": sf_std,
+                    "chi_squared": chi_squared,
+                    "reduced_chi_squared": reduced_chi_squared,
+                }
+                for sf, sf_std, chi_squared, reduced_chi_squared in zip(
+                    spam_fidelities, spam_fidelity_stds, chi_squareds, reduced_chi_squareds
                 )
             ],
         )
