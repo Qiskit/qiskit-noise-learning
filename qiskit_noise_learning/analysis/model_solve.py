@@ -11,7 +11,9 @@
 # that they have been altered from the originals.
 
 from abc import abstractmethod
-from collections.abc import Iterator
+from collections.abc import Hashable, Iterator
+from dataclasses import dataclass
+from typing import Generic, TypeVar
 
 import numpy as np
 import scipy.optimize as opt
@@ -27,79 +29,39 @@ from qiskit_noise_learning.models import (
 from qiskit_noise_learning.optionals import HAS_CVXPY
 from qiskit_noise_learning.sequences import LogPathMap, Path
 
+RowIndex = TypeVar("RowIndex", bound=Hashable)
+ColumnIndex = TypeVar("ColumnIndex", bound=Hashable)
 
-class ModelSolve(AnalysisStage):
-    """Base class for model fitting routines.
 
-    Constructs the design matrix from the :class:`~.FidelityModel` stored on the :class:`~.Fit`
-    container and the paths in the :class:`~.AveragedData`. Then solves ``A @ x = b`` using a
-    specified method, where ``A`` is the design matrix and ``b`` is the vector of negative log
-    observables ``-log(o)``.
+@dataclass(frozen=True, eq=False)
+class LinearSystemData(Generic[RowIndex, ColumnIndex]):
+    """The linear system to solve and metadata in raw format.
 
-    If paths are specified on the :class:`~.Fit`, only data matching those paths is used. If no
-    paths are specified, all data in the :class:`~.AveragedData` is used.
+    A linear system ``A @ x = b`` with axis labels and metadata.
 
-    This stage assumes a single observable value for each unique :class:`Path`.
+    Args:
+        A: The matrix with shape ``(m, n)``.
+        b: The target vector length ``m``.
+        sigma_b: Statistical ``1``-sigma uncertainty on ``b`` per row, with length ``m``.
+        chi2_red: Reduced chi-squared for ``b``, with length ``m``. ``nan`` where underfined.
+        param_labels: Ordered parameter labels corresponding to columns of ``A``.
+        path_labels: Ordered path labels corresponding to rows of ``A``.
+        time_lb: Earliest time bound across the rows.
+        time_ub: Latest time bound across the rows.
     """
 
-    @property
-    def input_level(self):
-        return AveragedData
+    A: np.ndarray
+    b: np.ndarray
+    sigma_b: np.ndarray
+    chi2_red: np.ndarray
+    param_labels: list[ColumnIndex]
+    path_labels: list[RowIndex]
+    time_lb: np.datetime64
+    time_ub: np.datetime64
 
-    @property
-    def output_level(self):
-        return ModelData
-
-    @abstractmethod
-    def _solve(
-        self,
-        A: np.ndarray,
-        b: np.ndarray,
-        sigma_b: np.ndarray,
-        param_labels: list,
-        path_labels: list[Path],
-    ) -> tuple[np.ndarray, np.ndarray, dict]:
-        """Numerical method for solving the linear system.
-
-        Args:
-            A: The design matrix with shape ``(m, n)``.
-            b: The target vector with length ``m``.
-            sigma_b: Uncertainty on ``b`` with length ``m``.
-            param_labels: Ordered parameter labels corresponding to columns of ``A``.
-            path_labels: Ordered path labels corresponding to rows of ``A``.
-
-        Returns:
-            A tuple of ``(x, cov_x, metadata)``.
-        """
-
-    def _run(self, fit: Fit):
-        A, b, sigma_b, param_labels, path_labels, time_lb, time_ub = self._build_linear_system(fit)
-        x, cov_x, metadata = self._solve(A, b, sigma_b, param_labels, path_labels)
-
-        # add standard fields to metadata
-        residual_vec = A @ x - b
-        metadata["residual"] = np.linalg.norm(residual_vec)
-        metadata["path_residual"] = IndexedVector(
-            {path: val for path, val in zip(path_labels, np.abs(residual_vec))}
-        )
-
-        fit[ModelData] = ModelData.from_arrays(
-            parameter_indices=param_labels,
-            parameter_values=x,
-            covariance=cov_x,
-            time_lbs=np.full(len(x), time_lb, dtype="datetime64[us]"),
-            time_ubs=np.full(len(x), time_ub, dtype="datetime64[us]"),
-            metadata=metadata,
-        )
-
-    def _build_linear_system(
-        self, fit: Fit
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list, list[Path], np.datetime64, np.datetime64]:
-        """Build the linear system arrays from a :class:`~.Fit`.
-
-        Returns:
-            A tuple of ``(A, b, sigma_b, param_labels, path_labels, time_lb, time_ub)``.
-        """
+    @classmethod
+    def from_fit(cls, fit: "Fit") -> "LinearSystemData[Path, Hashable]":
+        """Build the linear system arrays from a :class:`~.Fit`."""
         dataset = fit[AveragedData].dataset
         fidelity_model = fit.model
 
@@ -146,6 +108,7 @@ class ModelSolve(AnalysisStage):
 
         fidelities = dataset["observables"].data[dataset_idxs]
         fidelity_stds = dataset["std"].data[dataset_idxs]
+        metadatas = dataset["metadata"].data[dataset_idxs]
         time_lbs_list = dataset["time_lbs"].data[dataset_idxs]
         time_ubs_list = dataset["time_ubs"].data[dataset_idxs]
 
@@ -154,16 +117,20 @@ class ModelSolve(AnalysisStage):
         path_model = LogPathMap(fidelity_model.output_space) @ fidelity_model
         design_matrix = path_model.rows(row_indices)
 
-        # Build b and sigma_b aligned with the design matrix's row order. add_rows may drop all-zero
-        # rows, so iterate row_index_map, the surviving rows.
-        fidelity_by_row = dict(zip(row_indices, zip(fidelities, fidelity_stds)))
+        # Build b, sigma_b and chi2_red aligned with the design matrix's row order. add_rows may
+        # drop all-zero rows, so iterate row_index_map, the surviving rows.
+        row_data = dict(zip(row_indices, zip(fidelities, fidelity_stds, metadatas)))
         n_rows = len(design_matrix.row_index_map)
         b = np.empty(n_rows, dtype=float)
         sigma_b = np.empty(n_rows, dtype=float)
+        chi2_red = np.empty(n_rows, dtype=float)
         for row_index, array_idx in design_matrix.row_index_map.items():
-            fidelity, fidelity_std = fidelity_by_row[row_index]
+            fidelity, fidelity_std, meta = row_data[row_index]
             b[array_idx] = -np.log(max(fidelity, 1e-300))
             sigma_b[array_idx] = fidelity_std / max(fidelity, 1e-300)
+            chi2_red[array_idx] = (
+                meta.get("reduced_chi_squared", np.nan) if isinstance(meta, dict) else np.nan
+            )
 
         all_time_lbs = np.array(time_lbs_list, dtype="datetime64[us]")
         all_time_ubs = np.array(time_ubs_list, dtype="datetime64[us]")
@@ -173,7 +140,70 @@ class ModelSolve(AnalysisStage):
         param_labels = sorted(x := design_matrix.column_index_map, key=x.get)
         path_labels = sorted(x := design_matrix.row_index_map, key=x.get)
 
-        return design_matrix.data, b, sigma_b, param_labels, path_labels, time_lb, time_ub
+        return cls(
+            A=design_matrix.data,
+            b=b,
+            sigma_b=sigma_b,
+            chi2_red=chi2_red,
+            param_labels=param_labels,
+            path_labels=path_labels,
+            time_lb=time_lb,
+            time_ub=time_ub,
+        )
+
+
+class ModelSolve(AnalysisStage):
+    """Base class for model fitting routines.
+
+    Constructs the design matrix from the :class:`~.FidelityModel` stored on the :class:`~.Fit`
+    container and the paths in the :class:`~.AveragedData`. Then solves ``A @ x = b`` using a
+    specified method, where ``A`` is the design matrix and ``b`` is the vector of negative log
+    observables ``-log(o)``.
+
+    If paths are specified on the :class:`~.Fit`, only data matching those paths is used. If no
+    paths are specified, all data in the :class:`~.AveragedData` is used.
+
+    This stage assumes a single observable value for each unique :class:`Path`.
+    """
+
+    @property
+    def input_level(self):
+        return AveragedData
+
+    @property
+    def output_level(self):
+        return ModelData
+
+    @abstractmethod
+    def _solve(self, system: LinearSystemData) -> tuple[np.ndarray, np.ndarray, dict]:
+        """Numerical method for solving the linear system.
+
+        Args:
+            system: The linear system to solve.
+
+        Returns:
+            A tuple of ``(x, cov_x, metadata)``.
+        """
+
+    def _run(self, fit: Fit):
+        system = LinearSystemData.from_fit(fit)
+        x, cov_x, metadata = self._solve(system)
+
+        # add standard fields to metadata
+        residual_vec = system.A @ x - system.b
+        metadata["residual"] = np.linalg.norm(residual_vec)
+        metadata["path_residual"] = IndexedVector(
+            {path: val for path, val in zip(system.path_labels, np.abs(residual_vec))}
+        )
+
+        fit[ModelData] = ModelData.from_arrays(
+            parameter_indices=system.param_labels,
+            parameter_values=x,
+            covariance=cov_x,
+            time_lbs=np.full(len(x), system.time_lb, dtype="datetime64[us]"),
+            time_ubs=np.full(len(x), system.time_ub, dtype="datetime64[us]"),
+            metadata=metadata,
+        )
 
     @staticmethod
     def _covariance(
@@ -213,17 +243,10 @@ class NNLSSolve(ModelSolve):
     def __init__(self, **nnls_opts):
         self.nnls_opts = nnls_opts
 
-    def _solve(
-        self,
-        A: np.ndarray,
-        b: np.ndarray,
-        sigma_b: np.ndarray,
-        param_labels: list,
-        path_labels: list[Path],
-    ) -> tuple[np.ndarray, np.ndarray, dict]:
-        x, _ = opt.nnls(A, b, **self.nnls_opts)
+    def _solve(self, system: LinearSystemData) -> tuple[np.ndarray, np.ndarray, dict]:
+        x, _ = opt.nnls(system.A, system.b, **self.nnls_opts)
         free_indices = np.where(x > 0)[0]
-        cov_x = self._covariance(A, sigma_b, x, free_indices)
+        cov_x = self._covariance(system.A, system.sigma_b, x, free_indices)
         return x, cov_x, dict()
 
 
@@ -244,22 +267,15 @@ class LSQLinearSolve(ModelSolve):
         self.lsq_linear_opts.setdefault("bounds", (0, np.inf))
         self.lsq_linear_opts.setdefault("method", "bvls")
 
-    def _solve(
-        self,
-        A: np.ndarray,
-        b: np.ndarray,
-        sigma_b: np.ndarray,
-        param_labels: list,
-        path_labels: list[Path],
-    ) -> tuple[np.ndarray, np.ndarray, dict]:
-        opt_res = opt.lsq_linear(A, b, **self.lsq_linear_opts)
+    def _solve(self, system: LinearSystemData) -> tuple[np.ndarray, np.ndarray, dict]:
+        opt_res = opt.lsq_linear(system.A, system.b, **self.lsq_linear_opts)
         x = opt_res.x
 
         lb, ub = self.lsq_linear_opts["bounds"]
         at_lower = np.isfinite(lb) & np.isclose(x, lb)
         at_upper = np.isfinite(ub) if np.isscalar(ub) else np.isfinite(ub) & np.isclose(x, ub)
         free_indices = np.where(~at_lower & ~at_upper)[0]
-        cov_x = self._covariance(A, sigma_b, x, free_indices)
+        cov_x = self._covariance(system.A, system.sigma_b, x, free_indices)
 
         return x, cov_x, {"opt_res": opt_res}
 
