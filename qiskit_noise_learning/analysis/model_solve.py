@@ -372,6 +372,56 @@ class PositivityMinSolve(ModelSolve):
             non_negative=non_negative,
         )
 
+    @classmethod
+    def data_scaled_deltas(
+        cls,
+        coefficients: dict[str, float],
+        scale: float = 1.0,
+        floor_frac: float = 0.1,
+        non_negative: bool = False,
+    ) -> "PositivityMinSolve":
+        r"""Construct with per-row ``deltas`` that scale with data quality.
+
+        Each row's tolerance is set from that row's statistical uncertainty and its
+        exponential-fit goodness-of-fit. For row :math:`i`, with statistical ``1``-sigma
+        ``sigma_b`` and reduced chi-squared ``chi2_red``:
+
+        .. math::
+
+            \mathrm{inflation}_i &= \max(1, \sqrt{\mathrm{chi2\_red}_i}) \\
+            s_i &= \mathrm{inflation}_i \cdot \sigma_{b, i} \\
+            \mathrm{floor} &= \mathrm{floor\_frac} \cdot \mathrm{median}_j(s_j) \\
+            \delta_i &= \mathrm{scale} \cdot \max(s_i, \mathrm{floor})
+
+        Setting ``delta_i`` proportional to ``sigma`` follows the Morozov discrepancy principle
+        (allow about ``scale`` standard deviations of slack). Because ``curve_fit`` reports
+        ``sigma_b`` with ``absolute_sigma=True``, it is blind to model mismatch; the
+        ``sqrt(chi2_red)`` factor loosens rows whose exponential fit is poor, and the ``max(1, .)``
+        clamp means mismatch can only loosen a row, never tighten it below the statistical floor.
+        Rows with an undefined ``chi2_red`` (``nan``, e.g. averaged rows) get no inflation. The
+        median floor keeps a near-zero-``sigma`` row from forcing a hard equality and making the
+        problem ill-posed.
+
+        Args:
+            coefficients: Per-gate coefficients for the objective function, as a mapping from gate
+                name to float.
+            scale: Multiplier on the per-row tolerance, in units of (inflated) standard deviations.
+            floor_frac: Fraction of the median inflated uncertainty used as a floor on every row's
+                tolerance.
+            non_negative: Whether to enforce ``x >= 0``.
+        """
+
+        def deltas(system: LinearSystemData) -> dict[Path, float]:
+            inflation = np.where(
+                np.isfinite(system.chi2_red), np.sqrt(np.maximum(system.chi2_red, 1.0)), 1.0
+            )
+            effective = inflation * system.sigma_b
+            floor = floor_frac * np.median(effective)
+            values = scale * np.maximum(effective, floor)
+            return dict(zip(system.path_labels, values))
+
+        return cls(coefficients, deltas=deltas, non_negative=non_negative)
+
     def _run(self, fit: Fit):
         if not contains_pauli_lindblad_model(fit.model):
             raise TypeError(
