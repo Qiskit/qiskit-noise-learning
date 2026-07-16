@@ -380,7 +380,7 @@ class PositivityMinSolve(ModelSolve):
         floor_frac: float = 0.1,
         non_negative: bool = False,
     ) -> "PositivityMinSolve":
-        r"""Construct with per-row ``deltas`` that scale with data quality.
+        r"""Build with a delta-only policy based on statistical uncertainty of observables.
 
         Each row's tolerance is set from that row's statistical uncertainty and its
         exponential-fit goodness-of-fit. For row :math:`i`, with statistical ``1``-sigma
