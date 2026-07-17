@@ -16,8 +16,8 @@ from itertools import chain
 from qiskit.quantum_info import QubitSparsePauli
 
 from qiskit_noise_learning.math import IndexedVector
-from qiskit_noise_learning.models import LogFidelitySpace, LogPathMap, LogPathSpace
-from qiskit_noise_learning.sequences import FidelityIndex, Path
+from qiskit_noise_learning.models import LogFidelitySpace
+from qiskit_noise_learning.sequences import FidelityIndex, LogPathMap, LogPathSpace, Path
 
 
 def _expected_unbound_vector(path):
@@ -43,11 +43,6 @@ def _expected_bound_vector(path):
 def test_log_path_space_fidelity_space(gate_set_cz):
     fidelity_space = LogFidelitySpace(gate_set_cz)
     assert LogPathSpace(fidelity_space).fidelity_space is fidelity_space
-
-
-def test_log_path_space_gate_set(gate_set_cz):
-    fidelity_space = LogFidelitySpace(gate_set_cz)
-    assert LogPathSpace(fidelity_space).gate_set is fidelity_space.gate_set
 
 
 def test_log_path_space_dim_is_infinite(gate_set_cz):

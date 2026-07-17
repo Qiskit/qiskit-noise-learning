@@ -21,12 +21,11 @@ from qiskit_noise_learning.data import AveragedData, ModelData
 from qiskit_noise_learning.data.xarray_utils import time_bound
 from qiskit_noise_learning.math import IndexedMatrix, IndexedVector
 from qiskit_noise_learning.models import (
-    LogPathMap,
     contains_pauli_lindblad_model,
     split_pauli_lindblad_model,
 )
 from qiskit_noise_learning.optionals import HAS_CVXPY
-from qiskit_noise_learning.sequences import Path
+from qiskit_noise_learning.sequences import LogPathMap, Path
 
 
 class ModelSolve(AnalysisStage):

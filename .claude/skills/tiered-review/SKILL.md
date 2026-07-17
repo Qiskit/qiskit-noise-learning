@@ -64,7 +64,11 @@ Do this first, regardless of tier:
 3. **Load context.** Read the root `CLAUDE.md`, then work through the section for the
    requested tier under [Tier logic](#tier-logic) below.
 4. **Review cold.** Judge the diff on its own merits. Do not make assumptions based on other
-   branches or external context unless the diff, CLAUDE.md, or the user says so.
+   branches or external context unless the diff, CLAUDE.md, or the user says so. In particular,
+   do **not** consult persistent/auto-recalled memory (prior design notes, "agreed directions",
+   branch history) — even the editorial framing of findings must not lean on it. If memory is
+   surfaced automatically, ignore it for this review. The only permitted context is the diff,
+   the current tree, git history, CLAUDE.md, and what the user says in-session.
 
 ## The escalation contract
 

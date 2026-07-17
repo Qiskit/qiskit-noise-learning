@@ -19,7 +19,6 @@ from qiskit_noise_learning.sequences import FidelityIndex
 
 from .identity_fidelity_model import IdentityFidelityModel
 from .log_fidelity_space import LogFidelitySpace
-from .log_path_map import LogPathMap, LogPathSpace
 from .pauli_lindblad_model import GeneratorIndex, PauliLindbladModel, RateSpace
 from .utils import (
     contains_pauli_lindblad_model,
@@ -27,5 +26,7 @@ from .utils import (
     split_pauli_lindblad_model,
 )
 
-# Annotation-only alias for a fidelity model: a LinearMap whose output indices are FidelityIndex.
+# Type hint for a fidelity model. The authoritative criterion is structural -- a LinearMap whose
+# output space is a LogFidelitySpace (see is_fidelity_model); this alias is the closest index-level
+# approximation, since LinearMap is generic over index types, not space types.
 FidelityModel = LinearMap[Hashable, FidelityIndex]

@@ -13,7 +13,8 @@
 import pytest
 
 from qiskit_noise_learning.experiment_builder.experiment import Experiment
-from qiskit_noise_learning.models import IdentityFidelityModel, LogFidelitySpace, LogPathMap
+from qiskit_noise_learning.models import IdentityFidelityModel, LogFidelitySpace
+from qiskit_noise_learning.sequences import LogPathMap
 
 
 class TestExperimentConstruction:

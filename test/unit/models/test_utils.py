@@ -16,12 +16,12 @@ from qiskit.quantum_info import QubitSparsePauliList
 from qiskit_noise_learning.math import ComposedLinearMap, IndexedMatrix, IndexedSpace, LinearMap
 from qiskit_noise_learning.models import (
     IdentityFidelityModel,
-    LogPathMap,
     PauliLindbladModel,
     contains_pauli_lindblad_model,
     is_fidelity_model,
     split_pauli_lindblad_model,
 )
+from qiskit_noise_learning.sequences import LogPathMap
 
 
 @pytest.fixture()

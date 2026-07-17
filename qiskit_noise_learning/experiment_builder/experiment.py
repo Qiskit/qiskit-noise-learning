@@ -19,8 +19,8 @@ from copy import copy
 
 from qiskit_noise_learning.gate_sets import ModelGateSet
 from qiskit_noise_learning.math import IndexedMatrix
-from qiskit_noise_learning.models import FidelityModel, IdentityFidelityModel, LogPathMap
-from qiskit_noise_learning.sequences import InstructionSequence, Path
+from qiskit_noise_learning.models import FidelityModel, IdentityFidelityModel
+from qiskit_noise_learning.sequences import InstructionSequence, LogPathMap, Path
 
 
 class Experiment:

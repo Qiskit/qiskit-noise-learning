@@ -16,11 +16,10 @@ import math
 from collections.abc import Iterable
 from itertools import chain
 
-from qiskit_noise_learning.gate_sets import ModelGateSet
 from qiskit_noise_learning.math import IndexedMatrix, IndexedSpace, IndexedVector, LinearMap
-from qiskit_noise_learning.sequences import FidelityIndex, Path
 
-from .log_fidelity_space import LogFidelitySpace
+from .fidelity_index import FidelityIndex
+from .path import Path
 
 
 class LogPathSpace(IndexedSpace[Path]):
@@ -31,24 +30,20 @@ class LogPathSpace(IndexedSpace[Path]):
     - If the path is bound, the product of all fidelities in the path (counting multiplicities).
     This corresponds to the sign-corrected observable of an experiment traversing the path.
 
-    The log path space represents the vector space of such log path-fidelities for a given gate set,
-    indexed by the paths themselves.
+    The log path space represents the vector space of such log path-fidelities, indexed by the
+    paths themselves. It is defined relative to a space of log fidelities: a path is a member if all
+    of the fidelity indices in its fragments are members of that fidelity space.
 
     Args:
-        fidelity_space: The log-fidelity space whose fidelity indices the paths are built from.
+        fidelity_space: The space of log fidelities whose fidelity indices the paths are built from.
     """
 
-    def __init__(self, fidelity_space: LogFidelitySpace):
+    def __init__(self, fidelity_space: IndexedSpace[FidelityIndex]):
         self._fidelity_space = fidelity_space
 
     @property
-    def gate_set(self) -> ModelGateSet:
-        """The gate set."""
-        return self._fidelity_space.gate_set
-
-    @property
-    def fidelity_space(self) -> LogFidelitySpace:
-        """The log-fidelity space whose fidelity indices the paths are built from."""
+    def fidelity_space(self) -> IndexedSpace[FidelityIndex]:
+        """The space of log fidelities whose fidelity indices the paths are built from."""
         return self._fidelity_space
 
     @property
@@ -65,13 +60,17 @@ class LogPathSpace(IndexedSpace[Path]):
 
 
 class LogPathMap(LinearMap[FidelityIndex, Path]):
-    r"""The linear map from a log fidelity space to its associated log path space.
+    r"""The linear map from a space of log fidelities to its associated log path space.
+
+    This map is purely combinatorial: the row of a path is the depth-weighted multiplicity of each
+    fidelity index appearing in the path. It does not depend on any noise model, only on the
+    :class:`~.Path` structure and the fidelity indices' membership in the input space.
 
     Args:
-        fidelity_space: The log-fidelity space.
+        fidelity_space: The space of log fidelities.
     """
 
-    def __init__(self, fidelity_space: LogFidelitySpace):
+    def __init__(self, fidelity_space: IndexedSpace[FidelityIndex]):
         super().__init__(input_space=fidelity_space, output_space=LogPathSpace(fidelity_space))
 
     def rows(self, output_indices: Iterable[Path]) -> IndexedMatrix[Path, FidelityIndex]:
