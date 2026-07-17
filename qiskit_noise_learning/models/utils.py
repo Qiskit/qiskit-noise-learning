@@ -12,10 +12,32 @@
 
 """Utility functions operating on models."""
 
+from typing import NamedTuple
+
 from qiskit_noise_learning.math import ComposedLinearMap, LinearMap
 
 from .log_fidelity_space import LogFidelitySpace
 from .pauli_lindblad_model import PauliLindbladModel
+
+
+class PauliLindbladSplit(NamedTuple):
+    """The decomposition of a map around its underlying :class:`~.PauliLindbladModel`.
+
+    The original map is equivalent to ``after @ model @ before`` (``before`` applied first). A
+    ``None`` value for ``before`` or ``after`` indicates there are no maps on that side of
+    ``model``.
+
+    Args:
+        before: The maps applied before ``model`` (mapping into ``model``'s input space), or
+            ``None``.
+        model: The underlying :class:`~.PauliLindbladModel`.
+        after: The maps applied after ``model`` (mapping out of ``model``'s output space), or
+            ``None``.
+    """
+
+    before: ComposedLinearMap | None
+    model: PauliLindbladModel
+    after: ComposedLinearMap | None
 
 
 def is_fidelity_model(model: LinearMap) -> bool:
@@ -43,20 +65,15 @@ def contains_pauli_lindblad_model(model: LinearMap) -> bool:
     return any(isinstance(sub_map, PauliLindbladModel) for sub_map in _chain(model))
 
 
-def split_pauli_lindblad_model(
-    model: LinearMap,
-) -> tuple[ComposedLinearMap | None, PauliLindbladModel, ComposedLinearMap | None]:
+def split_pauli_lindblad_model(model: LinearMap) -> PauliLindbladSplit:
     """Split a map around its underlying :class:`~.PauliLindbladModel`.
-
-    Returns a triple ``(outer, plm, inner)`` such that ``model`` is equivalent to
-    ``outer @ plm @ inner``. If ``inner`` is ``None`` it indicates nothing is before ``plm``, and
-    likewise ``outer`` being ``None`` implies indicates nothing is after.
 
     Args:
         model: The map to split.
 
     Returns:
-        The ``(outer, plm, inner)`` triple.
+        A :class:`PauliLindbladSplit` ``(before, model, after)`` such that the input map is
+        equivalent to ``after @ model @ before``.
 
     Raises:
         ValueError: If ``model`` does not contain exactly one :class:`~.PauliLindbladModel`.
@@ -70,12 +87,12 @@ def split_pauli_lindblad_model(
         )
 
     index = positions[0]
-    before = maps[:index]
-    after = maps[index + 1 :]
+    before_maps = maps[:index]
+    after_maps = maps[index + 1 :]
 
-    outer = ComposedLinearMap(after) if after else None
-    inner = ComposedLinearMap(before) if before else None
-    return outer, maps[index], inner
+    before = ComposedLinearMap(before_maps) if before_maps else None
+    after = ComposedLinearMap(after_maps) if after_maps else None
+    return PauliLindbladSplit(before=before, model=maps[index], after=after)
 
 
 def _chain(model: LinearMap) -> list[LinearMap]:

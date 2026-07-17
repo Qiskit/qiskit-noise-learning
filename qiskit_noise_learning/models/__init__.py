@@ -21,6 +21,7 @@ from .identity_fidelity_model import IdentityFidelityModel
 from .log_fidelity_space import LogFidelitySpace
 from .pauli_lindblad_model import GeneratorIndex, PauliLindbladModel, RateSpace
 from .utils import (
+    PauliLindbladSplit,
     contains_pauli_lindblad_model,
     is_fidelity_model,
     split_pauli_lindblad_model,

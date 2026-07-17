@@ -17,6 +17,7 @@ from qiskit_noise_learning.math import ComposedLinearMap, IndexedMatrix, Indexed
 from qiskit_noise_learning.models import (
     IdentityFidelityModel,
     PauliLindbladModel,
+    PauliLindbladSplit,
     contains_pauli_lindblad_model,
     is_fidelity_model,
     split_pauli_lindblad_model,
@@ -100,23 +101,24 @@ def test_contains_false(gate_set_cz):
 
 
 def test_split_bare_plm(plm):
-    outer, found, inner = split_pauli_lindblad_model(plm)
-    assert outer is None
-    assert found is plm
-    assert inner is None
+    split = split_pauli_lindblad_model(plm)
+    assert isinstance(split, PauliLindbladSplit)
+    assert split.before is None
+    assert split.model is plm
+    assert split.after is None
 
 
-def test_split_with_outer_only(plm):
+def test_split_with_after_only(plm):
     # LogPathMap @ plm == ComposedLinearMap([plm, LogPathMap]): nothing before, LogPathMap after
     model = LogPathMap(plm.output_space) @ plm
 
-    outer, found, inner = split_pauli_lindblad_model(model)
+    split = split_pauli_lindblad_model(model)
 
-    assert found is plm
-    assert inner is None
-    assert isinstance(outer, ComposedLinearMap)
-    # outer @ plm reconstructs the chain (same map objects, in order)
-    assert (outer @ plm).maps == model.maps
+    assert split.model is plm
+    assert split.before is None
+    assert isinstance(split.after, ComposedLinearMap)
+    # after @ plm reconstructs the chain (same map objects, in order)
+    assert (split.after @ plm).maps == model.maps
 
 
 def test_split_with_both_sides(plm):
@@ -124,12 +126,12 @@ def test_split_with_both_sides(plm):
     after = _Toy()
     model = ComposedLinearMap([before, plm, after])
 
-    outer, found, inner = split_pauli_lindblad_model(model)
+    split = split_pauli_lindblad_model(model)
 
-    assert found is plm
-    assert isinstance(inner, ComposedLinearMap)
-    assert isinstance(outer, ComposedLinearMap)
-    assert (outer @ plm @ inner).maps == model.maps
+    assert split.model is plm
+    assert isinstance(split.before, ComposedLinearMap)
+    assert isinstance(split.after, ComposedLinearMap)
+    assert (split.after @ plm @ split.before).maps == model.maps
 
 
 def test_split_raises_without_plm(gate_set_cz):

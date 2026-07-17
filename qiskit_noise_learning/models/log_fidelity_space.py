@@ -60,15 +60,9 @@ class LogFidelitySpace(IndexedSpace[FidelityIndex]):
         if len(index.pauli.indices) == 0 and not index.in_bit_indices and not index.out_bit_indices:
             return False
 
-        # reuse FidelityIndex.from_gate's validation of the index data against the gate
-        try:
-            FidelityIndex.from_gate(
-                gate=self._gate_set[index.gate_name],
-                pauli=index.pauli,
-                in_bit_indices=index.in_bit_indices,
-                out_bit_indices=index.out_bit_indices,
-            )
-        except ValueError:
-            return False
-
-        return True
+        return FidelityIndex.is_valid_for_gate(
+            gate=self._gate_set[index.gate_name],
+            pauli=index.pauli,
+            in_bit_indices=index.in_bit_indices,
+            out_bit_indices=index.out_bit_indices,
+        )

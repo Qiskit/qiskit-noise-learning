@@ -322,7 +322,7 @@ class PositivityMinSolve(ModelSolve):
                 "PositivityMinSolve requires a model containing a PauliLindbladModel, "
                 f"but got {type(fit.model).__name__}."
             )
-        if split_pauli_lindblad_model(fit.model)[2] is not None:
+        if split_pauli_lindblad_model(fit.model).before is not None:
             raise NotImplementedError(
                 "PositivityMinSolve does not yet support models with maps applied before the "
                 "PauliLindbladModel (the fit parameters would not be the Pauli-Lindblad rates)."

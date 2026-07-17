@@ -129,12 +129,6 @@ class LinearMap(Generic[InputIndex, OutputIndex], ABC):
         """``self @ other`` means ``self`` applied after ``other``."""
         return self.pre_compose(other)
 
-    def __rmatmul__(
-        self, other: "LinearMap[OutputIndex, OtherOutput]"
-    ) -> "ComposedLinearMap[InputIndex, OtherOutput]":
-        """``other @ self`` when ``other`` is not a :class:`LinearMap`, but ``self`` is."""
-        return self.compose(other)
-
 
 class ComposedLinearMap(LinearMap[InputIndex, OutputIndex]):
     """A linear map formed by composing a chain of maps.

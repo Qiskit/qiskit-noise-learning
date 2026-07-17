@@ -63,4 +63,4 @@ def default_input_paulis(model: LinearMap) -> dict[str, QubitSparsePauliList]:
             "Cannot determine default input Paulis: the fidelity model does not contain a "
             "PauliLindbladModel. Provide input_paulis explicitly."
         )
-    return split_pauli_lindblad_model(model)[1].generators
+    return split_pauli_lindblad_model(model).model.generators
