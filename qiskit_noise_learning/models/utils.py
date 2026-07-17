@@ -40,16 +40,17 @@ class PauliLindbladSplit(NamedTuple):
     after: ComposedLinearMap | None
 
 
-def is_fidelity_model(model: LinearMap) -> bool:
-    """Whether a map is LinearMap with LogFidelitySpace output space.
+def is_fidelity_model(model: object) -> bool:
+    """Whether an object is a :class:`~.LinearMap` with a :class:`~.LogFidelitySpace` output space.
 
     Args:
-        model: The map to check.
+        model: The object to check.
 
     Returns:
-        Whether the map's output space is a :class:`~.LogFidelitySpace`.
+        ``True`` if ``model`` is a :class:`~.LinearMap` whose output space is a
+        :class:`~.LogFidelitySpace`, otherwise ``False``.
     """
-    return isinstance(model.output_space, LogFidelitySpace)
+    return isinstance(model, LinearMap) and isinstance(model.output_space, LogFidelitySpace)
 
 
 def contains_pauli_lindblad_model(model: LinearMap) -> bool:

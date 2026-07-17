@@ -141,6 +141,8 @@ class ComposedLinearMap(LinearMap[InputIndex, OutputIndex]):
     """
 
     def __init__(self, maps: list[LinearMap]):
+        if not maps:
+            raise ValueError("ComposedLinearMap requires at least one map, but got an empty list.")
         self._maps = list(maps)
         super().__init__(
             input_space=self._maps[0].input_space, output_space=self._maps[-1].output_space

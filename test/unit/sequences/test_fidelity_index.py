@@ -93,6 +93,32 @@ def test_from_gate_validation():
         )
 
 
+def test_is_valid_for_gate():
+    """is_valid_for_gate returns True for valid data and False for each invalid case."""
+
+    ident = Clifford(QuantumCircuit(2))
+    gate = ModelGate("L0", [((0, 1), ident)], qubit_idxs=range(2), meas_idxs=[0])
+
+    # valid: Pauli on the unmeasured qubit, input bit on the measured qubit
+    assert FidelityIndex.is_valid_for_gate(
+        gate=gate,
+        pauli=QubitSparsePauli("XI"),
+        in_bit_indices=frozenset([0]),
+        out_bit_indices=frozenset(),
+    )
+
+    # Pauli on a measured qubit
+    assert not FidelityIndex.is_valid_for_gate(gate=gate, pauli=QubitSparsePauli("IX"))
+    # in_bit_indices not a subset of the measured qubits
+    assert not FidelityIndex.is_valid_for_gate(
+        gate=gate, pauli=QubitSparsePauli("XI"), in_bit_indices=frozenset([1])
+    )
+    # out_bit_indices not a subset of the measured/reset qubits
+    assert not FidelityIndex.is_valid_for_gate(
+        gate=gate, pauli=QubitSparsePauli("XI"), out_bit_indices=frozenset([1])
+    )
+
+
 def test_observable_indices_and_mask():
     """Test observable indices and mask properties."""
     qc = QuantumCircuit(1)

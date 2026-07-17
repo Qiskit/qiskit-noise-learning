@@ -15,7 +15,7 @@
 from collections.abc import Hashable
 from typing import Self, TypeVar
 
-Index = TypeVar("BasisIndex", bound=Hashable)
+Index = TypeVar("Index", bound=Hashable)
 
 
 class IndexedVector(dict[Index, float]):

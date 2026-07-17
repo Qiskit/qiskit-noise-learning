@@ -121,6 +121,19 @@ def test_split_with_after_only(plm):
     assert (split.after @ plm).maps == model.maps
 
 
+def test_split_with_before_only(plm):
+    before = _Toy()
+    model = ComposedLinearMap([before, plm])
+
+    split = split_pauli_lindblad_model(model)
+
+    assert split.model is plm
+    assert split.after is None
+    assert isinstance(split.before, ComposedLinearMap)
+    # plm @ before reconstructs the chain (same map objects, in order)
+    assert (plm @ split.before).maps == model.maps
+
+
 def test_split_with_both_sides(plm):
     before = _Toy()
     after = _Toy()

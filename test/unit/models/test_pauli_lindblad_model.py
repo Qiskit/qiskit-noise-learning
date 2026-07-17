@@ -21,7 +21,7 @@ from qiskit.transpiler import CouplingMap
 from qiskit_noise_learning.data import ModelData
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
 from qiskit_noise_learning.math import IndexedVector
-from qiskit_noise_learning.models import GeneratorIndex, PauliLindbladModel
+from qiskit_noise_learning.models import GeneratorIndex, PauliLindbladModel, RateSpace
 from qiskit_noise_learning.sequences import FidelityIndex
 
 
@@ -742,3 +742,21 @@ def test_to_pauli_lindblad_maps_raises(gate_set_cz, generators_cz):
 
     with pytest.raises(ValueError, match="not present in gate set"):
         model.to_pauli_lindblad_maps(model_fit)
+
+
+def test_rate_space_dim(generators_cz):
+    # 12 (CZ) + 3 (P) + 3 (M)
+    assert RateSpace(generators_cz).dim == 18
+
+
+def test_rate_space_contains(generators_cz):
+    rate_space = RateSpace(generators_cz)
+    cz_generator = next(iter(generators_cz["CZ"]))
+
+    assert GeneratorIndex("CZ", cz_generator) in rate_space
+    # a valid Pauli that is not among the CZ generators (IZ, IX, IY are absent)
+    assert GeneratorIndex("CZ", QubitSparsePauli("IZ")) not in rate_space
+    # correct generator but a gate name not in the space
+    assert GeneratorIndex("nope", cz_generator) not in rate_space
+    # a non-GeneratorIndex object
+    assert "not a generator index" not in rate_space
