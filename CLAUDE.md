@@ -57,7 +57,6 @@ qiskit_noise_learning/   # Main package
   sequences/
   utils/
   visualizations/
-qiskit_pandora/          # Secondary package
 test/unit/               # Unit tests
 docs/                    # Notebooks and demos
 tools/                   # Dev scripts (verify_headers.py)
