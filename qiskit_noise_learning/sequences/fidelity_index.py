@@ -93,22 +93,9 @@ class FidelityIndex:
         Raises:
             ValueError: If the provided data is inconsistent with the gate.
         """
-        meas_and_prep_qubits = gate.meas_idxs.union(gate.prep_idxs)
-
-        if not frozenset(pauli.indices).issubset(
-            frozenset(gate.qubit_idxs).difference(meas_and_prep_qubits)
-        ):
-            raise ValueError(
-                "pauli.indices must lie within the unreset and unmeasured qubits of gate."
-            )
-
-        if not in_bit_indices.issubset(gate.meas_idxs):
-            raise ValueError("in_bit_indices must be a subset of gate.meas_idxs")
-
-        if not out_bit_indices.issubset(meas_and_prep_qubits):
-            raise ValueError(
-                "out_bit_indices must be a subset of gate.meas_idxs.union(gate.prep_idxs)"
-            )
+        error = _index_data_error(gate, pauli, in_bit_indices, out_bit_indices)
+        if error is not None:
+            raise ValueError(error)
 
         input_pauli, output_pauli, sign_flip = _compute_transition(
             gate, pauli, in_bit_indices, out_bit_indices
@@ -124,6 +111,29 @@ class FidelityIndex:
             sign_flip=sign_flip,
             meas_idxs=gate.meas_idxs,
         )
+
+    @classmethod
+    def is_valid_for_gate(
+        cls,
+        gate: ModelGate,
+        pauli: QubitSparsePauli,
+        in_bit_indices: frozenset[int] = frozenset(),
+        out_bit_indices: frozenset[int] = frozenset(),
+    ) -> bool:
+        """Whether the given index data forms a valid fidelity index for the gate.
+
+        This performs the same (side-effect-free) consistency checks as :meth:`from_gate`, without
+        constructing the index or computing its transition.
+
+        Args:
+            gate: The model gate.
+            pauli: A Pauli operator with support on unmeasured and unreset qubits.
+            in_bit_indices: The subset of measurement qubit indices corresponding to non-zero "input
+                bits".
+            out_bit_indices: The subset of the union of measurement and reset qubit indices
+                corresponding to non-zero "output bits".
+        """
+        return _index_data_error(gate, pauli, in_bit_indices, out_bit_indices) is None
 
     @classmethod
     def from_transition(
@@ -291,6 +301,33 @@ class FidelityIndex:
         s += f"    out_bit_indices={self.out_bit_indices},\n"
         s += ")"
         return s
+
+
+def _index_data_error(
+    gate: ModelGate,
+    pauli: QubitSparsePauli,
+    in_bit_indices: frozenset[int],
+    out_bit_indices: frozenset[int],
+) -> str | None:
+    """Return why the index data is inconsistent with the gate, or ``None`` if it is valid.
+
+    Shared by :meth:`FidelityIndex.from_gate` (which raises the message) and
+    :meth:`FidelityIndex.is_valid_for_gate` (which returns whether it is ``None``).
+    """
+    meas_and_prep_qubits = gate.meas_idxs.union(gate.prep_idxs)
+
+    if not frozenset(pauli.indices).issubset(
+        frozenset(gate.qubit_idxs).difference(meas_and_prep_qubits)
+    ):
+        return "pauli.indices must lie within the unreset and unmeasured qubits of gate."
+
+    if not in_bit_indices.issubset(gate.meas_idxs):
+        return "in_bit_indices must be a subset of gate.meas_idxs"
+
+    if not out_bit_indices.issubset(meas_and_prep_qubits):
+        return "out_bit_indices must be a subset of gate.meas_idxs.union(gate.prep_idxs)"
+
+    return None
 
 
 def _compute_transition(

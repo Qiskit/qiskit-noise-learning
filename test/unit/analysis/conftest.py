@@ -18,7 +18,7 @@ import pytest
 from qiskit_noise_learning.analysis import Fit
 from qiskit_noise_learning.data import AveragedData, ObservableData, RawData
 from qiskit_noise_learning.gate_sets import ModelGateSet
-from qiskit_noise_learning.models import CompleteFidelityModel
+from qiskit_noise_learning.models import IdentityFidelityModel
 
 
 @pytest.fixture()
@@ -83,14 +83,14 @@ def make_observable_data():
 def make_fit():
     """Return a builder ``(raw_data, coupling_map) -> Fit``.
 
-    The fit wraps a real :class:`~.CompleteFidelityModel` over a real
+    The fit wraps a real :class:`~.IdentityFidelityModel` over a real
     :class:`~.ModelGateSet` carrying the requested coupling map, since the
     post-select stages read only ``fit.model.gate_set.coupling_map``.
     """
 
     def _make(raw_data, coupling_map):
         gate_set = ModelGateSet(coupling_map.size(), coupling_map=coupling_map)
-        fit = Fit(model=CompleteFidelityModel(gate_set))
+        fit = Fit(model=IdentityFidelityModel(gate_set))
         fit[RawData] = raw_data
         return fit
 

@@ -21,7 +21,7 @@ from qiskit_noise_learning.data import (
     ObservableData,
     RawData,
 )
-from qiskit_noise_learning.models import FidelityModel
+from qiskit_noise_learning.models import FidelityModel, is_fidelity_model
 from qiskit_noise_learning.sequences import InstructionSequence, Path
 
 LEVELS = (RawData, ObservableData, AveragedData, ModelData)
@@ -96,11 +96,16 @@ class Fit:
         result.history.raw_data   # full write history at the RawData level
 
     Args:
-        model: The model to fit.
+        model: The model to fit. If given, it must be a fidelity model, i.e. a
+            :class:`~.LinearMap` whose output space is a :class:`~.LogFidelitySpace` (see
+            :func:`~.is_fidelity_model`).
         paths: The paths to analyze.
         instruction_sequences: The instruction sequences used in the experiment.
         relations: A pre-computed set of ``(path_idx, sequence_idx)`` tuples indicating which paths
             are traversed by which instruction sequences.
+
+    Raises:
+        TypeError: If ``model`` is not ``None`` and is not a fidelity model.
     """
 
     def __init__(
@@ -112,6 +117,11 @@ class Fit:
         relations: set[tuple[int, int]] | None = None,
         _store: _LevelHistory | None = None,
     ):
+        if model is not None and not is_fidelity_model(model):
+            raise TypeError(
+                "Fit requires the model to be a fidelity model (a LinearMap whose output space is "
+                f"a LogFidelitySpace), but got {type(model).__name__}."
+            )
         self._model = model
         self._paths = paths or []
         self._instruction_sequences = instruction_sequences

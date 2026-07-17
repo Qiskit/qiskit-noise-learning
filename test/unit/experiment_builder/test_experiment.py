@@ -13,8 +13,8 @@
 import pytest
 
 from qiskit_noise_learning.experiment_builder.experiment import Experiment
-from qiskit_noise_learning.math import IndexedMatrix
-from qiskit_noise_learning.models import CompleteFidelityModel
+from qiskit_noise_learning.models import IdentityFidelityModel, LogFidelitySpace
+from qiskit_noise_learning.sequences import LogPathMap
 
 
 class TestExperimentConstruction:
@@ -33,11 +33,11 @@ class TestExperimentConstruction:
 
     def test_construction_with_gate_set(self, gate_set_cz):
         exp = Experiment(fidelity_model=gate_set_cz)
-        assert isinstance(exp.fidelity_model, CompleteFidelityModel)
+        assert isinstance(exp.fidelity_model, IdentityFidelityModel)
         assert exp.gate_set == gate_set_cz
 
     def test_construction_with_fidelity_model(self, gate_set_cz):
-        model = CompleteFidelityModel(gate_set_cz)
+        model = IdentityFidelityModel(gate_set_cz)
         exp = Experiment(fidelity_model=model)
         assert exp.fidelity_model is model
         assert exp.gate_set == gate_set_cz
@@ -81,12 +81,8 @@ class TestExperimentDesignMatrix:
         unbound_path_ix = make_cz_path("IX")
         unbound_path_xi = make_cz_path("XI")
         exp = Experiment(fidelity_model=gate_set_cz, paths=[unbound_path_ix, unbound_path_xi])
-        model = CompleteFidelityModel(gate_set_cz)
-
-        expected = IndexedMatrix()
-        expected.add_rows(
-            row_indices=[unbound_path_ix, unbound_path_xi],
-            rows=[model.row_from_path(unbound_path_ix), model.row_from_path(unbound_path_xi)],
+        expected = LogPathMap(LogFidelitySpace(gate_set_cz)).rows(
+            [unbound_path_ix, unbound_path_xi]
         )
         assert exp.design_matrix == expected
 
@@ -217,7 +213,7 @@ class TestExperimentAdd:
     def test_add_concatenates_lists(self, gate_set_cz, make_cz_path):
         unbound_path_ix = make_cz_path("IX")
         unbound_path_xi = make_cz_path("XI")
-        model = CompleteFidelityModel(gate_set_cz)
+        model = IdentityFidelityModel(gate_set_cz)
         seq_ix = unbound_path_ix.to_instruction_sequence()
         seq_xi = unbound_path_xi.to_instruction_sequence()
         exp1 = Experiment(
@@ -245,14 +241,14 @@ class TestExperimentAdd:
         assert result.randomization_multipliers == [1, 2]
 
     def test_add_scalar_mismatch_raises(self, gate_set_cz):
-        model = CompleteFidelityModel(gate_set_cz)
+        model = IdentityFidelityModel(gate_set_cz)
         exp1 = Experiment(fidelity_model=model, shots=100)
         exp2 = Experiment(fidelity_model=model, shots=200)
         with pytest.raises(ValueError, match="does not match"):
             _ = exp1 + exp2
 
     def test_add_none_lists(self, gate_set_cz):
-        model = CompleteFidelityModel(gate_set_cz)
+        model = IdentityFidelityModel(gate_set_cz)
         exp1 = Experiment(fidelity_model=model)
         exp2 = Experiment(fidelity_model=model)
         result = exp1 + exp2
@@ -261,7 +257,7 @@ class TestExperimentAdd:
 
     def test_add_one_none_one_list(self, gate_set_cz, make_cz_path):
         unbound_path_ix = make_cz_path("IX")
-        model = CompleteFidelityModel(gate_set_cz)
+        model = IdentityFidelityModel(gate_set_cz)
         exp1 = Experiment(fidelity_model=model, paths=[unbound_path_ix])
         exp2 = Experiment(fidelity_model=model)
         result = exp1 + exp2
@@ -270,7 +266,7 @@ class TestExperimentAdd:
     def test_add_relation_offsetting(self, gate_set_cz, make_cz_path):
         unbound_path_ix = make_cz_path("IX")
         unbound_path_xi = make_cz_path("XI")
-        model = CompleteFidelityModel(gate_set_cz)
+        model = IdentityFidelityModel(gate_set_cz)
         seq_ix = unbound_path_ix.to_instruction_sequence()
         seq_xi = unbound_path_xi.to_instruction_sequence()
         exp1 = Experiment(

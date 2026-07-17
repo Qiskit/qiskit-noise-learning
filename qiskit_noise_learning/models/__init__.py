@@ -12,7 +12,22 @@
 
 """Modelling module."""
 
-from .complete_fidelity_model import CompleteFidelityModel
-from .fidelity_mixers import FidelityMixer, IdentityMixer
-from .fidelity_model import FidelityModel
-from .pauli_lindblad_model import GeneratorIndex, PauliLindbladModel
+from collections.abc import Hashable
+
+from qiskit_noise_learning.math import LinearMap
+from qiskit_noise_learning.sequences import FidelityIndex
+
+from .identity_fidelity_model import IdentityFidelityModel
+from .log_fidelity_space import LogFidelitySpace
+from .pauli_lindblad_model import GeneratorIndex, PauliLindbladModel, RateSpace
+from .utils import (
+    PauliLindbladSplit,
+    contains_pauli_lindblad_model,
+    is_fidelity_model,
+    split_pauli_lindblad_model,
+)
+
+# Type hint for a fidelity model. The authoritative criterion is structural -- a LinearMap whose
+# output space is a LogFidelitySpace (see is_fidelity_model); this alias is the closest index-level
+# approximation, since LinearMap is generic over index types, not space types.
+FidelityModel = LinearMap[Hashable, FidelityIndex]

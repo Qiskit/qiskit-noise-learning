@@ -22,7 +22,7 @@ from qiskit_noise_learning.gate_sets import ModelGate
 from qiskit_noise_learning.sequences import ApplyGate, InstructionSequence, PartialPauliPermutation
 
 from ...experiment import Experiment
-from ..utils import default_gates, default_meas_gate, default_prep_gate
+from ..utils import default_meas_gate, default_prep_gate, default_unitary_gates
 from .add_instruction_sequences import AddInstructionSequences
 
 
@@ -72,7 +72,7 @@ class VanillaInstructionSequences(AddInstructionSequences):
         gate_set = experiment.gate_set
         prep_gate = self._prep_gate or default_prep_gate(gate_set)
         meas_gate = self._meas_gate or default_meas_gate(gate_set)
-        gates = self._gates or default_gates(gate_set)
+        gates = self._gates or default_unitary_gates(gate_set)
         coupling_map = self._coupling_map or gate_set.coupling_map
 
         sequences = []

@@ -13,4 +13,6 @@
 """General mathematical objects module."""
 
 from .indexed_matrix import IndexedMatrix
+from .indexed_space import EnumeratedIndexedSpace, IndexedSpace
 from .indexed_vector import IndexedVector
+from .linear_map import ComposedLinearMap, LinearMap
