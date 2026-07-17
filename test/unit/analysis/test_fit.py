@@ -10,9 +10,11 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
+import plotly.graph_objects as go
 import pytest
 
 from qiskit_noise_learning.analysis import Fit
+from qiskit_noise_learning.data import AveragedData, ModelData, ObservableData
 from qiskit_noise_learning.models import IdentityFidelityModel, LogFidelitySpace
 from qiskit_noise_learning.sequences import LogPathMap
 
@@ -32,11 +34,6 @@ def test_rejects_non_fidelity_linear_map(gate_set_cz):
     # a LinearMap whose output space is a LogPathSpace, not a LogFidelitySpace
     with pytest.raises(TypeError, match="fidelity model"):
         Fit(model=LogPathMap(LogFidelitySpace(gate_set_cz)))
-import plotly.graph_objects as go
-import pytest
-
-from qiskit_noise_learning.analysis import Fit
-from qiskit_noise_learning.data import AveragedData, ModelData, ObservableData
 
 
 @pytest.fixture()
