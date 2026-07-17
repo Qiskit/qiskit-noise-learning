@@ -92,9 +92,8 @@ by how easy it is to describe. If a tier finds nothing, say so plainly.
 ### Tier 1 — `design` (chat only)
 Judge strategy and design choices harshly, but do not comment on code details.
 
-- **Do the changes make conceptual sense?** Does it fit into the design of the package, or introduce
-  new abstractions that are useful without introducing unnecessary complexity? Is there a simpler
-  approach? Does it duplicate any existing abstractions?
+- **Do the changes make conceptual sense?** Do they fit the package's design without adding
+  unnecessary complexity or duplicating existing abstractions? Is there a simpler approach?
 - **Does it belong here?** Distinguish work that belongs upstream in Qiskit
   (`quantum_info`, transpiler) or in `samplomatic` (twirling/injection) from work
   that belongs in this package. Prefer reusing upstream primitives.
@@ -178,4 +177,4 @@ re-running the *current* tier rather than advancing.
 | `data/` | Data containers the analysis tools act on. |
 | `noise_learner/` | High-level interface providing curated configurations of the other subpackages. |
 | `visualizations/` | Visualization tools. |
-| `utils/` | Miscellaneous helpers that don't belong to a specific subpackage (e.g. `html_repr.HTMLTable` for `_repr_html_`). |
+| `utils/` | Miscellaneous helpers that don't belong to a specific subpackage. |
