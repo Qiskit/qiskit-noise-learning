@@ -110,7 +110,7 @@ def gate_set_topology(gate_set: GateSet[Gate]) -> go.Figure:
         )
 
     try:
-        from qiskit_ibm_runtime.utils.embeddings import _get_qubits_coordinates
+        from qiskit_ibm_runtime.visualization.embeddings import _get_qubits_coordinates
     except ImportError as exc:
         raise ImportError(
             "qiskit-ibm-runtime is required for gate set topology visualization."
