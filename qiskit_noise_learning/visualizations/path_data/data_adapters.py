@@ -164,7 +164,8 @@ def model_curves(
         ValueError: If ``model`` is not a fidelity model, or if any path is bound or has an empty
             repeatable fragment.
     """
-    from ...models import LogPathMap, is_fidelity_model
+    from ...models import is_fidelity_model
+    from ...sequences import LogPathMap
 
     if not is_fidelity_model(model):
         raise ValueError(

@@ -22,8 +22,7 @@ from qiskit_noise_learning.data import (
     ObservableData,
     RawData,
 )
-from qiskit_noise_learning.models import FidelityModel, is_fidelity_model
-from qiskit_noise_learning.models import FidelityModel, get_noise_site
+from qiskit_noise_learning.models import FidelityModel, get_noise_site, is_fidelity_model
 from qiskit_noise_learning.sequences import InstructionSequence, Path
 
 if TYPE_CHECKING:
