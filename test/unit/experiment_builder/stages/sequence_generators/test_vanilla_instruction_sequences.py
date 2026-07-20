@@ -20,76 +20,10 @@ from qiskit.transpiler import CouplingMap
 
 from qiskit_noise_learning.experiment_builder.experiment import Experiment
 from qiskit_noise_learning.experiment_builder.stages import (
-    AddInstructionSequences,
     EvenDepthVanillaPaths,
-    GenerateInstructionSequences,
     VanillaInstructionSequences,
 )
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
-
-
-class TestAddInstructionSequences:
-    def test_adds_sequences(self, make_cz_path):
-        seq = make_cz_path("IX").to_instruction_sequence()
-        exp = Experiment()
-        result = AddInstructionSequences([seq]).run(exp)
-
-        assert result.instruction_sequences == [seq]
-        assert result.randomization_multipliers == [1]
-
-    def test_appends_to_existing(self, make_cz_path):
-        seq_ix = make_cz_path("IX").to_instruction_sequence()
-        seq_xi = make_cz_path("XI").to_instruction_sequence()
-        exp = Experiment(instruction_sequences=[seq_ix], randomization_multipliers=[1])
-        result = AddInstructionSequences([seq_xi], randomization_multipliers=[3]).run(exp)
-
-        assert result.instruction_sequences == [seq_ix, seq_xi]
-        assert result.randomization_multipliers == [1, 3]
-
-
-class TestGenerateInstructionSequences:
-    def test_requires_paths(self):
-        stage = GenerateInstructionSequences()
-        with pytest.raises(ValueError, match="requires 'paths'"):
-            stage.run(Experiment())
-
-    def test_generates_sequences_from_paths(self, gate_set_cz, make_cz_path):
-        exp = Experiment(
-            fidelity_model=gate_set_cz,
-            paths=[make_cz_path("IX"), make_cz_path("XI")],
-        )
-        result = GenerateInstructionSequences().run(exp)
-
-        assert len(result.instruction_sequences) == 2
-        assert result.relations == {(0, 0), (1, 1)}
-        assert result.randomization_multipliers == [1, 1]
-
-    def test_skips_already_related_paths(self, gate_set_cz, make_cz_path):
-        unbound_path_ix = make_cz_path("IX")
-        unbound_path_xi = make_cz_path("XI")
-        seq_ix = unbound_path_ix.to_instruction_sequence()
-        exp = Experiment(
-            fidelity_model=gate_set_cz,
-            paths=[unbound_path_ix, unbound_path_xi],
-            instruction_sequences=[seq_ix],
-            relations={(0, 0)},
-            randomization_multipliers=[1],
-        )
-        result = GenerateInstructionSequences().run(exp)
-
-        assert len(result.instruction_sequences) == 2
-        assert result.relations == {(0, 0), (1, 1)}
-
-    def test_custom_multipliers(self, gate_set_cz, make_cz_path):
-        unbound_path_ix = make_cz_path("IX")
-        bound_path = unbound_path_ix.bind_at(2)
-        exp = Experiment(
-            fidelity_model=gate_set_cz,
-            paths=[unbound_path_ix, bound_path],
-        )
-        result = GenerateInstructionSequences(bound_multiplier=5, unbound_multiplier=3).run(exp)
-
-        assert result.randomization_multipliers == [3, 5]
 
 
 class TestVanillaInstructionSequences:

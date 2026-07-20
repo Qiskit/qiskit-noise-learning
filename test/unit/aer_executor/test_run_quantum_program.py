@@ -17,9 +17,15 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 from qiskit.circuit import Parameter, QuantumCircuit
+from qiskit.primitives.containers.bindings_array import BindingsArray
+from qiskit.quantum_info import PauliList
+from qiskit_aer.noise import PauliLindbladError
 from qiskit_ibm_runtime.quantum_program import QuantumProgram
 
-from qiskit_noise_learning.aer_executor.run_quantum_program import run_quantum_program
+from qiskit_noise_learning.aer_executor.run_quantum_program import (
+    get_aer_sampler,
+    run_quantum_program,
+)
 
 
 def test_unsupported_item_type_raises_type_error(stabilizer_simulator):
@@ -55,3 +61,28 @@ def test_angle_rounding_snaps_near_clifford(stabilizer_simulator):
     result = run_quantum_program(stabilizer_simulator, program, angle_decimals=5)
 
     assert (result[0]["c"] == [[True]]).all()
+
+
+@pytest.mark.parametrize("noise", [True, False])
+@pytest.mark.parametrize("tol", [1e-16])
+@pytest.mark.parametrize("angle", [0, -np.pi / 2])
+def test_aer(stabilizer_simulator, angle: float, tol: float, noise: bool):
+    qc = QuantumCircuit(156)
+    par = Parameter("phi")
+    qc.rz(phi=par, qubit=qc.qubits)
+
+    if noise:
+        pauli_lindblad_error = PauliLindbladError(
+            generators=PauliList(["X" * qc.num_qubits]),
+            rates=[1e-6],
+        )
+        qc.append(pauli_lindblad_error, qc.qubits)
+
+    qc.measure_active()
+
+    bindings_array = BindingsArray({par: [angle + tol] * qc.num_qubits})
+
+    aer_sampler = get_aer_sampler(aer_simulator=stabilizer_simulator)
+
+    sampler_job = aer_sampler.run([(qc, bindings_array)], shots=5)
+    sampler_job.result()
