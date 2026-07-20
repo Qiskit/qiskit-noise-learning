@@ -20,18 +20,19 @@ a data source; :func:`standard_decay_layers` assembles the observable/exponentia
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
+
+import numpy as np
 
 from .data_adapters import (
     _dataset_paths,
     averaged_data_points,
     exponential_fit_curves,
-    model_curves,
     observable_data_points,
 )
-from .primitives import _default_depths, plot_path_decay_curves, plot_path_scatters
+from .primitives import plot_path_decay_curves, plot_path_scatters
 
 if TYPE_CHECKING:
     import plotly.graph_objects as go
@@ -50,12 +51,40 @@ _MODEL_DASH = "solid"
 
 
 @dataclass(frozen=True, eq=False)
+class RenderContext:
+    """The shared coordination an orchestrator injects into each :class:`Layer`'s render call.
+
+    An orchestrator resolves the per-path color/label/group identities, the depth range, and the
+    target subplot cell once, then passes this bundle to every layer so their traces line up.
+
+    Args:
+        fig: The figure to add traces to.
+        colors: A mapping from path to its plotly color string (``None`` for the plotly default).
+        labels: A mapping from path to its legend label.
+        groups: A mapping from path to its ``legendgroup`` key (``None`` to omit from the legend).
+        depths: The depth values (x) at which curve layers evaluate their decays.
+        paths: The paths to draw in this cell.
+        row: The subplot row to add traces to (1-indexed), or ``None`` for a single-axes figure.
+        col: The subplot column to add traces to (1-indexed), or ``None`` for a single-axes figure.
+    """
+
+    fig: go.Figure
+    colors: Mapping[Path, str | None]
+    labels: Mapping[Path, str | None]
+    groups: Mapping[Path, str | None]
+    depths: np.ndarray
+    paths: Sequence[Path]
+    row: int | None = None
+    col: int | None = None
+
+
+@dataclass(frozen=True, eq=False)
 class Layer:
     """A coordinated render unit for an overlay.
 
     Args:
-        render: A callable ``(*, fig, colors, labels, groups, depths, paths, row, col)`` returning a
-            figure, which draws this layer's traces into ``fig`` using the injected coordination.
+        render: A callable ``(context) -> go.Figure`` which draws this layer's traces into
+            ``context.fig`` using the injected :class:`RenderContext` coordination.
         name: The symbol-legend display name, or ``None`` to omit the layer from the symbol legend.
         proxy: The symbol-legend proxy style (a ``{"mode": ..., "marker"|"line": {...}}`` dict), or
             ``None``.
@@ -63,7 +92,7 @@ class Layer:
             (empty for layers, like the model curve, that carry no paths of their own).
     """
 
-    render: Callable[..., go.Figure]
+    render: Callable[[RenderContext], go.Figure]
     name: str | None = None
     proxy: dict | None = None
     paths: tuple[Path, ...] = field(default_factory=tuple)
@@ -75,16 +104,16 @@ def observable_points_layer(
     """A layer scattering raw per-randomization observable points (default ``circle`` marker)."""
     marker = {"symbol": _OBSERVABLE_POINTS_SYMBOL, **(marker_kwargs or {})}
 
-    def render(*, fig, colors, labels, groups, paths, row, col, **_):
+    def render(ctx: RenderContext) -> go.Figure:
         return plot_path_scatters(
-            observable_data_points(observable_data, paths),
-            fig=fig,
-            colors=colors,
-            labels=labels,
-            groups=groups,
+            observable_data_points(observable_data, ctx.paths),
+            fig=ctx.fig,
+            colors=ctx.colors,
+            labels=ctx.labels,
+            groups=ctx.groups,
             marker_kwargs=marker,
-            row=row,
-            col=col,
+            row=ctx.row,
+            col=ctx.col,
         )
 
     return Layer(
@@ -105,19 +134,21 @@ def observable_means_layer(
     """
     marker = {"symbol": _AVERAGED_POINTS_SYMBOL, **(marker_kwargs or {})}
 
-    def render(*, fig, colors, labels, groups, paths, row, col, **_):
+    def render(ctx: RenderContext) -> go.Figure:
         from ...analysis.average_observables import average_observables
 
-        averaged = average_observables(observable_data, set(paths) if paths is not None else None)
+        averaged = average_observables(
+            observable_data, set(ctx.paths) if ctx.paths is not None else None
+        )
         return plot_path_scatters(
-            averaged_data_points(averaged, paths),
-            fig=fig,
-            colors=colors,
-            labels=labels,
-            groups=groups,
+            averaged_data_points(averaged, ctx.paths),
+            fig=ctx.fig,
+            colors=ctx.colors,
+            labels=ctx.labels,
+            groups=ctx.groups,
             marker_kwargs=marker,
-            row=row,
-            col=col,
+            row=ctx.row,
+            col=ctx.col,
         )
 
     return Layer(
@@ -134,21 +165,19 @@ def exponential_fit_curves_layer(
     """A layer drawing the exponential-fit decay curves from averaged data (default solid line)."""
     line = {"dash": _FIT_DASH, **(line_kwargs or {})}
 
-    def render(*, fig, colors, labels, groups, depths, paths, row, col, **_):
-        bases, intercepts = exponential_fit_curves(averaged_data, paths)
-        if depths is None:
-            depths = _default_depths(averaged_data_points(averaged_data, paths))
+    def render(ctx: RenderContext) -> go.Figure:
+        bases, intercepts = exponential_fit_curves(averaged_data, ctx.paths)
         return plot_path_decay_curves(
             bases,
             intercepts,
-            depths,
-            fig=fig,
-            colors=colors,
-            labels=labels,
-            groups=groups,
+            ctx.depths,
+            fig=ctx.fig,
+            colors=ctx.colors,
+            labels=ctx.labels,
+            groups=ctx.groups,
             line_kwargs=line,
-            row=row,
-            col=col,
+            row=ctx.row,
+            col=ctx.col,
         )
 
     return Layer(
@@ -169,21 +198,21 @@ def model_curves_layer(
     """
     line = {"dash": _MODEL_DASH, **(line_kwargs or {})}
 
-    def render(*, fig, colors, labels, groups, depths, paths, row, col, **_):
-        bases, intercepts = model_curves(model, model_data, paths)
-        if depths is None:
-            depths = _default_depths()
+    def render(ctx: RenderContext) -> go.Figure:
+        from ...analysis.utils import predicted_path_decays
+
+        bases, intercepts = predicted_path_decays(model, model_data, ctx.paths)
         return plot_path_decay_curves(
             bases,
             intercepts,
-            depths,
-            fig=fig,
-            colors=colors,
-            labels=labels,
-            groups=groups,
+            ctx.depths,
+            fig=ctx.fig,
+            colors=ctx.colors,
+            labels=ctx.labels,
+            groups=ctx.groups,
             line_kwargs=line,
-            row=row,
-            col=col,
+            row=ctx.row,
+            col=ctx.col,
         )
 
     return Layer(render, name="Model", proxy={"mode": "lines", "line": line})

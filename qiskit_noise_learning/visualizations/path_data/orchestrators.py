@@ -22,7 +22,7 @@ import numpy as np
 from ...optionals import HAS_PLOTLY
 from ..fidelity_math_labels import path_math_label
 from .data_adapters import _dataset_paths, averaged_data_points, observable_data_points
-from .layers import Layer, standard_decay_layers
+from .layers import Layer, RenderContext, standard_decay_layers
 from .primitives import _default_depths
 
 if TYPE_CHECKING:
@@ -91,11 +91,13 @@ def _dedupe_legend(fig: go.Figure) -> None:
 
 
 def _resolve_gate_set(gate_set: GateSet | None, model: LinearMap | None) -> GateSet | None:
-    """The gate set to label with: the explicit one, else the model's."""
+    """The gate set to label with: the explicit one, else the fidelity model's."""
+    from ...models import is_fidelity_model
+
     if gate_set is not None:
         return gate_set
-    if model is not None and hasattr(model, "gate_set"):
-        return model.gate_set
+    if model is not None and is_fidelity_model(model):
+        return model.output_space.gate_set
     return None
 
 
@@ -264,17 +266,18 @@ def plot_path_overlay(
     if depths is None:
         depths = _default_depths()
 
+    context = RenderContext(
+        fig=fig,
+        colors=color_map,
+        labels=labels,
+        groups=identity,
+        depths=np.asarray(depths, dtype=float),
+        paths=path_list,
+        row=row,
+        col=col,
+    )
     for layer in layers:
-        layer.render(
-            fig=fig,
-            colors=color_map,
-            labels=labels,
-            groups=identity,
-            depths=depths,
-            paths=path_list,
-            row=row,
-            col=col,
-        )
+        layer.render(context)
 
     # Finalize only when we own the figure; a caller passing ``fig`` (e.g. a grid cell) finalizes.
     if is_new_fig:

@@ -201,9 +201,9 @@ class Fit:
         self,
         pairs: Sequence[tuple[int, int]],
         *,
-        observable_type: Literal["raw", "means", "both"] | None = "means",
-        exponential_fit: bool = True,
-        model_prediction: bool = True,
+        observable_type: Literal["raw", "means", "both"] | None = None,
+        exponential_fit: bool = False,
+        model_prediction: bool = False,
         observable_marker_kwargs: Mapping[str, object] | None = None,
         means_marker_kwargs: Mapping[str, object] | None = None,
         exponential_fit_line_kwargs: Mapping[str, object] | None = None,
@@ -215,19 +215,21 @@ class Fit:
         """Plot a grid of fidelity decays over qubit pairs, drawn from this fit's data.
 
         One subplot per pair, sharing labels/colors across pairs. Which decays are drawn is
-        controlled by the toggles below, each of which is silently skipped when the corresponding
-        data has not been computed on this fit yet.
+        controlled by the toggles below; all default to off, so enable the ones you want. A
+        requested decay is silently skipped when the corresponding data has not been computed on
+        this fit yet.
 
         Args:
             pairs: The qubit pairs to plot, one subplot each.
             observable_type: How to draw the empirical observable data: ``"raw"`` (raw
                 per-randomization scatter), ``"means"`` (per-depth means with error bars),
-                ``"both"``, or ``None`` to omit the empirical points. Uses this fit's
+                ``"both"``, or ``None`` (the default) to omit the empirical points. Uses this fit's
                 :class:`~.ObservableData`.
             exponential_fit: Whether to draw the fitted exponential decay curve, from this fit's
-                :class:`~.AveragedData` (its ``depth == -1`` fitted parameters).
+                :class:`~.AveragedData` (its ``depth == -1`` fitted parameters). Defaults to
+                ``False``.
             model_prediction: Whether to draw the model-predicted decay curve, from this fit's
-                model and :class:`~.ModelData`.
+                model and :class:`~.ModelData`. Defaults to ``False``.
             observable_marker_kwargs: Optional ``marker`` overrides for the raw observable points.
             means_marker_kwargs: Optional ``marker`` overrides for the observable-means points.
             exponential_fit_line_kwargs: Optional ``line`` overrides for the exponential-fit curve.
@@ -253,13 +255,13 @@ class Fit:
         def _present(level: _LevelData) -> LeveledData | None:
             return level if isinstance(level, LeveledData) else None
 
-        gate_set = getattr(self._model, "gate_set", None)
-        if gate_set is None:
+        if self._model is None:
             raise ValueError(
                 "Fit.plot_qubit_pair_decays needs a model carrying a gate set to build labels."
             )
+        gate_set = self._model.output_space.gate_set
 
-        if noise_site is None and self._model is not None:
+        if noise_site is None:
             noise_site = get_noise_site(self._model)
 
         observable_data = _present(self.observable_data) if observable_type is not None else None

@@ -13,12 +13,10 @@
 import numpy as np
 import pytest
 
-from qiskit_noise_learning.sequences import Path
 from qiskit_noise_learning.visualizations.path_data.data_adapters import (
     _dataset_paths,
     averaged_data_points,
     exponential_fit_curves,
-    model_curves,
     observable_data_points,
 )
 
@@ -87,51 +85,6 @@ def test_observable_data_points_flattens_randomizations(make_cz_path, make_obser
     # 3 depths x 5 randomizations, all retained (no nan padding here).
     assert series.xs.size == 15
     assert series.stds is None
-
-
-# --------------------------------------------------------------------------------------------------
-# model_curves
-# --------------------------------------------------------------------------------------------------
-
-
-def test_model_curves_base_and_intercept(make_cz_path, make_fidelity_model_data):
-    p = make_cz_path("XI")
-    rate = 0.05
-    model, model_data = make_fidelity_model_data([p], rate_default=rate)
-    bases, intercepts = model_curves(model, model_data, [p])
-    # base = product of repeatable-fragment fidelities = exp(-rate * n_repeatable).
-    assert bases[p] == pytest.approx(np.exp(-rate * len(p.repeatable_fragment)))
-    # intercept = product over start+end fragments = exp(-rate * (n_start + n_end)).
-    n_spam = len(p.start_fragment) + len(p.end_fragment)
-    assert intercepts[p] == pytest.approx(np.exp(-rate * n_spam))
-
-
-def test_model_curves_raises_on_bound_path(make_cz_path, make_fidelity_model_data):
-    p = make_cz_path("XI")
-    model, model_data = make_fidelity_model_data([p])
-    with pytest.raises(ValueError, match="unbound decay paths"):
-        model_curves(model, model_data, [p.bind_at(3)])
-
-
-def test_model_curves_raises_on_empty_repeatable(make_cz_path, make_fidelity_model_data):
-    p = make_cz_path("XI")
-    model, model_data = make_fidelity_model_data([p])
-    non_decay = Path(
-        start_fragment=p.start_fragment, repeatable_fragment=[], end_fragment=p.end_fragment
-    )
-    with pytest.raises(ValueError, match="unbound decay paths"):
-        model_curves(model, model_data, [non_decay])
-
-
-def test_model_curves_raises_on_non_fidelity_model(make_cz_path, make_fidelity_model_data):
-    p = make_cz_path("XI")
-    _, model_data = make_fidelity_model_data([p])
-
-    class _NotFidelity:
-        output_space = object()
-
-    with pytest.raises(ValueError, match="fidelity model"):
-        model_curves(_NotFidelity(), model_data, [p])
 
 
 # --------------------------------------------------------------------------------------------------
