@@ -96,6 +96,23 @@ def split_pauli_lindblad_model(model: LinearMap) -> PauliLindbladSplit:
     return PauliLindbladSplit(before=before, model=maps[index], after=after)
 
 
+def get_noise_site(model: LinearMap) -> dict[str, str] | None:
+    """The noise-site mapping of the map's :class:`~.PauliLindbladModel`, if it has exactly one.
+
+    Args:
+        model: The map to inspect.
+
+    Returns:
+        The ``{gate_name: "before" | "after"}`` mapping from the map's single
+        :class:`~.PauliLindbladModel`, or ``None`` if ``model`` is, or contains, no (or more than
+        one) :class:`~.PauliLindbladModel`.
+    """
+    plms = [sub_map for sub_map in _chain(model) if isinstance(sub_map, PauliLindbladModel)]
+    if len(plms) == 1:
+        return plms[0].noise_site
+    return None
+
+
 def _chain(model: LinearMap) -> list[LinearMap]:
     """The maps of ``model`` in application order (its chain, or itself as a singleton)."""
     return model.maps if isinstance(model, ComposedLinearMap) else [model]

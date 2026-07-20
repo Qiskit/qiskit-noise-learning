@@ -19,6 +19,7 @@ from qiskit_noise_learning.models import (
     PauliLindbladModel,
     PauliLindbladSplit,
     contains_pauli_lindblad_model,
+    get_noise_site,
     is_fidelity_model,
     split_pauli_lindblad_model,
 )
@@ -93,6 +94,28 @@ def test_contains_composed_with_plm(plm):
 
 def test_contains_false(gate_set_cz):
     assert not contains_pauli_lindblad_model(IdentityFidelityModel(gate_set_cz))
+
+
+# --------------------------------------------------------------------------------------------------
+# get_noise_site
+# --------------------------------------------------------------------------------------------------
+
+
+def test_get_noise_site_bare_plm(plm):
+    assert get_noise_site(plm) == plm.noise_site
+
+
+def test_get_noise_site_composed_with_single_plm(plm):
+    # A chain carrying exactly one PLM returns that PLM's noise site.
+    assert get_noise_site(LogPathMap(plm.output_space) @ plm) == plm.noise_site
+
+
+def test_get_noise_site_none_without_plm(gate_set_cz):
+    assert get_noise_site(IdentityFidelityModel(gate_set_cz)) is None
+
+
+def test_get_noise_site_none_with_multiple_plms(plm):
+    assert get_noise_site(ComposedLinearMap([plm, _Toy(), plm])) is None
 
 
 # --------------------------------------------------------------------------------------------------

@@ -16,67 +16,9 @@ import numpy as np
 import pytest
 
 from qiskit_noise_learning.analysis import Fit
-from qiskit_noise_learning.data import AveragedData, ObservableData, RawData
+from qiskit_noise_learning.data import RawData
 from qiskit_noise_learning.gate_sets import ModelGateSet
 from qiskit_noise_learning.models import IdentityFidelityModel
-
-
-@pytest.fixture()
-def make_averaged_data():
-    """Return a builder ``(entries, std_default=0.001) -> AveragedData``.
-
-    Each entry is ``(unbound_path, depth, fidelity)`` or ``(unbound_path, depth, fidelity, std)``.
-    Use ``depth=-1`` for an unbound (decay) entry.
-    """
-
-    def _make(entries, std_default=0.001):
-        unbound_paths = [e[0] for e in entries]
-        depths = [e[1] for e in entries]
-        observables = np.array([e[2] for e in entries], dtype=float)
-        std = np.array([e[3] if len(e) > 3 else std_default for e in entries], dtype=float)
-        n = len(entries)
-        return AveragedData.from_arrays(
-            unbound_paths=unbound_paths,
-            depths=depths,
-            observables=observables,
-            std=std,
-            time_lbs=np.empty(n, dtype="datetime64[us]"),
-            time_ubs=np.empty(n, dtype="datetime64[us]"),
-        )
-
-    return _make
-
-
-@pytest.fixture()
-def make_observable_data():
-    """Return a builder for synthetic :class:`~.ObservableData` decay curves.
-
-    ``make(entries, ...)`` takes a list of ``(unbound_path, spam_amplitude, fidelity, depths)``
-    tuples and emits ``observable = spam_amplitude * fidelity**depth`` plus Gaussian noise across
-    ``n_rand`` randomizations for each depth.
-    """
-
-    def _make(entries, n_rand=20, noise_std=0.005, seed=42):
-        rng = np.random.default_rng(seed)
-        all_observables = []
-        all_unbound_paths = []
-        all_depths = []
-        for path, amplitude, fidelity, depths in entries:
-            for depth in depths:
-                true_val = amplitude * fidelity**depth
-                all_observables.append(true_val + rng.normal(0, noise_std, size=n_rand))
-                all_unbound_paths.append(path)
-                all_depths.append(depth)
-        n = len(all_observables)
-        return ObservableData.from_arrays(
-            unbound_paths=all_unbound_paths,
-            depths=all_depths,
-            observables=np.stack(all_observables),
-            time_lbs=np.empty((n, n_rand), dtype="datetime64[us]"),
-            time_ubs=np.empty((n, n_rand), dtype="datetime64[us]"),
-        )
-
-    return _make
 
 
 @pytest.fixture()

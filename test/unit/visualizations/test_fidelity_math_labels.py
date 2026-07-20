@@ -52,6 +52,21 @@ class TestFidelityIndexMathLabel:
         with pytest.raises(ValueError):
             fidelity_index_math_label(gate_set, fidelity_index, style="bad")
 
+    def test_qubit_labels_remap_subscript(self, gate_set, fidelity_index):
+        # The X on qubit 0 renders as X_{i} once qubit 0 is relabeled to "i".
+        labeled = fidelity_index_math_label(
+            gate_set, fidelity_index, style="formula", qubit_labels={0: "i"}
+        )
+        assert "X_{i}" in labeled
+        assert "X_{0}" not in labeled
+
+    def test_qubit_labels_partial_falls_back_to_index(self, gate_set, fidelity_index):
+        # An index absent from the map renders as its integer value.
+        labeled = fidelity_index_math_label(
+            gate_set, fidelity_index, style="formula", qubit_labels={5: "z"}
+        )
+        assert "X_{0}" in labeled
+
 
 class TestPathMathLabel:
     def test_transition_format(self, gate_set, fidelity_index):
@@ -73,6 +88,17 @@ class TestPathMathLabel:
         )
         result = path_math_label(gate_set, path, style="formula")
         assert isinstance(result, str)
+
+    def test_qubit_labels_remap_subscript(self, gate_set, fidelity_index):
+        path = Path(
+            start_fragment=[],
+            repeatable_fragment=[fidelity_index],
+            end_fragment=[],
+            depth=5,
+        )
+        labeled = path_math_label(gate_set, path, style="formula", qubit_labels={0: "i"})
+        assert "X_{i}" in labeled
+        assert "X_{0}" not in labeled
 
     def test_repeatable_only(self, gate_set, fidelity_index):
         path = Path(

@@ -23,6 +23,7 @@ from .pauli_lindblad_model import GeneratorIndex, PauliLindbladModel, RateSpace
 from .utils import (
     PauliLindbladSplit,
     contains_pauli_lindblad_model,
+    get_noise_site,
     is_fidelity_model,
     split_pauli_lindblad_model,
 )
