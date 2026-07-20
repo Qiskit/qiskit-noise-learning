@@ -22,6 +22,7 @@ from qiskit_noise_learning.models import (
     IdentityFidelityModel,
     PauliLindbladModel,
 )
+from qiskit_noise_learning.optionals import HAS_CVXPY
 
 _SOLVERS = [LSQLinearSolve(), NNLSSolve()]
 
@@ -224,9 +225,7 @@ def test_no_paths_uses_all_data(solver, gate_set_cz, make_cz_path, make_averaged
     assert GeneratorIndex("M", QubitSparsePauli("XI")) in params
 
 
-cvxpy = pytest.importorskip("cvxpy")
-
-
+@pytest.mark.skipif(not HAS_CVXPY, reason="cvxpy is required for PositivityMinSolve")
 class TestPositivityMinSolve:
     """Tests for PositivityMinSolve."""
 
@@ -387,6 +386,8 @@ class TestPositivityMinSolve:
 
     def test_metadata_contains_problem(self, gate_set_cz, make_cz_path, make_averaged_data):
         """Test that metadata contains the cvxpy Problem object."""
+        import cvxpy
+
         model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
         path = make_cz_path("XI")
         solver = PositivityMinSolve(
