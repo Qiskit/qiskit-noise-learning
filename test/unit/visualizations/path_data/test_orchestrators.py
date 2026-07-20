@@ -136,3 +136,28 @@ def test_pair_decays_filters_non_decay_paths_for_model_prediction(
         gate_set=model.gate_set,
     )
     assert isinstance(fig, go.Figure)
+
+
+def test_pair_decays_assigns_empty_start_fragment_path_via_transition(
+    make_cz_path, make_averaged_data, gate_set_cz
+):
+    # A decay path with no start fragment still acts on the CZ's qubits through its transition
+    # Paulis, so it is assigned to pair (0, 1) and dropped from an unrelated pair.
+    p = make_cz_path("XI", spam=False)
+    assert not p.start_fragment
+    averaged = make_averaged_data([(p, -1, 0.8)])
+    on_pair = plot_qubit_pair_decays([(0, 1)], averaged_data=averaged, gate_set=gate_set_cz)
+    off_pair = plot_qubit_pair_decays([(2, 3)], averaged_data=averaged, gate_set=gate_set_cz)
+    assert len(on_pair.data) > 0
+    assert len(off_pair.data) == 0
+
+
+def test_pair_decays_model_only_with_explicit_paths(make_cz_path, make_fidelity_model_data):
+    # No observable/averaged data: an explicit ``paths`` lets the model curve be drawn on its own.
+    p = make_cz_path("XI")
+    model, model_data = make_fidelity_model_data([p])
+    fig = plot_qubit_pair_decays(
+        [(0, 1)], model=model, model_data=model_data, paths=[p], gate_set=model.gate_set
+    )
+    assert isinstance(fig, go.Figure)
+    assert len(fig.data) > 0

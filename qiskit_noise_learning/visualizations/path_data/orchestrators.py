@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
+from itertools import chain
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
@@ -54,6 +55,16 @@ def _palette() -> list[str]:
     import plotly.colors as pc
 
     return pc.qualitative.Plotly
+
+
+def _path_qubits(path: Path) -> set[int]:
+    """The qubit indices a path acts on: the support of every transition Pauli in its fragments."""
+    qubits: set[int] = set()
+    for fidelity_index in chain(path.start_fragment, path.repeatable_fragment, path.end_fragment):
+        in_pauli, out_pauli = fidelity_index.transition
+        qubits.update(int(i) for i in in_pauli.indices)
+        qubits.update(int(i) for i in out_pauli.indices)
+    return qubits
 
 
 def _colors_by_group(
@@ -433,16 +444,18 @@ def plot_qubit_pair_decays(
     label_style: str = "formula",
     noise_site: Mapping[str, str] | None = None,
     placeholders: tuple[str, str] = ("i", "j"),
+    paths: Iterable[Path] | None = None,
     depths: Sequence[float] | np.ndarray | None = None,
     title: str | None = None,
 ) -> go.Figure:
     """Grid of fidelity decays over qubit pairs, one subplot per pair, with shared labels.
 
-    Each subplot shows the decays for the paths acting on that pair (assigned by the rule
-    ``set(pair) >= path.start_fragment[0].out_bit_indices``). Series labels are **canonicalized**:
-    the pair's qubits are relabeled to ``placeholders`` (min qubit -> ``"i"``, max -> ``"j"``), so a
-    given Pauli fidelity (e.g. ``X_{i} X_{j}``) shares a color and a single legend entry across
-    every pair it appears in. Subplot titles show the actual pair.
+    Each subplot shows the decays for the paths acting on that pair, where a path acts on the qubits
+    that its transition Paulis are supported on (a path is assigned to ``pair`` when ``pair`` is a
+    superset of that support). Series labels are **canonicalized**: the pair's qubits are relabeled
+    to ``placeholders`` (min qubit -> ``"i"``, max -> ``"j"``), so a given Pauli fidelity (e.g.
+    ``X_{i} X_{j}``) shares a color and a single legend entry across every pair it appears in.
+    Subplot titles show the actual pair.
 
     Args:
         pairs: The qubit pairs to plot, one subplot each.
@@ -464,8 +477,14 @@ def plot_qubit_pair_decays(
         noise_site: An optional noise-site mapping forwarded to :func:`~.path_math_label` (with
             ``style="formula"`` this yields the compact ``f^{gate}_{pauli}`` label).
         placeholders: The two display symbols for the pair's (min, max) qubit indices.
+        paths: The set of paths to draw across all layers. Defaults to the decay paths found in
+            ``observable_data``/``averaged_data``. Supply this to plot decays that cannot be derived
+            from empirical data — most notably model curves with no observable or averaged data
+            present. When given, it scopes every layer (each layer still only draws a path for which
+            its own data source has an entry); non-decay paths are dropped.
         depths: The depth range for the curves. Defaults to ``0`` through the largest depth in the
-            empirical data present (observable and averaged-data points).
+            empirical data present (observable and averaged-data points), or ``0``–``10`` when there
+            is none.
         title: An optional figure title.
 
     Returns:
@@ -478,12 +497,13 @@ def plot_qubit_pair_decays(
     if resolved_gate_set is None:
         raise ValueError("A gate_set (or a model carrying one) is required to label the decays.")
 
-    # Restrict to decay paths (unbound, non-empty repeatable fragment)
-    paths = [
-        path
-        for path in _dataset_paths(observable_data, averaged_data)
-        if path.is_unbound and path.repeatable_fragment
-    ]
+    # Resolve the path set (explicit wins, else derived from the empirical data) and restrict it to
+    # decay paths (unbound, non-empty repeatable fragment).
+    if paths is None:
+        candidate_paths = _dataset_paths(observable_data, averaged_data)
+    else:
+        candidate_paths = list(paths)
+    paths = [path for path in candidate_paths if path.is_unbound and path.repeatable_fragment]
 
     # Default the depth range to span the empirical data actually present, so the fitted and model
     # curves extend across the observed depths rather than the generic 0-10 fallback.
@@ -498,11 +518,7 @@ def plot_qubit_pair_decays(
     groups: dict[Hashable, list[Path]] = {}
     for pair in pairs:
         pair_set = set(pair)
-        groups[tuple(pair)] = [
-            path
-            for path in paths
-            if path.start_fragment and pair_set.issuperset(path.start_fragment[0].out_bit_indices)
-        ]
+        groups[tuple(pair)] = [path for path in paths if pair_set.issuperset(_path_qubits(path))]
 
     def _label(path: Path, pair: Hashable) -> str:
         low, high = sorted(pair)

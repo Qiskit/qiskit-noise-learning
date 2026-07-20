@@ -82,15 +82,19 @@ def averaged_data_points(
     observables = dataset["observables"].data[mask]
     stds = dataset["std"].data[mask]
 
-    result: dict[Path, PointSeries] = {}
-    for path in dict.fromkeys(entry_paths):
+    rows_by_path: dict[Path, list[int]] = {}
+    for row, path in enumerate(entry_paths):
         if wanted is not None and path not in wanted:
             continue
-        path_mask = np.array([other == path for other in entry_paths])
+        rows_by_path.setdefault(path, []).append(row)
+
+    result: dict[Path, PointSeries] = {}
+    for path, rows in rows_by_path.items():
+        rows = np.asarray(rows)
         result[path] = PointSeries(
-            xs=depths[path_mask].astype(float),
-            ys=observables[path_mask].astype(float),
-            stds=stds[path_mask].astype(float),
+            xs=depths[rows].astype(float),
+            ys=observables[rows].astype(float),
+            stds=stds[rows].astype(float),
         )
 
     return result
@@ -118,17 +122,19 @@ def observable_data_points(
     depths = dataset["depth"].data
     observables = dataset["observables"].data
 
-    result: dict[Path, PointSeries] = {}
-    for path in dict.fromkeys(entry_paths):
+    rows_by_path: dict[Path, list[int]] = {}
+    for row, path in enumerate(entry_paths):
         if wanted is not None and path not in wanted:
             continue
-        row_mask = np.array([other == path for other in entry_paths])
+        rows_by_path.setdefault(path, []).append(row)
 
+    result: dict[Path, PointSeries] = {}
+    for path, rows in rows_by_path.items():
         flat_depths: list[float] = []
         flat_values: list[float] = []
-        for depth, row_values in zip(depths[row_mask], observables[row_mask]):
-            valid = row_values[~np.isnan(row_values)]
-            flat_depths.extend([float(depth)] * valid.size)
+        for row in rows:
+            valid = observables[row][~np.isnan(observables[row])]
+            flat_depths.extend([float(depths[row])] * valid.size)
             flat_values.extend(float(value) for value in valid)
 
         result[path] = PointSeries(

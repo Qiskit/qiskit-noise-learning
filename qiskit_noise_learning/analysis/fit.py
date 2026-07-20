@@ -12,6 +12,7 @@
 
 """Fit."""
 
+import warnings
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Literal, Self
 
@@ -210,14 +211,15 @@ class Fit:
         model_line_kwargs: Mapping[str, object] | None = None,
         num_cols: int = 3,
         noise_site: Mapping[str, str] | None = None,
+        paths: Sequence[Path] | None = None,
+        depths: Sequence[float] | None = None,
         title: str | None = None,
     ) -> "go.Figure":
         """Plot a grid of fidelity decays over qubit pairs, drawn from this fit's data.
 
         One subplot per pair, sharing labels/colors across pairs. Which decays are drawn is
         controlled by the toggles below; all default to off, so enable the ones you want. A
-        requested decay is silently skipped when the corresponding data has not been computed on
-        this fit yet.
+        requested decay whose data has not been computed on this fit yet is skipped with a warning.
 
         Args:
             pairs: The qubit pairs to plot, one subplot each.
@@ -239,6 +241,12 @@ class Fit:
                 default ``"formula"`` label style this yields the compact ``f^{gate}_{pauli}``
                 label). Defaults to the noise site of the fit's model when it is, or contains, a
                 single :class:`~.PauliLindbladModel`.
+            paths: The paths to draw across all layers. Defaults to the decay paths found in this
+                fit's observable/averaged data, falling back to the fit's own ``paths`` when no such
+                data is present. Supply this to draw model-prediction curves for a fit that carries
+                only a model (no observable or averaged data to derive the paths from).
+            depths: The depth range for the curves. Defaults to ``0`` through the largest depth in
+                the empirical data present, or ``0``–``10`` when there is none.
             title: An optional figure title.
 
         Returns:
@@ -269,6 +277,24 @@ class Fit:
         model_data = _present(self.model_data) if model_prediction else None
         model = self._model if model_data is not None else None
 
+        # Warn (rather than silently skip) when a decay was requested but its data is not available.
+        for requested, resolved, name in (
+            (observable_type is not None, observable_data, "observable points"),
+            (exponential_fit, averaged_data, "exponential-fit curve"),
+            (model_prediction, model_data, "model-prediction curve"),
+        ):
+            if requested and resolved is None:
+                warnings.warn(
+                    f"{name} requested but the required data has not been computed on this fit; "
+                    "skipping it.",
+                    stacklevel=2,
+                )
+
+        # Fall back to the fit's own paths only when there is no empirical data to derive them from
+        # (e.g. a model-only prediction plot); explicit paths always win.
+        if paths is None and observable_data is None and averaged_data is None:
+            paths = self._paths or None
+
         return _plot_qubit_pair_decays(
             pairs,
             observable_data=observable_data,
@@ -283,5 +309,7 @@ class Fit:
             gate_set=gate_set,
             num_cols=num_cols,
             noise_site=noise_site,
+            paths=paths,
+            depths=depths,
             title=title,
         )

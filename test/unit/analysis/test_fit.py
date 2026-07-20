@@ -69,13 +69,13 @@ def test_plot_model_prediction_end_to_end(fit_with_data):
 @pytest.mark.parametrize(
     "kwargs",
     [
-        {"model_prediction": False},
-        {"exponential_fit": False},
-        {"observable_type": None},
-        {"observable_type": "raw", "exponential_fit": False, "model_prediction": False},
+        # Each case leaves two layers on and drops exactly one, so the drop is actually exercised.
+        {"observable_type": "means", "exponential_fit": True, "model_prediction": False},
+        {"observable_type": "means", "exponential_fit": False, "model_prediction": True},
+        {"observable_type": None, "exponential_fit": True, "model_prediction": True},
     ],
 )
-def test_plot_toggles_drop_layers_without_error(fit_with_data, kwargs):
+def test_plot_drops_one_layer_without_error(fit_with_data, kwargs):
     assert isinstance(fit_with_data.plot_qubit_pair_decays([(0, 1)], **kwargs), go.Figure)
 
 
@@ -83,3 +83,25 @@ def test_plot_without_model_raises():
     fit = Fit(model=None)
     with pytest.raises(ValueError, match="model"):
         fit.plot_qubit_pair_decays([(0, 1)])
+
+
+def test_plot_warns_when_requested_layer_data_absent(make_cz_path, make_fidelity_model_data):
+    # A fit with a model but no observable data: requesting observable points should warn, not skip
+    # silently.
+    p = make_cz_path("XI")
+    model, _ = make_fidelity_model_data([p])
+    fit = Fit(model=model, paths=[p])
+    with pytest.warns(UserWarning, match="observable points requested"):
+        fit.plot_qubit_pair_decays([(0, 1)], observable_type="raw")
+
+
+def test_plot_model_only_uses_fit_paths(make_cz_path, make_fidelity_model_data):
+    # No observable/averaged data: the model curve is drawn for the fit's own paths (a decay path
+    # on qubits (0, 1)), rather than silently producing an empty figure.
+    p = make_cz_path("XI")
+    model, model_data = make_fidelity_model_data([p])
+    fit = Fit(model=model, paths=[p])
+    fit[ModelData] = model_data
+    fig = fit.plot_qubit_pair_decays([(0, 1)], model_prediction=True)
+    assert isinstance(fig, go.Figure)
+    assert len(fig.data) > 0
