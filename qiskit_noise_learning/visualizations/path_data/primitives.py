@@ -12,8 +12,6 @@
 
 """Core path-referenced plotting primitives and the PointSeries container."""
 
-from __future__ import annotations
-
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -21,11 +19,10 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from ...optionals import HAS_PLOTLY
+from ...sequences import Path
 
 if TYPE_CHECKING:
     import plotly.graph_objects as go
-
-    from ...sequences import Path
 
 
 @dataclass(frozen=True, eq=False)
@@ -47,14 +44,14 @@ class PointSeries:
 def plot_path_scatters(
     points: Mapping[Path, PointSeries],
     *,
-    fig: go.Figure | None = None,
+    fig: "go.Figure | None" = None,
     colors: Mapping[Path, str] | None = None,
     labels: Mapping[Path, str] | None = None,
     groups: Mapping[Path, str] | None = None,
     marker_kwargs: Mapping[str, object] | None = None,
     row: int | None = None,
     col: int | None = None,
-) -> go.Figure:
+) -> "go.Figure":
     """Path-referenced scatter plot of point series.
 
     Args:
@@ -112,14 +109,14 @@ def plot_path_decay_curves(
     intercepts: Mapping[Path, float],
     depths: Sequence[float] | np.ndarray,
     *,
-    fig: go.Figure | None = None,
+    fig: "go.Figure | None" = None,
     colors: Mapping[Path, str] | None = None,
     labels: Mapping[Path, str] | None = None,
     groups: Mapping[Path, str] | None = None,
     line_kwargs: Mapping[str, object] | None = None,
     row: int | None = None,
     col: int | None = None,
-) -> go.Figure:
+) -> "go.Figure":
     """Plot smooth exponential decay curves ``intercept * base**depth`` for each path.
 
     Args:

@@ -18,14 +18,15 @@ and the ``paths`` it contributes for path resolution. The ``*_layer`` builders c
 a data source; :func:`standard_decay_layers` assembles the observable/exponential-fit/model stack.
 """
 
-from __future__ import annotations
-
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
+from ...data import AveragedData, ModelData, ObservableData
+from ...math import LinearMap
+from ...sequences import Path
 from .data_adapters import (
     _dataset_paths,
     averaged_data_points,
@@ -36,10 +37,6 @@ from .primitives import plot_path_decay_curves, plot_path_scatters
 
 if TYPE_CHECKING:
     import plotly.graph_objects as go
-
-    from ...data import AveragedData, ModelData, ObservableData
-    from ...math import LinearMap
-    from ...sequences import Path
 
 
 # Default per-layer marker symbols / line dashes, reflected in both the rendered traces and the
@@ -68,7 +65,7 @@ class RenderContext:
         col: The subplot column to add traces to (1-indexed), or ``None`` for a single-axes figure.
     """
 
-    fig: go.Figure
+    fig: "go.Figure"
     colors: Mapping[Path, str | None]
     labels: Mapping[Path, str | None]
     groups: Mapping[Path, str | None]
@@ -92,9 +89,9 @@ class Layer:
             (empty for layers, like the model curve, that carry no paths of their own).
     """
 
-    render: Callable[[RenderContext], go.Figure]
+    render: Callable[[RenderContext], "go.Figure"]
     name: str | None = None
-    proxy: dict | None = None
+    proxy: dict[str, object] | None = None
     paths: tuple[Path, ...] = field(default_factory=tuple)
 
 
@@ -104,7 +101,7 @@ def observable_points_layer(
     """A layer scattering raw per-randomization observable points (default ``circle`` marker)."""
     marker = {"symbol": _OBSERVABLE_POINTS_SYMBOL, **(marker_kwargs or {})}
 
-    def render(ctx: RenderContext) -> go.Figure:
+    def render(ctx: RenderContext) -> "go.Figure":
         return plot_path_scatters(
             observable_data_points(observable_data, ctx.paths),
             fig=ctx.fig,
@@ -134,7 +131,7 @@ def observable_means_layer(
     """
     marker = {"symbol": _AVERAGED_POINTS_SYMBOL, **(marker_kwargs or {})}
 
-    def render(ctx: RenderContext) -> go.Figure:
+    def render(ctx: RenderContext) -> "go.Figure":
         from ...analysis.average_observables import average_observables
 
         averaged = average_observables(
@@ -165,7 +162,7 @@ def exponential_fit_curves_layer(
     """A layer drawing the exponential-fit decay curves from averaged data (default solid line)."""
     line = {"dash": _FIT_DASH, **(line_kwargs or {})}
 
-    def render(ctx: RenderContext) -> go.Figure:
+    def render(ctx: RenderContext) -> "go.Figure":
         bases, intercepts = exponential_fit_curves(averaged_data, ctx.paths)
         return plot_path_decay_curves(
             bases,
@@ -198,7 +195,7 @@ def model_curves_layer(
     """
     line = {"dash": _MODEL_DASH, **(line_kwargs or {})}
 
-    def render(ctx: RenderContext) -> go.Figure:
+    def render(ctx: RenderContext) -> "go.Figure":
         from ...analysis.utils import predicted_path_decays
 
         bases, intercepts = predicted_path_decays(model, model_data, ctx.paths)

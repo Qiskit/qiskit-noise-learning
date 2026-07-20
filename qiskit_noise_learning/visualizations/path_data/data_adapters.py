@@ -12,18 +12,13 @@
 
 """Adapters that extract plotter inputs (points / decay parameters) from the data classes."""
 
-from __future__ import annotations
-
 from collections.abc import Iterable
-from typing import TYPE_CHECKING
 
 import numpy as np
 
+from ...data import AveragedData, ObservableData
+from ...sequences import Path
 from .primitives import PointSeries
-
-if TYPE_CHECKING:
-    from ...data import AveragedData, ObservableData
-    from ...sequences import Path
 
 
 def exponential_fit_curves(

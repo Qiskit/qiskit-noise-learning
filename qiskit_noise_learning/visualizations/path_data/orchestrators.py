@@ -12,15 +12,17 @@
 
 """Orchestrators: lay out layers on a single axes or a subplot grid, plus shared coordination."""
 
-from __future__ import annotations
-
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from itertools import chain
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
+from ...data import AveragedData, ModelData, ObservableData
+from ...gate_sets import GateSet
+from ...math import LinearMap
 from ...optionals import HAS_PLOTLY
+from ...sequences import Path
 from ..fidelity_math_labels import path_math_label
 from .data_adapters import _dataset_paths, averaged_data_points, observable_data_points
 from .layers import Layer, RenderContext, standard_decay_layers
@@ -28,11 +30,6 @@ from .primitives import _default_depths
 
 if TYPE_CHECKING:
     import plotly.graph_objects as go
-
-    from ...data import AveragedData, ModelData, ObservableData
-    from ...gate_sets import GateSet
-    from ...math import LinearMap
-    from ...sequences import Path
 
 
 _SYMBOL_LEGEND_COLOR = "rgb(120,120,120)"
@@ -87,7 +84,7 @@ def _colors_by_group(
     return result
 
 
-def _dedupe_legend(fig: go.Figure) -> None:
+def _dedupe_legend(fig: "go.Figure") -> None:
     """Show only the first trace of each ``legendgroup`` in the legend."""
     seen: set[str] = set()
     for trace in fig.data:
@@ -112,7 +109,7 @@ def _resolve_gate_set(gate_set: GateSet | None, model: LinearMap | None) -> Gate
     return None
 
 
-def _add_symbol_legend(fig: go.Figure, layers: Iterable[Layer]) -> None:
+def _add_symbol_legend(fig: "go.Figure", layers: Iterable[Layer]) -> None:
     """Add a second legend (``legend2``) mapping each layer's symbol/dash to its name.
 
     Emits one neutral-colored proxy trace per distinct layer that carries metadata; a symbol
@@ -224,10 +221,10 @@ def plot_path_overlay(
     label_style: str = "formula",
     depths: Sequence[float] | np.ndarray | None = None,
     title: str | None = None,
-    fig: go.Figure | None = None,
+    fig: "go.Figure | None" = None,
     row: int | None = None,
     col: int | None = None,
-) -> go.Figure:
+) -> "go.Figure":
     """Overlay an arbitrary list of decay layers on a single axes, with shared coordination.
 
     Each path is its own series: one color and one deduplicated legend entry shared across every
@@ -314,7 +311,7 @@ def plot_path_grid_overlay(
     label_style: str = "formula",
     depths: Sequence[float] | np.ndarray | None = None,
     title: str | None = None,
-) -> go.Figure:
+) -> "go.Figure":
     """Lay out an arbitrary list of decay layers across a grid of subplots (one per group).
 
     Subplot membership (``groups``) and series identity (``series_key``) are independent: color and
@@ -447,7 +444,7 @@ def plot_qubit_pair_decays(
     paths: Iterable[Path] | None = None,
     depths: Sequence[float] | np.ndarray | None = None,
     title: str | None = None,
-) -> go.Figure:
+) -> "go.Figure":
     """Grid of fidelity decays over qubit pairs, one subplot per pair, with shared labels.
 
     Each subplot shows the decays for the paths acting on that pair, where a path acts on the qubits
