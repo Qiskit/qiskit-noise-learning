@@ -59,33 +59,6 @@ def test_construction_with_depth():
     assert len(seq) == 8
 
 
-def test_gate_depth():
-    """Test gate_depth counts only ApplyGate instructions, minus prep/meas."""
-    # Intermediate permutations must be ignored: only the ApplyGate instructions count.
-    seq = InstructionSequence(
-        start_fragment=[ApplyGate("P")],
-        repeatable_fragment=[
-            ApplyGate("L0"),
-            PartialPauliPermutation.from_sets([{("X", "Y")}, set()]),
-            ApplyGate("L1"),
-        ],
-        end_fragment=[ApplyGate("M")],
-    )
-    assert seq.gate_depth is None  # unbound
-    # gates = 1 (P) + 2 (L0, L1) * fragment_depth + 1 (M), minus 2 for prep/meas.
-    for fragment_depth in range(4):
-        assert seq.bind_at(fragment_depth).gate_depth == 2 * fragment_depth
-
-    # A "depth-1" sequence: prep and a single gate up front, empty repeatable, one meas.
-    depth1 = InstructionSequence(
-        start_fragment=[ApplyGate("P"), ApplyGate("L0")],
-        repeatable_fragment=[],
-        end_fragment=[ApplyGate("M")],
-        fragment_depth=0,
-    )
-    assert depth1.gate_depth == 1
-
-
 def test_is_mergeable_with():
     """Test mergeability checking for InstructionSequence (variable-fragment_depth)."""
 

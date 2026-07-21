@@ -37,22 +37,6 @@ class InstructionSequence(BaseSequence[Instruction]):
     """
 
     @property
-    def gate_depth(self) -> int | None:
-        """The gate depth: total gate applications minus 2.
-
-        Only :class:`~.ApplyGate` instructions are counted. Returns ``None`` when the sequence is
-        unbound.
-        """
-        if self.is_unbound:
-            return None
-        n_gates = (
-            sum(1 for _ in _filter_to_gates(self.start_fragment))
-            + sum(1 for _ in _filter_to_gates(self.repeatable_fragment)) * self.fragment_depth
-            + sum(1 for _ in _filter_to_gates(self.end_fragment))
-        )
-        return n_gates - 2
-
-    @property
     def is_complete(self) -> bool:
         r"""Whether all contained instructions are completely specified."""
         return all(instr.is_complete for instr in self._fragment_chain)

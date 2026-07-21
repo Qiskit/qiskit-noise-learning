@@ -86,48 +86,6 @@ def test_construction_with_depth():
     assert len(path) == 8
 
 
-def test_gate_depth():
-    """Test gate_depth = total gate applications minus prep/meas."""
-    ident = [((0, 1), Clifford(QuantumCircuit(2)))]
-    prep = ModelGate("P", ident, qubit_idxs=range(2), prep_idxs=range(2))
-    gate = ModelGate("L0", ident, qubit_idxs=range(2))
-    meas = ModelGate("M", ident, qubit_idxs=range(2), meas_idxs=range(2))
-
-    prep_index = FidelityIndex.from_gate(
-        prep, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2))
-    )
-    gate_index = FidelityIndex.from_gate(gate, pauli=QubitSparsePauli("IX"))
-    meas_index = FidelityIndex.from_gate(
-        meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2))
-    )
-
-    # An "even depth" vanilla path: one prep, a 2-gate repeatable fragment, one meas.
-    vanilla = Path(
-        start_fragment=[prep_index],
-        repeatable_fragment=[gate_index, gate_index],
-        end_fragment=[meas_index],
-    )
-    assert vanilla.gate_depth is None  # unbound
-    for fragment_depth in range(4):
-        assert vanilla.bind_at(fragment_depth).gate_depth == 2 * fragment_depth
-
-    # A "depth-1" path: prep and a single gate in the start fragment, empty repeatable, one meas.
-    depth1 = Path(
-        start_fragment=[prep_index, gate_index],
-        repeatable_fragment=[],
-        end_fragment=[meas_index],
-        fragment_depth=0,
-    )
-    assert depth1.gate_depth == 1
-
-
-def test_gate_depth_matches_instruction_sequence(make_cz_path):
-    """Path.gate_depth equals the gate depth of an instruction sequence traversing it."""
-    path = make_cz_path("XI").bind_at(2)
-    assert path.gate_depth == 4
-    assert path.to_instruction_sequence().gate_depth == path.gate_depth
-
-
 def test_iter():
     """Test __iter__ yields elements in the correct order."""
 

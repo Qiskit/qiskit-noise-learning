@@ -33,16 +33,6 @@ class Path(BaseSequence[FidelityIndex]):
     """
 
     @property
-    def gate_depth(self) -> int | None:
-        """The gate depth: total gate applications minus 2.
-
-        Returns ``None`` when the path is unbound.
-        """
-        if self.is_unbound:
-            return None
-        return len(self) - 2
-
-    @property
     def start_fragment_observable_indices(self) -> list[list[int]]:
         """The observable indices of the start fragment."""
         return [x.observable_indices for x in self.start_fragment]
