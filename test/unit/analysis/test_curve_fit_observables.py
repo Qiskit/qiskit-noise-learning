@@ -114,7 +114,7 @@ class TestCurveFitObservables:
         obs = make_observable_data([(pp, 0.9, 0.8, [1, 2, 3, 4, 5])])
         result = _run_stage(obs)
         ds = result.averaged_data.dataset
-        mask = (ds["unbound_path"].data == pp) & (ds["depth"].data == -1)
+        mask = (ds["unbound_path"].data == pp) & (ds["fragment_depth"].data == -1)
         meta = ds["metadata"].data[mask][0]
         # dof = M - 2 = 5 - 2 = 3 fit parameters (a, f).
         assert np.isclose(meta["reduced_chi_squared"], meta["chi_squared"] / 3)
@@ -125,7 +125,7 @@ class TestCurveFitObservables:
         obs = make_observable_data([(pp, 0.9, 0.8, [1, 2])])
         result = _run_stage(obs)
         ds = result.averaged_data.dataset
-        mask = (ds["unbound_path"].data == pp) & (ds["depth"].data == -1)
+        mask = (ds["unbound_path"].data == pp) & (ds["fragment_depth"].data == -1)
         assert np.isnan(ds["metadata"].data[mask][0]["reduced_chi_squared"])
 
 
