@@ -45,7 +45,7 @@ class TestSPAMPaths:
                         in_bit_indices=frozenset([0]),
                     )
                 ],
-                depth=0,
+                fragment_depth=0,
             ),
             Path(
                 start_fragment=[
@@ -63,7 +63,7 @@ class TestSPAMPaths:
                         in_bit_indices=frozenset([1]),
                     )
                 ],
-                depth=0,
+                fragment_depth=0,
             ),
         ]
         assert result.paths == expected

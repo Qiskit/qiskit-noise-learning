@@ -44,7 +44,7 @@ def make_raw_data(make_instruction_sequence):
     """Return a builder ``(creg_names, measurement_map, data) -> RawData`` (1 sequence)."""
 
     def _make(creg_names, measurement_map, data):
-        seq = make_instruction_sequence(name="p0", depth=1)
+        seq = make_instruction_sequence(name="p0", fragment_depth=1)
         num_rand = data.shape[0]
         num_bits = data.shape[2]
         return RawData.from_arrays(

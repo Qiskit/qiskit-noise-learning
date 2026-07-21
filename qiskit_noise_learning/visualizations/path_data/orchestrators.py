@@ -26,7 +26,7 @@ from ...sequences import Path
 from ..fidelity_math_labels import path_math_label
 from .data_adapters import _dataset_paths, averaged_data_points, observable_data_points
 from .layers import Layer, RenderContext, standard_decay_layers
-from .primitives import _default_depths
+from .primitives import _default_fragment_depths
 
 if TYPE_CHECKING:
     import plotly.graph_objects as go
@@ -219,7 +219,7 @@ def plot_path_overlay(
     labels: Mapping[Path, str] | None = None,
     groups: Mapping[Path, str] | None = None,
     label_style: str = "formula",
-    depths: Sequence[float] | np.ndarray | None = None,
+    fragment_depths: Sequence[float] | np.ndarray | None = None,
     title: str | None = None,
     fig: "go.Figure | None" = None,
     row: int | None = None,
@@ -244,7 +244,7 @@ def plot_path_overlay(
         groups: Optional per-path ``legendgroup``/color-identity keys. Defaults to a per-path
             identity (each path its own color and legend entry).
         label_style: The :func:`~.path_math_label` style for default labels.
-        depths: The depth range passed to curve layers. Defaults to ``0``–``10``.
+        fragment_depths: The fragment-depth range passed to curve layers. Defaults to ``0``–``10``.
         title: An optional figure title.
         fig: An existing figure to add traces to. If ``None``, a new figure is created + finalized.
         row: The subplot row to add traces to (1-indexed).
@@ -271,15 +271,15 @@ def plot_path_overlay(
 
     identity = groups if groups is not None else {p: str(i) for i, p in enumerate(path_list)}
     color_map = _colors_by_group(identity, colors)
-    if depths is None:
-        depths = _default_depths()
+    if fragment_depths is None:
+        fragment_depths = _default_fragment_depths()
 
     context = RenderContext(
         fig=fig,
         colors=color_map,
         labels=labels,
         groups=identity,
-        depths=np.asarray(depths, dtype=float),
+        fragment_depths=np.asarray(fragment_depths, dtype=float),
         paths=path_list,
         row=row,
         col=col,
@@ -291,7 +291,7 @@ def plot_path_overlay(
     if is_new_fig:
         _dedupe_legend(fig)
         _add_symbol_legend(fig, layers)
-        fig.update_layout(xaxis_title="depth", yaxis_title="observable")
+        fig.update_layout(xaxis_title="fragment_depth", yaxis_title="observable")
         if title is not None:
             fig.update_layout(title_text=title)
     return fig
@@ -309,7 +309,7 @@ def plot_path_grid_overlay(
     series_key: Callable[[Path, Hashable], Hashable] | None = None,
     colors: Mapping[Hashable, str] | None = None,
     label_style: str = "formula",
-    depths: Sequence[float] | np.ndarray | None = None,
+    fragment_depths: Sequence[float] | np.ndarray | None = None,
     title: str | None = None,
 ) -> "go.Figure":
     """Lay out an arbitrary list of decay layers across a grid of subplots (one per group).
@@ -332,7 +332,7 @@ def plot_path_grid_overlay(
             (its color and shared legend entry). Defaults to the displayed ``label``.
         colors: Optional overrides mapping a series key to a color.
         label_style: The :func:`~.path_math_label` style for the default label.
-        depths: The depth range passed to curve layers. Defaults to ``0``–``10``.
+        fragment_depths: The fragment-depth range passed to curve layers. Defaults to ``0``–``10``.
         title: An optional figure title.
 
     Returns:
@@ -353,8 +353,8 @@ def plot_path_grid_overlay(
         vertical_spacing=_GRID_ROW_GAP / figure_height,
     )
     resolved_gate_set = _resolve_gate_set(gate_set, None)
-    if depths is None:
-        depths = _default_depths()
+    if fragment_depths is None:
+        fragment_depths = _default_fragment_depths()
 
     palette = _palette()
     series_to_color: dict[Hashable, str] = {}
@@ -403,7 +403,7 @@ def plot_path_grid_overlay(
             colors=cell_colors,
             labels=cell_labels,
             groups=cell_groups,
-            depths=depths,
+            fragment_depths=fragment_depths,
             fig=fig,
             row=grid_row,
             col=grid_col,
@@ -411,7 +411,7 @@ def plot_path_grid_overlay(
 
     _dedupe_legend(fig)
     _add_symbol_legend(fig, layers)
-    fig.update_xaxes(title_text="depth")
+    fig.update_xaxes(title_text="fragment_depth")
     fig.update_yaxes(title_text="observable")
     # Keep the width responsive (fills the container) and fix only the height, scaled by the row
     # count so plots stay tall. Reserve a fixed right margin for the path legend, which is anchored
@@ -442,7 +442,7 @@ def plot_qubit_pair_decays(
     noise_site: Mapping[str, str] | None = None,
     placeholders: tuple[str, str] = ("i", "j"),
     paths: Iterable[Path] | None = None,
-    depths: Sequence[float] | np.ndarray | None = None,
+    fragment_depths: Sequence[float] | np.ndarray | None = None,
     title: str | None = None,
 ) -> "go.Figure":
     """Grid of fidelity decays over qubit pairs, one subplot per pair, with shared labels.
@@ -479,9 +479,9 @@ def plot_qubit_pair_decays(
             from empirical data — most notably model curves with no observable or averaged data
             present. When given, it scopes every layer (each layer still only draws a path for which
             its own data source has an entry); non-decay paths are dropped.
-        depths: The depth range for the curves. Defaults to ``0`` through the largest depth in the
-            empirical data present (observable and averaged-data points), or ``0``–``10`` when there
-            is none.
+        fragment_depths: The fragment-depth range for the curves. Defaults to ``0`` through the
+            largest fragment depth in the empirical data present (observable and averaged-data
+            points), or ``0``–``10`` when there is none.
         title: An optional figure title.
 
     Returns:
@@ -502,15 +502,16 @@ def plot_qubit_pair_decays(
         candidate_paths = list(paths)
     paths = [path for path in candidate_paths if path.is_unbound and path.repeatable_fragment]
 
-    # Default the depth range to span the empirical data actually present, so the fitted and model
-    # curves extend across the observed depths rather than the generic 0-10 fallback.
-    if depths is None:
+    # Default the fragment-depth range to span the empirical data actually present, so the fitted
+    # and model curves extend across the observed fragment depths rather than the generic 0-10
+    # fallback.
+    if fragment_depths is None:
         empirical_points: list[dict] = []
         if observable_data is not None:
             empirical_points.append(observable_data_points(observable_data, paths))
         if averaged_data is not None:
             empirical_points.append(averaged_data_points(averaged_data, paths))
-        depths = _default_depths(*empirical_points)
+        fragment_depths = _default_fragment_depths(*empirical_points)
 
     groups: dict[Hashable, list[Path]] = {}
     for pair in pairs:
@@ -556,6 +557,6 @@ def plot_qubit_pair_decays(
         label=_label,
         group_title=_group_title,
         colors=colors,
-        depths=depths,
+        fragment_depths=fragment_depths,
         title=title,
     )

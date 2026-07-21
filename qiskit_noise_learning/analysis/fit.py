@@ -212,7 +212,7 @@ class Fit:
         num_cols: int = 3,
         noise_site: Mapping[str, str] | None = None,
         paths: Sequence[Path] | None = None,
-        depths: Sequence[float] | None = None,
+        fragment_depths: Sequence[float] | None = None,
         title: str | None = None,
     ) -> "go.Figure":
         """Plot a grid of fidelity decays over qubit pairs, drawn from this fit's data.
@@ -224,12 +224,12 @@ class Fit:
         Args:
             pairs: The qubit pairs to plot, one subplot each.
             observable_type: How to draw the empirical observable data: ``"raw"`` (raw
-                per-randomization scatter), ``"means"`` (per-depth means with error bars),
+                per-randomization scatter), ``"means"`` (per-fragment-depth means with error bars),
                 ``"both"``, or ``None`` (the default) to omit the empirical points. Uses this fit's
                 :class:`~.ObservableData`.
             exponential_fit: Whether to draw the fitted exponential decay curve, from this fit's
-                :class:`~.AveragedData` (its ``depth == -1`` fitted parameters). Defaults to
-                ``False``.
+                :class:`~.AveragedData` (its ``fragment_depth == -1`` fitted parameters). Defaults
+                to ``False``.
             model_prediction: Whether to draw the model-predicted decay curve, from this fit's
                 model and :class:`~.ModelData`. Defaults to ``False``.
             observable_marker_kwargs: Optional ``marker`` overrides for the raw observable points.
@@ -245,8 +245,9 @@ class Fit:
                 fit's observable/averaged data, falling back to the fit's own ``paths`` when no such
                 data is present. Supply this to draw model-prediction curves for a fit that carries
                 only a model (no observable or averaged data to derive the paths from).
-            depths: The depth range for the curves. Defaults to ``0`` through the largest depth in
-                the empirical data present, or ``0``–``10`` when there is none.
+            fragment_depths: The fragment-depth range for the curves. Defaults to ``0`` through the
+                largest fragment depth in the empirical data present, or ``0``–``10`` when there is
+                none.
             title: An optional figure title.
 
         Returns:
@@ -310,6 +311,6 @@ class Fit:
             num_cols=num_cols,
             noise_site=noise_site,
             paths=paths,
-            depths=depths,
+            fragment_depths=fragment_depths,
             title=title,
         )

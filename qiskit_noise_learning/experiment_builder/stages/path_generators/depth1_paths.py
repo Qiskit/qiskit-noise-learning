@@ -102,5 +102,5 @@ def _depth1_paths(
                     meas_gate, pauli=ident, in_bit_indices=frozenset(out_pauli.indices)
                 )
             ],
-            depth=0,
+            fragment_depth=0,
         )

@@ -62,8 +62,8 @@ class LogPathSpace(IndexedSpace[Path]):
 class LogPathMap(LinearMap[FidelityIndex, Path]):
     r"""The linear map from a space of log fidelities to its associated log path space.
 
-    This map is purely combinatorial: the row of a path is the depth-weighted multiplicity of each
-    fidelity index appearing in the path. It does not depend on any noise model, only on the
+    This map is purely combinatorial: the row of a path is the fragment-depth-weighted multiplicity
+    of each fidelity index appearing in the path. It does not depend on any noise model, only on the
     :class:`~.Path` structure and the fidelity indices' membership in the input space.
 
     Args:
@@ -81,7 +81,7 @@ class LogPathMap(LinearMap[FidelityIndex, Path]):
 
     @staticmethod
     def _path_vector(path: Path) -> IndexedVector[FidelityIndex]:
-        """The depth-weighted fidelity-index multiplicity vector of a path."""
+        """The fragment-depth-weighted fidelity-index multiplicity vector of a path."""
         vector = IndexedVector[FidelityIndex]()
         for fidelity in path.repeatable_fragment:
             vector[fidelity] = vector.get(fidelity, 0.0) + 1.0
@@ -89,7 +89,7 @@ class LogPathMap(LinearMap[FidelityIndex, Path]):
         if path.is_unbound:
             return vector
 
-        vector = path.depth * vector
+        vector = path.fragment_depth * vector
         for fidelity in chain(path.start_fragment, path.end_fragment):
             vector[fidelity] = vector.get(fidelity, 0.0) + 1.0
 

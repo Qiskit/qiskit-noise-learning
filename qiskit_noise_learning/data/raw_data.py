@@ -45,7 +45,8 @@ class RawData(LeveledData):
     - Coordinates:
         - ``unbound_instruction_sequence``: The unbound instruction sequence for the data, along
           dimension ``("randomization",)``, of type :class:`InstructionSequence`.
-        - ``depth``: Integer array of depths along dimension ``("randomization",)``.
+        - ``fragment_depth``: Integer array of fragment depths along dimension
+          ``("randomization",)``.
     - Attrs:
         - ``creg_names``: Ordered list of classical register names.
         - ``measurement_map``: Dictionary mapping creg names to arrays of measured qubit indices.
@@ -126,11 +127,11 @@ class RawData(LeveledData):
                 coords={
                     "unbound_instruction_sequence": (
                         ("randomization",),
-                        np.array([inst_sequence.without_depth()] * len(inst_data), dtype=object),
+                        np.array([inst_sequence.unbind()] * len(inst_data), dtype=object),
                     ),
-                    "depth": (
+                    "fragment_depth": (
                         ("randomization",),
-                        np.array([inst_sequence.depth] * len(inst_data), dtype=int),
+                        np.array([inst_sequence.fragment_depth] * len(inst_data), dtype=int),
                     ),
                 },
                 attrs={

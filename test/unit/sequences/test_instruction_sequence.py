@@ -35,11 +35,11 @@ def test_construction():
     assert seq.start_fragment == start_fragment
     assert seq.repeatable_fragment == repeatable_fragment
     assert seq.end_fragment == end_fragment
-    assert seq.depth is None
+    assert seq.fragment_depth is None
 
 
 def test_construction_with_depth():
-    """Test construction with a specified depth."""
+    """Test construction with a specified fragment_depth."""
 
     start_fragment = [ApplyGate("P")]
     repeatable_fragment = [ApplyGate("L0"), ApplyGate("L1")]
@@ -49,18 +49,45 @@ def test_construction_with_depth():
         start_fragment=start_fragment,
         repeatable_fragment=repeatable_fragment,
         end_fragment=end_fragment,
-        depth=3,
+        fragment_depth=3,
     )
 
     assert seq.start_fragment == start_fragment
     assert seq.repeatable_fragment == repeatable_fragment
     assert seq.end_fragment == end_fragment
-    assert seq.depth == 3
+    assert seq.fragment_depth == 3
     assert len(seq) == 8
 
 
+def test_gate_depth():
+    """Test gate_depth counts only ApplyGate instructions, minus prep/meas."""
+    # Intermediate permutations must be ignored: only the ApplyGate instructions count.
+    seq = InstructionSequence(
+        start_fragment=[ApplyGate("P")],
+        repeatable_fragment=[
+            ApplyGate("L0"),
+            PartialPauliPermutation.from_sets([{("X", "Y")}, set()]),
+            ApplyGate("L1"),
+        ],
+        end_fragment=[ApplyGate("M")],
+    )
+    assert seq.gate_depth is None  # unbound
+    # gates = 1 (P) + 2 (L0, L1) * fragment_depth + 1 (M), minus 2 for prep/meas.
+    for fragment_depth in range(4):
+        assert seq.bind_at(fragment_depth).gate_depth == 2 * fragment_depth
+
+    # A "depth-1" sequence: prep and a single gate up front, empty repeatable, one meas.
+    depth1 = InstructionSequence(
+        start_fragment=[ApplyGate("P"), ApplyGate("L0")],
+        repeatable_fragment=[],
+        end_fragment=[ApplyGate("M")],
+        fragment_depth=0,
+    )
+    assert depth1.gate_depth == 1
+
+
 def test_is_mergeable_with():
-    """Test mergeability checking for InstructionSequence (variable-depth)."""
+    """Test mergeability checking for InstructionSequence (variable-fragment_depth)."""
 
     seq0 = InstructionSequence(
         start_fragment=[
@@ -120,20 +147,20 @@ def test_is_mergeable_with():
 
 
 def test_is_mergeable_with_depth_mismatch():
-    """Test that sequences with different depths are not mergeable."""
+    """Test that sequences with different fragment_depths are not mergeable."""
 
     seq0 = InstructionSequence(
         start_fragment=[ApplyGate("P")],
         repeatable_fragment=[ApplyGate("L0")],
         end_fragment=[ApplyGate("M")],
-        depth=5,
+        fragment_depth=5,
     )
 
     seq1 = InstructionSequence(
         start_fragment=[ApplyGate("P")],
         repeatable_fragment=[ApplyGate("L0")],
         end_fragment=[ApplyGate("M")],
-        depth=4,
+        fragment_depth=4,
     )
 
     assert not seq0.is_mergeable_with(seq1)
@@ -242,20 +269,20 @@ def test_merge_failures():
     with pytest.raises(ValueError, match="Cannot merge inconsistent partial permutations"):
         seq0.merge(seq1)
 
-    # depth mismatch
+    # fragment_depth mismatch
     seq0 = InstructionSequence(
         start_fragment=[ApplyGate("P")],
         repeatable_fragment=[],
         end_fragment=[ApplyGate("M")],
-        depth=3,
+        fragment_depth=3,
     )
     seq1 = InstructionSequence(
         start_fragment=[ApplyGate("P")],
         repeatable_fragment=[],
         end_fragment=[ApplyGate("M")],
-        depth=4,
+        fragment_depth=4,
     )
-    with pytest.raises(ValueError, match="different depths"):
+    with pytest.raises(ValueError, match="different fragment depths"):
         seq0.merge(seq1)
 
 
@@ -291,16 +318,16 @@ def test_complete():
 
 
 def test_complete_preserves_depth():
-    """Test that complete() preserves the depth."""
+    """Test that complete() preserves the fragment_depth."""
 
     seq = InstructionSequence(
         start_fragment=[ApplyGate("P")],
         repeatable_fragment=[ApplyGate("L0")],
         end_fragment=[ApplyGate("M")],
-        depth=7,
+        fragment_depth=7,
     )
 
-    assert seq.complete().depth == 7
+    assert seq.complete().fragment_depth == 7
 
 
 def test_has_same_structure_as():
@@ -388,19 +415,19 @@ def test_has_same_structure_as():
 
 
 def test_has_same_structure_as_depth():
-    """Test that has_same_structure_as requires matching depths."""
+    """Test that has_same_structure_as requires matching fragment_depths."""
 
     seq0 = InstructionSequence(
         start_fragment=[ApplyGate("P")],
         repeatable_fragment=[ApplyGate("L0")],
         end_fragment=[ApplyGate("M")],
-        depth=3,
+        fragment_depth=3,
     )
     seq1 = InstructionSequence(
         start_fragment=[ApplyGate("P")],
         repeatable_fragment=[ApplyGate("L0")],
         end_fragment=[ApplyGate("M")],
-        depth=4,
+        fragment_depth=4,
     )
     assert not seq0.has_same_structure_as(seq1)
 
@@ -408,13 +435,13 @@ def test_has_same_structure_as_depth():
         start_fragment=[ApplyGate("P")],
         repeatable_fragment=[ApplyGate("L0")],
         end_fragment=[ApplyGate("M")],
-        depth=3,
+        fragment_depth=3,
     )
     assert seq0.has_same_structure_as(seq2)
 
 
 def test_bind_at():
-    """Test bind_at returns a new instance with the specified depth."""
+    """Test bind_at returns a new instance with the specified fragment_depth."""
 
     start_fragment = [ApplyGate("P")]
     repeatable_fragment = [ApplyGate("L0"), ApplyGate("L1")]
@@ -425,16 +452,16 @@ def test_bind_at():
         repeatable_fragment=repeatable_fragment,
         end_fragment=end_fragment,
     )
-    assert seq.depth is None
+    assert seq.fragment_depth is None
 
     bound = seq.bind_at(5)
-    assert bound.depth == 5
+    assert bound.fragment_depth == 5
     assert bound.start_fragment == start_fragment
     assert bound.repeatable_fragment == repeatable_fragment
     assert bound.end_fragment == end_fragment
     assert isinstance(bound, InstructionSequence)
 
-    # bind_at with None gives variable-depth
-    unbound = bound.without_depth()
-    assert unbound.depth is None
+    # bind_at with None gives variable-fragment_depth
+    unbound = bound.unbind()
+    assert unbound.fragment_depth is None
     assert unbound == seq

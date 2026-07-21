@@ -33,8 +33,24 @@ class InstructionSequence(BaseSequence[Instruction]):
         start_fragment: The start of the sequence.
         repeatable_fragment: The repeatable middle of the sequence.
         end_fragment: The end of the sequence.
-        depth: The number of repetitions of the repeatable fragment.
+        fragment_depth: The number of repetitions of the repeatable fragment.
     """
+
+    @property
+    def gate_depth(self) -> int | None:
+        """The gate depth: total gate applications minus 2.
+
+        Only :class:`~.ApplyGate` instructions are counted. Returns ``None`` when the sequence is
+        unbound.
+        """
+        if self.is_unbound:
+            return None
+        n_gates = (
+            sum(1 for _ in _filter_to_gates(self.start_fragment))
+            + sum(1 for _ in _filter_to_gates(self.repeatable_fragment)) * self.fragment_depth
+            + sum(1 for _ in _filter_to_gates(self.end_fragment))
+        )
+        return n_gates - 2
 
     @property
     def is_complete(self) -> bool:
@@ -52,14 +68,15 @@ class InstructionSequence(BaseSequence[Instruction]):
             start_fragment=[x.complete() for x in self.start_fragment],
             repeatable_fragment=[x.complete() for x in self.repeatable_fragment],
             end_fragment=[x.complete() for x in self.end_fragment],
-            depth=self.depth,
+            fragment_depth=self.fragment_depth,
         )
 
     def has_same_structure_as(self, other: "InstructionSequence") -> bool:
         """Return whether this instruction sequence shares the same circuit structure as another.
 
-        Here, sharing the same structure means that the depths are the same, and all fragments have
-        the same gate applications in the same order, but possibly differing in other instructions.
+        Here, sharing the same structure means that the fragment depths are the same, and all
+        fragments have the same gate applications in the same order, but possibly differing in
+        other instructions.
 
         Args:
             other: Another :class:`.InstructionSequence`.
@@ -67,7 +84,7 @@ class InstructionSequence(BaseSequence[Instruction]):
         Returns:
             Whether this instruction sequence shares the same structure as the other.
         """
-        if self.depth != other.depth:
+        if self.fragment_depth != other.fragment_depth:
             return False
 
         self_gates = (
@@ -93,8 +110,8 @@ class InstructionSequence(BaseSequence[Instruction]):
     def is_mergeable_with(self, other: Self) -> bool:
         r"""Check if this instruction sequence is mergeable with another instruction sequence.
 
-        Two instruction sequences are mergeable if they have compatible depths and their fragments
-        are element-wise mergeable.
+        Two instruction sequences are mergeable if they have compatible fragment depths and their
+        fragments are element-wise mergeable.
 
         Args:
             other: The other :class:`.InstructionSequence`.
@@ -102,7 +119,7 @@ class InstructionSequence(BaseSequence[Instruction]):
         Returns:
             Whether this instance is mergeable with another.
         """
-        if self.depth != other.depth:
+        if self.fragment_depth != other.fragment_depth:
             return False
 
         return (
@@ -130,8 +147,8 @@ class InstructionSequence(BaseSequence[Instruction]):
         Raises:
             ValueError: If the sequences are not mergeable.
         """
-        if self.depth != other.depth:
-            raise ValueError("Cannot merge InstructionSequences with different depths.")
+        if self.fragment_depth != other.fragment_depth:
+            raise ValueError("Cannot merge InstructionSequences with different fragment depths.")
         if (self_len := len(self.start_fragment)) != (other_len := len(other.start_fragment)):
             raise ValueError(
                 f"Cannot merge InstructionSequences with start fragments of different "
@@ -156,5 +173,5 @@ class InstructionSequence(BaseSequence[Instruction]):
                 x.merge(y) for x, y in zip(self.repeatable_fragment, other.repeatable_fragment)
             ],
             end_fragment=[x.merge(y) for x, y in zip(self.end_fragment, other.end_fragment)],
-            depth=self.depth,
+            fragment_depth=self.fragment_depth,
         )

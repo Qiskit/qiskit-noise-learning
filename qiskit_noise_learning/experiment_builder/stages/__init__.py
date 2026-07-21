@@ -12,7 +12,7 @@
 
 """Experiment builder stages."""
 
-from .bind_sequence_depths import BindSequenceDepths
+from .bind_fragment_depths import BindFragmentDepths
 from .complete_sequences import CompleteSequences
 from .identify_relations import IdentifyRelations
 from .merge_sequences import MergeInstructionSequences

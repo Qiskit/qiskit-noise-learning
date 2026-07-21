@@ -42,7 +42,9 @@ def _make_non_box_instruction(num_qubits=2):
 
 @pytest.fixture()
 def options():
-    return LearningOptions(num_randomizations=4, shots_per_randomizations=16, depths=[0, 1, 2])
+    return LearningOptions(
+        num_randomizations=4, shots_per_randomizations=16, fragment_depths=[0, 1, 2]
+    )
 
 
 @pytest.fixture()

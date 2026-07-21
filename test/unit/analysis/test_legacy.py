@@ -68,7 +68,7 @@ def _make_averaged_data(pps: list, fidelities: np.ndarray) -> AveragedData:
     n = len(pps)
     return AveragedData.from_arrays(
         unbound_paths=pps,
-        depths=[-1] * n,
+        fragment_depths=[-1] * n,
         observables=fidelities,
         std=np.full(n, 0.001),
         time_lbs=np.empty(n, dtype="datetime64[us]"),

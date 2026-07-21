@@ -64,11 +64,13 @@ def predicted_path_decays(
     )
     path_map = LogPathMap(model.output_space) @ model
 
-    unbound = [path.without_depth() for path in paths]
-    depth_zero = [path.bind_at(0) for path in paths]
+    unbound = [path.unbind() for path in paths]
+    fragment_depth_zero = [path.bind_at(0) for path in paths]
     log_fidelities = path_map.projected_output(unbound, rates)
-    log_intercepts = path_map.projected_output(depth_zero, rates)
+    log_intercepts = path_map.projected_output(fragment_depth_zero, rates)
 
     bases = {path: float(np.exp(-log_fidelities[u])) for path, u in zip(paths, unbound)}
-    intercepts = {path: float(np.exp(-log_intercepts[z])) for path, z in zip(paths, depth_zero)}
+    intercepts = {
+        path: float(np.exp(-log_intercepts[z])) for path, z in zip(paths, fragment_depth_zero)
+    }
     return bases, intercepts

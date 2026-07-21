@@ -22,12 +22,12 @@ from qiskit_noise_learning.data.xarray_utils import time_bound
 
 
 class CurveFitObservables(AnalysisStage):
-    """Fit observable data to exponential decays of the form ``a * f**depth``, and average any
-    remaining observables over randomizations.
+    """Fit observable data to exponential decays of the form ``a * f**fragment_depth``, and average
+    any remaining observables over randomizations.
 
     This stage will curve fit data for any unbound paths in ``fit.paths``. If ``fit.paths is None``,
-    any path in the data with multiple depths will be curve fit. In both cases, any remaining paths
-    will be averaged.
+    any path in the data with multiple fragment depths will be curve fit. In both cases, any
+    remaining paths will be averaged.
     """
 
     @property
@@ -56,35 +56,35 @@ class CurveFitObservables(AnalysisStage):
         decay_time_lbs_out = []
         decay_time_ubs_out = []
 
-        # for accumulating single-depth paths
-        single_depth_paths = set()
+        # for accumulating single-fragment-depth paths
+        single_fragment_depth_paths = set()
 
         for path in unique_unbound_paths:
             path_mask = dataset["unbound_path"].data == path
             path_dataset = dataset.sel({"observable": path_mask})
 
-            unique_depths = sorted(set(path_dataset["depth"].data))
+            unique_fragment_depths = sorted(set(path_dataset["fragment_depth"].data))
 
             if curve_fit_paths:
                 if path not in curve_fit_paths:
-                    single_depth_paths.add(path)
+                    single_fragment_depth_paths.add(path)
                     continue
-                if len(unique_depths) <= 1:
+                if len(unique_fragment_depths) <= 1:
                     raise ValueError(
-                        f"Cannot curve-fit path with data at {len(unique_depths)} depth(s). "
-                        "At least 2 depths are required."
+                        f"Cannot curve-fit path with data at {len(unique_fragment_depths)} "
+                        "fragment depth(s). At least 2 fragment depths are required."
                     )
-            elif len(unique_depths) <= 1:
-                single_depth_paths.add(path)
+            elif len(unique_fragment_depths) <= 1:
+                single_fragment_depth_paths.add(path)
                 continue
 
-            depths_list = []
+            fragment_depths_list = []
             means_list = []
             stds_list = []
 
-            for depth in unique_depths:
-                depth_mask = path_dataset["depth"].data == depth
-                values = path_dataset["observables"].data[depth_mask].flatten()
+            for fragment_depth in unique_fragment_depths:
+                fragment_depth_mask = path_dataset["fragment_depth"].data == fragment_depth
+                values = path_dataset["observables"].data[fragment_depth_mask].flatten()
                 values = values[~np.isnan(values)]
 
                 mean = float(np.mean(values))
@@ -94,15 +94,15 @@ class CurveFitObservables(AnalysisStage):
                 else:
                     std = np.std(values, ddof=1) / np.sqrt(values.size)
 
-                depths_list.append(depth)
+                fragment_depths_list.append(fragment_depth)
                 means_list.append(mean)
                 stds_list.append(std)
 
-            depths_arr = np.array(depths_list, dtype=float)
+            fragment_depths_arr = np.array(fragment_depths_list, dtype=float)
             means_arr = np.array(means_list, dtype=float)
             stds_arr = np.array(stds_list, dtype=float)
 
-            a, f, a_std, f_std, chisq = fit_exponential(depths_arr, means_arr, stds_arr)
+            a, f, a_std, f_std, chisq = fit_exponential(fragment_depths_arr, means_arr, stds_arr)
 
             decay_paths.append(path)
             spam_fidelities.append(a)
@@ -116,7 +116,7 @@ class CurveFitObservables(AnalysisStage):
 
         decay_data = AveragedData.from_arrays(
             unbound_paths=decay_paths,
-            depths=np.array([-1] * len(decay_paths), dtype=int),
+            fragment_depths=np.array([-1] * len(decay_paths), dtype=int),
             observables=np.array(decay_fidelities),
             std=np.array(decay_fidelity_stds),
             time_lbs=np.array(decay_time_lbs_out, dtype="datetime64[us]"),
@@ -129,31 +129,37 @@ class CurveFitObservables(AnalysisStage):
             ],
         )
 
-        single_depth_data = average_observables(
-            observable_data=observable_data, unique_unbound_paths=single_depth_paths
+        single_fragment_depth_data = average_observables(
+            observable_data=observable_data, unique_unbound_paths=single_fragment_depth_paths
         )
 
-        fit[AveragedData] = decay_data.merge(single_depth_data)
+        fit[AveragedData] = decay_data.merge(single_fragment_depth_data)
 
 
 def fit_exponential(
-    depths: np.ndarray, y_data: np.ndarray, y_err: np.ndarray
+    fragment_depths: np.ndarray, y_data: np.ndarray, y_err: np.ndarray
 ) -> tuple[float, float, float, float, float]:
-    """Fit ``y = a * f**depth`` and return ``(a, f, a_std, f_std, chi_sq)``.
+    """Fit ``y = a * f**fragment_depth`` and return ``(a, f, a_std, f_std, chi_sq)``.
 
     Falls back to fitting without uncertainty weights if ``curve_fit`` fails.
     """
 
-    def _decay_fn(depth, a, f):
-        return a * (f**depth)
+    def _decay_fn(fragment_depth, a, f):
+        return a * (f**fragment_depth)
 
     # Initial parameter guesses
-    min_depth = depths.min()
-    mask = (y_data > 0) & (depths > 0)
+    min_fragment_depth = fragment_depths.min()
+    mask = (y_data > 0) & (fragment_depths > 0)
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", r"All-NaN (slice|axis) encountered")
-        spam_guess = np.median(y_data[depths == min_depth]) if (depths == min_depth).any() else 0.9
-        decay_guess = np.nanmedian(y_data[mask] ** (1.0 / depths[mask])) if mask.any() else 0.9
+        spam_guess = (
+            np.median(y_data[fragment_depths == min_fragment_depth])
+            if (fragment_depths == min_fragment_depth).any()
+            else 0.9
+        )
+        decay_guess = (
+            np.nanmedian(y_data[mask] ** (1.0 / fragment_depths[mask])) if mask.any() else 0.9
+        )
     spam_guess = float(np.nan_to_num(spam_guess, nan=0.9))
     decay_guess = float(np.nan_to_num(decay_guess, nan=0.9))
     spam_guess = float(np.clip(spam_guess, 1e-10, 1 - 1e-10))
@@ -169,7 +175,7 @@ def fit_exponential(
     def _run_curve_fit(sigma):
         return opt.curve_fit(
             f=_decay_fn,
-            xdata=depths,
+            xdata=fragment_depths,
             ydata=y_data,
             p0=p0,
             bounds=(0, 1),
@@ -189,7 +195,7 @@ def fit_exponential(
         clipped_err = None
 
     perr = np.sqrt(np.diag(pcov))
-    residuals = y_data - _decay_fn(depths, *popt)
+    residuals = y_data - _decay_fn(fragment_depths, *popt)
     if clipped_err is None:
         chi_sq = float("nan")
     else:

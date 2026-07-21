@@ -26,8 +26,8 @@ class LearningOptions(BaseModel):
     shots_per_randomizations: int = Field(128, ge=1)
     """The number of shots to use per randomization."""
 
-    depths: list[int] = Field([0, 1, 2, 4, 16, 32])
-    """The circuit depths to use."""
+    fragment_depths: list[int] = Field([0, 1, 2, 4, 16, 32])
+    """The fragment depths to use (number of repetitions of each path's repeatable fragment)."""
 
     k_locality: int = Field(2, ge=0)
     """The locality of the terms to include in the noise model."""
@@ -46,7 +46,7 @@ class LearningOptions(BaseModel):
     finally uses non-negative least squares to solve for model parameters.
     """
 
-    @field_validator("depths", mode="after")
+    @field_validator("fragment_depths", mode="after")
     @classmethod
     def _nonnegative_list(cls, value: list[int], info: ValidationInfo) -> list[int]:
         if any(i < 0 for i in value):

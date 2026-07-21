@@ -37,7 +37,7 @@ class _StructureKey:
 
     def __hash__(self):
         # this hash has a lot of collisions. if it becomes a bottleneck, implement one with fewer
-        return hash(self.sequence.depth)
+        return hash(self.sequence.fragment_depth)
 
 
 class CircuitGenerator(abc.ABC, Generic[TaskT, DataMapperT, ResultT]):

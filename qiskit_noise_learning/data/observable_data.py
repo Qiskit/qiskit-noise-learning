@@ -27,17 +27,17 @@ class ObservableData(LeveledData):
     This class is a wrapper around an XArray ``Dataset``, containing the following data:
     - Data variables:
         - ``observables``: Observables computed from single :class:`InstructionSequence`
-        and :class:`Path` pairs at a given depth, separated by randomizations. Has dimensions
-        ``("observable", "randomization")``. ``np.nan`` values are assumed to be due to raggedness
-        of the ``"randomization"`` dimension for different observables.
+          and :class:`Path` pairs at a given fragment depth, separated by randomizations. Has
+          dimensions ``("observable", "randomization")``. ``np.nan`` values are assumed to be due to
+          raggedness of the ``"randomization"`` dimension for different observables.
         - ``time_lbs``: Lower bound on data acquisition times, with dimensions
           ``("observable", "randomization")``, and of type ``"datetime64[us]"``.
         - ``time_ubs``: Upper bound on data acquisition times, with dimensions
           ``("randomization", "randomization")``, and of type ``"datetime64[us]"``.
     - Coordinates:
-        - ``unbound_path``: The unbound path (with ``depth=None``) for each observable, along
-            dimension ``("observable",)``, of type :class:`Path`.
-        - ``depth``: Integer array of depths along dimension ``("observable",)``.
+        - ``unbound_path``: The unbound path (with ``fragment_depth=None``) for each observable,
+            along dimension ``("observable",)``, of type :class:`Path`.
+        - ``fragment_depth``: Integer array of fragment depths along dimension ``("observable",)``.
 
     Args:
         dataset: A dataset with the above formatting.
@@ -54,7 +54,7 @@ class ObservableData(LeveledData):
     def from_arrays(
         cls,
         unbound_paths: list[Path],
-        depths: np.ndarray[int],
+        fragment_depths: np.ndarray[int],
         observables: np.ndarray[np.float64],
         time_lbs: np.ndarray[np.datetime64],
         time_ubs: np.ndarray[np.datetime64],
@@ -63,7 +63,7 @@ class ObservableData(LeveledData):
 
         Args:
             unbound_paths: The unbound paths corresponding to the observables.
-            depths: The depths for each observable.
+            fragment_depths: The fragment depths for each observable.
             observables: A 2d numpy array of ``floats`` with axes
                 ``("observable", "randomization")``.
             time_lbs: A lower bound on the data collection time for each observable and
@@ -80,7 +80,7 @@ class ObservableData(LeveledData):
             },
             coords={
                 "unbound_path": (("observable",), np.array(unbound_paths, dtype=object)),
-                "depth": (("observable",), depths),
+                "fragment_depth": (("observable",), fragment_depths),
             },
         )
 

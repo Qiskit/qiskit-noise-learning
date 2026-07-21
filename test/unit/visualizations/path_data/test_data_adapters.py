@@ -42,7 +42,7 @@ def test_exponential_fit_curves_intercept_defaults_to_one(make_cz_path, make_ave
 
 def test_exponential_fit_curves_ignores_point_rows(make_cz_path, make_averaged_data):
     p = make_cz_path("XI")
-    # A depth>=0 point row is not an exponential-fit (depth == -1) entry.
+    # A fragment_depth>=0 point row is not an exponential-fit (fragment_depth == -1) entry.
     averaged = make_averaged_data([(p, 0, 0.9), (p, -1, 0.8)])
     bases, _ = exponential_fit_curves(averaged)
     assert list(bases) == [p]
@@ -66,7 +66,7 @@ def test_averaged_data_points_extracts_point_rows_with_stds(make_cz_path, make_a
     averaged = make_averaged_data([(p, -1, 0.8), (p, 0, 0.9, 0.01), (p, 2, 0.7, 0.02)])
     points = averaged_data_points(averaged)
     series = points[p]
-    # Only the two depth>=0 rows, not the depth == -1 base row.
+    # Only the two fragment_depth>=0 rows, not the fragment_depth == -1 base row.
     assert sorted(series.xs) == [0.0, 2.0]
     assert series.stds is not None
     assert set(np.round(series.stds, 3)) == {0.01, 0.02}
@@ -82,7 +82,7 @@ def test_observable_data_points_flattens_randomizations(make_cz_path, make_obser
     obs = make_observable_data([(p, 1.0, 0.9, [0, 1, 2])], n_rand=5)
     points = observable_data_points(obs)
     series = points[p]
-    # 3 depths x 5 randomizations, all retained (no nan padding here).
+    # 3 fragment_depths x 5 randomizations, all retained (no nan padding here).
     assert series.xs.size == 15
     assert series.stds is None
 

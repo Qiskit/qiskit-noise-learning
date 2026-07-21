@@ -19,7 +19,7 @@ from qiskit_noise_learning.sequences import Path
 
 
 class AverageObservables(AnalysisStage):
-    """Average observables over randomizations for each unbound path and depth pair."""
+    """Average observables over randomizations for each unbound path and fragment depth pair."""
 
     @property
     def input_level(self):
@@ -49,7 +49,7 @@ def average_observables(
         unique_unbound_paths = set(dataset["unbound_path"].data)
 
     obs_unbound_paths = []
-    obs_depths = []
+    obs_fragment_depths = []
     obs_means = []
     obs_stds = []
     obs_time_lbs = []
@@ -59,13 +59,13 @@ def average_observables(
         path_mask = dataset["unbound_path"].data == unbound_path
         path_dataset = dataset.sel({"observable": path_mask})
 
-        for depth in sorted(set(path_dataset["depth"].data)):
-            depth_mask = path_dataset["depth"].data == depth
-            values = path_dataset["observables"].data[depth_mask].flatten()
+        for fragment_depth in sorted(set(path_dataset["fragment_depth"].data)):
+            fragment_depth_mask = path_dataset["fragment_depth"].data == fragment_depth
+            values = path_dataset["observables"].data[fragment_depth_mask].flatten()
             values = values[~np.isnan(values)]
 
             obs_unbound_paths.append(unbound_path)
-            obs_depths.append(depth)
+            obs_fragment_depths.append(fragment_depth)
             obs_means.append(float(np.nanmean(values)))
             if values.size <= 1:
                 p = (obs_means[-1] + 1) / 2
@@ -73,12 +73,16 @@ def average_observables(
             else:
                 obs_stds.append(float(np.std(values, ddof=1) / np.sqrt(values.size)))
 
-            obs_time_lbs.append(time_bound(path_dataset["time_lbs"].data[depth_mask], "min"))
-            obs_time_ubs.append(time_bound(path_dataset["time_ubs"].data[depth_mask], "max"))
+            obs_time_lbs.append(
+                time_bound(path_dataset["time_lbs"].data[fragment_depth_mask], "min")
+            )
+            obs_time_ubs.append(
+                time_bound(path_dataset["time_ubs"].data[fragment_depth_mask], "max")
+            )
 
     return AveragedData.from_arrays(
         unbound_paths=np.array(obs_unbound_paths, dtype=object),
-        depths=np.array(obs_depths, dtype=int),
+        fragment_depths=np.array(obs_fragment_depths, dtype=int),
         observables=np.array(obs_means, dtype=float),
         std=np.array(obs_stds, dtype=float),
         time_lbs=np.array(obs_time_lbs, dtype="datetime64[us]"),

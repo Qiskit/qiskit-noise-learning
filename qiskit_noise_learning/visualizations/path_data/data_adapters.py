@@ -27,7 +27,7 @@ def exponential_fit_curves(
 ) -> tuple[dict[Path, float], dict[Path, float]]:
     """Extract exponential-fit decay parameters from averaged data.
 
-    Extracts the ``base`` and ``intercept`` for entries with ``depth == -1``, for use in
+    Extracts the ``base`` and ``intercept`` for entries with ``fragment_depth == -1``, for use in
     :func:`plot_path_decay_curves`. The ``intercept`` is drawn from ``metadata["spam_fidelity"]``,
     and defaults to ``1.0`` if absent.
 
@@ -40,7 +40,7 @@ def exponential_fit_curves(
     """
     dataset = averaged_data.dataset
     wanted = set(paths) if paths is not None else None
-    mask = dataset["depth"].data == -1
+    mask = dataset["fragment_depth"].data == -1
     entry_paths = dataset["unbound_path"].data[mask]
     observables = dataset["observables"].data[mask]
     metadata = dataset["metadata"].data[mask]
@@ -71,9 +71,9 @@ def averaged_data_points(
     """
     dataset = averaged_data.dataset
     wanted = set(paths) if paths is not None else None
-    mask = dataset["depth"].data >= 0
+    mask = dataset["fragment_depth"].data >= 0
     entry_paths = dataset["unbound_path"].data[mask]
-    depths = dataset["depth"].data[mask]
+    fragment_depths = dataset["fragment_depth"].data[mask]
     observables = dataset["observables"].data[mask]
     stds = dataset["std"].data[mask]
 
@@ -87,7 +87,7 @@ def averaged_data_points(
     for path, rows in rows_by_path.items():
         rows = np.asarray(rows)
         result[path] = PointSeries(
-            xs=depths[rows].astype(float),
+            xs=fragment_depths[rows].astype(float),
             ys=observables[rows].astype(float),
             stds=stds[rows].astype(float),
         )
@@ -114,7 +114,7 @@ def observable_data_points(
     dataset = observable_data.dataset
     wanted = set(paths) if paths is not None else None
     entry_paths = dataset["unbound_path"].data
-    depths = dataset["depth"].data
+    fragment_depths = dataset["fragment_depth"].data
     observables = dataset["observables"].data
 
     rows_by_path: dict[Path, list[int]] = {}
@@ -125,15 +125,15 @@ def observable_data_points(
 
     result: dict[Path, PointSeries] = {}
     for path, rows in rows_by_path.items():
-        flat_depths: list[float] = []
+        flat_fragment_depths: list[float] = []
         flat_values: list[float] = []
         for row in rows:
             valid = observables[row][~np.isnan(observables[row])]
-            flat_depths.extend([float(depths[row])] * valid.size)
+            flat_fragment_depths.extend([float(fragment_depths[row])] * valid.size)
             flat_values.extend(float(value) for value in valid)
 
         result[path] = PointSeries(
-            xs=np.array(flat_depths, dtype=float),
+            xs=np.array(flat_fragment_depths, dtype=float),
             ys=np.array(flat_values, dtype=float),
         )
 

@@ -121,7 +121,7 @@ def test_generate_samplex_item(gateset):
         [ApplyGate("P")],
         [ApplyGate("L0"), ApplyGate("L1")],
         [ApplyGate("M")],
-        depth=5,
+        fragment_depth=5,
     )
     samplex_item, creg_names, measurement_map = circuit_generator.generate_samplex_item(
         [seq0], num_randomizations=50
@@ -145,14 +145,14 @@ def test_generate_samplex_item(gateset):
         [ApplyGate("P")],
         [ApplyGate("L0"), ApplyGate("L1")],
         [perm, ApplyGate("M")],
-        depth=5,
+        fragment_depth=5,
     )
 
     seq2 = InstructionSequence(
         [ApplyGate("P"), perm],
         [ApplyGate("L0"), perm, ApplyGate("L1"), perm],
         [ApplyGate("M")],
-        depth=5,
+        fragment_depth=5,
     )
 
     other_samplex_item, other_creg_names, other_meas_map = circuit_generator.generate_samplex_item(
@@ -194,7 +194,7 @@ def test_generate_samplex_item_permutation_composition(gateset):
         [ApplyGate("P"), perm0],
         [ApplyGate("L0"), perm0, ApplyGate("L1"), perm0],
         [ApplyGate("M")],
-        depth=5,
+        fragment_depth=5,
     )
 
     array = np.empty((gateset.num_qubits,), dtype=np.uint8)
@@ -204,7 +204,7 @@ def test_generate_samplex_item_permutation_composition(gateset):
         [ApplyGate("P"), perm1, perm0],
         [ApplyGate("L0"), perm0, ApplyGate("L1"), perm0],
         [ApplyGate("M")],
-        depth=5,
+        fragment_depth=5,
     )
 
     samplex_item0, creg_names0, meas_map0 = circuit_generator.generate_samplex_item(
@@ -231,7 +231,7 @@ def test_generate_samplex_item_permutation_composition(gateset):
         [ApplyGate("P"), perm0.compose(perm1)],
         [ApplyGate("L0"), perm0, ApplyGate("L1"), perm0],
         [ApplyGate("M")],
-        depth=5,
+        fragment_depth=5,
     )
     samplex_item2, creg_names2, meas_map2 = circuit_generator.generate_samplex_item(
         [seq2], num_randomizations=50
@@ -254,7 +254,7 @@ def test_generate_samplex_item_permutation_composition(gateset):
         [ApplyGate("P"), perm1.compose(perm0)],
         [ApplyGate("L0"), perm0, ApplyGate("L1"), perm0],
         [ApplyGate("M")],
-        depth=5,
+        fragment_depth=5,
     )
     samplex_item3, creg_names3, meas_map3 = circuit_generator.generate_samplex_item(
         [seq3], num_randomizations=50
@@ -273,7 +273,9 @@ def test_generate_samplex_item_permutation_composition(gateset):
     )
 
     # no repeatable fragment
-    seq4 = InstructionSequence([ApplyGate("P"), perm0], [], [perm1, ApplyGate("M")], depth=5)
+    seq4 = InstructionSequence(
+        [ApplyGate("P"), perm0], [], [perm1, ApplyGate("M")], fragment_depth=5
+    )
     samplex_item4, creg_names4, meas_map4 = circuit_generator.generate_samplex_item(
         [seq4], num_randomizations=50
     )
@@ -282,7 +284,7 @@ def test_generate_samplex_item_permutation_composition(gateset):
         [ApplyGate("P")],
         [],
         [perm1.compose(perm0), ApplyGate("M")],
-        depth=5,
+        fragment_depth=5,
     )
     samplex_item5, creg_names5, meas_map5 = circuit_generator.generate_samplex_item(
         [seq5], num_randomizations=50
@@ -330,7 +332,7 @@ def test_generate_samplex_item_raises():
         circuit_generator.generate_samplex_item([seq1, seq2], num_randomizations=50)
 
     perm = PartialPauliPermutation.from_sets([{("X", "Y")}])
-    seq3 = InstructionSequence([ApplyGate("P")], [perm], [ApplyGate("M")], depth=1)
+    seq3 = InstructionSequence([ApplyGate("P")], [perm], [ApplyGate("M")], fragment_depth=1)
 
     with pytest.raises(ValueError, match="incomplete Pauli"):
         circuit_generator.generate_samplex_item([seq3], num_randomizations=50)
@@ -379,7 +381,7 @@ def test_generate_samplex_items(gateset):
         [ApplyGate("P")],
         [ApplyGate("L1"), ApplyGate("L0")],
         [ApplyGate("M")],
-        depth=1,
+        fragment_depth=1,
     )
     sequences.append(seq2)
     samplex_items, data_mapper = circuit_generator.generate_samplex_items(
@@ -405,7 +407,7 @@ def test_generate_samplex_items_different_decomposition_mode():
         [ApplyGate("P")],
         [ApplyGate("my_gate")],
         [ApplyGate("M")],
-        depth=5,
+        fragment_depth=5,
     )
     samplex_items, _ = ExecutorCircuitGenerator(gateset).generate_samplex_items(
         [seq], num_randomizations=10
@@ -438,7 +440,7 @@ def test_collect_single_sequence_no_measurement_flips():
         item_sequence_indices=[[0]],
         creg_names=[["meas0"]],
         measurement_maps=[{"meas0": np.array([0, 1, 2])}],
-        instruction_sequences=[InstructionSequence([], [], [], depth=0)],
+        instruction_sequences=[InstructionSequence([], [], [], fragment_depth=0)],
         num_randomizations=1,
     )
 
@@ -448,7 +450,7 @@ def test_collect_single_sequence_no_measurement_flips():
     np.testing.assert_array_equal(
         dataset["unbound_instruction_sequence"].data, [InstructionSequence([], [], [])]
     )
-    np.testing.assert_array_equal(dataset["depth"].data, [0])
+    np.testing.assert_array_equal(dataset["fragment_depth"].data, [0])
     np.testing.assert_array_equal(dataset["data"].data, creg_data.reshape(1, 1, 3))
     np.testing.assert_array_equal(dataset["measurement_flips"].data, np.array([[False] * 3]))
     assert dataset.dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 3)}
@@ -463,7 +465,7 @@ def test_collect_single_sequence_with_measurement_flips():
         item_sequence_indices=[[0]],
         creg_names=[["meas0"]],
         measurement_maps=[{"meas0": np.array([0, 1, 2])}],
-        instruction_sequences=[InstructionSequence([], [], [], depth=0)],
+        instruction_sequences=[InstructionSequence([], [], [], fragment_depth=0)],
         num_randomizations=1,
     )
 
@@ -471,7 +473,7 @@ def test_collect_single_sequence_with_measurement_flips():
     dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(dataset["data"].values, creg_data.reshape(1, 1, 3))
     np.testing.assert_array_equal(dataset["measurement_flips"].values, flip_data.reshape(1, 3))
-    assert dataset["depth"].values == [0]
+    assert dataset["fragment_depth"].values == [0]
     assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 3)}
 
 
@@ -484,8 +486,8 @@ def test_collect_multiple_sequences_same_item():
         creg_names=[["meas0"]],
         measurement_maps=[{"meas0": np.array([0, 1])}],
         instruction_sequences=[
-            InstructionSequence([], [], [], depth=0),
-            InstructionSequence([], [], [], depth=1),
+            InstructionSequence([], [], [], fragment_depth=0),
+            InstructionSequence([], [], [], fragment_depth=1),
         ],
         num_randomizations=1,
     )
@@ -495,7 +497,7 @@ def test_collect_multiple_sequences_same_item():
     np.testing.assert_array_equal(
         dataset["unbound_instruction_sequence"].data, [InstructionSequence([], [], [])] * 2
     )
-    np.testing.assert_array_equal(dataset["depth"].data, [0, 1])
+    np.testing.assert_array_equal(dataset["fragment_depth"].data, [0, 1])
     np.testing.assert_array_equal(dataset["data"].values, creg_data.reshape(2, 1, 2))
     np.testing.assert_array_equal(dataset["measurement_flips"].data, np.array([[False] * 2] * 2))
     assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 2)}
@@ -517,8 +519,8 @@ def test_collect_multiple_sequences_different_items():
         creg_names=[["meas0"], ["meas0"]],
         measurement_maps=[{"meas0": np.array([0, 1])}, {"meas0": np.array([0, 1])}],
         instruction_sequences=[
-            InstructionSequence([], [], [], depth=0),
-            InstructionSequence([], [], [], depth=1),
+            InstructionSequence([], [], [], fragment_depth=0),
+            InstructionSequence([], [], [], fragment_depth=1),
         ],
         num_randomizations=1,
     )
@@ -528,7 +530,7 @@ def test_collect_multiple_sequences_different_items():
     np.testing.assert_array_equal(
         dataset["unbound_instruction_sequence"].data, [InstructionSequence([], [], [])] * 2
     )
-    np.testing.assert_array_equal(dataset["depth"].data, [0, 1])
+    np.testing.assert_array_equal(dataset["fragment_depth"].data, [0, 1])
     np.testing.assert_array_equal(
         dataset["data"].values, np.append(data0, data1, axis=0).reshape(2, 1, 2)
     )
@@ -556,7 +558,7 @@ def test_collect_multiple_cregs():
         item_sequence_indices=[[0]],
         creg_names=[["meas0", "meas1"]],
         measurement_maps=[{"meas0": np.array([0, 1]), "meas1": np.array([2, 3, 4])}],
-        instruction_sequences=[InstructionSequence([], [], [], depth=0)],
+        instruction_sequences=[InstructionSequence([], [], [], fragment_depth=0)],
         num_randomizations=1,
     )
 
@@ -566,7 +568,7 @@ def test_collect_multiple_cregs():
     np.testing.assert_array_equal(
         dataset["unbound_instruction_sequence"].data, [InstructionSequence([], [], [])]
     )
-    np.testing.assert_array_equal(dataset["depth"].data, [0])
+    np.testing.assert_array_equal(dataset["fragment_depth"].data, [0])
     np.testing.assert_array_equal(
         dataset["data"].values, np.append(creg0_data, creg1_data, axis=-1).reshape(1, 1, 5)
     )
@@ -607,7 +609,10 @@ def test_collect_complex_mapping():
             {"meas0": np.array([0, 1, 2])},
             {"meas0": np.array([0, 1, 2]), "meas1": np.array([3])},
         ],
-        instruction_sequences=[InstructionSequence([], [], [], depth=depth) for depth in range(4)],
+        instruction_sequences=[
+            InstructionSequence([], [], [], fragment_depth=fragment_depth)
+            for fragment_depth in range(4)
+        ],
         num_randomizations=1,
     )
 
@@ -619,7 +624,7 @@ def test_collect_complex_mapping():
     np.testing.assert_array_equal(
         dataset["unbound_instruction_sequence"].data, [InstructionSequence([], [], [])] * 2
     )
-    np.testing.assert_array_equal(dataset["depth"].data, [0, 2])
+    np.testing.assert_array_equal(dataset["fragment_depth"].data, [0, 2])
     np.testing.assert_array_equal(dataset["data"].values, result[0]["meas0"].reshape(2, 1, 2))
     np.testing.assert_array_equal(
         dataset["measurement_flips"].values, result[0]["measurement_flips.meas0"].reshape(2, 2)
@@ -631,7 +636,7 @@ def test_collect_complex_mapping():
     np.testing.assert_array_equal(
         dataset["unbound_instruction_sequence"].data, [InstructionSequence([], [], [])]
     )
-    np.testing.assert_array_equal(dataset["depth"].data, [1])
+    np.testing.assert_array_equal(dataset["fragment_depth"].data, [1])
     np.testing.assert_array_equal(dataset["data"].values, result[1]["meas0"].reshape(1, 1, 3))
     np.testing.assert_array_equal(
         dataset["measurement_flips"].values, np.array([[False, False, False]])
@@ -643,7 +648,7 @@ def test_collect_complex_mapping():
     np.testing.assert_array_equal(
         dataset["unbound_instruction_sequence"].data, [InstructionSequence([], [], [])]
     )
-    np.testing.assert_array_equal(dataset["depth"].data, [3])
+    np.testing.assert_array_equal(dataset["fragment_depth"].data, [3])
     np.testing.assert_array_equal(
         dataset["data"].values,
         np.append(result[2]["meas0"], result[2]["meas1"], axis=-1).reshape(1, 1, 4),
@@ -676,7 +681,7 @@ def test_generate_and_collect_with_pass_manager():
         [ApplyGate("P")],
         [ApplyGate("L0")],
         [ApplyGate("M")],
-        depth=1,
+        fragment_depth=1,
     )
 
     num_randomizations = 2
@@ -740,7 +745,7 @@ def test_generate_with_pass_manager_multi_qubit_creg():
         [ApplyGate("P")],
         [ApplyGate("L0")],
         [ApplyGate("M")],
-        depth=1,
+        fragment_depth=1,
     )
 
     num_randomizations = 2

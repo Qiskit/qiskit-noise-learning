@@ -29,8 +29,18 @@ class Path(BaseSequence[FidelityIndex]):
         start_fragment: The start of the sequence.
         repeatable_fragment: The repeatable middle of the sequence.
         end_fragment: The end of the sequence.
-        depth: The number of repetitions of the repeatable fragment.
+        fragment_depth: The number of repetitions of the repeatable fragment.
     """
+
+    @property
+    def gate_depth(self) -> int | None:
+        """The gate depth: total gate applications minus 2.
+
+        Returns ``None`` when the path is unbound.
+        """
+        if self.is_unbound:
+            return None
+        return len(self) - 2
 
     @property
     def start_fragment_observable_indices(self) -> list[list[int]]:
@@ -74,7 +84,7 @@ class Path(BaseSequence[FidelityIndex]):
         Raises:
             ValueError: If the transitions of ``self`` do not start and end with the identity.
         """
-        if not self.is_unbound and self.depth != instruction_sequence.depth:
+        if not self.is_unbound and self.fragment_depth != instruction_sequence.fragment_depth:
             return None
 
         ident = self._validate_starts_and_ends_with_identity()
@@ -121,7 +131,7 @@ class Path(BaseSequence[FidelityIndex]):
             start_fragment=new_start_fragment,
             repeatable_fragment=new_repeatable_fragment,
             end_fragment=new_end_fragment,
-            depth=instruction_sequence.depth,
+            fragment_depth=instruction_sequence.fragment_depth,
         )
 
     def is_traversed_by(self, instruction_sequence: InstructionSequence) -> bool:
@@ -141,7 +151,7 @@ class Path(BaseSequence[FidelityIndex]):
         Raises:
             ValueError: If the path does not start and end at the identity.
         """
-        if not self.is_unbound and self.depth != instruction_sequence.depth:
+        if not self.is_unbound and self.fragment_depth != instruction_sequence.fragment_depth:
             return False
 
         current_pauli = self._validate_starts_and_ends_with_identity()
@@ -186,8 +196,8 @@ class Path(BaseSequence[FidelityIndex]):
     def fragment_sign_flips(self, instruction_sequence: InstructionSequence) -> tuple[bool, bool]:
         """Whether the instruction sequence fragments flip the observable sign when traversing self.
 
-        Requires the path starts and ends at the identity. This method ignores the depths of the
-        path and instruction sequence, operating only on the fragment structure.
+        Requires the path starts and ends at the identity. This method ignores the fragment depths
+        of the path and instruction sequence, operating only on the fragment structure.
 
         Args:
             instruction_sequence: An instruction sequence that traverses this path.
@@ -274,7 +284,8 @@ class Path(BaseSequence[FidelityIndex]):
 
         The single-qubit Clifford layers between gate set elements are given as
         :class:`.PartialPauliPermutation`\s specifying only the mappings required to traverse
-        this path. The depth of the returned instruction sequence is ``self.depth``.
+        this path. The fragment depth of the returned instruction sequence is
+        ``self.fragment_depth``.
 
         Returns:
             An instruction sequence traversing this path.
@@ -342,7 +353,7 @@ class Path(BaseSequence[FidelityIndex]):
             start_fragment=start_fragment,
             repeatable_fragment=repeatable_fragment,
             end_fragment=end_fragment,
-            depth=self.depth,
+            fragment_depth=self.fragment_depth,
         )
 
     def _validate_starts_and_ends_with_identity(self) -> QubitSparsePauli:
@@ -382,7 +393,7 @@ class Path(BaseSequence[FidelityIndex]):
                     tuple(self.start_fragment),
                     tuple(self.repeatable_fragment),
                     tuple(self.end_fragment),
-                    self.depth,
+                    self.fragment_depth,
                 )
             )
         return self._hash

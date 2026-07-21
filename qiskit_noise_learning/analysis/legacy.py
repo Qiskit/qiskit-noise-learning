@@ -68,8 +68,8 @@ class LegacySolve(AnalysisStage):
         x = np.array(noise_map.rates)
         cov_x = np.zeros(shape=(len(x), len(x)))
         metadata = {}
-        # Filter to decay data (depth == -1)
-        decay_mask = averaged_data.dataset["depth"].data == -1
+        # Filter to decay data (fragment_depth == -1)
+        decay_mask = averaged_data.dataset["fragment_depth"].data == -1
         decay_dataset = averaged_data.dataset.sel({"observable": decay_mask})
 
         time_lb = time_bound(decay_dataset["time_lbs"].data, "min")

@@ -107,7 +107,7 @@ def plot_path_scatters(
 def plot_path_decay_curves(
     bases: Mapping[Path, float],
     intercepts: Mapping[Path, float],
-    depths: Sequence[float] | np.ndarray,
+    fragment_depths: Sequence[float] | np.ndarray,
     *,
     fig: "go.Figure | None" = None,
     colors: Mapping[Path, str] | None = None,
@@ -117,13 +117,13 @@ def plot_path_decay_curves(
     row: int | None = None,
     col: int | None = None,
 ) -> "go.Figure":
-    """Plot smooth exponential decay curves ``intercept * base**depth`` for each path.
+    """Plot smooth exponential decay curves ``intercept * base**fragment_depth`` for each path.
 
     Args:
         bases: A mapping from path to its per-repetition decay base (fidelity).
-        intercepts: A mapping from path to its ``depth=0`` intercept (the SPAM prefactor). Must
-            contain every path in ``bases``.
-        depths: The depth values (x) at which to evaluate the curve.
+        intercepts: A mapping from path to its ``fragment_depth=0`` intercept (the SPAM prefactor).
+            Must contain every path in ``bases``.
+        fragment_depths: The fragment-depth values (x) at which to evaluate the curve.
         fig: An existing figure to add traces to. If ``None``, a new figure is created.
         colors: An optional mapping from path to a plotly color string for its line.
         labels: An optional mapping from path to a legend label (the trace ``name``). Paths without
@@ -145,15 +145,15 @@ def plot_path_decay_curves(
         fig = go.Figure()
 
     line_extra = line_kwargs or {}
-    depths_arr = np.asarray(depths, dtype=float)
+    fragment_depths_arr = np.asarray(fragment_depths, dtype=float)
     for path, base in bases.items():
         label = labels.get(path) if labels else None
         group = groups.get(path) if groups else label
         color = colors.get(path) if colors else None
-        y = intercepts[path] * base**depths_arr
+        y = intercepts[path] * base**fragment_depths_arr
         fig.add_trace(
             go.Scatter(
-                x=depths_arr,
+                x=fragment_depths_arr,
                 y=y,
                 mode="lines",
                 name=label,
@@ -168,15 +168,18 @@ def plot_path_decay_curves(
     return fig
 
 
-def _default_depths(*point_dicts: Mapping[Path, PointSeries], num: int = 100) -> np.ndarray:
-    """A dense depth range from ``0`` to the largest depth across the given point mappings."""
-    max_depth = 0.0
+def _default_fragment_depths(
+    *point_dicts: Mapping[Path, PointSeries], num: int = 100
+) -> np.ndarray:
+    """A dense fragment-depth range from ``0`` to the largest fragment depth across the given point
+    mappings."""
+    max_fragment_depth = 0.0
     found = False
     for points in point_dicts:
         for series in points.values():
             if series.xs.size:
-                max_depth = max(max_depth, float(np.max(series.xs)))
+                max_fragment_depth = max(max_fragment_depth, float(np.max(series.xs)))
                 found = True
     if not found:
-        max_depth = 10.0
-    return np.linspace(0.0, max_depth, num)
+        max_fragment_depth = 10.0
+    return np.linspace(0.0, max_fragment_depth, num)

@@ -20,7 +20,7 @@ def test_from_arrays(make_cz_path):
     p = make_cz_path("IX")
     obs = ObservableData.from_arrays(
         unbound_paths=[p],
-        depths=[3],
+        fragment_depths=[3],
         observables=np.array([[0.9, 0.85, 0.92]]),
         time_lbs=np.array([["2026-01-01", "2026-01-01", "2026-01-01"]], dtype="datetime64[us]"),
         time_ubs=np.array([["2026-01-02", "2026-01-02", "2026-01-02"]], dtype="datetime64[us]"),
@@ -28,7 +28,7 @@ def test_from_arrays(make_cz_path):
     ds = obs.dataset
     assert ds["observables"].shape == (1, 3)
     assert ds["unbound_path"].values[0] == p
-    assert ds["depth"].values[0] == 3
+    assert ds["fragment_depth"].values[0] == 3
 
 
 def test_filter_time(make_cz_path):
@@ -38,7 +38,7 @@ def test_filter_time(make_cz_path):
     t_ubs = np.array([["2026-01-02", "2026-01-04", "2026-01-06"]], dtype="datetime64[us]")
     obs = ObservableData.from_arrays(
         unbound_paths=[p],
-        depths=[1],
+        fragment_depths=[1],
         observables=np.array([[0.9, 0.8, 0.7]]),
         time_lbs=t_lbs,
         time_ubs=t_ubs,
