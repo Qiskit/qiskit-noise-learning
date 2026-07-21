@@ -105,10 +105,10 @@ class CurveFitObservables(AnalysisStage):
 
             a, f, a_std, f_std, chisq = fit_exponential(fragment_depths_arr, means_arr, stds_arr)
 
-            # Reduced chi-squared normalizes by the degrees of freedom (M depths minus the 2 fit
-            # parameters a, f). It is nan when the raw value is undefined or there are no degrees of
-            # freedom to normalize by.
-            dof = len(unique_depths) - 2
+            # Reduced chi-squared normalizes by the degrees of freedom (M fragment depths minus the
+            # 2 fit parameters a, f). It is nan when the raw value is undefined or there are no
+            # degrees of freedom to normalize by.
+            dof = len(unique_fragment_depths) - 2
             reduced_chisq = chisq / dof if dof > 0 else float("nan")
 
             decay_paths.append(path)
