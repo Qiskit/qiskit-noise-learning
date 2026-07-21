@@ -251,8 +251,7 @@ def compute_expectation_value(
 
 
 def observable_bit_mask(unbound_path: Path, fragment_depth: int) -> np.ndarray[bool]:
-    """Return the observable bit mask corresponding to the unbound path at the given fragment
-    depth."""
+    """Return the observable bit mask corresponding to the unbound path at the fragment depth."""
     mask_array = np.array([], dtype=bool)
 
     start_masks = [x.mask for x in unbound_path.start_fragment]

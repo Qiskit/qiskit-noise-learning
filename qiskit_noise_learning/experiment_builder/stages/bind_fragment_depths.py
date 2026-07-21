@@ -12,8 +12,6 @@
 
 """BindFragmentDepths stage."""
 
-from __future__ import annotations
-
 from ..experiment import Experiment
 from ..experiment_builder_stage import ExperimentBuilderStage
 
