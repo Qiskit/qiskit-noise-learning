@@ -11,7 +11,9 @@
 # that they have been altered from the originals.
 
 from abc import abstractmethod
-from collections.abc import Iterator
+from collections.abc import Callable, Hashable, Iterator, Mapping
+from dataclasses import dataclass
+from typing import Generic, TypeVar
 
 import numpy as np
 import scipy.optimize as opt
@@ -27,79 +29,39 @@ from qiskit_noise_learning.models import (
 from qiskit_noise_learning.optionals import HAS_CVXPY
 from qiskit_noise_learning.sequences import LogPathMap, Path
 
+RowIndex = TypeVar("RowIndex", bound=Hashable)
+ColumnIndex = TypeVar("ColumnIndex", bound=Hashable)
 
-class ModelSolve(AnalysisStage):
-    """Base class for model fitting routines.
 
-    Constructs the design matrix from the :class:`~.FidelityModel` stored on the :class:`~.Fit`
-    container and the paths in the :class:`~.AveragedData`. Then solves ``A @ x = b`` using a
-    specified method, where ``A`` is the design matrix and ``b`` is the vector of negative log
-    observables ``-log(o)``.
+@dataclass(frozen=True, eq=False)
+class LinearSystemData(Generic[RowIndex, ColumnIndex]):
+    """The linear system to solve and metadata in raw format.
 
-    If paths are specified on the :class:`~.Fit`, only data matching those paths is used. If no
-    paths are specified, all data in the :class:`~.AveragedData` is used.
+    A linear system ``A @ x = b`` with axis labels and metadata.
 
-    This stage assumes a single observable value for each unique :class:`Path`.
+    Args:
+        A: The matrix with shape ``(m, n)``.
+        b: The target vector length ``m``.
+        sigma_b: Statistical ``1``-sigma uncertainty on ``b`` per row, with length ``m``.
+        chi2_red: Reduced chi-squared for ``b``, with length ``m``. ``nan`` where underfined.
+        param_labels: Ordered parameter labels corresponding to columns of ``A``.
+        path_labels: Ordered path labels corresponding to rows of ``A``.
+        time_lb: Earliest time bound across the rows.
+        time_ub: Latest time bound across the rows.
     """
 
-    @property
-    def input_level(self):
-        return AveragedData
+    A: np.ndarray
+    b: np.ndarray
+    sigma_b: np.ndarray
+    chi2_red: np.ndarray
+    param_labels: list[ColumnIndex]
+    path_labels: list[RowIndex]
+    time_lb: np.datetime64
+    time_ub: np.datetime64
 
-    @property
-    def output_level(self):
-        return ModelData
-
-    @abstractmethod
-    def _solve(
-        self,
-        A: np.ndarray,
-        b: np.ndarray,
-        sigma_b: np.ndarray,
-        param_labels: list,
-        path_labels: list[Path],
-    ) -> tuple[np.ndarray, np.ndarray, dict]:
-        """Numerical method for solving the linear system.
-
-        Args:
-            A: The design matrix with shape ``(m, n)``.
-            b: The target vector with length ``m``.
-            sigma_b: Uncertainty on ``b`` with length ``m``.
-            param_labels: Ordered parameter labels corresponding to columns of ``A``.
-            path_labels: Ordered path labels corresponding to rows of ``A``.
-
-        Returns:
-            A tuple of ``(x, cov_x, metadata)``.
-        """
-
-    def _run(self, fit: Fit):
-        A, b, sigma_b, param_labels, path_labels, time_lb, time_ub = self._build_linear_system(fit)
-        x, cov_x, metadata = self._solve(A, b, sigma_b, param_labels, path_labels)
-
-        # add standard fields to metadata
-        residual_vec = A @ x - b
-        metadata["residual"] = np.linalg.norm(residual_vec)
-        metadata["path_residual"] = IndexedVector(
-            {path: val for path, val in zip(path_labels, np.abs(residual_vec))}
-        )
-
-        fit[ModelData] = ModelData.from_arrays(
-            parameter_indices=param_labels,
-            parameter_values=x,
-            covariance=cov_x,
-            time_lbs=np.full(len(x), time_lb, dtype="datetime64[us]"),
-            time_ubs=np.full(len(x), time_ub, dtype="datetime64[us]"),
-            metadata=metadata,
-        )
-
-    def _build_linear_system(
-        self, fit: Fit
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list, list[Path], np.datetime64, np.datetime64]:
-        """Build the linear system arrays from a :class:`~.Fit`.
-
-        Returns:
-            A tuple of ``(A, b, sigma_b, param_labels, path_labels, time_lb, time_ub)``.
-        """
+    @classmethod
+    def from_fit(cls, fit: "Fit") -> "LinearSystemData[Path, Hashable]":
+        """Build the linear system arrays from a :class:`~.Fit`."""
         dataset = fit[AveragedData].dataset
         fidelity_model = fit.model
 
@@ -146,6 +108,7 @@ class ModelSolve(AnalysisStage):
 
         fidelities = dataset["observables"].data[dataset_idxs]
         fidelity_stds = dataset["std"].data[dataset_idxs]
+        metadatas = dataset["metadata"].data[dataset_idxs]
         time_lbs_list = dataset["time_lbs"].data[dataset_idxs]
         time_ubs_list = dataset["time_ubs"].data[dataset_idxs]
 
@@ -154,16 +117,20 @@ class ModelSolve(AnalysisStage):
         path_model = LogPathMap(fidelity_model.output_space) @ fidelity_model
         design_matrix = path_model.rows(row_indices)
 
-        # Build b and sigma_b aligned with the design matrix's row order. add_rows may drop all-zero
-        # rows, so iterate row_index_map, the surviving rows.
-        fidelity_by_row = dict(zip(row_indices, zip(fidelities, fidelity_stds)))
+        # Build b, sigma_b and chi2_red aligned with the design matrix's row order. add_rows may
+        # drop all-zero rows, so iterate row_index_map, the surviving rows.
+        row_data = dict(zip(row_indices, zip(fidelities, fidelity_stds, metadatas)))
         n_rows = len(design_matrix.row_index_map)
         b = np.empty(n_rows, dtype=float)
         sigma_b = np.empty(n_rows, dtype=float)
+        chi2_red = np.empty(n_rows, dtype=float)
         for row_index, array_idx in design_matrix.row_index_map.items():
-            fidelity, fidelity_std = fidelity_by_row[row_index]
+            fidelity, fidelity_std, meta = row_data[row_index]
             b[array_idx] = -np.log(max(fidelity, 1e-300))
             sigma_b[array_idx] = fidelity_std / max(fidelity, 1e-300)
+            chi2_red[array_idx] = (
+                meta.get("reduced_chi_squared", np.nan) if isinstance(meta, dict) else np.nan
+            )
 
         all_time_lbs = np.array(time_lbs_list, dtype="datetime64[us]")
         all_time_ubs = np.array(time_ubs_list, dtype="datetime64[us]")
@@ -173,7 +140,70 @@ class ModelSolve(AnalysisStage):
         param_labels = sorted(x := design_matrix.column_index_map, key=x.get)
         path_labels = sorted(x := design_matrix.row_index_map, key=x.get)
 
-        return design_matrix.data, b, sigma_b, param_labels, path_labels, time_lb, time_ub
+        return cls(
+            A=design_matrix.data,
+            b=b,
+            sigma_b=sigma_b,
+            chi2_red=chi2_red,
+            param_labels=param_labels,
+            path_labels=path_labels,
+            time_lb=time_lb,
+            time_ub=time_ub,
+        )
+
+
+class ModelSolve(AnalysisStage):
+    """Base class for model fitting routines.
+
+    Constructs the design matrix from the :class:`~.FidelityModel` stored on the :class:`~.Fit`
+    container and the paths in the :class:`~.AveragedData`. Then solves ``A @ x = b`` using a
+    specified method, where ``A`` is the design matrix and ``b`` is the vector of negative log
+    observables ``-log(o)``.
+
+    If paths are specified on the :class:`~.Fit`, only data matching those paths is used. If no
+    paths are specified, all data in the :class:`~.AveragedData` is used.
+
+    This stage assumes a single observable value for each unique :class:`Path`.
+    """
+
+    @property
+    def input_level(self):
+        return AveragedData
+
+    @property
+    def output_level(self):
+        return ModelData
+
+    @abstractmethod
+    def _solve(self, system: LinearSystemData) -> tuple[np.ndarray, np.ndarray, dict]:
+        """Numerical method for solving the linear system.
+
+        Args:
+            system: The linear system to solve.
+
+        Returns:
+            A tuple of ``(x, cov_x, metadata)``.
+        """
+
+    def _run(self, fit: Fit):
+        system = LinearSystemData.from_fit(fit)
+        x, cov_x, metadata = self._solve(system)
+
+        # add standard fields to metadata
+        residual_vec = system.A @ x - system.b
+        metadata["residual"] = np.linalg.norm(residual_vec)
+        metadata["path_residual"] = IndexedVector(
+            {path: val for path, val in zip(system.path_labels, np.abs(residual_vec))}
+        )
+
+        fit[ModelData] = ModelData.from_arrays(
+            parameter_indices=system.param_labels,
+            parameter_values=x,
+            covariance=cov_x,
+            time_lbs=np.full(len(x), system.time_lb, dtype="datetime64[us]"),
+            time_ubs=np.full(len(x), system.time_ub, dtype="datetime64[us]"),
+            metadata=metadata,
+        )
 
     @staticmethod
     def _covariance(
@@ -213,17 +243,10 @@ class NNLSSolve(ModelSolve):
     def __init__(self, **nnls_opts):
         self.nnls_opts = nnls_opts
 
-    def _solve(
-        self,
-        A: np.ndarray,
-        b: np.ndarray,
-        sigma_b: np.ndarray,
-        param_labels: list,
-        path_labels: list[Path],
-    ) -> tuple[np.ndarray, np.ndarray, dict]:
-        x, _ = opt.nnls(A, b, **self.nnls_opts)
+    def _solve(self, system: LinearSystemData) -> tuple[np.ndarray, np.ndarray, dict]:
+        x, _ = opt.nnls(system.A, system.b, **self.nnls_opts)
         free_indices = np.where(x > 0)[0]
-        cov_x = self._covariance(A, sigma_b, x, free_indices)
+        cov_x = self._covariance(system.A, system.sigma_b, x, free_indices)
         return x, cov_x, dict()
 
 
@@ -244,24 +267,26 @@ class LSQLinearSolve(ModelSolve):
         self.lsq_linear_opts.setdefault("bounds", (0, np.inf))
         self.lsq_linear_opts.setdefault("method", "bvls")
 
-    def _solve(
-        self,
-        A: np.ndarray,
-        b: np.ndarray,
-        sigma_b: np.ndarray,
-        param_labels: list,
-        path_labels: list[Path],
-    ) -> tuple[np.ndarray, np.ndarray, dict]:
-        opt_res = opt.lsq_linear(A, b, **self.lsq_linear_opts)
+    def _solve(self, system: LinearSystemData) -> tuple[np.ndarray, np.ndarray, dict]:
+        opt_res = opt.lsq_linear(system.A, system.b, **self.lsq_linear_opts)
         x = opt_res.x
 
         lb, ub = self.lsq_linear_opts["bounds"]
         at_lower = np.isfinite(lb) & np.isclose(x, lb)
         at_upper = np.isfinite(ub) if np.isscalar(ub) else np.isfinite(ub) & np.isclose(x, ub)
         free_indices = np.where(~at_lower & ~at_upper)[0]
-        cov_x = self._covariance(A, sigma_b, x, free_indices)
+        cov_x = self._covariance(system.A, system.sigma_b, x, free_indices)
 
         return x, cov_x, {"opt_res": opt_res}
+
+
+# A constraint policy computes a constraint value from the solve-time linear system, so a bound can
+# depend on how trustworthy each row's data is. The built-in ``data_scaled_deltas`` is one such
+# delta policy; users may supply their own. Fixed literals are wrapped into constant policies by
+# ``PositivityMinSolve.from_constants``.
+EpsilonPolicy = Callable[[LinearSystemData], float]
+DeltaPolicy = Callable[[LinearSystemData], Mapping[Path, float]]
+WeightsPolicy = Callable[[LinearSystemData], IndexedMatrix]
 
 
 class PositivityMinSolve(ModelSolve):
@@ -291,25 +316,28 @@ class PositivityMinSolve(ModelSolve):
     See :class:`~.ModelSolve` for more details about the general responsibility of a model solver
     in this library.
 
+    The constraint bounds are specified as **policies**: callables that receive the solve-time
+    :class:`~.LinearSystemData` and return the corresponding bound.
+
     Args:
         coefficients: Per-gate coefficients for the objective function, as a mapping from gate
             name to float.
-        epsilon: Tolerance for the overall weighted L2 norm constraint. At least one of
-            ``epsilon`` or ``deltas`` must be provided.
-        deltas: Per-row tolerances as a mapping from :class:`~.Path` to float. At least one of
-            ``epsilon`` or ``deltas`` must be provided.
-        weights: Weight matrix ``W`` for the L2 constraint as an :class:`~.IndexedMatrix` whose
-            row and column indices are :class:`~.Path` objects. Defaults to identity. Only used
-            when ``epsilon`` is provided.
+        epsilon: Policy returning the tolerance for the overall weighted L2 norm constraint. At
+            least one of ``epsilon`` or ``deltas`` must be provided.
+        deltas: Policy returning per-row tolerances as a mapping from :class:`~.Path` to float. At
+            least one of ``epsilon`` or ``deltas`` must be provided.
+        weights: Policy returning the weight matrix ``W`` for the L2 constraint as an
+            :class:`~.IndexedMatrix` whose row and column indices are :class:`~.Path` objects.
+            Defaults to identity. Only used when ``epsilon`` is provided.
         non_negative: Whether to enforce ``x >= 0``.
     """
 
     def __init__(
         self,
         coefficients: dict[str, float],
-        epsilon: float | None = None,
-        deltas: dict[Path, float] | None = None,
-        weights: IndexedMatrix | None = None,
+        epsilon: EpsilonPolicy | None = None,
+        deltas: DeltaPolicy | None = None,
+        weights: WeightsPolicy | None = None,
         non_negative: bool = False,
     ):
         if epsilon is None and deltas is None:
@@ -320,6 +348,79 @@ class PositivityMinSolve(ModelSolve):
         self.deltas = deltas
         self.weights = weights
         self.non_negative = non_negative
+
+    @classmethod
+    def from_constants(
+        cls,
+        coefficients: dict[str, float],
+        epsilon: float | None = None,
+        deltas: Mapping[Path, float] | None = None,
+        weights: IndexedMatrix | None = None,
+        non_negative: bool = False,
+    ) -> "PositivityMinSolve":
+        """Construct from fixed constant bounds instead of data-driven policies.
+
+        Each supplied constant is wrapped in a policy that ignores the data and returns it. See
+        the class docstring for the meaning of each argument; here they are fixed values rather
+        than callables.
+        """
+        return cls(
+            coefficients,
+            epsilon=None if epsilon is None else (lambda system, value=epsilon: value),
+            deltas=None if deltas is None else (lambda system, value=deltas: value),
+            weights=None if weights is None else (lambda system, value=weights: value),
+            non_negative=non_negative,
+        )
+
+    @classmethod
+    def data_scaled_deltas(
+        cls,
+        coefficients: dict[str, float],
+        scale: float = 1.0,
+        floor_frac: float = 0.1,
+        non_negative: bool = False,
+    ) -> "PositivityMinSolve":
+        r"""Build with a delta-only policy based on statistical uncertainty of observables.
+
+        Each row's tolerance is set from that row's statistical uncertainty and its
+        exponential-fit goodness-of-fit. For row :math:`i`, with statistical ``1``-sigma
+        ``sigma_b`` and reduced chi-squared ``chi2_red``:
+
+        .. math::
+
+            \mathrm{inflation}_i &= \max(1, \sqrt{\mathrm{chi2\_red}_i}) \\
+            s_i &= \mathrm{inflation}_i \cdot \sigma_{b, i} \\
+            \mathrm{floor} &= \mathrm{floor\_frac} \cdot \mathrm{median}_j(s_j) \\
+            \delta_i &= \mathrm{scale} \cdot \max(s_i, \mathrm{floor})
+
+        Setting ``delta_i`` proportional to ``sigma`` follows the Morozov discrepancy principle
+        (allow about ``scale`` standard deviations of slack). Because ``curve_fit`` reports
+        ``sigma_b`` with ``absolute_sigma=True``, it is blind to model mismatch; the
+        ``sqrt(chi2_red)`` factor loosens rows whose exponential fit is poor, and the ``max(1, .)``
+        clamp means mismatch can only loosen a row, never tighten it below the statistical floor.
+        Rows with an undefined ``chi2_red`` (``nan``, e.g. averaged rows) get no inflation. The
+        median floor keeps a near-zero-``sigma`` row from forcing a hard equality and making the
+        problem ill-posed.
+
+        Args:
+            coefficients: Per-gate coefficients for the objective function, as a mapping from gate
+                name to float.
+            scale: Multiplier on the per-row tolerance, in units of (inflated) standard deviations.
+            floor_frac: Fraction of the median inflated uncertainty used as a floor on every row's
+                tolerance.
+            non_negative: Whether to enforce ``x >= 0``.
+        """
+
+        def deltas(system: LinearSystemData) -> dict[Path, float]:
+            inflation = np.where(
+                np.isfinite(system.chi2_red), np.sqrt(np.maximum(system.chi2_red, 1.0)), 1.0
+            )
+            effective = inflation * system.sigma_b
+            floor = floor_frac * np.median(effective)
+            values = scale * np.maximum(effective, floor)
+            return dict(zip(system.path_labels, values))
+
+        return cls(coefficients, deltas=deltas, non_negative=non_negative)
 
     def _run(self, fit: Fit):
         if not contains_pauli_lindblad_model(fit.model):
@@ -334,19 +435,20 @@ class PositivityMinSolve(ModelSolve):
             )
         super()._run(fit)
 
-    def _solve(
-        self,
-        A: np.ndarray,
-        b: np.ndarray,
-        sigma_b: np.ndarray,
-        param_labels: list,
-        path_labels: list[Path],
-    ) -> tuple[np.ndarray, np.ndarray, dict]:
+    def _solve(self, system: LinearSystemData) -> tuple[np.ndarray, np.ndarray, dict]:
         HAS_CVXPY.require_now("PositivityMinSolve")
         import cvxpy as cp
 
+        A, b = system.A, system.b
+        param_labels, path_labels = system.param_labels, system.path_labels
+
         n = A.shape[1]
         m = A.shape[0]
+
+        # Resolve each constraint policy against the solve-time data.
+        epsilon = self.epsilon(system) if self.epsilon is not None else None
+        deltas = self.deltas(system) if self.deltas is not None else None
+        weights = self.weights(system) if self.weights is not None else None
 
         # Build coefficient vector from gate-name mapping
         coeff_vector = np.array([self.coefficients[label.gate_name] for label in param_labels])
@@ -358,22 +460,22 @@ class PositivityMinSolve(ModelSolve):
 
         constraints = []
 
-        if self.epsilon is not None:
-            if self.weights is not None:
+        if epsilon is not None:
+            if weights is not None:
                 path_to_row = {path: i for i, path in enumerate(path_labels)}
                 w = np.zeros((m, m))
-                for row_label, row_idx in self.weights.row_index_map.items():
-                    for col_label, col_idx in self.weights.column_index_map.items():
-                        w[path_to_row[row_label], path_to_row[col_label]] = self.weights.data[
+                for row_label, row_idx in weights.row_index_map.items():
+                    for col_label, col_idx in weights.column_index_map.items():
+                        w[path_to_row[row_label], path_to_row[col_label]] = weights.data[
                             row_idx, col_idx
                         ]
                 weighted_residual = w @ residual
             else:
                 weighted_residual = residual
-            constraints.append(cp.norm(weighted_residual, 2) <= self.epsilon)
+            constraints.append(cp.norm(weighted_residual, 2) <= epsilon)
 
-        if self.deltas is not None:
-            deltas_array = np.array([self.deltas[path] for path in path_labels])
+        if deltas is not None:
+            deltas_array = np.array([deltas[path] for path in path_labels])
             constraints.append(cp.abs(residual) <= deltas_array)
 
         if self.non_negative:
@@ -382,11 +484,8 @@ class PositivityMinSolve(ModelSolve):
         problem = cp.Problem(objective, constraints)
         problem.solve()
 
-        return (
-            x.value,
-            np.zeros((n, n)),
-            {
-                "problem": problem,
-                "weighted_residual": np.linalg.norm(weighted_residual.value),
-            },
-        )
+        metadata = {"problem": problem}
+        if epsilon is not None:
+            metadata["weighted_residual"] = np.linalg.norm(weighted_residual.value)
+
+        return x.value, np.zeros((n, n)), metadata
