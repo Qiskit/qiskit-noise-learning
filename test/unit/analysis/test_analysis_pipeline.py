@@ -36,7 +36,7 @@ class _StubRawToObs(AnalysisStage):
     def _run(self, fit):
         fit[ObservableData] = ObservableData.from_arrays(
             unbound_paths=[],
-            depths=[],
+            fragment_depths=[],
             observables=np.empty((0, 0)),
             time_lbs=np.empty((0, 0), dtype="datetime64[us]"),
             time_ubs=np.empty((0, 0), dtype="datetime64[us]"),
@@ -55,7 +55,7 @@ class _StubObsToAveraged(AnalysisStage):
     def _run(self, fit):
         fit[AveragedData] = AveragedData.from_arrays(
             unbound_paths=[],
-            depths=[],
+            fragment_depths=[],
             observables=np.array([]),
             std=np.array([]),
             time_lbs=np.empty(0, dtype="datetime64[us]"),
@@ -94,7 +94,7 @@ class _StubRawToAveraged(AnalysisStage):
     def _run(self, fit):
         fit[AveragedData] = AveragedData.from_arrays(
             unbound_paths=[],
-            depths=[],
+            fragment_depths=[],
             observables=np.array([]),
             std=np.array([]),
             time_lbs=np.empty(0, dtype="datetime64[us]"),
@@ -143,7 +143,7 @@ class TestAnalysisPipeline:
         pipeline = AnalysisPipeline(_StubObsToAveraged(), _StubAveragedToModel())
         obs = ObservableData.from_arrays(
             unbound_paths=[],
-            depths=[],
+            fragment_depths=[],
             observables=np.empty((0, 0)),
             time_lbs=np.empty((0, 0), dtype="datetime64[us]"),
             time_ubs=np.empty((0, 0), dtype="datetime64[us]"),
@@ -162,7 +162,7 @@ class TestAnalysisPipeline:
         pipeline = AnalysisPipeline(_StubObsToAveraged(), _StubAveragedToModel())
         obs = ObservableData.from_arrays(
             unbound_paths=[],
-            depths=[],
+            fragment_depths=[],
             observables=np.empty((0, 0)),
             time_lbs=np.empty((0, 0), dtype="datetime64[us]"),
             time_ubs=np.empty((0, 0), dtype="datetime64[us]"),
@@ -186,7 +186,7 @@ class TestAnalysisPipeline:
         pipeline = AnalysisPipeline(_StubObsToAveraged(), _StubAveragedToModel())
         obs = ObservableData.from_arrays(
             unbound_paths=[],
-            depths=[],
+            fragment_depths=[],
             observables=np.empty((0, 0)),
             time_lbs=np.empty((0, 0), dtype="datetime64[us]"),
             time_ubs=np.empty((0, 0), dtype="datetime64[us]"),
@@ -270,7 +270,7 @@ class TestAnalysisPipeline:
         pipeline = AnalysisPipeline(_StubObsToAveraged(), _StubAveragedToModel())
         obs = ObservableData.from_arrays(
             unbound_paths=[],
-            depths=[],
+            fragment_depths=[],
             observables=np.empty((0, 0)),
             time_lbs=np.empty((0, 0), dtype="datetime64[us]"),
             time_ubs=np.empty((0, 0), dtype="datetime64[us]"),

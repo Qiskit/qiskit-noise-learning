@@ -163,7 +163,7 @@ def test_metadata_contains_residual(gate_set_cz, make_cz_path, make_averaged_dat
 
 @pytest.mark.parametrize("solver", _SOLVERS)
 def test_bound_paths_in_fit_paths(solver, gate_set_cz, make_cz_path, make_averaged_data):
-    """Solving with a bound path specified in fit.paths (repeatable scaled by depth + SPAM)."""
+    """Solving with a bound path in fit.paths (repeatable scaled by fragment_depth + SPAM)."""
     f_true = 0.7
     model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
     unbound = make_cz_path("XI")
@@ -213,8 +213,8 @@ def test_no_paths_uses_all_data(solver, gate_set_cz, make_cz_path, make_averaged
     model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
     path = make_cz_path("XI")
 
-    # Same path present both unbound (decay; repeatable fragment only) and bound at depth 2 (which
-    # also picks up the SPAM generators).
+    # Same path present both unbound (decay; repeatable fragment only) and bound at fragment_depth 2
+    # (which also picks up the SPAM generators).
     fit = Fit(model=model)
     fit[AveragedData] = make_averaged_data([(path, -1, 0.85), (path, 2, 0.7)])
     result = solver.run(fit)

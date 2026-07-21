@@ -10,31 +10,29 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""BindSequenceDepths stage."""
-
-from __future__ import annotations
+"""BindFragmentDepths stage."""
 
 from ..experiment import Experiment
 from ..experiment_builder_stage import ExperimentBuilderStage
 
 
-class BindSequenceDepths(ExperimentBuilderStage):
-    """Expand unbound instruction sequences at the given depths.
+class BindFragmentDepths(ExperimentBuilderStage):
+    """Expand unbound instruction sequences at the given fragment depths.
 
-    Each unbound instruction sequence is replaced by a bound copy at each depth. Bound
+    Each unbound instruction sequence is replaced by a bound copy at each fragment depth. Bound
     sequences are kept as-is. The ``randomization_multipliers`` and ``relations`` are updated
     accordingly: the multiplier of an unbound sequence is propagated to all its bound
     expansions, and any relation pointing to an unbound sequence is fanned out to all the
     resulting bound sequences.
 
     Args:
-        depths: The depths at which to bind unbound sequences.
+        fragment_depths: The fragment depths at which to bind unbound sequences.
     """
 
     required_fields = ("instruction_sequences", "randomization_multipliers")
 
-    def __init__(self, depths: list[int]):
-        self._depths = depths
+    def __init__(self, fragment_depths: list[int]):
+        self._fragment_depths = fragment_depths
 
     def _run(self, experiment: Experiment) -> Experiment:
         old_sequences = experiment.instruction_sequences
@@ -49,7 +47,7 @@ class BindSequenceDepths(ExperimentBuilderStage):
         for old_idx, seq in enumerate(old_sequences):
             if seq.is_unbound:
                 start = len(new_sequences)
-                for d in self._depths:
+                for d in self._fragment_depths:
                     new_sequences.append(seq.bind_at(d))
                     new_multipliers.append(old_multipliers[old_idx])
                 index_map[old_idx] = list(range(start, len(new_sequences)))

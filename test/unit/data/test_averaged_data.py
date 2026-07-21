@@ -20,7 +20,7 @@ def test_from_arrays(make_cz_path):
     p = make_cz_path("IX")
     avg = AveragedData.from_arrays(
         unbound_paths=[p],
-        depths=[-1],
+        fragment_depths=[-1],
         observables=np.array([0.8]),
         std=np.array([0.01]),
         time_lbs=np.array(["2026-01-01"], dtype="datetime64[us]"),
@@ -29,7 +29,7 @@ def test_from_arrays(make_cz_path):
     ds = avg.dataset
     assert ds["observables"].shape == (1,)
     assert ds["unbound_path"].values[0] == p
-    assert ds["depth"].values[0] == -1
+    assert ds["fragment_depth"].values[0] == -1
     assert float(ds["observables"].values[0]) == 0.8
     assert float(ds["std"].values[0]) == 0.01
 
@@ -40,7 +40,7 @@ def test_filter_time(make_cz_path):
     p1 = make_cz_path("XI")
     avg = AveragedData.from_arrays(
         unbound_paths=[p0, p1],
-        depths=[-1, -1],
+        fragment_depths=[-1, -1],
         observables=np.array([0.8, 0.7]),
         std=np.array([0.01, 0.02]),
         time_lbs=np.array(["2026-01-01", "2026-01-05"], dtype="datetime64[us]"),

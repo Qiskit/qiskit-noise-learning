@@ -76,5 +76,5 @@ class SPAMPaths(AddPaths):
                         out_bit_indices=frozenset(),
                     )
                 ],
-                depth=0,
+                fragment_depth=0,
             )

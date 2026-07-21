@@ -15,7 +15,7 @@ import plotly.graph_objects as go
 
 from qiskit_noise_learning.visualizations.path_data.primitives import (
     PointSeries,
-    _default_depths,
+    _default_fragment_depths,
     plot_path_decay_curves,
     plot_path_scatters,
 )
@@ -33,31 +33,31 @@ def test_point_series_fields():
 
 
 # --------------------------------------------------------------------------------------------------
-# _default_depths
+# _default_fragment_depths
 # --------------------------------------------------------------------------------------------------
 
 
-def test_default_depths_empty_fallback():
-    depths = _default_depths()
-    assert depths[0] == 0.0
-    assert depths[-1] == 10.0
-    assert len(depths) == 100
+def test_default_fragment_depths_empty_fallback():
+    fragment_depths = _default_fragment_depths()
+    assert fragment_depths[0] == 0.0
+    assert fragment_depths[-1] == 10.0
+    assert len(fragment_depths) == 100
 
 
-def test_default_depths_respects_num():
-    assert len(_default_depths(num=25)) == 25
+def test_default_fragment_depths_respects_num():
+    assert len(_default_fragment_depths(num=25)) == 25
 
 
-def test_default_depths_max_across_dicts():
+def test_default_fragment_depths_max_across_dicts():
     d1 = {"a": PointSeries(xs=np.array([0.0, 4.0]), ys=np.array([1.0, 0.5]))}
     d2 = {"b": PointSeries(xs=np.array([0.0, 9.0]), ys=np.array([1.0, 0.5]))}
-    depths = _default_depths(d1, d2)
-    assert depths[-1] == 9.0
+    fragment_depths = _default_fragment_depths(d1, d2)
+    assert fragment_depths[-1] == 9.0
 
 
-def test_default_depths_ignores_empty_series():
+def test_default_fragment_depths_ignores_empty_series():
     d = {"a": PointSeries(xs=np.array([]), ys=np.array([]))}
-    assert _default_depths(d)[-1] == 10.0
+    assert _default_fragment_depths(d)[-1] == 10.0
 
 
 # --------------------------------------------------------------------------------------------------
@@ -102,15 +102,17 @@ def test_scatters_legend_follows_labels():
 
 
 def test_decay_curve_values():
-    depths = np.array([0.0, 1.0, 2.0])
-    fig = plot_path_decay_curves(bases={"a": 0.5}, intercepts={"a": 0.9}, depths=depths)
+    fragment_depths = np.array([0.0, 1.0, 2.0])
+    fig = plot_path_decay_curves(
+        bases={"a": 0.5}, intercepts={"a": 0.9}, fragment_depths=fragment_depths
+    )
     assert isinstance(fig, go.Figure)
     assert len(fig.data) == 1
-    np.testing.assert_allclose(fig.data[0].y, 0.9 * 0.5**depths)
+    np.testing.assert_allclose(fig.data[0].y, 0.9 * 0.5**fragment_depths)
 
 
 def test_decay_curve_line_kwargs_passthrough():
     fig = plot_path_decay_curves(
-        bases={"a": 0.5}, intercepts={"a": 1.0}, depths=[0, 1], line_kwargs={"dash": "dot"}
+        bases={"a": 0.5}, intercepts={"a": 1.0}, fragment_depths=[0, 1], line_kwargs={"dash": "dot"}
     )
     assert fig.data[0].line.dash == "dot"

@@ -74,7 +74,7 @@ class TestPathMathLabel:
             start_fragment=[fidelity_index],
             repeatable_fragment=[fidelity_index, fidelity_index],
             end_fragment=[fidelity_index],
-            depth=3,
+            fragment_depth=3,
         )
         result = path_math_label(gate_set, path, style="transition")
         assert isinstance(result, str)
@@ -84,7 +84,7 @@ class TestPathMathLabel:
             start_fragment=[],
             repeatable_fragment=[fidelity_index, fidelity_index],
             end_fragment=[],
-            depth=5,
+            fragment_depth=5,
         )
         result = path_math_label(gate_set, path, style="formula")
         assert isinstance(result, str)
@@ -94,7 +94,7 @@ class TestPathMathLabel:
             start_fragment=[],
             repeatable_fragment=[fidelity_index],
             end_fragment=[],
-            depth=5,
+            fragment_depth=5,
         )
         labeled = path_math_label(gate_set, path, style="formula", qubit_labels={0: "i"})
         assert "X_{i}" in labeled
@@ -105,7 +105,7 @@ class TestPathMathLabel:
             start_fragment=[fidelity_index],
             repeatable_fragment=[fidelity_index],
             end_fragment=[fidelity_index],
-            depth=3,
+            fragment_depth=3,
         )
         result = path_math_label(gate_set, path, repeatable_only=True)
         assert isinstance(result, str)

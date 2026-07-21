@@ -29,7 +29,7 @@ def _expected_unbound_vector(path):
 
 def _expected_bound_vector(path):
     vector = _expected_unbound_vector(path)
-    vector = path.depth * vector
+    vector = path.fragment_depth * vector
     for fidelity in chain(path.start_fragment, path.end_fragment):
         vector[fidelity] = vector.get(fidelity, 0.0) + 1.0
     return vector

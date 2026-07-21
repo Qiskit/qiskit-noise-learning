@@ -113,7 +113,7 @@ def path_math_label(
         noise_site: An optional noise-site mapping forwarded to :func:`fidelity_index_math_label`
             for the ``"formula"`` style (see that function for details).
         repeatable_only: If ``True``, only render the repeatable fragment without brackets
-            or depth exponent.
+            or fragment-depth exponent.
         qubit_labels: An optional mapping from qubit index to a display symbol, used to relabel the
             qubit subscripts (e.g. ``{25: "i", 26: "j"}`` renders ``X_{25}`` as ``X_{i}``). Indices
             absent from the mapping render as their integer value.
@@ -137,8 +137,8 @@ def path_math_label(
         rep_str = _fragment_math_label(
             gate_set, path.repeatable_fragment, style, noise_site, qubit_labels
         )
-        depth_str = str(path.depth) if path.depth is not None else "r"
-        parts.append(f"[{rep_str}]^{{{depth_str}}}")
+        fragment_depth_str = str(path.fragment_depth) if path.fragment_depth is not None else "r"
+        parts.append(f"[{rep_str}]^{{{fragment_depth_str}}}")
 
     if path.end_fragment:
         parts.append(

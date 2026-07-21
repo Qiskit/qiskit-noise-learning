@@ -17,7 +17,7 @@ from .experiment_builder_stage import ExperimentBuilder, ExperimentBuilderStage
 from .stages import (
     AddInstructionSequences,
     AddPaths,
-    BindSequenceDepths,
+    BindFragmentDepths,
     CompleteSequences,
     Depth1Paths,
     EvenDepthPaths,

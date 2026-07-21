@@ -56,20 +56,22 @@ class ComputeObservables(AnalysisStage):
 
         raw_data = fit.raw_data
 
-        # map from unique unbound paths to accepted depths.
-        # None means accept any depth (for unbound paths in fit.paths).
-        unbound_path_depths: dict[Path, set[int] | None] = dict()
+        # map from unique unbound paths to accepted fragment depths.
+        # None means accept any fragment depth (for unbound paths in fit.paths).
+        unbound_path_fragment_depths: dict[Path, set[int] | None] = dict()
         for path in fit.paths:
             if path.is_unbound:
-                unbound_path_depths[path] = None
+                unbound_path_fragment_depths[path] = None
             else:
                 # only add something if path wasn't unbound in fit.paths
-                existing = unbound_path_depths.get(path.without_depth())
-                if existing is not None or path.without_depth() not in unbound_path_depths:
-                    unbound_path_depths.setdefault(path.without_depth(), set()).add(path.depth)
+                existing = unbound_path_fragment_depths.get(path.unbind())
+                if existing is not None or path.unbind() not in unbound_path_fragment_depths:
+                    unbound_path_fragment_depths.setdefault(path.unbind(), set()).add(
+                        path.fragment_depth
+                    )
 
         # mapping from unbound paths into data
-        # nested mapping: unbound_path -> dt_key -> depth ->
+        # nested mapping: unbound_path -> dt_key -> fragment_depth ->
         # {"array_indices": list[int], "signs": list[int]}
         unbound_path_to_data = dict()
 
@@ -79,9 +81,9 @@ class ComputeObservables(AnalysisStage):
             uis_path_signs_list: list[dict[Path, tuple[bool, bool]]] = []
             for path_idx, seq_idx in fit.relations:
                 path = fit.paths[path_idx]
-                unbound_path = path.without_depth()
+                unbound_path = path.unbind()
                 seq = fit.instruction_sequences[seq_idx]
-                uis = seq.without_depth()
+                uis = seq.unbind()
 
                 if uis not in unique_uis_list:
                     unique_uis_list.append(uis)
@@ -92,10 +94,10 @@ class ComputeObservables(AnalysisStage):
                     uis_paths[unbound_path] = unbound_path.fragment_sign_flips(seq)
 
             for dt_key, datasubtree in raw_data.datatree.items():
-                for array_idx, (uis, depth) in enumerate(
+                for array_idx, (uis, fragment_depth) in enumerate(
                     zip(
                         datasubtree.dataset["unbound_instruction_sequence"].data,
-                        datasubtree.dataset["depth"].data,
+                        datasubtree.dataset["fragment_depth"].data,
                     )
                 ):
                     if uis not in unique_uis_list:
@@ -104,18 +106,18 @@ class ComputeObservables(AnalysisStage):
                     for unbound_path, signs in uis_path_signs_list[
                         unique_uis_list.index(uis)
                     ].items():
-                        accepted = unbound_path_depths[unbound_path]
-                        if accepted is not None and depth not in accepted:
+                        accepted = unbound_path_fragment_depths[unbound_path]
+                        if accepted is not None and fragment_depth not in accepted:
                             continue
 
-                        unbound_path_dt_depth_dict = (
+                        unbound_path_dt_fragment_depth_dict = (
                             unbound_path_to_data.setdefault(unbound_path, dict())
                             .setdefault(dt_key, dict())
-                            .setdefault(depth, {"array_indices": [], "signs": []})
+                            .setdefault(fragment_depth, {"array_indices": [], "signs": []})
                         )
-                        unbound_path_dt_depth_dict["array_indices"].append(array_idx)
-                        unbound_path_dt_depth_dict["signs"].append(
-                            (-1) ** (signs[0] + depth * signs[1])
+                        unbound_path_dt_fragment_depth_dict["array_indices"].append(array_idx)
+                        unbound_path_dt_fragment_depth_dict["signs"].append(
+                            (-1) ** (signs[0] + fragment_depth * signs[1])
                         )
         else:
             # Strategy B: greedy discovery fallback
@@ -123,17 +125,17 @@ class ComputeObservables(AnalysisStage):
             unbound_instruction_sequence_path_signs: list[dict[Path, tuple[bool, bool]]] = []
 
             for dt_key, datasubtree in raw_data.datatree.items():
-                for array_idx, (uis, depth) in enumerate(
+                for array_idx, (uis, fragment_depth) in enumerate(
                     zip(
                         datasubtree.dataset["unbound_instruction_sequence"].data,
-                        datasubtree.dataset["depth"].data,
+                        datasubtree.dataset["fragment_depth"].data,
                     )
                 ):
                     uis_path_signs = None
                     if uis not in unique_unbound_instruction_sequences:
                         unique_unbound_instruction_sequences.append(uis)
                         uis_path_signs = dict()
-                        for unbound_path in unbound_path_depths:
+                        for unbound_path in unbound_path_fragment_depths:
                             if unbound_path.is_traversed_by(uis):
                                 uis_path_signs[unbound_path] = unbound_path.fragment_sign_flips(uis)
                         unbound_instruction_sequence_path_signs.append(uis_path_signs)
@@ -143,26 +145,26 @@ class ComputeObservables(AnalysisStage):
                         ]
 
                     for unbound_path, signs in uis_path_signs.items():
-                        accepted = unbound_path_depths[unbound_path]
-                        if accepted is not None and depth not in accepted:
+                        accepted = unbound_path_fragment_depths[unbound_path]
+                        if accepted is not None and fragment_depth not in accepted:
                             continue
 
-                        unbound_path_dt_depth_dict = (
+                        unbound_path_dt_fragment_depth_dict = (
                             unbound_path_to_data.setdefault(unbound_path, dict())
                             .setdefault(dt_key, dict())
-                            .setdefault(depth, {"array_indices": [], "signs": []})
+                            .setdefault(fragment_depth, {"array_indices": [], "signs": []})
                         )
-                        unbound_path_dt_depth_dict["array_indices"].append(array_idx)
-                        unbound_path_dt_depth_dict["signs"].append(
-                            (-1) ** (signs[0] + depth * signs[1])
+                        unbound_path_dt_fragment_depth_dict["array_indices"].append(array_idx)
+                        unbound_path_dt_fragment_depth_dict["signs"].append(
+                            (-1) ** (signs[0] + fragment_depth * signs[1])
                         )
 
         # determine dimension sizes for observable data
         observable_count = 0
         max_num_randomizations = 0
         for unbound_path, datatree_mapping in unbound_path_to_data.items():
-            for dt_key, depth_mapping in datatree_mapping.items():
-                for depth, dataset_mapping in depth_mapping.items():
+            for dt_key, fragment_depth_mapping in datatree_mapping.items():
+                for fragment_depth, dataset_mapping in fragment_depth_mapping.items():
                     observable_count += 1
                     max_num_randomizations = max(
                         max_num_randomizations, len(dataset_mapping["array_indices"])
@@ -176,14 +178,14 @@ class ComputeObservables(AnalysisStage):
         time_ubs = np.empty((observable_count, max_num_randomizations), dtype="datetime64[us]")
         time_ubs[:] = np.datetime64("NaT")
         unbound_path_coord = np.empty(observable_count, dtype=object)
-        depth_coord = np.empty(observable_count, dtype=int)
+        fragment_depth_coord = np.empty(observable_count, dtype=int)
 
         observable_idx = 0
         for unbound_path, datatree_mapping in unbound_path_to_data.items():
             bit_mask = unbound_path.end_fragment[-1].mask
-            for dt_key, depth_mapping in datatree_mapping.items():
+            for dt_key, fragment_depth_mapping in datatree_mapping.items():
                 raw_dataset = raw_data.datatree[dt_key].dataset
-                for depth, dataset_mapping in depth_mapping.items():
+                for fragment_depth, dataset_mapping in fragment_depth_mapping.items():
                     randomization_mask = np.array(dataset_mapping["array_indices"])
 
                     new_observables = compute_expectation_value(
@@ -200,7 +202,7 @@ class ComputeObservables(AnalysisStage):
                     time_lbs[observable_idx, 0 : len(new_observables)] = new_time_lbs
                     time_ubs[observable_idx, 0 : len(new_observables)] = new_time_ubs
                     unbound_path_coord[observable_idx] = unbound_path
-                    depth_coord[observable_idx] = depth
+                    fragment_depth_coord[observable_idx] = fragment_depth
                     observable_idx += 1
 
         fit[ObservableData] = ObservableData(
@@ -214,7 +216,7 @@ class ComputeObservables(AnalysisStage):
                 },
                 coords={
                     "unbound_path": (("observable",), unbound_path_coord),
-                    "depth": (("observable",), depth_coord),
+                    "fragment_depth": (("observable",), fragment_depth_coord),
                 },
             )
         )
@@ -248,8 +250,8 @@ def compute_expectation_value(
     return signs * per_sample.mean(axis=-1)
 
 
-def observable_bit_mask(unbound_path: Path, depth: int) -> np.ndarray[bool]:
-    """Return the observable bit mask corresponding to the unbound path at the given depth."""
+def observable_bit_mask(unbound_path: Path, fragment_depth: int) -> np.ndarray[bool]:
+    """Return the observable bit mask corresponding to the unbound path at the fragment depth."""
     mask_array = np.array([], dtype=bool)
 
     start_masks = [x.mask for x in unbound_path.start_fragment]
@@ -261,7 +263,7 @@ def observable_bit_mask(unbound_path: Path, depth: int) -> np.ndarray[bool]:
     for mask_fragment in repeatable_masks:
         repeatable_mask = np.append(repeatable_mask, mask_fragment)
     mask_array = np.append(
-        mask_array, np.repeat(np.array([repeatable_mask]), depth, axis=0).flatten()
+        mask_array, np.repeat(np.array([repeatable_mask]), fragment_depth, axis=0).flatten()
     )
 
     end_masks = [x.mask for x in unbound_path.end_fragment]

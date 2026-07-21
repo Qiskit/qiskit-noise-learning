@@ -20,7 +20,7 @@ def test_default_options():
     """Test default values of LearningOptions."""
     assert LearningOptions().num_randomizations == 32
     assert LearningOptions().shots_per_randomizations == 128
-    assert LearningOptions().depths == [0, 1, 2, 4, 16, 32]
+    assert LearningOptions().fragment_depths == [0, 1, 2, 4, 16, 32]
     assert LearningOptions().k_locality == 2
     assert LearningOptions().path_generator == "even_depth"
     assert LearningOptions().analyzer == "standard"
@@ -31,12 +31,12 @@ def test_custom_values():
     opts = LearningOptions(
         num_randomizations=10,
         shots_per_randomizations=50,
-        depths=[0, 2, 4],
+        fragment_depths=[0, 2, 4],
         k_locality=3,
     )
     assert opts.num_randomizations == 10
     assert opts.shots_per_randomizations == 50
-    assert opts.depths == [0, 2, 4]
+    assert opts.fragment_depths == [0, 2, 4]
     assert opts.k_locality == 3
 
 
@@ -74,19 +74,19 @@ def test_k_locality_negative_rejected():
 
 
 def test_valid_depths():
-    """Test edge cases for valid depths."""
-    assert LearningOptions(depths=[0]).depths == [0]
-    assert LearningOptions(depths=[]).depths == []
-    assert LearningOptions(depths=[0, 100, 1000]).depths == [0, 100, 1000]
+    """Test edge cases for valid fragment_depths."""
+    assert LearningOptions(fragment_depths=[0]).fragment_depths == [0]
+    assert LearningOptions(fragment_depths=[]).fragment_depths == []
+    assert LearningOptions(fragment_depths=[0, 100, 1000]).fragment_depths == [0, 100, 1000]
 
 
 def test_invalid_depths():
-    """Test negative depths are rejected."""
+    """Test negative fragment_depths are rejected."""
     with pytest.raises(ValidationError, match=">= 0"):
-        LearningOptions(depths=[-1])
+        LearningOptions(fragment_depths=[-1])
 
     with pytest.raises(ValidationError, match=">= 0"):
-        LearningOptions(depths=[0, 1, -2, 4])
+        LearningOptions(fragment_depths=[0, 1, -2, 4])
 
 
 def test_path_generator_invalid_rejected():

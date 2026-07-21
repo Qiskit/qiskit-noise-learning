@@ -103,9 +103,11 @@ class ModelSolve(AnalysisStage):
         dataset = fit[AveragedData].dataset
         fidelity_model = fit.model
 
-        # Index the as "(unbound_path, depth) -> row position", where -1 denotes unbound
+        # Index the as "(unbound_path, fragment_depth) -> row position", where -1 denotes unbound
         index_by_key: dict[tuple[Path, int], int] = {}
-        for idx, key in enumerate(zip(dataset["unbound_path"].data, dataset["depth"].data)):
+        for idx, key in enumerate(
+            zip(dataset["unbound_path"].data, dataset["fragment_depth"].data)
+        ):
             if key in index_by_key:
                 raise ValueError(
                     f"ModelSolve assumes one entry per path, but a duplicate was found: {key}."
@@ -118,13 +120,16 @@ class ModelSolve(AnalysisStage):
             targets = (
                 ((path, -1), path)
                 if path.is_unbound
-                else ((path.without_depth(), path.depth), path)
+                else ((path.unbind(), path.fragment_depth), path)
                 for path in fit.paths
             )
         else:
             targets = (
-                ((path, depth), (path if depth == -1 else path.bind_at(depth)))
-                for path, depth in index_by_key
+                (
+                    (path, fragment_depth),
+                    (path if fragment_depth == -1 else path.bind_at(fragment_depth)),
+                )
+                for path, fragment_depth in index_by_key
             )
 
         row_indices = []
@@ -133,7 +138,7 @@ class ModelSolve(AnalysisStage):
         for lookup_key, path in targets:
             if (idx := index_by_key.get(lookup_key)) is None:
                 raise ValueError(
-                    f"Required path-depth pair {lookup_key} missing from AveragedData."
+                    f"Required path-fragment-depth pair {lookup_key} missing from AveragedData."
                 )
 
             row_indices.append(path)

@@ -13,12 +13,12 @@
 import pytest
 
 from qiskit_noise_learning.experiment_builder.experiment import Experiment
-from qiskit_noise_learning.experiment_builder.stages import BindSequenceDepths
+from qiskit_noise_learning.experiment_builder.stages import BindFragmentDepths
 
 
-class TestBindSequenceDepths:
+class TestBindFragmentDepths:
     def test_requires_instruction_sequences(self):
-        stage = BindSequenceDepths(depths=[2, 4])
+        stage = BindFragmentDepths(fragment_depths=[2, 4])
         with pytest.raises(ValueError, match="requires 'instruction_sequences'"):
             stage.run(Experiment())
 
@@ -36,14 +36,14 @@ class TestBindSequenceDepths:
             relations={(0, 0), (1, 1)},
             randomization_multipliers=[1, 2],
         )
-        result = BindSequenceDepths(depths=[2, 4]).run(exp)
+        result = BindFragmentDepths(fragment_depths=[2, 4]).run(exp)
 
         assert len(result.instruction_sequences) == 4
         assert all(not s.is_unbound for s in result.instruction_sequences)
-        assert result.instruction_sequences[0].depth == 2
-        assert result.instruction_sequences[1].depth == 4
-        assert result.instruction_sequences[2].depth == 2
-        assert result.instruction_sequences[3].depth == 4
+        assert result.instruction_sequences[0].fragment_depth == 2
+        assert result.instruction_sequences[1].fragment_depth == 4
+        assert result.instruction_sequences[2].fragment_depth == 2
+        assert result.instruction_sequences[3].fragment_depth == 4
 
     def test_keeps_bound_sequences(self, make_cz_path):
         unbound_path_ix = make_cz_path("IX")
@@ -54,10 +54,10 @@ class TestBindSequenceDepths:
             relations={(0, 0)},
             randomization_multipliers=[1],
         )
-        result = BindSequenceDepths(depths=[2, 4]).run(exp)
+        result = BindFragmentDepths(fragment_depths=[2, 4]).run(exp)
 
         assert len(result.instruction_sequences) == 1
-        assert result.instruction_sequences[0].depth == 3
+        assert result.instruction_sequences[0].fragment_depth == 3
 
     def test_relations_fanned_out(self, make_cz_path):
         unbound_path_ix = make_cz_path("IX")
@@ -69,7 +69,7 @@ class TestBindSequenceDepths:
             relations={(0, 0), (1, 0)},
             randomization_multipliers=[1],
         )
-        result = BindSequenceDepths(depths=[2, 4, 6]).run(exp)
+        result = BindFragmentDepths(fragment_depths=[2, 4, 6]).run(exp)
 
         assert len(result.instruction_sequences) == 3
         assert result.relations == {(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2)}
@@ -85,6 +85,6 @@ class TestBindSequenceDepths:
             relations={(0, 0), (1, 1)},
             randomization_multipliers=[3, 5],
         )
-        result = BindSequenceDepths(depths=[2, 4]).run(exp)
+        result = BindFragmentDepths(fragment_depths=[2, 4]).run(exp)
 
         assert result.randomization_multipliers == [3, 3, 5, 5]

@@ -76,11 +76,11 @@ def make_cz_path(gate_set_cz):
     ``make(repeatable)`` builds the closed ``CZ`` orbit through one or more Pauli labels. A single
     label ``P`` is expanded to the orbit ``[P, CZ(P)]``; a list of labels is used as the explicit
     orbit, with each consecutive pair representing a transition. The resulting repeatable fragment
-    is a closed loop, so the path is traversable at any depth.
+    is a closed loop, so the path is traversable at any fragment_depth.
 
     With ``spam=True`` (the default) the path gains a ``P`` start fragment and an ``M`` end fragment
     whose transition Paulis are ``Z`` on the support of the loop's starting Pauli. The returned path
-    is unbound; bind a depth with ``.bind_at(depth)``.
+    is unbound; bind a fragment_depth with ``.bind_at(fragment_depth)``.
     """
 
     def _make(repeatable, spam=True):
@@ -130,18 +130,18 @@ def make_cz_path(gate_set_cz):
 
 @pytest.fixture()
 def make_instruction_sequence():
-    """Return a builder ``(name="CZ", depth=1) -> InstructionSequence``.
+    """Return a builder ``(name="CZ", fragment_depth=1) -> InstructionSequence``.
 
     Builds a minimal real instruction sequence whose repeatable fragment is a single
     :class:`~.ApplyGate`. Vary ``name`` to obtain distinct sequences.
     """
 
-    def _make(name="CZ", depth=1):
+    def _make(name="CZ", fragment_depth=1):
         return InstructionSequence(
             start_fragment=[],
             repeatable_fragment=[ApplyGate(name)],
             end_fragment=[],
-            depth=depth,
+            fragment_depth=fragment_depth,
         )
 
     return _make
@@ -156,14 +156,15 @@ def make_instruction_sequence():
 def make_averaged_data():
     """Return a builder ``(entries, std_default=0.001) -> AveragedData``.
 
-    Each entry is ``(unbound_path, depth, value)`` with an optional trailing ``std`` (float) and/or
-    ``meta`` (dict), e.g. ``(path, -1, 0.8, 0.01, {"spam_fidelity": 0.95})``. Use ``depth == -1``
-    for the unbound exponential-fit (base) row and ``depth >= 0`` for empirical point rows.
+    Each entry is ``(unbound_path, fragment_depth, value)`` with an optional trailing ``std``
+    (float) and/or ``meta`` (dict), e.g. ``(path, -1, 0.8, 0.01, {"spam_fidelity": 0.95})``. Use
+    ``fragment_depth == -1`` for the unbound exponential-fit (base) row and ``fragment_depth >= 0``
+    for empirical point rows.
     """
 
     def _make(entries, std_default=0.001):
         unbound_paths = [e[0] for e in entries]
-        depths = [e[1] for e in entries]
+        fragment_depths = [e[1] for e in entries]
         observables = np.array([e[2] for e in entries], dtype=float)
         std = np.array(
             [next((x for x in e[3:] if not isinstance(x, dict)), std_default) for e in entries],
@@ -175,7 +176,7 @@ def make_averaged_data():
         n = len(entries)
         return AveragedData.from_arrays(
             unbound_paths=unbound_paths,
-            depths=depths,
+            fragment_depths=fragment_depths,
             observables=observables,
             std=std,
             time_lbs=np.empty(n, dtype="datetime64[us]"),
@@ -190,9 +191,10 @@ def make_averaged_data():
 def make_observable_data():
     """Return a builder for synthetic :class:`~.ObservableData` decay curves.
 
-    ``make(entries, ...)`` takes a list of ``(unbound_path, spam_amplitude, fidelity, depths)``
-    tuples and emits ``observable = spam_amplitude * fidelity**depth`` plus Gaussian noise across
-    ``n_rand`` randomizations for each depth.
+    ``make(entries, ...)`` takes a list of
+    ``(unbound_path, spam_amplitude, fidelity, fragment_depths)`` tuples and emits
+    ``observable = spam_amplitude * fidelity**fragment_depth`` plus Gaussian noise across
+    ``n_rand`` randomizations for each fragment_depth.
     """
 
     def _make(entries, n_rand=20, noise_std=0.005, seed=42):
@@ -200,16 +202,16 @@ def make_observable_data():
         all_observables = []
         all_unbound_paths = []
         all_depths = []
-        for path, amplitude, fidelity, depths in entries:
-            for depth in depths:
-                true_val = amplitude * fidelity**depth
+        for path, amplitude, fidelity, fragment_depths in entries:
+            for fragment_depth in fragment_depths:
+                true_val = amplitude * fidelity**fragment_depth
                 all_observables.append(true_val + rng.normal(0, noise_std, size=n_rand))
                 all_unbound_paths.append(path)
-                all_depths.append(depth)
+                all_depths.append(fragment_depth)
         n = len(all_observables)
         return ObservableData.from_arrays(
             unbound_paths=all_unbound_paths,
-            depths=all_depths,
+            fragment_depths=all_depths,
             observables=np.stack(all_observables),
             time_lbs=np.empty((n, n_rand), dtype="datetime64[us]"),
             time_ubs=np.empty((n, n_rand), dtype="datetime64[us]"),

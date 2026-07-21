@@ -31,7 +31,7 @@ from ..analysis import (
 )
 from ..circuit_generator import ExecutorCircuitGenerator, ExecutorDataMapper
 from ..experiment_builder import (
-    BindSequenceDepths,
+    BindFragmentDepths,
     CompleteSequences,
     EvenDepthVanillaPaths,
     Experiment,
@@ -135,7 +135,7 @@ class NoiseLearner:
             + MergeInstructionSequences()
             + IdentifyRelations()
             + CompleteSequences()
-            + BindSequenceDepths(self._options.depths)
+            + BindFragmentDepths(self._options.fragment_depths)
         )
         experiment = pipeline.run(
             Experiment(

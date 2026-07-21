@@ -51,15 +51,16 @@ _MODEL_DASH = "solid"
 class RenderContext:
     """The shared coordination an orchestrator injects into each :class:`Layer`'s render call.
 
-    An orchestrator resolves the per-path color/label/group identities, the depth range, and the
-    target subplot cell once, then passes this bundle to every layer so their traces line up.
+    An orchestrator resolves the per-path color/label/group identities, the fragment-depth range,
+    and the target subplot cell once, then passes this bundle to every layer so their traces line
+    up.
 
     Args:
         fig: The figure to add traces to.
         colors: A mapping from path to its plotly color string (``None`` for the plotly default).
         labels: A mapping from path to its legend label.
         groups: A mapping from path to its ``legendgroup`` key (``None`` to omit from the legend).
-        depths: The depth values (x) at which curve layers evaluate their decays.
+        fragment_depths: The fragment-depth values (x) at which curve layers evaluate their decays.
         paths: The paths to draw in this cell.
         row: The subplot row to add traces to (1-indexed), or ``None`` for a single-axes figure.
         col: The subplot column to add traces to (1-indexed), or ``None`` for a single-axes figure.
@@ -69,7 +70,7 @@ class RenderContext:
     colors: Mapping[Path, str | None]
     labels: Mapping[Path, str | None]
     groups: Mapping[Path, str | None]
-    depths: np.ndarray
+    fragment_depths: np.ndarray
     paths: Sequence[Path]
     row: int | None = None
     col: int | None = None
@@ -124,10 +125,10 @@ def observable_points_layer(
 def observable_means_layer(
     observable_data: ObservableData, *, marker_kwargs: Mapping[str, object] | None = None
 ) -> Layer:
-    """A layer scattering per-depth means of raw observable data (default ``x`` marker).
+    """A layer scattering per-fragment-depth means of raw observable data (default ``x`` marker).
 
     Averages over randomizations via :class:`~.AverageObservables`, so each path shows one
-    error-barred point per depth rather than the raw per-randomization cloud.
+    error-barred point per fragment depth rather than the raw per-randomization cloud.
     """
     marker = {"symbol": _AVERAGED_POINTS_SYMBOL, **(marker_kwargs or {})}
 
@@ -167,7 +168,7 @@ def exponential_fit_curves_layer(
         return plot_path_decay_curves(
             bases,
             intercepts,
-            ctx.depths,
+            ctx.fragment_depths,
             fig=ctx.fig,
             colors=ctx.colors,
             labels=ctx.labels,
@@ -202,7 +203,7 @@ def model_curves_layer(
         return plot_path_decay_curves(
             bases,
             intercepts,
-            ctx.depths,
+            ctx.fragment_depths,
             fig=ctx.fig,
             colors=ctx.colors,
             labels=ctx.labels,
@@ -236,8 +237,9 @@ def standard_decay_layers(
     Args:
         observable_data: Optional raw observable data.
         observable_type: Which observable layer(s) to draw from ``observable_data`` — ``"raw"`` (raw
-            per-randomization scatter), ``"means"`` (per-depth means with error bars, averaged via
-            :class:`~.AverageObservables`), or ``"both"``. The raw and means layers are styled
+            per-randomization scatter), ``"means"`` (per-fragment-depth means with error bars,
+            averaged via :class:`~.AverageObservables`), or ``"both"``. The raw and means layers
+            are styled
             independently (defaulting to a ``circle`` and an ``x`` symbol respectively).
         observable_marker_kwargs: Optional ``marker`` overrides for the raw observable scatter.
         means_marker_kwargs: Optional ``marker`` overrides for the observable-means scatter.

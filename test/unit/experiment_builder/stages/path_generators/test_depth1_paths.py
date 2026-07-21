@@ -29,7 +29,7 @@ class TestDepth1Paths:
         result = stage.run(exp)
 
         assert len(result.paths) == 3
-        assert all(p.depth == 0 for p in result.paths)
+        assert all(p.fragment_depth == 0 for p in result.paths)
 
     def test_requires_fidelity_model_when_gates_not_provided(self):
         stage = Depth1Paths()

@@ -132,7 +132,8 @@ def _run_compute_observables(paths, instruction_sequences, data, measurement_fli
 
 class TestComputeObservables:
     def test_unbound_path_observables_basic_1q(self, gate_set_1q):
-        """Basic 1-qubit test verifying ev computation and sign correction across depths."""
+        """Basic 1-qubit test verifying ev computation and sign correction across
+        fragment_depths."""
         unbound_path = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
@@ -154,10 +155,10 @@ class TestComputeObservables:
         unbound_seq = unbound_path.to_instruction_sequence().complete()
         se_flip, r_flip = unbound_path.fragment_sign_flips(unbound_seq)
 
-        for depth in [1, 2, 3]:
-            sign = (-1) ** (se_flip + depth * r_flip)
-            inst_seqs = [unbound_seq.bind_at(depth)]
-            path = unbound_path.bind_at(depth)
+        for fragment_depth in [1, 2, 3]:
+            sign = (-1) ** (se_flip + fragment_depth * r_flip)
+            inst_seqs = [unbound_seq.bind_at(fragment_depth)]
+            path = unbound_path.bind_at(fragment_depth)
             # All-zero data -> compute_expectation_value = 1.0
             result = _run_compute_observables(
                 paths=[path],
@@ -169,7 +170,7 @@ class TestComputeObservables:
             obs = result.observable_data
             assert isinstance(obs, ObservableData)
             assert obs.dataset.sizes["observable"] == 1
-            assert path.without_depth() in obs.dataset["unbound_path"]
+            assert path.unbind() in obs.dataset["unbound_path"]
             np.testing.assert_allclose(obs.dataset["observables"][0], sign * 1.0)
 
             # All-one data -> compute_expectation_value = -1.0
@@ -182,11 +183,11 @@ class TestComputeObservables:
             obs = result.observable_data
             assert isinstance(obs, ObservableData)
             assert obs.dataset.sizes["observable"] == 1
-            assert path.without_depth() in obs.dataset["unbound_path"]
+            assert path.unbind() in obs.dataset["unbound_path"]
             np.testing.assert_allclose(obs.dataset["observables"][0], sign * -1.0)
 
     def test_observables_basic_1q(self, gate_set_1q):
-        """Basic 1-qubit test verifying ev computation for fixed depths."""
+        """Basic 1-qubit test verifying ev computation for fixed fragment_depths."""
         unbound_path = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
@@ -208,10 +209,10 @@ class TestComputeObservables:
         unbound_seq = unbound_path.to_instruction_sequence().complete()
         se_flip, r_flip = unbound_path.fragment_sign_flips(unbound_seq)
 
-        depths = [1, 2]
-        inst_seqs = [unbound_seq.bind_at(d) for d in depths]
-        paths = [unbound_path.bind_at(d) for d in depths]
-        signs = [(-1) ** (se_flip + d * r_flip) for d in depths]
+        fragment_depths = [1, 2]
+        inst_seqs = [unbound_seq.bind_at(d) for d in fragment_depths]
+        paths = [unbound_path.bind_at(d) for d in fragment_depths]
+        signs = [(-1) ** (se_flip + d * r_flip) for d in fragment_depths]
 
         # All-zero data -> compute_expectation_value = 1.0
         result = _run_compute_observables(
@@ -227,14 +228,14 @@ class TestComputeObservables:
         for path, expected_sign in zip(paths, signs):
             idx = int(
                 np.argwhere(
-                    (ds["unbound_path"].values == path.without_depth())
-                    & (ds["depth"].values == path.depth)
+                    (ds["unbound_path"].values == path.unbind())
+                    & (ds["fragment_depth"].values == path.fragment_depth)
                 )[0, 0]
             )
             np.testing.assert_allclose(ds["observables"][idx], expected_sign * 1.0)
 
     def test_unbound_and_bound_observables_basic_1q(self, gate_set_1q):
-        """Test with both variable-depth and fixed-depth paths."""
+        """Test with both variable-fragment_depth and fixed-fragment_depth paths."""
         unbound_path = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
@@ -256,15 +257,15 @@ class TestComputeObservables:
         unbound_seq = unbound_path.to_instruction_sequence().complete()
         se_flip, r_flip = unbound_path.fragment_sign_flips(unbound_seq)
 
-        depths = [3, 4, 5, 8]
+        fragment_depths = [3, 4, 5, 8]
         fixed_paths = [unbound_path.bind_at(x) for x in [1, 2]]
 
-        # 4 variable-depth sequences + 2 fixed-depth sequences = 6 total
-        inst_seqs = [unbound_seq.bind_at(d) for d in depths] + [
+        # 4 variable-fragment_depth sequences + 2 fixed-fragment_depth sequences = 6 total
+        inst_seqs = [unbound_seq.bind_at(d) for d in fragment_depths] + [
             unbound_seq.bind_at(d) for d in [1, 2]
         ]
 
-        variable_paths = [unbound_path.bind_at(d) for d in depths]
+        variable_paths = [unbound_path.bind_at(d) for d in fragment_depths]
         all_paths = variable_paths + fixed_paths
 
         result = _run_compute_observables(
@@ -278,24 +279,25 @@ class TestComputeObservables:
         assert isinstance(obs, ObservableData)
         ds = obs.dataset
 
-        # Check that all variable-depth paths are present
-        for d in depths:
+        # Check that all variable-fragment_depth paths are present
+        for d in fragment_depths:
             sign = (-1) ** (se_flip + d * r_flip)
             idx = int(
                 np.argwhere(
-                    (ds["unbound_path"].values == unbound_path) & (ds["depth"].values == d)
+                    (ds["unbound_path"].values == unbound_path) & (ds["fragment_depth"].values == d)
                 )[0, 0]
             )
             np.testing.assert_allclose(ds["observables"][idx], sign * 1.0)
 
-        # Fixed-depth paths should also be matched (depths 1, 2 overlap)
+        # Fixed-fragment_depth paths should also be matched (fragment_depths 1, 2 overlap)
         for fp in fixed_paths:
             assert np.any(
-                (ds["unbound_path"].values == fp.without_depth()) & (ds["depth"].values == fp.depth)
+                (ds["unbound_path"].values == fp.unbind())
+                & (ds["fragment_depth"].values == fp.fragment_depth)
             )
 
     def test_sign_alternates_with_depth(self, gate_set_1q):
-        """Verify the sign alternates with depth when r_flip is True."""
+        """Verify the sign alternates with fragment_depth when r_flip is True."""
         unbound_path = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
@@ -331,14 +333,14 @@ class TestComputeObservables:
         obs = result.observable_data
         ds = obs.dataset
         idx1 = int(
-            np.argwhere((ds["unbound_path"].values == unbound_path) & (ds["depth"].values == 1))[
-                0, 0
-            ]
+            np.argwhere(
+                (ds["unbound_path"].values == unbound_path) & (ds["fragment_depth"].values == 1)
+            )[0, 0]
         )
         idx2 = int(
-            np.argwhere((ds["unbound_path"].values == unbound_path) & (ds["depth"].values == 2))[
-                0, 0
-            ]
+            np.argwhere(
+                (ds["unbound_path"].values == unbound_path) & (ds["fragment_depth"].values == 2)
+            )[0, 0]
         )
         ev1 = ds["observables"][idx1].values
         ev2 = ds["observables"][idx2].values
@@ -403,18 +405,18 @@ class TestComputeObservables:
         assert ds.sizes["observable"] == 2
 
         for path in paths:
-            se_flip, r_flip = path.without_depth().fragment_sign_flips(merged_seq)
+            se_flip, r_flip = path.unbind().fragment_sign_flips(merged_seq)
             expected_sign = (-1) ** (se_flip + 1 * r_flip)
             idx = int(
                 np.argwhere(
-                    (ds["unbound_path"].values == path.without_depth())
-                    & (ds["depth"].values == path.depth)
+                    (ds["unbound_path"].values == path.unbind())
+                    & (ds["fragment_depth"].values == path.fragment_depth)
                 )[0, 0]
             )
             np.testing.assert_allclose(ds["observables"][idx], expected_sign * 1.0)
 
     def test_unbound_path_observables_multiple_depths(self, gate_set_1q):
-        """Verify computation handles multiple depths correctly."""
+        """Verify computation handles multiple fragment_depths correctly."""
         unbound_path = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
@@ -454,14 +456,14 @@ class TestComputeObservables:
         sign2 = (-1) ** (se_flip + 2 * r_flip)
 
         idx1 = int(
-            np.argwhere((ds["unbound_path"].values == unbound_path) & (ds["depth"].values == 1))[
-                0, 0
-            ]
+            np.argwhere(
+                (ds["unbound_path"].values == unbound_path) & (ds["fragment_depth"].values == 1)
+            )[0, 0]
         )
         idx2 = int(
-            np.argwhere((ds["unbound_path"].values == unbound_path) & (ds["depth"].values == 2))[
-                0, 0
-            ]
+            np.argwhere(
+                (ds["unbound_path"].values == unbound_path) & (ds["fragment_depth"].values == 2)
+            )[0, 0]
         )
         np.testing.assert_allclose(ds["observables"][idx1], sign1 * 1.0)
         np.testing.assert_allclose(ds["observables"][idx2], sign2 * 1.0)
@@ -533,7 +535,7 @@ class TestComputeObservables:
         np.testing.assert_allclose(ds["observables"], np.array([[1.0, -1.0]]))
 
     def test_unbound_path_in_fit_paths(self, gate_set_1q):
-        """Test that an unbound path in fit.paths accepts all depths from raw data."""
+        """Test that an unbound path in fit.paths accepts all fragment_depths from raw data."""
         unbound_path = Path(
             start_fragment=[
                 FidelityIndex.from_transition(
@@ -556,7 +558,7 @@ class TestComputeObservables:
         se_flip, r_flip = unbound_path.fragment_sign_flips(unbound_seq)
         inst_seqs = [unbound_seq.bind_at(d) for d in [1, 2, 3]]
 
-        # Pass the unbound path directly (not bound) — should accept all depths
+        # Pass the unbound path directly (not bound) — should accept all fragment_depths
         result = _run_compute_observables(
             paths=[unbound_path],
             instruction_sequences=inst_seqs,
@@ -568,11 +570,12 @@ class TestComputeObservables:
         ds = obs.dataset
         assert ds.sizes["observable"] == 3
 
-        for depth in [1, 2, 3]:
-            sign = (-1) ** (se_flip + depth * r_flip)
+        for fragment_depth in [1, 2, 3]:
+            sign = (-1) ** (se_flip + fragment_depth * r_flip)
             idx = int(
                 np.argwhere(
-                    (ds["unbound_path"].values == unbound_path) & (ds["depth"].values == depth)
+                    (ds["unbound_path"].values == unbound_path)
+                    & (ds["fragment_depth"].values == fragment_depth)
                 )[0, 0]
             )
             np.testing.assert_allclose(ds["observables"][idx], sign * 1.0)
@@ -602,7 +605,7 @@ class TestComputeObservables:
 
         inst_seqs = [unbound_seq.bind_at(d) for d in [1, 2, 3, 4]]
 
-        # fit.paths: unbound (accepts all depths) + bound at depth 1
+        # fit.paths: unbound (accepts all fragment_depths) + bound at fragment_depth 1
         paths = [unbound_path, unbound_path.bind_at(1)]
 
         result = _run_compute_observables(
@@ -614,14 +617,15 @@ class TestComputeObservables:
 
         obs = result.observable_data
         ds = obs.dataset
-        # Unbound path accepts all 4 depths (dominates over bound at depth 1)
+        # Unbound path accepts all 4 fragment_depths (dominates over bound at fragment_depth 1)
         assert ds.sizes["observable"] == 4
 
-        for depth in [1, 2, 3, 4]:
-            sign = (-1) ** (se_flip + depth * r_flip)
+        for fragment_depth in [1, 2, 3, 4]:
+            sign = (-1) ** (se_flip + fragment_depth * r_flip)
             idx = int(
                 np.argwhere(
-                    (ds["unbound_path"].values == unbound_path) & (ds["depth"].values == depth)
+                    (ds["unbound_path"].values == unbound_path)
+                    & (ds["fragment_depth"].values == fragment_depth)
                 )[0, 0]
             )
             np.testing.assert_allclose(ds["observables"][idx], sign * 1.0)
@@ -651,10 +655,11 @@ class TestComputeObservables:
 
         inst_seqs = [unbound_seq.bind_at(d) for d in [1, 2, 3, 4]]
 
-        # fit.paths: unbound (index 0, accepts all depths) + bound at depth 1 (index 1)
+        # fit.paths: unbound (index 0, accepts all fragment_depths) + bound at fragment_depth 1
+        # (index 1)
         paths = [unbound_path, unbound_path.bind_at(1)]
 
-        # Unbound path relates to all sequences; bound path relates to seq 0 (depth 1)
+        # Unbound path relates to all sequences; bound path relates to seq 0 (fragment_depth 1)
         relations = {(0, 0), (0, 1), (0, 2), (0, 3), (1, 0)}
 
         result = _run_compute_observables(
@@ -667,14 +672,15 @@ class TestComputeObservables:
 
         obs = result.observable_data
         ds = obs.dataset
-        # Unbound path accepts all 4 depths (dominates over bound at depth 1)
+        # Unbound path accepts all 4 fragment_depths (dominates over bound at fragment_depth 1)
         assert ds.sizes["observable"] == 4
 
-        for depth in [1, 2, 3, 4]:
-            sign = (-1) ** (se_flip + depth * r_flip)
+        for fragment_depth in [1, 2, 3, 4]:
+            sign = (-1) ** (se_flip + fragment_depth * r_flip)
             idx = int(
                 np.argwhere(
-                    (ds["unbound_path"].values == unbound_path) & (ds["depth"].values == depth)
+                    (ds["unbound_path"].values == unbound_path)
+                    & (ds["fragment_depth"].values == fragment_depth)
                 )[0, 0]
             )
             np.testing.assert_allclose(ds["observables"][idx], sign * 1.0)
@@ -704,7 +710,8 @@ class TestComputeObservables:
         inst_seqs = [unbound_seq.bind_at(d) for d in [1, 2]]
         paths = [unbound_path.bind_at(d) for d in [1, 2]]
 
-        # path 0 (depth 1) relates to seq 0 (depth 1), path 1 (depth 2) relates to seq 1 (depth 2)
+        # path 0 (fragment_depth 1) relates to seq 0 (fragment_depth 1); path 1 (fragment_depth 2)
+        # relates to seq 1 (fragment_depth 2)
         relations = {(0, 0), (1, 1)}
 
         result = _run_compute_observables(
@@ -719,11 +726,12 @@ class TestComputeObservables:
         ds = obs.dataset
         assert ds.sizes["observable"] == 2
 
-        for depth in [1, 2]:
-            sign = (-1) ** (se_flip + depth * r_flip)
+        for fragment_depth in [1, 2]:
+            sign = (-1) ** (se_flip + fragment_depth * r_flip)
             idx = int(
                 np.argwhere(
-                    (ds["unbound_path"].values == unbound_path) & (ds["depth"].values == depth)
+                    (ds["unbound_path"].values == unbound_path)
+                    & (ds["fragment_depth"].values == fragment_depth)
                 )[0, 0]
             )
             np.testing.assert_allclose(ds["observables"][idx], sign * 1.0)
@@ -765,6 +773,7 @@ class TestComputeObservables:
 
         obs = result.observable_data
         ds = obs.dataset
-        # Only 1 observable: depth 1 from sequence 0. Sequence 1 (depth 2) is ignored.
+        # Only 1 observable: fragment_depth 1 from sequence 0. Sequence 1 (fragment_depth 2) is
+        # ignored.
         assert ds.sizes["observable"] == 1
-        assert ds["depth"].values[0] == 1
+        assert ds["fragment_depth"].values[0] == 1

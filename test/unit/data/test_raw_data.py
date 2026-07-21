@@ -17,7 +17,7 @@ from qiskit_noise_learning.data import RawData
 
 def test_from_arrays(make_instruction_sequence):
     """Test constructing RawData from arrays."""
-    seq = make_instruction_sequence(name="CZ", depth=1)
+    seq = make_instruction_sequence(name="CZ", fragment_depth=1)
     num_randomizations = 3
     num_shots = 10
     num_bits = 2
@@ -42,7 +42,7 @@ def test_from_arrays(make_instruction_sequence):
 
 def test_filter_time(make_instruction_sequence):
     """Test that filter_time keeps only randomizations within the time window."""
-    seq = make_instruction_sequence(name="CZ", depth=1)
+    seq = make_instruction_sequence(name="CZ", fragment_depth=1)
     num_shots = 5
     num_bits = 2
     t_lbs = np.array(["2026-01-01", "2026-01-03", "2026-01-05"], dtype="datetime64[us]")

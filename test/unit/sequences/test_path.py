@@ -53,11 +53,11 @@ def test_construction():
     assert path.start_fragment == start_fragment
     assert path.repeatable_fragment == repeatable_fragment
     assert path.end_fragment == end_fragment
-    assert path.depth is None
+    assert path.fragment_depth is None
 
 
 def test_construction_with_depth():
-    """Test construction with a specified depth."""
+    """Test construction with a specified fragment_depth."""
     ident = [((0, 1), Clifford(QuantumCircuit(2)))]
     prep = ModelGate("P", ident, qubit_idxs=range(2), prep_idxs=range(2))
     gate = ModelGate("L0", ident, qubit_idxs=range(2))
@@ -79,10 +79,10 @@ def test_construction_with_depth():
         start_fragment=start_fragment,
         repeatable_fragment=repeatable_fragment,
         end_fragment=end_fragment,
-        depth=3,
+        fragment_depth=3,
     )
 
-    assert path.depth == 3
+    assert path.fragment_depth == 3
     assert len(path) == 8
 
 
@@ -114,7 +114,7 @@ def test_iter():
         start_fragment=start_fragment,
         repeatable_fragment=repeatable_fragment,
         end_fragment=end_fragment,
-        depth=2,
+        fragment_depth=2,
     )
     items = list(path)
 
@@ -159,7 +159,7 @@ def test_getitem():
         start_fragment=start_fragment,
         repeatable_fragment=repeatable_fragment,
         end_fragment=end_fragment,
-        depth=3,
+        fragment_depth=3,
     )
 
     # start fragment
@@ -200,7 +200,7 @@ def test_getitem_out_of_bounds():
         start_fragment=start_fragment,
         repeatable_fragment=repeatable_fragment,
         end_fragment=end_fragment,
-        depth=2,
+        fragment_depth=2,
     )
     assert len(path) == 4
 
@@ -320,7 +320,7 @@ def test_to_instruction_sequence_single_qubit_single_box(gate_set_1q):
 
 
 def test_to_instruction_sequence_preserves_depth(gate_set_1q):
-    """Test that to_instruction_sequence preserves the depth."""
+    """Test that to_instruction_sequence preserves the fragment_depth."""
     path = Path(
         start_fragment=[
             FidelityIndex.from_transition(
@@ -337,9 +337,9 @@ def test_to_instruction_sequence_preserves_depth(gate_set_1q):
                 gate_set_1q["M"], QubitSparsePauli("Z"), QubitSparsePauli("I")
             )
         ],
-        depth=5,
+        fragment_depth=5,
     )
-    assert path.to_instruction_sequence().depth == 5
+    assert path.to_instruction_sequence().fragment_depth == 5
 
 
 def test_to_instruction_sequence_single_qubit_single_box_deep_repetition(gate_set_1q):
@@ -526,7 +526,7 @@ def test_is_traversed_by(gate_set_1q):
 
 
 def test_is_traversed_by_depth_mismatch(gate_set_1q):
-    """Test that is_traversed_by returns False for depth mismatch."""
+    """Test that is_traversed_by returns False for fragment_depth mismatch."""
     path = Path(
         start_fragment=[
             FidelityIndex.from_transition(
@@ -539,13 +539,13 @@ def test_is_traversed_by_depth_mismatch(gate_set_1q):
                 gate_set_1q["M"], QubitSparsePauli("Z"), QubitSparsePauli("I")
             )
         ],
-        depth=3,
+        fragment_depth=3,
     )
     inst_seq = InstructionSequence(
         start_fragment=[ApplyGate("P")],
         repeatable_fragment=[],
         end_fragment=[ApplyGate("M")],
-        depth=4,
+        fragment_depth=4,
     )
     assert not path.is_traversed_by(inst_seq)
 
@@ -1180,20 +1180,20 @@ def test_hash():
     )
     assert isinstance(hash(path), int)
 
-    # with depth
+    # with fragment_depth
     path_with_depth = Path(
         start_fragment=start_fragment,
         repeatable_fragment=repeatable_fragment,
         end_fragment=end_fragment,
-        depth=5,
+        fragment_depth=5,
     )
     assert isinstance(hash(path_with_depth), int)
-    # different depth should give different hash
+    # different fragment_depth should give different hash
     assert hash(path) != hash(path_with_depth)
 
 
 def test_bind_at(gate_set_1q):
-    """Test bind_at returns a new Path with the specified depth."""
+    """Test bind_at returns a new Path with the specified fragment_depth."""
     ident = [((0,), Clifford(QuantumCircuit(1)))]
     prep = ModelGate("P", ident, qubit_idxs=range(1), prep_idxs=range(1))
     gate = ModelGate("L0", ident, qubit_idxs=range(1))
@@ -1208,16 +1208,16 @@ def test_bind_at(gate_set_1q):
         repeatable_fragment=repeatable_fragment,
         end_fragment=end_fragment,
     )
-    assert path.depth is None
+    assert path.fragment_depth is None
 
     bound = path.bind_at(3)
-    assert bound.depth == 3
+    assert bound.fragment_depth == 3
     assert bound.start_fragment == start_fragment
     assert bound.repeatable_fragment == repeatable_fragment
     assert bound.end_fragment == end_fragment
     assert isinstance(bound, Path)
 
-    # without_depth reverses it
-    unbound = bound.without_depth()
-    assert unbound.depth is None
+    # unbind reverses it
+    unbound = bound.unbind()
+    assert unbound.fragment_depth is None
     assert unbound == path

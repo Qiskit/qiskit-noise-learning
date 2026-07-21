@@ -38,8 +38,9 @@ class AveragedData(LeveledData):
     - Coordinates:
         - ``unbound_path``: A 1d array of unbound :class:`Path` instances labelling each observable,
             with dimensions ``("observable",)``.
-        - ``depth``: A 1d array of type ``int`` specifying the depth associated to the observable. A
-            value of ``-1`` indicates an estimate of only the ``repeatable_fragment`` of the path.
+        - ``fragment_depth``: A 1d array of type ``int`` specifying the fragment depth associated to
+            the observable. A value of ``-1`` indicates an estimate of only the
+            ``repeatable_fragment`` of the path.
 
     Args:
         dataset: A ``Dataset`` with the above formatting.
@@ -57,7 +58,7 @@ class AveragedData(LeveledData):
     def from_arrays(
         cls,
         unbound_paths: list[Path],
-        depths: list[int],
+        fragment_depths: list[int],
         observables: np.ndarray[float],
         std: np.ndarray[float],
         time_lbs: np.ndarray[np.datetime64],
@@ -67,9 +68,10 @@ class AveragedData(LeveledData):
         """Instantiate from data specified as arrays in standard containers.
 
         Args:
-            unbound_paths: A list of unbound paths (with ``depth=None``).
-            depths: A list of depths, with ``-1`` indicating the corresponding observable is in
-                reference to only the repeatable fragment of the corresponding path.
+            unbound_paths: A list of unbound paths (with ``fragment_depth=None``).
+            fragment_depths: A list of fragment depths, with ``-1`` indicating the corresponding
+                observable is in reference to only the repeatable fragment of the corresponding
+                path.
             observables: A 1d array of observable estimates.
             std: A 1d array of standard deviations.
             time_lbs: A 1d array of time lower bounds.
@@ -89,7 +91,7 @@ class AveragedData(LeveledData):
             },
             coords={
                 "unbound_path": (("observable",), np.array(unbound_paths, dtype=object)),
-                "depth": (("observable",), depths),
+                "fragment_depth": (("observable",), fragment_depths),
             },
         )
 
