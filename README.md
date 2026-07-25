@@ -40,3 +40,7 @@ pre-commit run --all-files            # all checks
 ## License
 
 [Apache 2.0](LICENSE.txt)
+
+## Citing this package
+
+If you use this package in your research, use the [CITATION.bib](CITATION.bib) file in this project’s repository to cite the appropriate reference(s).
