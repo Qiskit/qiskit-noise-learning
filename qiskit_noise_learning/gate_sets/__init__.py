@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Gate set module."""
+"""Gate sets."""
 
 from .gate import Gate
 from .gate_set import GateSet

@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Sequences module."""
+"""Path and instruction sequences."""
 
 from .apply_gate import ApplyGate
 from .fidelity_index import FidelityIndex

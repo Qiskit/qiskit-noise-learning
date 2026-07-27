@@ -9,10 +9,3 @@
 # Any modifications or derivative works of this code must retain this
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
-
-"""General mathematical objects."""
-
-from .indexed_matrix import IndexedMatrix
-from .indexed_space import EnumeratedIndexedSpace, IndexedSpace
-from .indexed_vector import IndexedVector
-from .linear_map import ComposedLinearMap, LinearMap

@@ -173,6 +173,7 @@ class QiskitGateSet(GateSet[QiskitGate]):
         """Add a gate to the gate set.
 
         .. code:: python
+
             >>> from qiskit_noise_learning.gate_sets import QiskitGateSet, QiskitGate
             >>> from qiskit.circuit import QuantumCircuit
 
@@ -208,6 +209,7 @@ class QiskitGateSet(GateSet[QiskitGate]):
         """Add a Qiskit circuit instruction containing a box operation as a gate.
 
         .. code:: python
+
             >>> from qiskit_noise_learning.gate_sets import QiskitGateSet, QiskitGate
             >>> from qiskit.circuit import QuantumCircuit
 
@@ -271,6 +273,7 @@ class QiskitGateSet(GateSet[QiskitGate]):
         for you.
 
         .. code:: python
+
             >>> from qiskit_noise_learning.gate_sets import QiskitGateSet, QiskitGate
             >>> from qiskit.circuit import QuantumCircuit
 
@@ -315,6 +318,7 @@ class QiskitGateSet(GateSet[QiskitGate]):
         """Return a circuit builder whose contents will be added as a gate.
 
         .. code:: python
+
             >>> from qiskit_noise_learning.gate_sets import QiskitGateSet, QiskitGate
             >>> from qiskit.circuit import QuantumCircuit
 

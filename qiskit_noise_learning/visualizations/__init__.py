@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Visualization utilities"""
+"""Visualization utilities."""
 
 from .fidelity_math_labels import fidelity_index_math_label, path_math_label
 from .gate_set_topology import gate_set_topology

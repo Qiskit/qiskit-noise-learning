@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Experiment builder module."""
+"""Experiment builder."""
 
 from .experiment import Experiment
 from .experiment_builder_stage import ExperimentBuilder, ExperimentBuilderStage
