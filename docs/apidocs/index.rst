@@ -1,8 +1,6 @@
 API reference
 =============
 
-This is the auto-generated API reference for :mod:`qiskit_noise_learning`.
-
 .. toctree::
    :maxdepth: 1
 
@@ -16,5 +14,4 @@ This is the auto-generated API reference for :mod:`qiskit_noise_learning`.
    models
    noise_learner
    sequences
-   utils
    visualizations

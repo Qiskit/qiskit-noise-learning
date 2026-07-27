@@ -3,16 +3,28 @@ Experiment builder (:mod:`qiskit_noise_learning.experiment_builder`)
 
 .. automodule:: qiskit_noise_learning.experiment_builder
 
-.. rubric:: Modules
+.. currentmodule:: qiskit_noise_learning.experiment_builder
 
-.. automodule:: qiskit_noise_learning.experiment_builder.experiment
-   :members:
-   :show-inheritance:
+Classes
+-------
 
-.. automodule:: qiskit_noise_learning.experiment_builder.experiment_builder_stage
-   :members:
-   :show-inheritance:
+.. autosummary::
+   :toctree: generated
+   :nosignatures:
 
-.. automodule:: qiskit_noise_learning.experiment_builder.utils
-   :members:
-   :show-inheritance:
+   Experiment
+   ExperimentBuilder
+   ExperimentBuilderStage
+   AddInstructionSequences
+   AddPaths
+   BindFragmentDepths
+   CompleteSequences
+   Depth1Paths
+   EvenDepthPaths
+   EvenDepthVanillaPaths
+   GenerateInstructionSequences
+   IdentifyRelations
+   MergeInstructionSequences
+   RankReducePaths
+   SPAMPaths
+   VanillaInstructionSequences

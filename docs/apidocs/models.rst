@@ -2,21 +2,36 @@ Models (:mod:`qiskit_noise_learning.models`)
 ============================================
 
 .. automodule:: qiskit_noise_learning.models
+   :exclude-members: FidelityModel
 
-.. rubric:: Modules
+.. currentmodule:: qiskit_noise_learning.models
 
-.. automodule:: qiskit_noise_learning.models.identity_fidelity_model
-   :members:
-   :show-inheritance:
+Classes
+-------
 
-.. automodule:: qiskit_noise_learning.models.log_fidelity_space
-   :members:
-   :show-inheritance:
+.. autosummary::
+   :toctree: generated
+   :nosignatures:
 
-.. automodule:: qiskit_noise_learning.models.pauli_lindblad_model
-   :members:
-   :show-inheritance:
+   IdentityFidelityModel
+   LogFidelitySpace
+   GeneratorIndex
+   PauliLindbladModel
+   RateSpace
+   PauliLindbladSplit
 
-.. automodule:: qiskit_noise_learning.models.utils
-   :members:
-   :show-inheritance:
+Functions
+---------
+
+.. autosummary::
+   :toctree: generated
+
+   contains_pauli_lindblad_model
+   get_noise_site
+   is_fidelity_model
+   split_pauli_lindblad_model
+
+Type aliases
+------------
+
+.. autodata:: FidelityModel

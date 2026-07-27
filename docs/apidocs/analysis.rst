@@ -3,48 +3,26 @@ Analysis (:mod:`qiskit_noise_learning.analysis`)
 
 .. automodule:: qiskit_noise_learning.analysis
 
-.. rubric:: Modules
+.. currentmodule:: qiskit_noise_learning.analysis
 
-.. automodule:: qiskit_noise_learning.analysis.analysis_pipeline
-   :members:
-   :show-inheritance:
+Classes
+-------
 
-.. automodule:: qiskit_noise_learning.analysis.average_observables
-   :members:
-   :show-inheritance:
+.. autosummary::
+   :toctree: generated
+   :nosignatures:
 
-.. automodule:: qiskit_noise_learning.analysis.compute_observables
-   :members:
-   :show-inheritance:
-
-.. automodule:: qiskit_noise_learning.analysis.curve_fit_observables
-   :members:
-   :show-inheritance:
-
-.. automodule:: qiskit_noise_learning.analysis.fit
-   :members:
-   :show-inheritance:
-
-.. automodule:: qiskit_noise_learning.analysis.flip_post_select
-   :members:
-   :show-inheritance:
-
-.. automodule:: qiskit_noise_learning.analysis.legacy
-   :members:
-   :show-inheritance:
-
-.. automodule:: qiskit_noise_learning.analysis.model_solve
-   :members:
-   :show-inheritance:
-
-.. automodule:: qiskit_noise_learning.analysis.symmetrize
-   :members:
-   :show-inheritance:
-
-.. automodule:: qiskit_noise_learning.analysis.utils
-   :members:
-   :show-inheritance:
-
-.. automodule:: qiskit_noise_learning.analysis.zero_post_select
-   :members:
-   :show-inheritance:
+   AnalysisPipeline
+   AnalysisStage
+   AverageObservables
+   ComputeObservables
+   CurveFitObservables
+   Fit
+   FlipPostSelect
+   LegacySolve
+   LSQLinearSolve
+   NNLSSolve
+   PositivityMinSolve
+   SymmetrizeFidelities
+   SymmetrizeGenerators
+   ZeroPostSelect

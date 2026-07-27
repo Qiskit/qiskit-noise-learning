@@ -3,24 +3,22 @@ Aer executor (:mod:`qiskit_noise_learning.aer_executor`)
 
 .. automodule:: qiskit_noise_learning.aer_executor
 
-.. rubric:: Modules
+.. currentmodule:: qiskit_noise_learning.aer_executor
 
-.. automodule:: qiskit_noise_learning.aer_executor.aer_executor
-   :members:
-   :show-inheritance:
+Classes
+-------
 
-.. automodule:: qiskit_noise_learning.aer_executor.broadcast_sample
-   :members:
-   :show-inheritance:
+.. autosummary::
+   :toctree: generated
+   :nosignatures:
 
-.. automodule:: qiskit_noise_learning.aer_executor.inline
-   :members:
-   :show-inheritance:
+   AerExecutor
+   AerRuntimeJob
 
-.. automodule:: qiskit_noise_learning.aer_executor.insert_noise_pass
-   :members:
-   :show-inheritance:
+Functions
+---------
 
-.. automodule:: qiskit_noise_learning.aer_executor.run_quantum_program
-   :members:
-   :show-inheritance:
+.. autosummary::
+   :toctree: generated
+
+   inline_samplexes

@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Noise learner module."""
+"""Noise learner."""
 
 from .learning_options import LearningOptions
 from .noise_learner import NoiseLearner

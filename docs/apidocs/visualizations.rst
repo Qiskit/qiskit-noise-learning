@@ -3,12 +3,14 @@ Visualizations (:mod:`qiskit_noise_learning.visualizations`)
 
 .. automodule:: qiskit_noise_learning.visualizations
 
-.. rubric:: Modules
+.. currentmodule:: qiskit_noise_learning.visualizations
 
-.. automodule:: qiskit_noise_learning.visualizations.fidelity_math_labels
-   :members:
-   :show-inheritance:
+Functions
+---------
 
-.. automodule:: qiskit_noise_learning.visualizations.gate_set_topology
-   :members:
-   :show-inheritance:
+.. autosummary::
+   :toctree: generated
+
+   fidelity_index_math_label
+   path_math_label
+   gate_set_topology

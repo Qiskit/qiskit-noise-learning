@@ -10,6 +10,8 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
+"""Data analysis."""
+
 from .analysis_pipeline import AnalysisPipeline, AnalysisStage
 from .average_observables import AverageObservables
 from .compute_observables import ComputeObservables

@@ -32,6 +32,9 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
 autoclass_content = "class"
 autodoc_member_order = "bysource"
 autosummary_generate = True
+# The per-subpackage API pages list names re-exported into each package __init__;
+# this lets autosummary resolve and generate stubs for those imported names.
+autosummary_imported_members = True
 
 autodoc_default_options = {
     "members": True,

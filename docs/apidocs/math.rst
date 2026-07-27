@@ -3,20 +3,18 @@ Math (:mod:`qiskit_noise_learning.math`)
 
 .. automodule:: qiskit_noise_learning.math
 
-.. rubric:: Modules
+.. currentmodule:: qiskit_noise_learning.math
 
-.. automodule:: qiskit_noise_learning.math.indexed_matrix
-   :members:
-   :show-inheritance:
+Classes
+-------
 
-.. automodule:: qiskit_noise_learning.math.indexed_space
-   :members:
-   :show-inheritance:
+.. autosummary::
+   :toctree: generated
+   :nosignatures:
 
-.. automodule:: qiskit_noise_learning.math.indexed_vector
-   :members:
-   :show-inheritance:
-
-.. automodule:: qiskit_noise_learning.math.linear_map
-   :members:
-   :show-inheritance:
+   IndexedMatrix
+   EnumeratedIndexedSpace
+   IndexedSpace
+   IndexedVector
+   ComposedLinearMap
+   LinearMap

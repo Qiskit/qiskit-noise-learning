@@ -3,16 +3,14 @@ Circuit generator (:mod:`qiskit_noise_learning.circuit_generator`)
 
 .. automodule:: qiskit_noise_learning.circuit_generator
 
-.. rubric:: Modules
+.. currentmodule:: qiskit_noise_learning.circuit_generator
 
-.. automodule:: qiskit_noise_learning.circuit_generator.circuit_generator
-   :members:
-   :show-inheritance:
+Classes
+-------
 
-.. automodule:: qiskit_noise_learning.circuit_generator.executor_circuit_generator
-   :members:
-   :show-inheritance:
+.. autosummary::
+   :toctree: generated
+   :nosignatures:
 
-.. automodule:: qiskit_noise_learning.circuit_generator.executor_data_mapper
-   :members:
-   :show-inheritance:
+   ExecutorCircuitGenerator
+   ExecutorDataMapper
