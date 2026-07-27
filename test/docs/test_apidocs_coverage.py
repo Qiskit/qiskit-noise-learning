@@ -94,7 +94,7 @@ def _public_names(module):
 
     A name belongs to ``module``'s own public API when it does not start with an underscore and its
     ``__module__`` lies within ``module``. Names re-imported from other subpackages (helpers such as
-    :class:`~.LinearMap`) and module-level type aliases (whose ``__module__`` points at the aliased
+    ``LinearMap``) and module-level type aliases (whose ``__module__`` points at the aliased
     class) are excluded, matching what ``autosummary`` generates for the page.
     """
     prefix = module.__name__
@@ -135,7 +135,7 @@ def test_documented_names_exist(page):
 def test_every_public_subpackage_has_a_page():
     """Every subpackage that exposes public names has an API reference page.
 
-    This complements :func:`test_index_lists_every_api_page`, which only checks the pages that
+    This complements ``test_index_lists_every_api_page``, which only checks the pages that
     already exist: it catches a newly added subpackage (or a newly populated one, such as
     ``utils``) that ships public API but no documentation page.
     """
