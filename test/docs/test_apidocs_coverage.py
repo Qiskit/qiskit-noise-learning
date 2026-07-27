@@ -15,16 +15,24 @@
 Each ``docs/apidocs/*.rst`` page enumerates the public classes and functions of one subpackage by
 hand in its ``autosummary`` blocks. These tests guard against drift: a public name added to a
 subpackage but forgotten in its documentation page, a stale entry left behind after a rename or
-removal, and a page missing from (or spuriously listed in) the API reference table of contents.
+removal, a subpackage that exposes public names but has no page at all, and a page missing from (or
+spuriously listed in) the API reference table of contents.
 """
 
 import importlib
+import pkgutil
 import re
 from pathlib import Path
 
 import pytest
 
+import qiskit_noise_learning
+
 APIDOCS = Path(__file__).resolve().parents[2] / "docs" / "apidocs"
+
+# Subpackages deliberately omitted from the API reference despite exposing public names. Keep this
+# empty unless a subpackage is intentionally undocumented, and record the reason alongside its name.
+_UNDOCUMENTED_SUBPACKAGES: frozenset[str] = frozenset()
 
 _CURRENTMODULE = re.compile(r"\.\.\s+currentmodule::\s+(\S+)")
 _AUTOOBJECT = re.compile(r"\.\.\s+auto(?:data|class|function)::\s+(\S+)")
@@ -38,6 +46,15 @@ def _api_pages():
     pages = sorted(page for page in APIDOCS.glob("*.rst") if page.name != "index.rst")
     assert pages, f"no API reference pages found under {APIDOCS}"
     return pages
+
+
+def _subpackages():
+    """Return the short names of every subpackage directly under the top-level package."""
+    return sorted(
+        name
+        for _, name, is_package in pkgutil.iter_modules(qiskit_noise_learning.__path__)
+        if is_package
+    )
 
 
 def _parse_page(path):
@@ -112,6 +129,27 @@ def test_documented_names_exist(page):
     assert not stale, (
         f"{page.name} documents name(s) {stale} that no longer exist on {module_name}; "
         "remove or rename the stale entries."
+    )
+
+
+def test_every_public_subpackage_has_a_page():
+    """Every subpackage that exposes public names has an API reference page.
+
+    This complements :func:`test_index_lists_every_api_page`, which only checks the pages that
+    already exist: it catches a newly added subpackage (or a newly populated one, such as
+    ``utils``) that ships public API but no documentation page.
+    """
+    pages = {page.stem for page in _api_pages()}
+    missing = []
+    for short_name in _subpackages():
+        if short_name in _UNDOCUMENTED_SUBPACKAGES:
+            continue
+        module = importlib.import_module(f"{qiskit_noise_learning.__name__}.{short_name}")
+        if _public_names(module) and short_name not in pages:
+            missing.append(short_name)
+    assert not missing, (
+        f"subpackage(s) {sorted(missing)} expose public names but have no docs/apidocs page; add a "
+        "page (and list it in apidocs/index.rst), or record them in _UNDOCUMENTED_SUBPACKAGES."
     )
 
 
