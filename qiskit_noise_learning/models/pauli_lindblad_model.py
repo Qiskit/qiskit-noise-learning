@@ -79,8 +79,7 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
     The noise model for each gate in this case is a Pauli channel, parameterized in terms of the
     rates of a Pauli-Lindblad decomposition :math:`\exp(\sum_{P \in \mathcal{P}_n} r_P L(P))`, where
     the :math:`r_P` are the rates, and :math:`L(P) = P \cdot P - \cdot`. In the case of unitary
-    gates, the
-    noise can be modelled as either occuring before or after the ideal unitary.
+    gates, the noise can be modelled as either occuring before or after the ideal unitary.
 
     Args:
         gate_set: The gate set whose fidelities are being modelled. To be converted to a
