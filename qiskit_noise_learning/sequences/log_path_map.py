@@ -26,8 +26,10 @@ class LogPathSpace(IndexedSpace[Path]):
     r"""The (infinite-dimensional) space of log path-fidelities.
 
     For a :class:`~.Path`, the "path-fidelity" is:
+
     - If the path is unbound, the product of the fidelities in the repeatable fragment.
     - If the path is bound, the product of all fidelities in the path (counting multiplicities).
+
     This corresponds to the sign-corrected observable of an experiment traversing the path.
 
     The log path space represents the vector space of such log path-fidelities, indexed by the

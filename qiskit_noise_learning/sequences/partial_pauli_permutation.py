@@ -371,7 +371,7 @@ class PartialPauliPermutation(Instruction):
 
     However, a human-readable ``set``-based representation can also be used for construction via the
     :meth:`.PartialPauliPermutation.from_sets` class method, or can be retrieved from an instance
-    via the :meth:`.PartialPauliPermutation.to_sets`` method. For a single qubit, the partial
+    via the :meth:`.PartialPauliPermutation.to_sets` method. For a single qubit, the partial
     permutation is specified as a ``set`` whose entries are ``tuple``\s of the form ``(p0, p1)``,
     where ``p0`` and ``p1`` are strings drawn from ``["Z", "X", "Y"]``. This ``tuple`` indicates
     that ``p0`` is mapped by the permutation to ``p1``.

@@ -55,7 +55,7 @@ def inline_samplexes(
     omit: list[int] | None = None,
     rng: np.random.Generator | None = None,
 ) -> QuantumProgram:
-    """Return a new :class:`QuantumProgram` with :class:`SamplexItem`\\s resolved in-place.
+    r"""Return a new :class:`QuantumProgram` with :class:`SamplexItem`\s resolved in-place.
 
     Each :class:`SamplexItem` whose index is not in ``omit`` is replaced by a
     :class:`CircuitItem` via :func:`inline_samplex_item`.  The passthrough data
@@ -66,8 +66,8 @@ def inline_samplexes(
 
     Args:
         program: The quantum program to process.
-        omit: Indices of items to leave as :class:`SamplexItem`\\s.  All other
-            :class:`SamplexItem`\\s are inlined.  ``CircuitItem``\\s are always
+        omit: Indices of items to leave as :class:`SamplexItem`\s.  All other
+            :class:`SamplexItem`\s are inlined.  ``CircuitItem``\s are always
             left unchanged regardless of this list.
         rng: Random number generator passed to :func:`inline_samplex_item`.
             If ``None``, ``np.random.default_rng()`` is used.
@@ -75,7 +75,7 @@ def inline_samplexes(
     Returns:
         A new :class:`QuantumProgram` with the same shots, noise maps, and
         measurement level as the input, but with the selected
-        :class:`SamplexItem`\\s replaced by :class:`CircuitItem`\\s.
+        :class:`SamplexItem`\s replaced by :class:`CircuitItem`\s.
     """
     if rng is None:
         rng = np.random.default_rng()

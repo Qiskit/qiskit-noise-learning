@@ -48,10 +48,11 @@ def _arc_segments(
     gate_name: str,
     label_fn: Callable[[int], str],
 ) -> tuple[list[float | None], list[float | None], list[str | None]]:
-    """Return (arc_x, arc_y, hover) for arc segments drawn around the given qubits.
+    r"""Return (arc_x, arc_y, hover) for arc segments drawn around the given qubits.
 
-    Sector sector_idx of num_sectors is centred at angle 2π·sector_idx/num_sectors
-    (sector_idx=0 → right side), proceeding ccw.
+    Sector ``sector_idx`` of ``num_sectors`` is centred at angle
+    :math:`2\pi \cdot \mathrm{sector\_idx} / \mathrm{num\_sectors}` (``sector_idx=0``
+    :math:`\to` right side), proceeding counter-clockwise.
     """
     arc_x: list[float | None] = []
     arc_y: list[float | None] = []
@@ -90,7 +91,7 @@ def gate_set_topology(gate_set: GateSet[Gate]) -> go.Figure:
     gate receive a slightly transparent arc.
 
     Args:
-        gate_set: The gate set to visualize. Must have a non-``None``:attr:`~.GateSet.target` so
+        gate_set: The gate set to visualize. Must have a non-``None`` :attr:`~.GateSet.target` so
             that qubit coordinates and the device topology can be determined.
 
     Returns:

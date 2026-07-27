@@ -24,12 +24,14 @@ from qiskit_noise_learning.gate_sets import ModelGate
 class FidelityIndex:
     r"""Index data for a fidelity in a Pauli-MCM-reset gate set.
 
-    Let :math:`K` be the number of qubits, :math:`[K] = {0, ..., K-1}`, :math:`M\subset [K]` denote
-    the measured qubits, and :math:`R \subset [K]` the reset qubits for the gate. For a given gate,
-    each fidelity is specified by:
-    - A Pauli on the unmeasured and unreset qubits :math:`Q in P^{[K]\setminus (M \cup R)}`,
-    - A list of "input bits" on the measured qubits :math:`x in Z_2^M`, and
-    - A list of "output bits" on the measured and reset qubits :math:`y in Z_2^{M \cup R}`.
+    Let :math:`K` be the number of qubits, :math:`[K] = \{0, ..., K-1\}`, :math:`M\subset [K]`
+    denote the measured qubits, and :math:`R \subset [K]` the reset qubits for the gate. For a given
+    gate, each fidelity is specified by:
+
+    - A Pauli on the unmeasured and unreset qubits :math:`Q \in P^{[K]\setminus (M \cup R)}`,
+    - A list of "input bits" on the measured qubits :math:`x \in Z_2^M`, and
+    - A list of "output bits" on the measured and reset qubits :math:`y \in Z_2^{M \cup R}`.
+
     This list constitutes the "index data" for a generalized fidelity for a given gate, in the sense
     that there is a bijection between all generalized fidelities and the above set of all objects
     satisfying the above description.

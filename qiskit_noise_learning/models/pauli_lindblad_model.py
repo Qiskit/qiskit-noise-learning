@@ -77,8 +77,9 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
     and at least one measurement gate are present.
 
     The noise model for each gate in this case is a Pauli channel, parameterized in terms of the
-    rates of a Pauli-Lindblad decomposition :math:`exp(\sum_{P \in \mathcal{P}_n} r_P L(P))`, where
-    the :math:`r_P` are the rates, and `L(P) = P \cdot P - \cdot`. In the case of unitary gates, the
+    rates of a Pauli-Lindblad decomposition :math:`\exp(\sum_{P \in \mathcal{P}_n} r_P L(P))`, where
+    the :math:`r_P` are the rates, and :math:`L(P) = P \cdot P - \cdot`. In the case of unitary
+    gates, the
     noise can be modelled as either occuring before or after the ideal unitary.
 
     Args:
@@ -212,7 +213,7 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
 
         This method defines k-locality in terms of partitions of a set of :math:`n`-qubits,
         generalizing the usual notion beyond single qubits. A partition is a collection of disjoint
-        sets of qubit indices that covers :math:`{0, ..., n - 1}`. Two qubit indices :math:`i, j`
+        sets of qubit indices that covers :math:`\{0, ..., n - 1\}`. Two qubit indices :math:`i, j`
         are neighbours if either edge :math:`(i, j)` or :math:`(j, i)` is in the coupling map, which
         is drawn from ``gate_set`` or defaults to the complete coupling map. Given a partition
         :math:`P`, two distinct qubit index sets :math:`B_0, B_1 \in P` are neighbours if there
@@ -249,7 +250,7 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
                 ``local_paulis[gate_name][k].num_qubits`` must equal ``k``. For Clifford gates,
                 ``local_paulis[gate_name][k]`` defaults to all possible non-identity Paulis on ``k``
                 qubits, and for measurement and preparation, it defaults to all Paulis consisting of
-                :math:`\{I, X}\}` on ``k`` qubits.
+                :math:`\{I, X\}` on ``k`` qubits.
             noise_site: Dictionary indicating whether to model gate noise as ``"before"``
                 or ``"after"`` the gate.
 
@@ -407,7 +408,7 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
                 ``k`` for the specified gates.
             paulis: A dictionary indicating the single-qubit Paulis to use in the k-local
                 model for each gate. For Clifford gates, defaults to all single qubit Paulis, and
-                for measurement and preparation, defaults to :math:`\{I, X}\}`.
+                for measurement and preparation, defaults to :math:`\{I, X\}`.
             noise_site: Dictionary indicating whether to model gate noise as ``"before"``
                 or ``"after"`` the gate.
 
