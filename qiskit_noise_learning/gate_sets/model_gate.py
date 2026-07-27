@@ -29,10 +29,10 @@ from qiskit_noise_learning.gate_sets import Gate
 
 
 class ModelGate(Gate):
-    """A model for a gate of the form Clifford - MCM - reset.
+    r"""A model for a gate of the form Clifford - MCM - reset.
 
     Args:
-        cliffords: An iterable of tuples of physical qubit indices and :class:`Clifford`s
+        cliffords: An iterable of tuples of physical qubit indices and :class:`Clifford`\s
             corresponding to the ideal Clifford layer. The order of the iterable should start with
             the first applied Clifford and proceed temporally, and ``None`` is interpreted as the
             identity.

@@ -202,7 +202,7 @@ class NNLSSolve(ModelSolve):
     """Solves for the :class:`~.ModelData` using SciPy's non-negative least squares solver.
 
     See SciPy's
-    [documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.nnls.html)
+    `documentation <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.nnls.html>`_
     for details on the method. See :class:`~.ModelSolve` for more details about the general
     responsibility of a model solver in this library.
 
@@ -231,7 +231,7 @@ class LSQLinearSolve(ModelSolve):
     """Solves for the :class:`~.ModelData` using SciPy's linear least squares solver.
 
     See SciPy's
-    [documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.lsq_linear.html)
+    `documentation <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.lsq_linear.html>`_
     for details on the method. See :class:`~.ModelSolve` for more details about the general
     responsibility of a model solver in this library.
 
@@ -269,9 +269,10 @@ class PositivityMinSolve(ModelSolve):
 
     Requires that the :class:`~.Fit` uses a :class:`~.PauliLindbladModel`.
 
-    For a gate set :math:`\mathcal{G}`, let :math:`\{r_{G, P}}` denote the Pauli-Lindblad rates over
-    gate-dependent generator sets \mathcal{K}(G)`, :math:`A` the design matrix and :math:`b` the
-    observed data. For the user-specified algorithm parameters:
+    For a gate set :math:`\mathcal{G}`, let :math:`\{r_{G, P}\}` denote the Pauli-Lindblad rates
+    over gate-dependent generator sets :math:`\mathcal{K}(G)`, :math:`A` the design matrix and
+    :math:`b` the observed data. For the user-specified algorithm parameters:
+
     - Gate coefficients :math:`\{c_G \in \mathbb{R} : G \in \mathcal{G}\}`,
     - Global fit bound :math:`\epsilon > 0`, and
     - Local fit bounds :math:`\delta_P` for each path :math:`P` measured in the design matrix,
@@ -280,13 +281,13 @@ class PositivityMinSolve(ModelSolve):
 
     .. math::
 
-        \\min \\sum_{G \in \mathcal{G}} c_G \sum_{P \in \mathcal{K}(G)} \\max(0, r_{P, G})
+        \min \sum_{G \in \mathcal{G}} c_G \sum_{P \in \mathcal{K}(G)} \max(0, r_{P, G})
 
     subject to:
 
-    - :math:`\\|W (A r - b)\\|_2 \\leq \\epsilon`
-    - :math:`|(Ar - b)_i| \\leq \\delta_i` for each row :math:`i`
-    - :math:`r \\geq 0` (optional)
+    - :math:`\|W (A r - b)\|_2 \leq \epsilon`
+    - :math:`|(Ar - b)_i| \leq \delta_i` for each row :math:`i`
+    - :math:`r \geq 0` (optional)
 
     See :class:`~.ModelSolve` for more details about the general responsibility of a model solver
     in this library.

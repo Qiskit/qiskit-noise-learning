@@ -33,6 +33,7 @@ class RawData(LeveledData):
     Each leaf dataset contains:
 
     - Data variables:
+
         - ``data``: The raw boolean data with dimensions ``("randomization", "shot", "bit")``.
         - ``data_mask``: A boolean mask with dimensions ``("randomization", "shot")``. Handles
           potential raggedness in the ``"shot"`` dimension across different randomizations.
@@ -43,11 +44,13 @@ class RawData(LeveledData):
         - ``time_ubs``: Upper bound on data acquisition times, with dimensions
           ``("randomization",)``, of type ``"datetime64[us]"``.
     - Coordinates:
+
         - ``unbound_instruction_sequence``: The unbound instruction sequence for the data, along
           dimension ``("randomization",)``, of type :class:`InstructionSequence`.
         - ``fragment_depth``: Integer array of fragment depths along dimension
           ``("randomization",)``.
     - Attrs:
+
         - ``creg_names``: Ordered list of classical register names.
         - ``measurement_map``: Dictionary mapping creg names to arrays of measured qubit indices.
         - ``creg_bit_boundaries``: Dictionary mapping creg names to ``(start_idx, end_idx)`` tuples
