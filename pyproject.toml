@@ -53,6 +53,11 @@ vis = [
     "plotly",
 ]
 
+docs = [
+    "sphinx>=7",             # Documentation generator
+    "qiskit-sphinx-theme",   # Qiskit ecosystem HTML theme
+]
+
 cvxpy = [
     "cvxpy",
 ]

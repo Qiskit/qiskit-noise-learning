@@ -25,7 +25,9 @@ class ObservableData(LeveledData):
     """A collection of calculated expectation values.
 
     This class is a wrapper around an XArray ``Dataset``, containing the following data:
+
     - Data variables:
+
         - ``observables``: Observables computed from single :class:`InstructionSequence`
           and :class:`Path` pairs at a given fragment depth, separated by randomizations. Has
           dimensions ``("observable", "randomization")``. ``np.nan`` values are assumed to be due to
@@ -34,9 +36,11 @@ class ObservableData(LeveledData):
           ``("observable", "randomization")``, and of type ``"datetime64[us]"``.
         - ``time_ubs``: Upper bound on data acquisition times, with dimensions
           ``("randomization", "randomization")``, and of type ``"datetime64[us]"``.
+
     - Coordinates:
+
         - ``unbound_path``: The unbound path (with ``fragment_depth=None``) for each observable,
-            along dimension ``("observable",)``, of type :class:`Path`.
+          along dimension ``("observable",)``, of type :class:`Path`.
         - ``fragment_depth``: Integer array of fragment depths along dimension ``("observable",)``.
 
     Args:

@@ -25,9 +25,10 @@ class FlipPostSelect(AnalysisStage):
 
     This post selection stage is based on identifying successful bit flips on the same qubit(s)
     between two measurements. It can be configured to operate in one of two modes:
+
     * ``"node"``: Shots are discarded if at least one bit failed to flip.
     * ``"edge"``: Shots are discarded if there exists a pair of neighbouring qubits in the
-        measurement for which both bits failed to flip.
+      measurement for which both bits failed to flip.
 
     Args:
         creg_pair_identifier: A callable that, given a list of present creg names, returns an

@@ -27,20 +27,24 @@ class AveragedData(LeveledData):
     This class represents aggregated information for specific observables, averaged over
     randomizations, including through potential curve fitting. The data is stored as an XArray
     ``Dataset`` with the following data:
+
     - Data variables:
+
         - ``observables``: A 1d float array with dimensions ``("observable",)``.
-        - ``std``: A 1d array of standard deviations for the observable estimates, with dimensions
-            ``("observable",)``.
-        - time_lbs: A lower bound on the data collection for observable, with dimensions
-            ``("observable",)``.
-        - time_ubs: An upper bound on the data collection for observable, with dimensions
-            ``("observable",)``.
+        - ``std``: A 1d array of standard deviations for the observable estimates, with
+          dimensions ``("observable",)``.
+        - ``time_lbs``: A lower bound on the data collection for observable, with dimensions
+          ``("observable",)``.
+        - ``time_ubs``: An upper bound on the data collection for observable, with dimensions
+          ``("observable",)``.
+
     - Coordinates:
-        - ``unbound_path``: A 1d array of unbound :class:`Path` instances labelling each observable,
-            with dimensions ``("observable",)``.
-        - ``fragment_depth``: A 1d array of type ``int`` specifying the fragment depth associated to
-            the observable. A value of ``-1`` indicates an estimate of only the
-            ``repeatable_fragment`` of the path.
+
+        - ``unbound_path``: A 1d array of unbound :class:`Path` instances labelling each
+          observable, with dimensions ``("observable",)``.
+        - ``fragment_depth``: A 1d array of type ``int`` specifying the fragment depth
+          associated to the observable. A value of ``-1`` indicates an estimate of only the
+          ``repeatable_fragment`` of the path.
 
     Args:
         dataset: A ``Dataset`` with the above formatting.

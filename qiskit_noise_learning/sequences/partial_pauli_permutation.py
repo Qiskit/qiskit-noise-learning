@@ -414,6 +414,7 @@ class PartialPauliPermutation(Instruction):
         """Return a new partial Permutation that is complete and consistent with self.
 
         Note that the conventions have been chosen to ensure that:
+
         * Any partially-specified permutation consistent with the identity is mapped to the
           identity, and
         * ``self.inverse.complete() == self.complete().inverse``.
