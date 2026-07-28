@@ -2,9 +2,9 @@
 
 Given the task of learning Pauli noise for a set of Clifford gates, a common analysis technique is
 to track how individual Pauli operators are transformed through a sequence of gate applications
-(under the assumption that the gates are Clifford, and the noise is a Pauli channel, a single Pauli will
-always be mapped to another Pauli up to a scalar that is a function of the noise). Obviously, the
-evolution of *any* state under such a sequence can be captured by a linear combination of such
+(under the assumption that the gates are Clifford, and the noise is a Pauli channel, a single Pauli
+will always be mapped to another Pauli up to a scalar that is a function of the noise). Obviously,
+the evolution of *any* state under such a sequence can be captured by a linear combination of such
 trajectories, but under the assumption that we always prepare the state in a Pauli eigenstate, and
 always measure and post-process the results to compute the expectation value of a Pauli operator,
 the relationship between the expectation value and the noise model parameters will *always* depend
@@ -149,13 +149,13 @@ parameters can be inferred by *inverting* whatever sparse parameter-to-fidelity 
 assumed.
 
 In {cite}`chen_efficient_2026`, in the context of unitary gate sets, this is formalized into the
-*Pattern Transfer Graph* (PTG): a direct graph describing all possible experiments consisting of elements
-of the gate set and layers of single qubit Clifford gates (assumed to be perfect, or "free",
-operations). This was generalized in {cite}`zhang_generalized_2025` to include gate sets with
-mid-circuit measurements. In both cases, each experiment is described by tracking a single Pauli
-operator through the circuit, under the assumption of a particular observables being computed at
-each measurement site. Here we do not directly review the graph or path constructions, however we present the required
-facts for justifying them within our own notation and with resets included.
+*Pattern Transfer Graph* (PTG): a direct graph describing all possible experiments consisting of
+elements of the gate set and layers of single qubit Clifford gates (assumed to be perfect, or
+"free", operations). This was generalized in {cite}`zhang_generalized_2025` to include gate sets
+with mid-circuit measurements. In both cases, each experiment is described by tracking a single
+Pauli operator through the circuit, under the assumption of a particular observables being computed
+at each measurement site. Here we do not directly review the graph or path constructions, however we
+present the required facts for justifying them within our own notation and with resets included.
 
 
 While the tracking of a single Pauli operator through the circuit may be intuitive in the unitary
@@ -175,15 +175,16 @@ $$
 $$
 ```
 
-In other words, if we compute the expectation value $Z^{x + y|_M}$ on the classical register output by
-the MCM, then the "Heisenberg picture" evolution of an observable through the Clifford-MCM-reset gate maps
-$Q \otimes Z^y \rightarrow Q \otimes I_{N \cap R} \otimes Z^x$. This fact alone enables recovery of
-PTG-like analysis beyond the unitary gate set case: with a particular post-processing of the measurement results,
-even gates with measurements and resets can be viewed as deterministically mapping one Pauli operator to another.
+In other words, if we compute the expectation value $Z^{x + y|_M}$ on the classical register output
+by the MCM, then the "Heisenberg picture" evolution of an observable through the Clifford-MCM-reset
+gate maps $Q \otimes Z^y \rightarrow Q \otimes I_{N \cap R} \otimes Z^x$. This fact alone enables
+recovery of PTG-like analysis beyond the unitary gate set case: with a particular post-processing of
+the measurement results, even gates with measurements and resets can be viewed as deterministically
+mapping one Pauli operator to another.
 
-Before proving this, we write Equation {eq}`clifford_mcm_reset_form` in a more suggestive way. Note that for $x, y \in
-\Z_2^M$, it holds that $Z^{x+y} = \sum_{m \in \Z_2^M} (-1)^{m \cdot (x + y)}\ket{m}\bra{m}$, and as
-such (in super operator notation) we have:
+Before proving this, we write Equation {eq}`clifford_mcm_reset_form` in a more suggestive way. Note
+that for $x, y \in \Z_2^M$, it holds that $Z^{x+y} = \sum_{m \in \Z_2^M} (-1)^{m \cdot (x +
+y)}\ket{m}\bra{m}$, and as such (in super operator notation) we have:
 
 $$ \begin{aligned} \sum_{m \in \Z_2^M} \E_m \otimes \opket{\ket{m}\bra{m}}_M = \sum_{\substack{x \in
 \Z_2^M, y \in \Z_2^{M \cup R} \\ Q \in \P^{N\setminus R}}} \lambda^Q_{a,b}  \opket{Q \otimes Z^y}
