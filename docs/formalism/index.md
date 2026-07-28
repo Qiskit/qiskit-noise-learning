@@ -122,7 +122,7 @@ This decomposition indicates that the number of fidelities $\lambda^Q_{x, y}$ is
 
 $$4^{|N \setminus R|} 2^{|M|}2^{|M \cup R|} = 4^{K}2^{|M|}2^{-|M \cup R|} = 4^K 2^{-|R \setminus M|}.$$
 
-Consider limiting cases: (1) For no measurement or reset, $M = R \emptyset$, and the expression
+Consider limiting cases: (1) For no measurement or reset, $M = R = \emptyset$, and the expression
 yields $4^K$, the number of phase-less Pauli operators on $K$ qubits. (2) For $M = \emptyset$ and
 $R=[K]$, this yields $2^K$, which is the number of subsets of $[K]$. Lastly, (3) for $M = [K]$ and
 $R = \emptyset$, this yields $4^K$. Note that this may initially seem surprising: for standard
