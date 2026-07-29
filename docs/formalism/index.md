@@ -13,9 +13,10 @@ linear combination of Pauli operators, each gate and noise model maps Paulis to 
 their orthogonality, and the final expectation value "selects" only one of the Paulis in the final
 decomposition before measurement.
 
-This type of reasoning appears in many parallel research tracks in noise learning, most notably for
-this package in gauge-aware Pauli-noise learning literature {cite}`chen_efficient_2026` and in the
-ACES literature {cite}`flammia_averaged_2022`. This reasoning was further generalized in
+This type of reasoning appears in many parallel research tracks in noise learning, including in the
+Pauli gate-set learning literature {cite}`chen_efficient_2026,chen_disambiguating_2026`, the ACES
+literature {cite}`flammia_averaged_2022`, and the cycle benchmarking literature
+{cite}`erhard_characterizing_2019`. This reasoning was further generalized in
 {cite}`zhang_generalized_2025` to include Clifford-MCM gates (a Clifford gate followed by a
 projective mid-circuit measurement). This package most closely follows
 {cite}`chen_efficient_2026,zhang_generalized_2025`. While not explicitly named, we adopt the
@@ -58,7 +59,8 @@ $$ \rho \mapsto \sum_{m \in \Z_2^M} \E_m(\rho) \otimes \ket{m}\bra{m}, $$
 
 where the set $\{\E_m: m \in \Z_2^M\}$ are completely positive, and $\sum_m \E_m$ is trace
 preserving. A set of completely positive maps $\{\E_m\}$ satisfying these properties is called a
-*quantum instrument*.
+*quantum instrument*. A unitary gate is a special case of an instrument with only one element that
+is a unitary operation.
 
 ## 2. Noisy Clifford-MCM-reset gates
 
