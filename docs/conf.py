@@ -66,12 +66,9 @@ myst_enable_extensions = ["amsmath", "dollarmath"]
 
 # -- sphinxcontrib-bibtex ----------------------------------------------------
 
-bibtex_bibfiles = ["formalism/refs.bib"]
+bibtex_bibfiles = ["refs.bib"]
 
 # -- MathJax -----------------------------------------------------------------
-
-# Custom macros ported from the formalism document's LaTeX preamble, so that the
-# equation bodies can be transferred nearly verbatim.
 mathjax3_config = {
     "tex": {
         "macros": {
