@@ -73,7 +73,6 @@ mathjax3_config = {
     "tex": {
         "macros": {
             # No-argument macros.
-            "real": r"\mathbb{R}",
             "Z": r"\mathbb{Z}",
             "E": r"\mathcal{E}",
             "P": r"\mathcal{P}",

@@ -17,10 +17,10 @@ This type of reasoning appears in many parallel research tracks in noise learnin
 this package in gauge-aware Pauli-noise learning literature {cite}`chen_efficient_2026` and in the
 ACES literature {cite}`flammia_averaged_2022`. This reasoning was further generalized in
 {cite}`zhang_generalized_2025` to include Clifford-MCM gates (a Clifford gate followed by a
-projective mid-circuit measurement). This package most closesly follows
+projective mid-circuit measurement). This package most closely follows
 {cite}`chen_efficient_2026,zhang_generalized_2025`. While not explicitly named, we adopt the
 *Pattern Transfer Graph* (PTG) formalism for describing how Pauli operators evolve through learning
-circuits; providing a direct data representation of *paths* through the graph.
+circuits, providing a direct data representation of *paths* through the graph.
 
 The following is a review of some core mathematical concepts from the literature. It is primarily
 meant to consolidate notation, and to serve as a conceptual documentation reference for the rest of
@@ -30,7 +30,7 @@ the package.
 
 ### 1.1 Notation
 
-For $K \in \mathbb{N}$, let $[K] = \{0, 1, ..., K - 1\}$. For a finite set $S \subset \mathbb{N}$ of
+For $K \in \mathbb{N}$, let $[K] = \{0, 1, \dots, K - 1\}$. For a finite set $S \subset \mathbb{N}$ of
 qubit indices, let $\P^S$ denote the set of *unphased* Pauli operators acting on those qubits. Note
 that we think of elements of $\P^S$ as functions mapping $S \rightarrow \{I, X, Y, Z\}$, so that for
 any $P \in \P^S$ and $T \subseteq S$, $P|_T$ denotes the restriction of $P$ to the qubit subset $T$.
@@ -79,7 +79,7 @@ specific twirling strategy is applied to a noisy instance of such a gate, then t
 resulting operation can be modelled mathematically as a *uniform Pauli instrument*. That is, within
 the quantum instrument notation, $\E_m = \U_mG$, where $G$ is the Clifford unitary, and:
 
-$$ \U_m = \sum_{a,b \in \mathbb{Z}^M_2} \Lambda_{a,b} \otimes \opket{m + a}\opbra{m + b}, $$
+$$ \U_m = \sum_{a,b \in \Z_2^M} \Lambda_{a,b} \otimes \opket{m + a}\opbra{m + b}, $$
 
 where each $\Lambda_{a,b}$ is a sub-normalized Pauli channel on the unmeasured qubits $N = [K]
 \setminus M$. It is implied by this being a quantum instrument that $\sum_{a,b} \Lambda_{a,b}$ is
@@ -117,7 +117,7 @@ $R \subset [K]$ can be modelled according to the decomposition:
 $$ \frac{1}{2^{|R|}}\sum_{r \in \Z_2^{R}} \lambda_r \opket{Z^r}\opbra{I_R}. $$ (reset_form)
 
 The above form explicitly utilizes the assumption that the reset is along the $Z$-axis for each
-qubit. Noise in the operation is encoded in the rest fidelities $\lambda_r$, which are simply
+qubit. Noise in the operation is encoded in the reset fidelities $\lambda_r$, which are simply
 indexed by qubit subsets.
 
 An analog to Equation {eq}`clifford_mcm_form` that includes a reset operation at the end can be
@@ -159,20 +159,18 @@ model parameters can be inferred by *inverting* whatever sparse parameter-to-fid
 being assumed.
 
 In {cite}`chen_efficient_2026`, in the context of unitary gate sets, this is formalized into the
-*Pattern Transfer Graph* (PTG): a direct graph describing all possible experiments consisting of
+*Pattern Transfer Graph* (PTG): a directed graph describing all possible experiments consisting of
 elements of the gate set and layers of single qubit Clifford gates (assumed to be perfect, or
 "free", operations). This was generalized in {cite}`zhang_generalized_2025` to include gate sets
 with mid-circuit measurements. In both cases, each experiment is described by tracking a single
-Pauli operator through the circuit, under the assumption of a particular observables being computed
+Pauli operator through the circuit, under the assumption of a particular observable being computed
 at each measurement site. Here we do not directly review the graph or path constructions, however we
 present the required facts for justifying them within our own notation and with resets included.
 
-
 While the tracking of a single Pauli operator through the circuit may be intuitive in the unitary
 gate set case, it does not so obviously hold in the more general Clifford-MCM-reset case, due to the
-non-deterministic nature of measurement. The follow proposition recovers this picture even in the
+non-deterministic nature of measurement. The following proposition recovers this picture even in the
 more general case {cite}`zhang_generalized_2025`:
-
 
 ```{prf:proposition}
 :label: prop-mcm-evolution
