@@ -67,7 +67,7 @@ characterized consists of the following sequence of operations on $K$ qubits:
 This is a general class of operations that includes unitary Clifford gates, measurement layers,
 state preparation, and any combination of the above. Note that we assume measurement and reset are
 always along the $Z$-axis for each qubit. While this is not strictly required, it is a common
-feature of quantum computing many modalities, and enables simplified representations and analysis.
+feature of many quantum computing modalities, and enables simplified representations and analysis.
 
 As outlined in {cite}`zhang_generalized_2025` for the no-reset case, if a specific twirling strategy
 is applied to a noisy instance of such a gate, then the action of the resulting operation can be
