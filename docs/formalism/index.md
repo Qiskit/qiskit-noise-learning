@@ -60,7 +60,7 @@ preserving. A set of completely positive maps $\{\E_m\}$ satisfying these proper
 The formalism utilized in this package assumes every gate or layer in the gate set to be
 characterized consists of the following sequence of operations on $K$ qubits:
 
-1. A clifford operation on all qubits.
+1. A Clifford operation on all qubits.
 2. A mid-circuit projective measurement along $Z$ on some subset of qubits $M \subseteq [K]$.
 3. A mid-circuit reset to the $Z$ ground state on some subset of qubits $R \subseteq [K]$.
 
