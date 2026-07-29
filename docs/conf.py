@@ -20,6 +20,9 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
     "sphinx.ext.viewcode",
+    "myst_parser",
+    "sphinxcontrib.bibtex",
+    "sphinx_proof",
     "qiskit_sphinx_theme",
 ]
 
@@ -54,6 +57,34 @@ intersphinx_mapping = {
     "numpy": ("https://numpy.org/doc/stable", None),
     "scipy": ("https://docs.scipy.org/doc/scipy", None),
     "qiskit": ("https://quantum.cloud.ibm.com/docs/api/qiskit", None),
+}
+
+# -- MyST (Markdown) ---------------------------------------------------------
+
+# amsmath: support LaTeX align/aligned environments; dollarmath: $...$ / $$...$$ math.
+myst_enable_extensions = ["amsmath", "dollarmath"]
+
+# -- sphinxcontrib-bibtex ----------------------------------------------------
+
+bibtex_bibfiles = ["refs.bib"]
+
+# -- MathJax -----------------------------------------------------------------
+mathjax3_config = {
+    "tex": {
+        "macros": {
+            # No-argument macros.
+            "Z": r"\mathbb{Z}",
+            "E": r"\mathcal{E}",
+            "P": r"\mathcal{P}",
+            "U": r"\mathcal{U}",
+            # Macros with arguments: [replacement, number-of-args].
+            "ip": [r"\langle #1, #2 \rangle", 2],
+            "bra": [r"\langle #1 |", 1],
+            "ket": [r"| #1 \rangle", 1],
+            "opbra": [r"\langle\!\langle #1 |", 1],
+            "opket": [r"| #1 \rangle\!\rangle", 1],
+        }
+    }
 }
 
 # -- HTML output -------------------------------------------------------------

@@ -56,6 +56,9 @@ vis = [
 docs = [
     "sphinx>=7",             # Documentation generator
     "qiskit-sphinx-theme",   # Qiskit ecosystem HTML theme
+    "myst-parser",           # Markdown (MyST) source support
+    "sphinxcontrib-bibtex",  # BibTeX citations
+    "sphinx-proof",          # Numbered proposition/proof directives
 ]
 
 cvxpy = [
