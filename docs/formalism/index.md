@@ -177,7 +177,7 @@ more general case {cite}`zhang_generalized_2025`:
 ```{prf:proposition}
 :label: prop-mcm-evolution
 
-For any $x \in \Z_2^M$, $y \in \Z_2^{M \cup R}$, and $Q\in P^{N \setminus R}$, it holds that:
+For any $x \in \Z_2^M$, $y \in \Z_2^{M \cup R}$, and $Q\in \P^{N \setminus R}$, it holds that:
 
 $$
 \opbra{Q \otimes Z^y}\otimes \opbra{Z^{x + y|_M}}_M \left(\sum_{m\in \Z_2^M} \E_m \otimes \opket{m}\right)
@@ -196,8 +196,8 @@ Before proving this, we write Equation {eq}`clifford_mcm_reset_form` in a more s
 that for $x, y \in \Z_2^M$, it holds that $Z^{x+y} = \sum_{m \in \Z_2^M} (-1)^{m \cdot (x +
 y)}\ket{m}\bra{m}$, and as such (in super operator notation) we have:
 
-$$ \begin{aligned} \sum_{m \in \Z_2^M} \E_m \otimes \opket{m}_M = \sum_{\substack{x \in
-\Z_2^M, y \in \Z_2^{M \cup R} \\ Q \in \P^{N\setminus R}}} \lambda^Q_{a,b}  \opket{Q \otimes Z^y}
+$$ \begin{aligned} \sum_{m \in \Z_2^M} \E_m \otimes \opket{m}_M = \frac{1}{2^{2|M|+|N|}}\sum_{\substack{x \in
+\Z_2^M, y \in \Z_2^{M \cup R} \\ Q \in \P^{N\setminus R}}} \lambda^Q_{x,y}  \opket{Q \otimes Z^y}
 \opbra{G^\dagger(Q \otimes I_{N \cap R} \otimes Z^x)} \otimes \opket{Z^{x + y|_M}}_M, \end{aligned} $$
 
 where we have applied Equation {eq}`clifford_mcm_reset_form` and collected terms, and we use the
@@ -210,8 +210,8 @@ It holds that:
 $$
 \begin{aligned}
 &\opbra{Q \otimes Z^y} \otimes \opbra{Z^{x + y|_M}} \left(\sum_{m\in \Z_2^M} \E_m \otimes \opket{m}\right)\\
-&= \opbra{Q \otimes Z^y} \otimes \opbra{Z^{x + y}} \left( \frac{1}{2^{2|M|+|N|}} \sum_{\substack{a \in \Z_2^M, b \in \Z_2^{M \cup R} \\ P \in \P^{N\setminus R}}} \lambda^Q_{a,b}  \opket{P \otimes Z^b}\opbra{G^\dagger(P \otimes I_{N \cap R} \otimes Z^a)} \otimes \opket{Z^{a + b|_M}} \right) \\
-&=\frac{1}{2^{2|M| + |N|}}\sum_{a, b \in \Z_2^M, P \in \P^N} \lambda^P_{a, b}\underbrace{\ip{Q \otimes Z^y}{P \otimes Z^b}}_{2^{|M| + |N|} \delta_{P, Q}\delta_{y,b}} \underbrace{\ip{Z^{x + y|_M}}{Z^{a + b|_M}}}_{2^{|M|}\delta_{x+y|_M,a+b|_M}}\opbra{G^\dagger(P \otimes I_{N \cap R} \otimes Z^a)}
+&= \opbra{Q \otimes Z^y} \otimes \opbra{Z^{x + y|_M}} \left( \frac{1}{2^{2|M|+|N|}} \sum_{\substack{a \in \Z_2^M, b \in \Z_2^{M \cup R} \\ P \in \P^{N\setminus R}}} \lambda^P_{a,b}  \opket{P \otimes Z^b}\opbra{G^\dagger(P \otimes I_{N \cap R} \otimes Z^a)} \otimes \opket{Z^{a + b|_M}} \right) \\
+&=\frac{1}{2^{2|M| + |N|}}\sum_{\substack{a \in \Z_2^M, b \in \Z_2^{M \cup R} \\ P \in \P^{N \setminus R}}} \lambda^P_{a, b}\underbrace{\ip{Q \otimes Z^y}{P \otimes Z^b}}_{2^{|M| + |N|} \delta_{P, Q}\delta_{y,b}} \underbrace{\ip{Z^{x + y|_M}}{Z^{a + b|_M}}}_{2^{|M|}\delta_{x+y|_M,a+b|_M}}\opbra{G^\dagger(P \otimes I_{N \cap R} \otimes Z^a)}
 \end{aligned}
 $$
 
