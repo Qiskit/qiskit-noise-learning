@@ -30,14 +30,14 @@ the package.
 
 ### 1.1 Notation
 
-For $K \in \mathbb{N}$, let $[K] = \{0, 1, \dots, K - 1\}$. For a finite set $S \subset \mathbb{N}$ of
-qubit indices, let $\P^S$ denote the set of *unphased* Pauli operators acting on those qubits. Note
-that we think of elements of $\P^S$ as functions mapping $S \rightarrow \{I, X, Y, Z\}$, so that for
-any $P \in \P^S$ and $T \subseteq S$, $P|_T$ denotes the restriction of $P$ to the qubit subset $T$.
-Along these lines, for disjoint sets $S, T$, and $P \in \P^S$ and $Q \in \P^T$, $P \otimes Q$
-denotes the element of $\P^{S \cup T}$ such that $P \otimes Q |_S = P$ and $P \otimes Q |_T = Q$.
-This notation is helpful to avoid explicitly dealing with subsystem orderings, and to make it easy
-to describe restrictions.
+For $K \in \mathbb{N}$, let $[K] = \{0, 1, \dots, K - 1\}$. For a finite set $S \subset \mathbb{N}$
+of qubit indices, let $\P^S$ denote the set of *unphased* Pauli operators acting on those qubits.
+Note that we think of elements of $\P^S$ as functions mapping $S \rightarrow \{I, X, Y, Z\}$, so
+that for any $P \in \P^S$ and $T \subseteq S$, $P|_T$ denotes the restriction of $P$ to the qubit
+subset $T$. Along these lines, for disjoint sets $S, T$, and $P \in \P^S$ and $Q \in \P^T$, $P
+\otimes Q$ denotes the element of $\P^{S \cup T}$ such that $P \otimes Q |_S = P$ and $P \otimes Q
+|_T = Q$. This notation is helpful to avoid explicitly dealing with subsystem orderings, and to make
+it easy to describe restrictions.
 
 For finite subsets $M \subset \mathbb{N}$, we denote $\Z_2^M$ as the set of the bit
 strings whose elements are indexed by $M$. Similarly to the above, we think of elements as functions
