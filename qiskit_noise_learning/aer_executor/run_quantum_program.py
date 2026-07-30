@@ -45,8 +45,6 @@ def _prepare_backend(aer_simulator: AerSimulator) -> AerSimulator:
     """Return a copy of ``aer_simulator`` that accepts arbitrarily wide circuits.
 
     The copy is taken so that ``set_max_qubits`` does not mutate the caller's simulator.
-    Copying is expensive for simulators carrying a noise model, so callers running several
-    items should prepare the backend once and reuse it.
     """
     backend = deepcopy(aer_simulator)
     backend.set_max_qubits(10000)

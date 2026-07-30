@@ -152,9 +152,9 @@ class AerExecutor:
     def seed(self) -> int:
         """The root seed each run's randomness is derived from.
 
-        Passing this back to a new executor reproduces this executor's sequence of runs,
-        including when it was constructed without a seed.  To reproduce a single run
-        instead, use the seed of the job that produced it, :attr:`AerRuntimeJob.seed`.
+        Passing this back to a new executor reproduces this executor's sequence of runs. To
+        reproduce a single run instead, use the seed of the job that produced it,
+        :attr:`AerRuntimeJob.seed`.
         """
         return int(self._seed_sequence.entropy)
 
