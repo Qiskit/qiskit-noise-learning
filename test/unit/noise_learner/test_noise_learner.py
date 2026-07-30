@@ -141,16 +141,7 @@ def test_noise_learner_run_uses_supplied_executor(mock_executor_cls, options):
 
 
 def test_noise_learner_run_against_aer_executor():
-    """A learner pointed at an Aer executor learns back the noise that was injected.
-
-    ``Executor(mode=FakeFez())`` cannot run at all, so reaching a result is itself evidence
-    that the supplied executor was used rather than the backend.
-
-    The root seed makes the run reproducible, but the tolerances are not tuned to the draw it
-    produces: an upgrade of Aer or samplomatic can reshuffle the underlying random stream, which
-    amounts to a fresh draw.  They are set from the spread over twenty seeds, where the fitted
-    rate stayed within 9% of the injected one and no other generator exceeded 5% of it.
-    """
+    """A learner pointed at an Aer executor learns back the noise that was injected."""
     backend = FakeFez()
     circuit = _make_annotated_layer(backend)
 
