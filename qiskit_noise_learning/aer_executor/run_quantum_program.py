@@ -28,6 +28,7 @@ from qiskit_ibm_runtime.quantum_program.quantum_program import (
 )
 from qiskit_ibm_runtime.results import QuantumProgramResult
 
+from ._seeding import next_seed
 from .broadcast_sample import broadcast_sample
 from .insert_noise_pass import InsertNoisePass
 
@@ -51,27 +52,21 @@ def _prepare_backend(aer_simulator: AerSimulator) -> AerSimulator:
     return backend
 
 
-def _next_seed(seed_sequence: np.random.SeedSequence) -> int:
-    """Draw a fresh seed from ``seed_sequence``, advancing it.
-
-    Each call returns a seed for an independent stream of randomness.  Aer takes a plain
-    integer rather than a seed sequence, so the drawn child is reduced to a 32-bit value.
-    """
-    return int(seed_sequence.spawn(1)[0].generate_state(1, dtype=np.uint32)[0])
-
-
 def get_aer_sampler(aer_simulator: AerSimulator, seed: int | None = None) -> AerSamplerV2:
-    """Return an :class:`~qiskit_aer.primitives.SamplerV2` configured from ``aer_simulator``.
+    """Return an :class:`~qiskit_aer.primitives.SamplerV2` that runs on ``aer_simulator``.
+
+    The simulator is used as given rather than copied, so a caller building several
+    samplers pays the cost of preparing it only once.  Nothing here mutates it.
 
     Args:
-        aer_simulator: The simulator to configure the sampler from.
+        aer_simulator: The simulator the sampler runs on.
         seed: Seed for the sampler's random number generator.  If ``None``, the sampler
             seeds itself nondeterministically.
 
     Returns:
-        A sampler that runs on a copy of ``aer_simulator``.
+        A sampler that runs on ``aer_simulator``.
     """
-    return AerSamplerV2.from_backend(_prepare_backend(aer_simulator), seed=seed)
+    return AerSamplerV2.from_backend(aer_simulator, seed=seed)
 
 
 def run_quantum_program(
@@ -100,7 +95,7 @@ def run_quantum_program(
         Results of simulation.
     """
     seed_sequence = np.random.SeedSequence(seed)
-    rng = np.random.default_rng(_next_seed(seed_sequence))
+    rng = np.random.default_rng(next_seed(seed_sequence))
     # Prepared once: copying a simulator that carries a noise model is expensive.
     backend = _prepare_backend(qasm_simulator)
 
@@ -110,7 +105,7 @@ def run_quantum_program(
     for prog_item in program.items:
         # A fresh seed per item, so that items sharing a circuit are still sampled
         # independently rather than returning identical shots.
-        aer_sampler = AerSamplerV2.from_backend(backend, seed=_next_seed(seed_sequence))
+        aer_sampler = get_aer_sampler(backend, seed=next_seed(seed_sequence))
 
         if noise_dict is not None:
             circuit = PassManager(

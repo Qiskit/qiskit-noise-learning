@@ -20,7 +20,8 @@ from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import QuantumProgram
 from qiskit_ibm_runtime.results import QuantumProgramResult
 
-from .run_quantum_program import _next_seed, run_quantum_program
+from ._seeding import next_seed
+from .run_quantum_program import run_quantum_program
 
 
 class AerRuntimeJob:
@@ -78,6 +79,10 @@ class AerRuntimeJob:
 
         Constructing another job with this seed and the same program reproduces this
         job's result, including when the job itself was created without a seed.
+
+        For a job created by :meth:`AerExecutor.run` this is the seed that executor drew
+        for this particular run, which is not its :attr:`AerExecutor.root_seed` — the two
+        are not interchangeable.
         """
         return self._seed
 
@@ -128,10 +133,15 @@ class AerExecutor:
         warn_absent: If ``True`` (default), emit a warning when a tagged barrier's tag is
             not found in ``noise_dict``.  Set to ``False`` when partial coverage of tags is
             intentional.
-        seed: Root seed for random number generation, covering both the sampling of shots
-            and the sampling of twirls.  Each call to :meth:`run` derives its own independent seed
-            from this root. With the default of ``None`` a root seed is drawn nondeterministically;
-            it is available as :attr:`seed` either way.
+        root_seed: Root seed for random number generation, covering both the sampling of
+            shots and the sampling of twirls.  Rather than being used directly, it seeds a
+            sequence that each call to :meth:`run` draws the next seed from, so that runs
+            are independently random.  A consequence is that a run's randomness depends on
+            its position in that sequence, not on its program: the same program submitted
+            as the first and then the second run gets different randomness, and reproducing
+            a script means replaying its runs in the same order.  With the default of
+            ``None`` a root seed is drawn nondeterministically; it is available as
+            :attr:`root_seed` either way.
     """
 
     def __init__(
@@ -140,21 +150,21 @@ class AerExecutor:
         noise_dict: dict[str, PauliLindbladMap] | None = None,
         angle_decimals: int = 5,
         warn_absent: bool = True,
-        seed: int | None = None,
+        root_seed: int | None = None,
     ):
         self._qasm_simulator = qasm_simulator
         self._noise_dict = noise_dict
         self._angle_decimals = angle_decimals
         self._warn_absent = warn_absent
-        self._seed_sequence = np.random.SeedSequence(seed)
+        self._seed_sequence = np.random.SeedSequence(root_seed)
 
     @property
-    def seed(self) -> int:
+    def root_seed(self) -> int:
         """The root seed each run's randomness is derived from.
 
-        Passing this back to a new executor reproduces this executor's sequence of runs. To
-        reproduce a single run instead, use the seed of the job that produced it,
-        :attr:`AerRuntimeJob.seed`.
+        Passing this to a new executor reproduces this executor's whole sequence of runs.
+        It is not the seed of any individual run: to reproduce a single run, use the seed
+        of the job that produced it, :attr:`AerRuntimeJob.seed`.
         """
         return int(self._seed_sequence.entropy)
 
@@ -176,5 +186,5 @@ class AerExecutor:
             noise_dict=self._noise_dict,
             angle_decimals=self._angle_decimals,
             warn_absent=self._warn_absent,
-            seed=_next_seed(self._seed_sequence),
+            seed=next_seed(self._seed_sequence),
         )

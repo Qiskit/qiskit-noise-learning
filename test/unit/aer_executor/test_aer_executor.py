@@ -488,18 +488,20 @@ def _ghz_circuit(fez_backend) -> QuantumCircuit:
     return pm.run(qc)
 
 
-def _run_noisy_twirled(stabilizer_simulator, seed: int | None):
+def _run_noisy_twirled(stabilizer_simulator, root_seed: int | None):
     """Run a noise-injected, Pauli-twirled two-qubit program and return its item data."""
-    executor = AerExecutor(stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, seed=seed)
+    executor = AerExecutor(
+        stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, root_seed=root_seed
+    )
     return executor.run(_noisy_twirled_program()).result()[0]
 
 
-def _run_ghz(fez_backend, stabilizer_simulator, seed: int | None):
+def _run_ghz(fez_backend, stabilizer_simulator, root_seed: int | None):
     """Run an unparameterized GHZ circuit item and return its item data."""
     program = QuantumProgram(shots=256)
     program.append_circuit_item(_ghz_circuit(fez_backend))
 
-    return AerExecutor(stabilizer_simulator, seed=seed).run(program).result()[0]
+    return AerExecutor(stabilizer_simulator, root_seed=root_seed).run(program).result()[0]
 
 
 def _assert_equal_data(expected, actual, message: str):
@@ -543,7 +545,7 @@ def test_seed_reproduces_twirl_and_noise_sampling(stabilizer_simulator):
 
 
 def test_unseeded_runs_differ(stabilizer_simulator):
-    """The default of ``seed=None`` leaves each run independently random."""
+    """The default of ``root_seed=None`` leaves each run independently random."""
     assert _data_differs(
         _run_noisy_twirled(stabilizer_simulator, None),
         _run_noisy_twirled(stabilizer_simulator, None),
@@ -557,7 +559,7 @@ def test_repeated_runs_of_a_seeded_executor_are_independent(stabilizer_simulator
     program twice must sample fresh twirls and shots rather than returning the first
     run's data again.
     """
-    executor = AerExecutor(stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, seed=123)
+    executor = AerExecutor(stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, root_seed=123)
     first = executor.run(_noisy_twirled_program()).result()[0]
     second = executor.run(_noisy_twirled_program()).result()[0]
 
@@ -568,7 +570,9 @@ def test_seed_reproduces_a_sequence_of_runs(stabilizer_simulator):
     """Two executors sharing a root seed agree run for run."""
     runs = []
     for _ in range(2):
-        executor = AerExecutor(stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, seed=123)
+        executor = AerExecutor(
+            stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, root_seed=123
+        )
         runs.append([executor.run(_noisy_twirled_program()).result()[0] for _ in range(2)])
 
     for index, (expected, actual) in enumerate(zip(*runs)):
@@ -588,23 +592,25 @@ def test_items_sharing_a_circuit_are_sampled_independently(fez_backend, stabiliz
     program.append_circuit_item(circuit)
     program.append_circuit_item(circuit)
 
-    result = AerExecutor(stabilizer_simulator, seed=123).run(program).result()
+    result = AerExecutor(stabilizer_simulator, root_seed=123).run(program).result()
 
     assert _data_differs(result[0], result[1]), "two identical items produced identical shots"
 
 
-def test_executor_seed_replays_an_unseeded_executor(stabilizer_simulator):
+def test_root_seed_replays_an_unseeded_executor(stabilizer_simulator):
     """An unseeded executor reports the root seed it drew, and that seed replays it."""
-    executor = AerExecutor(stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, seed=None)
+    executor = AerExecutor(
+        stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, root_seed=None
+    )
     expected = executor.run(_noisy_twirled_program()).result()[0]
 
     replay = AerExecutor(
-        stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, seed=executor.seed
+        stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, root_seed=executor.root_seed
     )
     _assert_equal_data(
         expected,
         replay.run(_noisy_twirled_program()).result()[0],
-        "replaying AerExecutor.seed did not reproduce the original run",
+        "replaying AerExecutor.root_seed did not reproduce the original run",
     )
 
 
