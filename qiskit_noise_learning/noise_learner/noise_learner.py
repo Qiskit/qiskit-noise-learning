@@ -23,6 +23,7 @@ from qiskit_ibm_runtime.quantum_program import QuantumProgram
 from samplomatic import InjectNoise
 from samplomatic.utils import get_annotation
 
+from ..aer_executor import AerExecutor
 from ..analysis import (
     AnalysisPipeline,
     ComputeObservables,
@@ -61,16 +62,22 @@ class NoiseLearner:
     Args:
         backend: The backend to learn noise from.
         options: Learning options. If ``None``, default options are used.
+        executor: An executor to submit generated programs to.  If ``None`` (default), a
+            :class:`~qiskit_ibm_runtime.Executor` in ``backend``'s execution mode is used.
+            Supply one explicitly to run somewhere other than the backend itself, for
+            example an :class:`~.AerExecutor` that simulates ``backend`` locally.
     """
 
     def __init__(
         self,
         backend: BackendV2,
         options: LearningOptions | None = None,
+        executor: Executor | AerExecutor | None = None,
     ):
         self._backend = backend
         self._options = options or LearningOptions()
         self._analyzer = _ANALYZERS[self._options.analyzer]
+        self._executor = executor
 
     @property
     def backend(self) -> BackendV2:
@@ -100,7 +107,7 @@ class NoiseLearner:
                 raise ValueError(f"All instructions must be BoxOps, got '{instr.operation.name}'.")
 
         program, data_mapper = self._generate(instructions)
-        executor = Executor(mode=self._backend)
+        executor = self._executor if self._executor is not None else Executor(mode=self._backend)
         job = executor.run(program)
         return NoiseLearnerJob(job, data_mapper, self._analyzer)
 
