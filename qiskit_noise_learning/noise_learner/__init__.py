@@ -13,5 +13,6 @@
 """Noise learner."""
 
 from .learning_options import LearningOptions
-from .noise_learner import NoiseLearner
+from .noise_learner import NoiseLearner, ProgramExecutor
+from .noise_learner_job import NoiseLearnerJob, ProgramJob
 from .noise_learner_result import NoiseLearnerResult

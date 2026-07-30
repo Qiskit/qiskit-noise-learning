@@ -13,7 +13,7 @@
 """Noise learner implementation."""
 
 from collections.abc import Sequence
-from typing import TypeAlias
+from typing import Protocol, TypeAlias
 
 from qiskit.circuit import CircuitInstruction as _CircuitInstruction
 from qiskit.circuit import QuantumRegister
@@ -23,7 +23,6 @@ from qiskit_ibm_runtime.quantum_program import QuantumProgram
 from samplomatic import InjectNoise
 from samplomatic.utils import get_annotation
 
-from ..aer_executor import AerExecutor
 from ..analysis import (
     AnalysisPipeline,
     ComputeObservables,
@@ -43,7 +42,7 @@ from ..experiment_builder import (
 from ..gate_sets import QiskitGateSet
 from ..models import PauliLindbladModel
 from .learning_options import LearningOptions
-from .noise_learner_job import NoiseLearnerJob
+from .noise_learner_job import NoiseLearnerJob, ProgramJob
 
 _ANALYZERS = {
     "standard": AnalysisPipeline(ComputeObservables(), CurveFitObservables(), NNLSSolve())
@@ -56,21 +55,57 @@ _PATH_GENERATION_STAGES = {
 CircuitInstruction: TypeAlias = _CircuitInstruction  # type: ignore
 
 
+class ProgramExecutor(Protocol):
+    """The executor role that :class:`NoiseLearner` submits programs to.
+
+    Only :meth:`run` is required, so both :class:`~qiskit_ibm_runtime.Executor` and the Aer
+    executor qualify without either declaring conformance.
+
+    .. note::
+        This protocol, and the ``executor`` argument of :class:`NoiseLearner` that consumes it,
+        are provisional. They exist so that a learning experiment can be run against a locally
+        simulated executor, and this setup is expected to eventually change.
+
+        In particular, the backend and the executor are separate arguments because an executor
+        is not an execution mode, and so cannot be folded into the single ``mode`` argument that
+        the qiskit-ibm-runtime primitives take. Naming a backend that the supplied executor
+        already knows about is therefore redundant on the runtime path. That redundancy is a
+        consequence of the current shape rather than a deliberate convention, and the shape
+        should not be relied upon as stable.
+    """
+
+    def run(self, program: QuantumProgram) -> ProgramJob:
+        """Submit a program for execution.
+
+        Args:
+            program: The quantum program to submit.
+
+        Returns:
+            A job carrying the program's result.
+        """
+        ...
+
+
 class NoiseLearner:
     """A noise learner.
 
     Args:
-        backend: The backend to learn noise from.
+        backend: The backend supplying the compilation target: the gate set, coupling map and
+            qubit count that generated circuits are built against. When ``executor`` is given,
+            this need not be the device the programs actually run on.
         options: Learning options. If ``None``, default options are used.
-        executor: An executor to submit generated programs to.  If ``None`` (default), a
-            :class:`~qiskit_ibm_runtime.Executor` in ``backend``'s execution mode is used.
+        executor: Where generated programs are submitted, as described by
+            :class:`ProgramExecutor`. If ``None`` (default), a
+            :class:`~qiskit_ibm_runtime.Executor` in ``backend``'s execution mode is used, so
+            that programs run on ``backend`` itself. Supplying an executor built with
+            ``Executor(mode=...)`` is what makes session and batch execution reachable.
     """
 
     def __init__(
         self,
         backend: BackendV2,
         options: LearningOptions | None = None,
-        executor: Executor | AerExecutor | None = None,
+        executor: ProgramExecutor | None = None,
     ):
         self._backend = backend
         self._options = options or LearningOptions()
@@ -87,7 +122,7 @@ class NoiseLearner:
         """The learning options."""
         return self._options
 
-    def run(self, instructions: Sequence[CircuitInstruction]):
+    def run(self, instructions: Sequence[CircuitInstruction]) -> NoiseLearnerJob:
         """Submit a job to learn the noise of the given instructions.
 
         Args:

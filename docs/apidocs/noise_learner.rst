@@ -14,4 +14,7 @@ Classes
 
    LearningOptions
    NoiseLearner
+   NoiseLearnerJob
    NoiseLearnerResult
+   ProgramExecutor
+   ProgramJob
