@@ -474,8 +474,14 @@ def _noisy_twirled_program():
     return program
 
 
-def _ghz_circuit(fez_backend) -> QuantumCircuit:
-    """Build an unparameterized GHZ circuit transpiled onto qubits [17, 18, 19]."""
+@pytest.fixture
+def ghz_circuit(fez_backend) -> QuantumCircuit:
+    """An unparameterized GHZ circuit transpiled onto qubits [17, 18, 19].
+
+    Transpiled once and shared by every run within a test: qubits 17, 18 and 19 are not
+    mutually coupled on Fez, so routing them is unseeded and picks a different swap network
+    each time it runs.  Tests that compare two runs must vary only the seed.
+    """
     qc = QuantumCircuit(3, 3)
     qc.h(0)
     qc.cx(0, 1)
@@ -496,10 +502,10 @@ def _run_noisy_twirled(stabilizer_simulator, root_seed: int | None):
     return executor.run(_noisy_twirled_program()).result()[0]
 
 
-def _run_ghz(fez_backend, stabilizer_simulator, root_seed: int | None):
-    """Run an unparameterized GHZ circuit item and return its item data."""
+def _run_ghz(ghz_circuit, stabilizer_simulator, root_seed: int | None):
+    """Run a single GHZ circuit item and return its item data."""
     program = QuantumProgram(shots=256)
-    program.append_circuit_item(_ghz_circuit(fez_backend))
+    program.append_circuit_item(ghz_circuit)
 
     return AerExecutor(stabilizer_simulator, root_seed=root_seed).run(program).result()[0]
 
@@ -514,16 +520,16 @@ def _data_differs(first, second) -> bool:
     return any((first[key] != second[key]).any() for key in first)
 
 
-def test_seed_reproduces_shot_sampling(fez_backend, stabilizer_simulator):
+def test_seed_reproduces_shot_sampling(ghz_circuit, stabilizer_simulator):
     """Runs of a probabilistic circuit sharing a seed agree; runs with other seeds do not."""
     _assert_equal_data(
-        _run_ghz(fez_backend, stabilizer_simulator, 123),
-        _run_ghz(fez_backend, stabilizer_simulator, 123),
+        _run_ghz(ghz_circuit, stabilizer_simulator, 123),
+        _run_ghz(ghz_circuit, stabilizer_simulator, 123),
         "differs between runs sharing a seed",
     )
     assert _data_differs(
-        _run_ghz(fez_backend, stabilizer_simulator, 123),
-        _run_ghz(fez_backend, stabilizer_simulator, 456),
+        _run_ghz(ghz_circuit, stabilizer_simulator, 123),
+        _run_ghz(ghz_circuit, stabilizer_simulator, 456),
     ), "changing the seed left the sampled shots unchanged"
 
 
@@ -581,16 +587,15 @@ def test_seed_reproduces_a_sequence_of_runs(stabilizer_simulator):
         )
 
 
-def test_items_sharing_a_circuit_are_sampled_independently(fez_backend, stabilizer_simulator):
+def test_items_sharing_a_circuit_are_sampled_independently(ghz_circuit, stabilizer_simulator):
     """Items of one program are independent samples even when their circuits are identical.
 
     A single seed reused across every item would make Aer replay the same shots for each
     of them, so the per-item seeds must be distinct.
     """
-    circuit = _ghz_circuit(fez_backend)
     program = QuantumProgram(shots=256)
-    program.append_circuit_item(circuit)
-    program.append_circuit_item(circuit)
+    program.append_circuit_item(ghz_circuit)
+    program.append_circuit_item(ghz_circuit)
 
     result = AerExecutor(stabilizer_simulator, root_seed=123).run(program).result()
 

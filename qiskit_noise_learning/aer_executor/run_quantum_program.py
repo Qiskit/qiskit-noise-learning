@@ -12,8 +12,6 @@
 
 """Functions for running a QuantumProgram on a local Aer simulator."""
 
-from copy import deepcopy
-
 import numpy as np
 from qiskit.primitives.containers.bindings_array import BindingsArray
 from qiskit.primitives.containers.sampler_pub import SamplerPub
@@ -42,21 +40,14 @@ def _round_to_clifford(values: np.ndarray, decimals: int) -> np.ndarray:
     return np.round(values / (np.pi / 2), decimals=decimals) * (np.pi / 2)
 
 
-def _prepare_backend(aer_simulator: AerSimulator) -> AerSimulator:
-    """Return a copy of ``aer_simulator`` that accepts arbitrarily wide circuits.
-
-    The copy is taken so that ``set_max_qubits`` does not mutate the caller's simulator.
-    """
-    backend = deepcopy(aer_simulator)
-    backend.set_max_qubits(10000)
-    return backend
-
-
 def get_aer_sampler(aer_simulator: AerSimulator, seed: int | None = None) -> AerSamplerV2:
     """Return an :class:`~qiskit_aer.primitives.SamplerV2` that runs on ``aer_simulator``.
 
-    The simulator is used as given rather than copied, so a caller building several
-    samplers pays the cost of preparing it only once.  Nothing here mutates it.
+    The simulator is used as given: it is neither copied nor mutated, so several samplers
+    can share one, and any configuration the caller made survives.  In particular, the
+    number of qubits a simulator advertises is left to the caller — Aer treats it as
+    metadata and does not enforce it when running, but a caller who needs a different
+    value can set it with :meth:`~qiskit_aer.AerSimulator.set_max_qubits`.
 
     Args:
         aer_simulator: The simulator the sampler runs on.
@@ -96,8 +87,6 @@ def run_quantum_program(
     """
     seed_sequence = np.random.SeedSequence(seed)
     rng = np.random.default_rng(next_seed(seed_sequence))
-    # Prepared once: copying a simulator that carries a noise model is expensive.
-    backend = _prepare_backend(qasm_simulator)
 
     result_list = []
     metadata_list = []
@@ -105,7 +94,7 @@ def run_quantum_program(
     for prog_item in program.items:
         # A fresh seed per item, so that items sharing a circuit are still sampled
         # independently rather than returning identical shots.
-        aer_sampler = get_aer_sampler(backend, seed=next_seed(seed_sequence))
+        aer_sampler = get_aer_sampler(qasm_simulator, seed=next_seed(seed_sequence))
 
         if noise_dict is not None:
             circuit = PassManager(

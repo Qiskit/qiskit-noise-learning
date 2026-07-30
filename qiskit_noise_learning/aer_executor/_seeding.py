@@ -25,8 +25,10 @@ def next_seed(seed_sequence: np.random.SeedSequence) -> int:
     """Draw a fresh seed from ``seed_sequence``, advancing it.
 
     Each call returns a seed for a stream independent of every other stream drawn from the
-    same sequence.  Aer takes a plain integer rather than a seed sequence, so the drawn
-    child is reduced to a 32-bit value.
+    same sequence.  Aer takes a plain integer rather than a seed sequence, and rejects
+    values above ``2 ** 63 - 1``, so the drawn child is reduced to 63 bits.  That is wide
+    enough that two draws colliding — which would silently correlate the two streams — is
+    not a practical concern, as a 32-bit reduction would be for a program of many items.
 
     Args:
         seed_sequence: The sequence to draw from.  It is mutated, so successive calls
@@ -35,4 +37,4 @@ def next_seed(seed_sequence: np.random.SeedSequence) -> int:
     Returns:
         A seed for one independent stream of randomness.
     """
-    return int(seed_sequence.spawn(1)[0].generate_state(1, dtype=np.uint32)[0])
+    return int(seed_sequence.spawn(1)[0].generate_state(1, dtype=np.uint64)[0] >> np.uint64(1))
