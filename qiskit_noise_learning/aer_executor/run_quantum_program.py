@@ -41,12 +41,21 @@ def _round_to_clifford(values: np.ndarray, decimals: int) -> np.ndarray:
     return np.round(values / (np.pi / 2), decimals=decimals) * (np.pi / 2)
 
 
-def get_aer_sampler(aer_simulator: AerSimulator) -> AerSamplerV2:
-    """Return an :class:`~qiskit_aer.primitives.SamplerV2` configured from ``aer_simulator``."""
+def get_aer_sampler(aer_simulator: AerSimulator, seed: int | None = None) -> AerSamplerV2:
+    """Return an :class:`~qiskit_aer.primitives.SamplerV2` configured from ``aer_simulator``.
+
+    Args:
+        aer_simulator: The simulator to configure the sampler from.
+        seed: Seed for the sampler's random number generator.  If ``None``, the sampler
+            seeds itself nondeterministically.
+
+    Returns:
+        A sampler that runs on a copy of ``aer_simulator``.
+    """
     # Deepcopy first so set_max_qubits does not mutate the caller's simulator.
     backend = deepcopy(aer_simulator)
     backend.set_max_qubits(10000)
-    return AerSamplerV2.from_backend(backend)
+    return AerSamplerV2.from_backend(backend, seed=seed)
 
 
 def run_quantum_program(
@@ -55,6 +64,7 @@ def run_quantum_program(
     noise_dict: dict[str, PauliLindbladMap] | None = None,
     angle_decimals: int = 5,
     warn_absent: bool = True,
+    seed: int | None = None,
 ) -> QuantumProgramResult:
     """Run a quantum program on a simulator.
 
@@ -65,11 +75,12 @@ def run_quantum_program(
         angle_decimals: Gate angles are rounded to the nearest multiple of π/2 at this
             decimal precision before simulation.  See :func:`AerExecutor` for details.
         warn_absent: Passed to :class:`InsertNoisePass`; see :class:`AerExecutor`.
+        seed: Seed for both the sampler and the twirl sampling.  See :class:`AerExecutor`.
 
     Returns:
         Results of simulation.
     """
-    aer_sampler = get_aer_sampler(qasm_simulator)
+    aer_sampler = get_aer_sampler(qasm_simulator, seed=seed)
     # _seed is private but is the only way to obtain the sampler's RNG seed for reproducibility.
     rng = np.random.default_rng(aer_sampler._seed)  # noqa: SLF001
 

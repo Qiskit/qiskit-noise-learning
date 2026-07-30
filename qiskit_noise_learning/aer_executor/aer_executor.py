@@ -35,6 +35,7 @@ class AerRuntimeJob:
         angle_decimals: Rounding precision for gate angles (in units of π/2).
         warn_absent: If ``True`` (default), warn when a tagged barrier has no entry in
             ``noise_dict``.
+        seed: Seed for random number generation.
     """
 
     def __init__(
@@ -44,12 +45,14 @@ class AerRuntimeJob:
         noise_dict: dict[str, PauliLindbladMap] | None = None,
         angle_decimals: int = 5,
         warn_absent: bool = True,
+        seed: int | None = None,
     ):
         self._qasm_simulator = qasm_simulator
         self._program = program
         self._noise_dict = noise_dict
         self._angle_decimals = angle_decimals
         self._warn_absent = warn_absent
+        self._seed = seed
         self._job_id: str = str(uuid.uuid4())
         self.tags: list[str] = []  # interface compatibility with real Executor
 
@@ -59,6 +62,7 @@ class AerRuntimeJob:
             noise_dict=self._noise_dict,
             angle_decimals=self._angle_decimals,
             warn_absent=self._warn_absent,
+            seed=self._seed,
         )
 
     def job_id(self) -> str:
@@ -97,7 +101,10 @@ class AerExecutor:
       the Pauli-Lindblad noise channel for that gate.  The map's ``num_qubits`` must
       equal the number of qubits on the corresponding barrier in the circuit.
     - **Qubit indexing** — indices inside the map are *local* to the barrier's qubit
-      set, independent of global circuit qubit numbering.
+      set, independent of global circuit qubit numbering.  Local index ``i`` refers to the
+      ``i``-th qubit of the barrier in *ascending physical-qubit order*, so a device-wide
+      map can be converted with
+      :meth:`PauliLindbladMap.keep_qubits(sorted(qubits)) <.PauliLindbladMap.keep_qubits>`.
 
     Args:
         qasm_simulator: The Aer simulator to run programs on.
@@ -109,6 +116,9 @@ class AerExecutor:
         warn_absent: If ``True`` (default), emit a warning when a tagged barrier's tag is
             not found in ``noise_dict``.  Set to ``False`` when partial coverage of tags is
             intentional.
+        seed: Seed for random number generation, covering both the sampling of shots and
+            the sampling of twirls.  Pass an integer to make results reproducible; with the
+            default of ``None`` every run produces different randomness.
     """
 
     def __init__(
@@ -117,11 +127,13 @@ class AerExecutor:
         noise_dict: dict[str, PauliLindbladMap] | None = None,
         angle_decimals: int = 5,
         warn_absent: bool = True,
+        seed: int | None = None,
     ):
         self._qasm_simulator = qasm_simulator
         self._noise_dict = noise_dict
         self._angle_decimals = angle_decimals
         self._warn_absent = warn_absent
+        self._seed = seed
 
     def run(self, program: QuantumProgram) -> AerRuntimeJob:
         """Run a quantum program and return a completed job.
@@ -138,4 +150,5 @@ class AerExecutor:
             noise_dict=self._noise_dict,
             angle_decimals=self._angle_decimals,
             warn_absent=self._warn_absent,
+            seed=self._seed,
         )

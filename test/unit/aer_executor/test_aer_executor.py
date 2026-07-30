@@ -458,3 +458,82 @@ def test_small_noisy(stabilizer_simulator, noise: bool, case: Literal["a", "b"])
         assert cts.get("0" * len(active_qubits), 0) < num_shots_tot
     else:
         assert cts.get("0" * len(active_qubits), 0) == num_shots_tot
+
+
+def _run_noisy_twirled(stabilizer_simulator, seed: int | None):
+    """Run a noise-injected, Pauli-twirled two-qubit program and return its item data."""
+    qc_boxed, active_qubits = circ_a()
+    qc_boxed.measure(active_qubits, active_qubits)
+    template_circuit, samplex = build(qc_boxed)
+
+    program = QuantumProgram(shots=64)
+    program.append_samplex_item(template_circuit, samplex=samplex, shape=(8,))
+
+    noise_dict = {"r0": PauliLindbladMap.from_list([("XI", 1e-1), ("IX", 1e-1)])}
+    executor = AerExecutor(stabilizer_simulator, noise_dict=noise_dict, seed=seed)
+    return executor.run(program).result()[0]
+
+
+def _run_ghz(fez_backend, stabilizer_simulator, seed: int | None):
+    """Run an unparameterized GHZ circuit item and return its item data."""
+    qc = QuantumCircuit(3, 3)
+    qc.h(0)
+    qc.cx(0, 1)
+    qc.cx(1, 2)
+    qc.measure([0, 1, 2], [0, 1, 2])
+
+    pm = generate_preset_pass_manager(
+        backend=fez_backend, initial_layout=[17, 18, 19], optimization_level=0
+    )
+    program = QuantumProgram(shots=256)
+    program.append_circuit_item(pm.run(qc))
+
+    return AerExecutor(stabilizer_simulator, seed=seed).run(program).result()[0]
+
+
+def _assert_equal_data(expected, actual, message: str):
+    assert set(expected) == set(actual)
+    for key in expected:
+        np.testing.assert_array_equal(expected[key], actual[key], err_msg=f"'{key}': {message}")
+
+
+def _data_differs(first, second) -> bool:
+    return any((first[key] != second[key]).any() for key in first)
+
+
+def test_seed_reproduces_shot_sampling(fez_backend, stabilizer_simulator):
+    """Runs of a probabilistic circuit sharing a seed agree; runs with other seeds do not."""
+    _assert_equal_data(
+        _run_ghz(fez_backend, stabilizer_simulator, 123),
+        _run_ghz(fez_backend, stabilizer_simulator, 123),
+        "differs between runs sharing a seed",
+    )
+    assert _data_differs(
+        _run_ghz(fez_backend, stabilizer_simulator, 123),
+        _run_ghz(fez_backend, stabilizer_simulator, 456),
+    ), "changing the seed left the sampled shots unchanged"
+
+
+def test_seed_reproduces_twirl_and_noise_sampling(stabilizer_simulator):
+    """The seed also covers the randomness drawn outside the sampler.
+
+    The twirls and the injected Pauli-Lindblad noise are sampled by the executor rather
+    than by Aer, so they need the seed threaded through separately.
+    """
+    _assert_equal_data(
+        _run_noisy_twirled(stabilizer_simulator, 123),
+        _run_noisy_twirled(stabilizer_simulator, 123),
+        "differs between runs sharing a seed",
+    )
+    assert _data_differs(
+        _run_noisy_twirled(stabilizer_simulator, 123),
+        _run_noisy_twirled(stabilizer_simulator, 456),
+    ), "changing the seed left the sampled twirls and noise unchanged"
+
+
+def test_unseeded_runs_differ(stabilizer_simulator):
+    """The default of ``seed=None`` leaves each run independently random."""
+    assert _data_differs(
+        _run_noisy_twirled(stabilizer_simulator, None),
+        _run_noisy_twirled(stabilizer_simulator, None),
+    ), "two unseeded runs produced identical data"
