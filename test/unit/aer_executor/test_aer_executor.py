@@ -27,7 +27,7 @@ from samplomatic import Tag, Twirl
 from samplomatic.builders.build import build
 from samplomatic.transpiler import generate_boxing_pass_manager
 
-from qiskit_noise_learning.aer_executor import AerExecutor
+from qiskit_noise_learning.aer_executor import AerExecutor, AerRuntimeJob
 
 
 def assert_correct(expected: dict[str, np.ndarray], executor_results: dict[str, np.ndarray]):
@@ -460,22 +460,22 @@ def test_small_noisy(stabilizer_simulator, noise: bool, case: Literal["a", "b"])
         assert cts.get("0" * len(active_qubits), 0) == num_shots_tot
 
 
-def _run_noisy_twirled(stabilizer_simulator, seed: int | None):
-    """Run a noise-injected, Pauli-twirled two-qubit program and return its item data."""
+NOISY_TWIRLED_NOISE_DICT = {"r0": PauliLindbladMap.from_list([("XI", 1e-1), ("IX", 1e-1)])}
+
+
+def _noisy_twirled_program():
+    """Build a noise-injected, Pauli-twirled two-qubit program with random outcomes."""
     qc_boxed, active_qubits = circ_a()
     qc_boxed.measure(active_qubits, active_qubits)
     template_circuit, samplex = build(qc_boxed)
 
     program = QuantumProgram(shots=64)
     program.append_samplex_item(template_circuit, samplex=samplex, shape=(8,))
-
-    noise_dict = {"r0": PauliLindbladMap.from_list([("XI", 1e-1), ("IX", 1e-1)])}
-    executor = AerExecutor(stabilizer_simulator, noise_dict=noise_dict, seed=seed)
-    return executor.run(program).result()[0]
+    return program
 
 
-def _run_ghz(fez_backend, stabilizer_simulator, seed: int | None):
-    """Run an unparameterized GHZ circuit item and return its item data."""
+def _ghz_circuit(fez_backend) -> QuantumCircuit:
+    """Build an unparameterized GHZ circuit transpiled onto qubits [17, 18, 19]."""
     qc = QuantumCircuit(3, 3)
     qc.h(0)
     qc.cx(0, 1)
@@ -485,8 +485,19 @@ def _run_ghz(fez_backend, stabilizer_simulator, seed: int | None):
     pm = generate_preset_pass_manager(
         backend=fez_backend, initial_layout=[17, 18, 19], optimization_level=0
     )
+    return pm.run(qc)
+
+
+def _run_noisy_twirled(stabilizer_simulator, seed: int | None):
+    """Run a noise-injected, Pauli-twirled two-qubit program and return its item data."""
+    executor = AerExecutor(stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, seed=seed)
+    return executor.run(_noisy_twirled_program()).result()[0]
+
+
+def _run_ghz(fez_backend, stabilizer_simulator, seed: int | None):
+    """Run an unparameterized GHZ circuit item and return its item data."""
     program = QuantumProgram(shots=256)
-    program.append_circuit_item(pm.run(qc))
+    program.append_circuit_item(_ghz_circuit(fez_backend))
 
     return AerExecutor(stabilizer_simulator, seed=seed).run(program).result()[0]
 
@@ -537,3 +548,78 @@ def test_unseeded_runs_differ(stabilizer_simulator):
         _run_noisy_twirled(stabilizer_simulator, None),
         _run_noisy_twirled(stabilizer_simulator, None),
     ), "two unseeded runs produced identical data"
+
+
+def test_repeated_runs_of_a_seeded_executor_are_independent(stabilizer_simulator):
+    """Seeding makes an executor reproducible, not repetitive.
+
+    Each run draws its own seed from the executor's root seed, so submitting the same
+    program twice must sample fresh twirls and shots rather than returning the first
+    run's data again.
+    """
+    executor = AerExecutor(stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, seed=123)
+    first = executor.run(_noisy_twirled_program()).result()[0]
+    second = executor.run(_noisy_twirled_program()).result()[0]
+
+    assert _data_differs(first, second), "two runs of one seeded executor produced identical data"
+
+
+def test_seed_reproduces_a_sequence_of_runs(stabilizer_simulator):
+    """Two executors sharing a root seed agree run for run."""
+    runs = []
+    for _ in range(2):
+        executor = AerExecutor(stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, seed=123)
+        runs.append([executor.run(_noisy_twirled_program()).result()[0] for _ in range(2)])
+
+    for index, (expected, actual) in enumerate(zip(*runs)):
+        _assert_equal_data(
+            expected, actual, f"run {index} differs between executors sharing a seed"
+        )
+
+
+def test_items_sharing_a_circuit_are_sampled_independently(fez_backend, stabilizer_simulator):
+    """Items of one program are independent samples even when their circuits are identical.
+
+    A single seed reused across every item would make Aer replay the same shots for each
+    of them, so the per-item seeds must be distinct.
+    """
+    circuit = _ghz_circuit(fez_backend)
+    program = QuantumProgram(shots=256)
+    program.append_circuit_item(circuit)
+    program.append_circuit_item(circuit)
+
+    result = AerExecutor(stabilizer_simulator, seed=123).run(program).result()
+
+    assert _data_differs(result[0], result[1]), "two identical items produced identical shots"
+
+
+def test_executor_seed_replays_an_unseeded_executor(stabilizer_simulator):
+    """An unseeded executor reports the root seed it drew, and that seed replays it."""
+    executor = AerExecutor(stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, seed=None)
+    expected = executor.run(_noisy_twirled_program()).result()[0]
+
+    replay = AerExecutor(
+        stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, seed=executor.seed
+    )
+    _assert_equal_data(
+        expected,
+        replay.run(_noisy_twirled_program()).result()[0],
+        "replaying AerExecutor.seed did not reproduce the original run",
+    )
+
+
+def test_job_seed_replays_a_single_run(stabilizer_simulator):
+    """A job reports the root seed of its own run, which reproduces just that run."""
+    program = _noisy_twirled_program()
+    job = AerRuntimeJob(
+        stabilizer_simulator, program, noise_dict=NOISY_TWIRLED_NOISE_DICT, seed=None
+    )
+
+    replay = AerRuntimeJob(
+        stabilizer_simulator, program, noise_dict=NOISY_TWIRLED_NOISE_DICT, seed=job.seed
+    )
+    _assert_equal_data(
+        job.result()[0],
+        replay.result()[0],
+        "replaying AerRuntimeJob.seed did not reproduce the original run",
+    )

@@ -41,6 +41,27 @@ def _round_to_clifford(values: np.ndarray, decimals: int) -> np.ndarray:
     return np.round(values / (np.pi / 2), decimals=decimals) * (np.pi / 2)
 
 
+def _prepare_backend(aer_simulator: AerSimulator) -> AerSimulator:
+    """Return a copy of ``aer_simulator`` that accepts arbitrarily wide circuits.
+
+    The copy is taken so that ``set_max_qubits`` does not mutate the caller's simulator.
+    Copying is expensive for simulators carrying a noise model, so callers running several
+    items should prepare the backend once and reuse it.
+    """
+    backend = deepcopy(aer_simulator)
+    backend.set_max_qubits(10000)
+    return backend
+
+
+def _next_seed(seed_sequence: np.random.SeedSequence) -> int:
+    """Draw a fresh seed from ``seed_sequence``, advancing it.
+
+    Each call returns a seed for an independent stream of randomness.  Aer takes a plain
+    integer rather than a seed sequence, so the drawn child is reduced to a 32-bit value.
+    """
+    return int(seed_sequence.spawn(1)[0].generate_state(1, dtype=np.uint32)[0])
+
+
 def get_aer_sampler(aer_simulator: AerSimulator, seed: int | None = None) -> AerSamplerV2:
     """Return an :class:`~qiskit_aer.primitives.SamplerV2` configured from ``aer_simulator``.
 
@@ -52,10 +73,7 @@ def get_aer_sampler(aer_simulator: AerSimulator, seed: int | None = None) -> Aer
     Returns:
         A sampler that runs on a copy of ``aer_simulator``.
     """
-    # Deepcopy first so set_max_qubits does not mutate the caller's simulator.
-    backend = deepcopy(aer_simulator)
-    backend.set_max_qubits(10000)
-    return AerSamplerV2.from_backend(backend, seed=seed)
+    return AerSamplerV2.from_backend(_prepare_backend(aer_simulator), seed=seed)
 
 
 def run_quantum_program(
@@ -75,19 +93,27 @@ def run_quantum_program(
         angle_decimals: Gate angles are rounded to the nearest multiple of π/2 at this
             decimal precision before simulation.  See :func:`AerExecutor` for details.
         warn_absent: Passed to :class:`InsertNoisePass`; see :class:`AerExecutor`.
-        seed: Seed for both the sampler and the twirl sampling.  See :class:`AerExecutor`.
+        seed: Root seed for this run.  Independent seeds are derived from it for the twirl
+            sampling and for each item's shot sampling, so a fixed value reproduces the run
+            without correlating the items with each other.  If ``None``, the root seed is
+            drawn nondeterministically.  See :class:`AerExecutor`.
 
     Returns:
         Results of simulation.
     """
-    aer_sampler = get_aer_sampler(qasm_simulator, seed=seed)
-    # _seed is private but is the only way to obtain the sampler's RNG seed for reproducibility.
-    rng = np.random.default_rng(aer_sampler._seed)  # noqa: SLF001
+    seed_sequence = np.random.SeedSequence(seed)
+    rng = np.random.default_rng(_next_seed(seed_sequence))
+    # Prepared once: copying a simulator that carries a noise model is expensive.
+    backend = _prepare_backend(qasm_simulator)
 
     result_list = []
     metadata_list = []
 
     for prog_item in program.items:
+        # A fresh seed per item, so that items sharing a circuit are still sampled
+        # independently rather than returning identical shots.
+        aer_sampler = AerSamplerV2.from_backend(backend, seed=_next_seed(seed_sequence))
+
         if noise_dict is not None:
             circuit = PassManager(
                 [InsertNoisePass(noise_dict=noise_dict, warn_absent=warn_absent)]

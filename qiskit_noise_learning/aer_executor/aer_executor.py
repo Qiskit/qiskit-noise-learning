@@ -14,12 +14,13 @@
 
 import uuid
 
+import numpy as np
 from qiskit.quantum_info import PauliLindbladMap
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import QuantumProgram
 from qiskit_ibm_runtime.results import QuantumProgramResult
 
-from .run_quantum_program import run_quantum_program
+from .run_quantum_program import _next_seed, run_quantum_program
 
 
 class AerRuntimeJob:
@@ -35,7 +36,8 @@ class AerRuntimeJob:
         angle_decimals: Rounding precision for gate angles (in units of π/2).
         warn_absent: If ``True`` (default), warn when a tagged barrier has no entry in
             ``noise_dict``.
-        seed: Seed for random number generation.
+        seed: Root seed for this job's randomness.  If ``None``, one is drawn
+            nondeterministically; either way the value used is available as :attr:`seed`.
     """
 
     def __init__(
@@ -52,7 +54,8 @@ class AerRuntimeJob:
         self._noise_dict = noise_dict
         self._angle_decimals = angle_decimals
         self._warn_absent = warn_absent
-        self._seed = seed
+        # Resolve None to a concrete seed so that the run can always be replayed.
+        self._seed = int(np.random.SeedSequence(seed).entropy)
         self._job_id: str = str(uuid.uuid4())
         self.tags: list[str] = []  # interface compatibility with real Executor
 
@@ -68,6 +71,15 @@ class AerRuntimeJob:
     def job_id(self) -> str:
         """Return the unique job ID."""
         return self._job_id
+
+    @property
+    def seed(self) -> int:
+        """The root seed this job's randomness was derived from.
+
+        Constructing another job with this seed and the same program reproduces this
+        job's result, including when the job itself was created without a seed.
+        """
+        return self._seed
 
     def result(self, *_, **__) -> QuantumProgramResult:
         """Return the result of the program execution."""
@@ -111,14 +123,15 @@ class AerExecutor:
         noise_dict: A map from barrier label refs to Pauli-Lindblad noise maps.  Pass
             ``None`` (default) to run without noise injection.
         angle_decimals: Gate angles are rounded to the nearest multiple of π/2 at this
-            decimal precision before simulation.  This prevents floating-point drift from
-            preventing Clifford-method simulation when angles are nominally Clifford.
+            decimal precision before simulation.  This prevents floating-point drift from preventing
+            Clifford-method simulation when angles are nominally Clifford.
         warn_absent: If ``True`` (default), emit a warning when a tagged barrier's tag is
             not found in ``noise_dict``.  Set to ``False`` when partial coverage of tags is
             intentional.
-        seed: Seed for random number generation, covering both the sampling of shots and
-            the sampling of twirls.  Pass an integer to make results reproducible; with the
-            default of ``None`` every run produces different randomness.
+        seed: Root seed for random number generation, covering both the sampling of shots
+            and the sampling of twirls.  Each call to :meth:`run` derives its own independent seed
+            from this root. With the default of ``None`` a root seed is drawn nondeterministically;
+            it is available as :attr:`seed` either way.
     """
 
     def __init__(
@@ -133,10 +146,23 @@ class AerExecutor:
         self._noise_dict = noise_dict
         self._angle_decimals = angle_decimals
         self._warn_absent = warn_absent
-        self._seed = seed
+        self._seed_sequence = np.random.SeedSequence(seed)
+
+    @property
+    def seed(self) -> int:
+        """The root seed each run's randomness is derived from.
+
+        Passing this back to a new executor reproduces this executor's sequence of runs,
+        including when it was constructed without a seed.  To reproduce a single run
+        instead, use the seed of the job that produced it, :attr:`AerRuntimeJob.seed`.
+        """
+        return int(self._seed_sequence.entropy)
 
     def run(self, program: QuantumProgram) -> AerRuntimeJob:
         """Run a quantum program and return a completed job.
+
+        Each call draws a fresh seed from the executor's root seed, so successive runs are
+        independently random even when the executor is seeded.
 
         Args:
             program: The quantum program to execute.
@@ -150,5 +176,5 @@ class AerExecutor:
             noise_dict=self._noise_dict,
             angle_decimals=self._angle_decimals,
             warn_absent=self._warn_absent,
-            seed=self._seed,
+            seed=_next_seed(self._seed_sequence),
         )
