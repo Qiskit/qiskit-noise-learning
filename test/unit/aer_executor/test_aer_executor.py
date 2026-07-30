@@ -29,6 +29,8 @@ from samplomatic.transpiler import generate_boxing_pass_manager
 
 from qiskit_noise_learning.aer_executor import AerExecutor, AerRuntimeJob
 
+NOISY_TWIRLED_NOISE_DICT = {"r0": PauliLindbladMap.from_list([("XI", 1e-1), ("IX", 1e-1)])}
+
 
 def assert_correct(expected: dict[str, np.ndarray], executor_results: dict[str, np.ndarray]):
     """Assert that executor results match the expected bit arrays after flip correction.
@@ -460,10 +462,7 @@ def test_small_noisy(stabilizer_simulator, noise: bool, case: Literal["a", "b"])
         assert cts.get("0" * len(active_qubits), 0) == num_shots_tot
 
 
-NOISY_TWIRLED_NOISE_DICT = {"r0": PauliLindbladMap.from_list([("XI", 1e-1), ("IX", 1e-1)])}
-
-
-def _noisy_twirled_program():
+def noisy_twirled_program() -> QuantumProgram:
     """Build a noise-injected, Pauli-twirled two-qubit program with random outcomes."""
     qc_boxed, active_qubits = circ_a()
     qc_boxed.measure(active_qubits, active_qubits)
@@ -494,15 +493,15 @@ def ghz_circuit(fez_backend) -> QuantumCircuit:
     return pm.run(qc)
 
 
-def _run_noisy_twirled(stabilizer_simulator, root_seed: int | None):
+def run_noisy_twirled(stabilizer_simulator, root_seed: int | None) -> dict[str, np.ndarray]:
     """Run a noise-injected, Pauli-twirled two-qubit program and return its item data."""
     executor = AerExecutor(
         stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, root_seed=root_seed
     )
-    return executor.run(_noisy_twirled_program()).result()[0]
+    return executor.run(noisy_twirled_program()).result()[0]
 
 
-def _run_ghz(ghz_circuit, stabilizer_simulator, root_seed: int | None):
+def run_ghz(ghz_circuit, stabilizer_simulator, root_seed: int | None) -> dict[str, np.ndarray]:
     """Run a single GHZ circuit item and return its item data."""
     program = QuantumProgram(shots=256)
     program.append_circuit_item(ghz_circuit)
@@ -510,26 +509,28 @@ def _run_ghz(ghz_circuit, stabilizer_simulator, root_seed: int | None):
     return AerExecutor(stabilizer_simulator, root_seed=root_seed).run(program).result()[0]
 
 
-def _assert_equal_data(expected, actual, message: str):
+def assert_equal_data(expected: dict[str, np.ndarray], actual: dict[str, np.ndarray], message: str):
+    """Assert that two items' data agree key for key."""
     assert set(expected) == set(actual)
     for key in expected:
         np.testing.assert_array_equal(expected[key], actual[key], err_msg=f"'{key}': {message}")
 
 
-def _data_differs(first, second) -> bool:
+def data_differs(first: dict[str, np.ndarray], second: dict[str, np.ndarray]) -> bool:
+    """Return whether two items' data disagree in at least one entry."""
     return any((first[key] != second[key]).any() for key in first)
 
 
 def test_seed_reproduces_shot_sampling(ghz_circuit, stabilizer_simulator):
     """Runs of a probabilistic circuit sharing a seed agree; runs with other seeds do not."""
-    _assert_equal_data(
-        _run_ghz(ghz_circuit, stabilizer_simulator, 123),
-        _run_ghz(ghz_circuit, stabilizer_simulator, 123),
+    assert_equal_data(
+        run_ghz(ghz_circuit, stabilizer_simulator, 123),
+        run_ghz(ghz_circuit, stabilizer_simulator, 123),
         "differs between runs sharing a seed",
     )
-    assert _data_differs(
-        _run_ghz(ghz_circuit, stabilizer_simulator, 123),
-        _run_ghz(ghz_circuit, stabilizer_simulator, 456),
+    assert data_differs(
+        run_ghz(ghz_circuit, stabilizer_simulator, 123),
+        run_ghz(ghz_circuit, stabilizer_simulator, 456),
     ), "changing the seed left the sampled shots unchanged"
 
 
@@ -539,22 +540,22 @@ def test_seed_reproduces_twirl_and_noise_sampling(stabilizer_simulator):
     The twirls and the injected Pauli-Lindblad noise are sampled by the executor rather
     than by Aer, so they need the seed threaded through separately.
     """
-    _assert_equal_data(
-        _run_noisy_twirled(stabilizer_simulator, 123),
-        _run_noisy_twirled(stabilizer_simulator, 123),
+    assert_equal_data(
+        run_noisy_twirled(stabilizer_simulator, 123),
+        run_noisy_twirled(stabilizer_simulator, 123),
         "differs between runs sharing a seed",
     )
-    assert _data_differs(
-        _run_noisy_twirled(stabilizer_simulator, 123),
-        _run_noisy_twirled(stabilizer_simulator, 456),
+    assert data_differs(
+        run_noisy_twirled(stabilizer_simulator, 123),
+        run_noisy_twirled(stabilizer_simulator, 456),
     ), "changing the seed left the sampled twirls and noise unchanged"
 
 
 def test_unseeded_runs_differ(stabilizer_simulator):
     """The default of ``root_seed=None`` leaves each run independently random."""
-    assert _data_differs(
-        _run_noisy_twirled(stabilizer_simulator, None),
-        _run_noisy_twirled(stabilizer_simulator, None),
+    assert data_differs(
+        run_noisy_twirled(stabilizer_simulator, None),
+        run_noisy_twirled(stabilizer_simulator, None),
     ), "two unseeded runs produced identical data"
 
 
@@ -566,10 +567,10 @@ def test_repeated_runs_of_a_seeded_executor_are_independent(stabilizer_simulator
     run's data again.
     """
     executor = AerExecutor(stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, root_seed=123)
-    first = executor.run(_noisy_twirled_program()).result()[0]
-    second = executor.run(_noisy_twirled_program()).result()[0]
+    first = executor.run(noisy_twirled_program()).result()[0]
+    second = executor.run(noisy_twirled_program()).result()[0]
 
-    assert _data_differs(first, second), "two runs of one seeded executor produced identical data"
+    assert data_differs(first, second), "two runs of one seeded executor produced identical data"
 
 
 def test_seed_reproduces_a_sequence_of_runs(stabilizer_simulator):
@@ -579,12 +580,10 @@ def test_seed_reproduces_a_sequence_of_runs(stabilizer_simulator):
         executor = AerExecutor(
             stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, root_seed=123
         )
-        runs.append([executor.run(_noisy_twirled_program()).result()[0] for _ in range(2)])
+        runs.append([executor.run(noisy_twirled_program()).result()[0] for _ in range(2)])
 
-    for index, (expected, actual) in enumerate(zip(*runs)):
-        _assert_equal_data(
-            expected, actual, f"run {index} differs between executors sharing a seed"
-        )
+    for index, (expected, actual) in enumerate(zip(*runs, strict=True)):
+        assert_equal_data(expected, actual, f"run {index} differs between executors sharing a seed")
 
 
 def test_items_sharing_a_circuit_are_sampled_independently(ghz_circuit, stabilizer_simulator):
@@ -599,7 +598,7 @@ def test_items_sharing_a_circuit_are_sampled_independently(ghz_circuit, stabiliz
 
     result = AerExecutor(stabilizer_simulator, root_seed=123).run(program).result()
 
-    assert _data_differs(result[0], result[1]), "two identical items produced identical shots"
+    assert data_differs(result[0], result[1]), "two identical items produced identical shots"
 
 
 def test_root_seed_replays_an_unseeded_executor(stabilizer_simulator):
@@ -607,21 +606,21 @@ def test_root_seed_replays_an_unseeded_executor(stabilizer_simulator):
     executor = AerExecutor(
         stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, root_seed=None
     )
-    expected = executor.run(_noisy_twirled_program()).result()[0]
+    expected = executor.run(noisy_twirled_program()).result()[0]
 
     replay = AerExecutor(
         stabilizer_simulator, noise_dict=NOISY_TWIRLED_NOISE_DICT, root_seed=executor.root_seed
     )
-    _assert_equal_data(
+    assert_equal_data(
         expected,
-        replay.run(_noisy_twirled_program()).result()[0],
+        replay.run(noisy_twirled_program()).result()[0],
         "replaying AerExecutor.root_seed did not reproduce the original run",
     )
 
 
 def test_job_seed_replays_a_single_run(stabilizer_simulator):
     """A job reports the root seed of its own run, which reproduces just that run."""
-    program = _noisy_twirled_program()
+    program = noisy_twirled_program()
     job = AerRuntimeJob(
         stabilizer_simulator, program, noise_dict=NOISY_TWIRLED_NOISE_DICT, seed=None
     )
@@ -629,7 +628,7 @@ def test_job_seed_replays_a_single_run(stabilizer_simulator):
     replay = AerRuntimeJob(
         stabilizer_simulator, program, noise_dict=NOISY_TWIRLED_NOISE_DICT, seed=job.seed
     )
-    _assert_equal_data(
+    assert_equal_data(
         job.result()[0],
         replay.result()[0],
         "replaying AerRuntimeJob.seed did not reproduce the original run",

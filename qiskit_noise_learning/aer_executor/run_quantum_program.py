@@ -43,11 +43,8 @@ def _round_to_clifford(values: np.ndarray, decimals: int) -> np.ndarray:
 def get_aer_sampler(aer_simulator: AerSimulator, seed: int | None = None) -> AerSamplerV2:
     """Return an :class:`~qiskit_aer.primitives.SamplerV2` that runs on ``aer_simulator``.
 
-    The simulator is used as given: it is neither copied nor mutated, so several samplers
-    can share one, and any configuration the caller made survives.  In particular, the
-    number of qubits a simulator advertises is left to the caller — Aer treats it as
-    metadata and does not enforce it when running, but a caller who needs a different
-    value can set it with :meth:`~qiskit_aer.AerSimulator.set_max_qubits`.
+    The simulator is used as given — neither copied nor mutated — so several samplers can
+    share one and any configuration the caller made survives.
 
     Args:
         aer_simulator: The simulator the sampler runs on.

@@ -28,7 +28,8 @@ def next_seed(seed_sequence: np.random.SeedSequence) -> int:
     same sequence.  Aer takes a plain integer rather than a seed sequence, and rejects
     values above ``2 ** 63 - 1``, so the drawn child is reduced to 63 bits.  That is wide
     enough that two draws colliding — which would silently correlate the two streams — is
-    not a practical concern, as a 32-bit reduction would be for a program of many items.
+    not a practical concern, unlike a 32-bit reduction, which would be for a program of
+    many items.
 
     Args:
         seed_sequence: The sequence to draw from.  It is mutated, so successive calls

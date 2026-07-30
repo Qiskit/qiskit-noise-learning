@@ -80,7 +80,7 @@ class AerRuntimeJob:
         Constructing another job with this seed and the same program reproduces this
         job's result, including when the job itself was created without a seed.
 
-        For a job created by :meth:`AerExecutor.run` this is the seed that executor drew
+        For a job created by :meth:`AerExecutor.run` this is the seed that the executor drew
         for this particular run, which is not its :attr:`AerExecutor.root_seed` — the two
         are not interchangeable.
         """
@@ -121,15 +121,16 @@ class AerExecutor:
       set, independent of global circuit qubit numbering.  Local index ``i`` refers to the
       ``i``-th qubit of the barrier in *ascending physical-qubit order*, so a device-wide
       map can be converted with
-      :meth:`PauliLindbladMap.keep_qubits(sorted(qubits)) <.PauliLindbladMap.keep_qubits>`.
+      :meth:`PauliLindbladMap.keep_qubits(sorted(qubits))
+      <qiskit.quantum_info.PauliLindbladMap.keep_qubits>`.
 
     Args:
         qasm_simulator: The Aer simulator to run programs on.
         noise_dict: A map from barrier label refs to Pauli-Lindblad noise maps.  Pass
             ``None`` (default) to run without noise injection.
         angle_decimals: Gate angles are rounded to the nearest multiple of π/2 at this
-            decimal precision before simulation.  This prevents floating-point drift from preventing
-            Clifford-method simulation when angles are nominally Clifford.
+            decimal precision before simulation.  This prevents floating-point drift from
+            preventing Clifford-method simulation when angles are nominally Clifford.
         warn_absent: If ``True`` (default), emit a warning when a tagged barrier's tag is
             not found in ``noise_dict``.  Set to ``False`` when partial coverage of tags is
             intentional.
