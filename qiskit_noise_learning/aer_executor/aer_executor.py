@@ -14,11 +14,13 @@
 
 import uuid
 
+import numpy as np
 from qiskit.quantum_info import PauliLindbladMap
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import QuantumProgram
 from qiskit_ibm_runtime.results import QuantumProgramResult
 
+from ._seeding import next_seed
 from .run_quantum_program import run_quantum_program
 
 
@@ -35,6 +37,8 @@ class AerRuntimeJob:
         angle_decimals: Rounding precision for gate angles (in units of π/2).
         warn_absent: If ``True`` (default), warn when a tagged barrier has no entry in
             ``noise_dict``.
+        seed: Root seed for this job's randomness.  If ``None``, one is drawn
+            nondeterministically; either way the value used is available as :attr:`seed`.
     """
 
     def __init__(
@@ -44,12 +48,15 @@ class AerRuntimeJob:
         noise_dict: dict[str, PauliLindbladMap] | None = None,
         angle_decimals: int = 5,
         warn_absent: bool = True,
+        seed: int | None = None,
     ):
         self._qasm_simulator = qasm_simulator
         self._program = program
         self._noise_dict = noise_dict
         self._angle_decimals = angle_decimals
         self._warn_absent = warn_absent
+        # Resolve None to a concrete seed so that the run can always be replayed.
+        self._seed = int(np.random.SeedSequence(seed).entropy)
         self._job_id: str = str(uuid.uuid4())
         self.tags: list[str] = []  # interface compatibility with real Executor
 
@@ -59,11 +66,25 @@ class AerRuntimeJob:
             noise_dict=self._noise_dict,
             angle_decimals=self._angle_decimals,
             warn_absent=self._warn_absent,
+            seed=self._seed,
         )
 
     def job_id(self) -> str:
         """Return the unique job ID."""
         return self._job_id
+
+    @property
+    def seed(self) -> int:
+        """The root seed this job's randomness was derived from.
+
+        Constructing another job with this seed and the same program reproduces this
+        job's result, including when the job itself was created without a seed.
+
+        For a job created by :meth:`AerExecutor.run` this is the seed that the executor drew
+        for this particular run, which is not its :attr:`AerExecutor.root_seed` — the two
+        are not interchangeable.
+        """
+        return self._seed
 
     def result(self, *_, **__) -> QuantumProgramResult:
         """Return the result of the program execution."""
@@ -97,18 +118,27 @@ class AerExecutor:
       the Pauli-Lindblad noise channel for that gate.  The map's ``num_qubits`` must
       equal the number of qubits on the corresponding barrier in the circuit.
     - **Qubit indexing** — indices inside the map are *local* to the barrier's qubit
-      set, independent of global circuit qubit numbering.
+      set, independent of global circuit qubit numbering.  Local index ``i`` refers to the
+      ``i``-th qubit of the barrier in *ascending physical-qubit order*, so a device-wide
+      map can be converted with
+      :meth:`PauliLindbladMap.keep_qubits(sorted(qubits))
+      <qiskit.quantum_info.PauliLindbladMap.keep_qubits>`.
 
     Args:
         qasm_simulator: The Aer simulator to run programs on.
-        noise_dict: A map from barrier label refs to Pauli-Lindblad noise maps.  Pass
+        noise_dict: A map from barrier label refs to Pauli-Lindblad noise maps. Pass
             ``None`` (default) to run without noise injection.
         angle_decimals: Gate angles are rounded to the nearest multiple of π/2 at this
-            decimal precision before simulation.  This prevents floating-point drift from
+            decimal precision before simulation. This prevents floating-point drift from
             preventing Clifford-method simulation when angles are nominally Clifford.
         warn_absent: If ``True`` (default), emit a warning when a tagged barrier's tag is
             not found in ``noise_dict``.  Set to ``False`` when partial coverage of tags is
             intentional.
+        root_seed: Root seed for random number generation, covering both the sampling of
+            shots and the sampling of twirls.  Rather than being used directly, it seeds a sequence
+            that each call to :meth:`run` draws the next seed from, so that runs are independently
+            random. With the default of ``None`` a root seed is drawn nondeterministically; it is
+            available as :attr:`root_seed` either way.
     """
 
     def __init__(
@@ -117,14 +147,29 @@ class AerExecutor:
         noise_dict: dict[str, PauliLindbladMap] | None = None,
         angle_decimals: int = 5,
         warn_absent: bool = True,
+        root_seed: int | None = None,
     ):
         self._qasm_simulator = qasm_simulator
         self._noise_dict = noise_dict
         self._angle_decimals = angle_decimals
         self._warn_absent = warn_absent
+        self._seed_sequence = np.random.SeedSequence(root_seed)
+
+    @property
+    def root_seed(self) -> int:
+        """The root seed each run's randomness is derived from.
+
+        Passing this to a new executor reproduces this executor's whole sequence of runs.
+        It is not the seed of any individual run: to reproduce a single run, use the seed
+        of the job that produced it, :attr:`AerRuntimeJob.seed`.
+        """
+        return int(self._seed_sequence.entropy)
 
     def run(self, program: QuantumProgram) -> AerRuntimeJob:
         """Run a quantum program and return a completed job.
+
+        Each call draws a fresh seed from the executor's root seed, so successive runs are
+        independently random even when the executor is seeded.
 
         Args:
             program: The quantum program to execute.
@@ -138,4 +183,5 @@ class AerExecutor:
             noise_dict=self._noise_dict,
             angle_decimals=self._angle_decimals,
             warn_absent=self._warn_absent,
+            seed=next_seed(self._seed_sequence),
         )

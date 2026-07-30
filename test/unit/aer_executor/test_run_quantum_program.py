@@ -20,12 +20,10 @@ from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.primitives.containers.bindings_array import BindingsArray
 from qiskit.quantum_info import PauliList
 from qiskit_aer.noise import PauliLindbladError
+from qiskit_aer.primitives import SamplerV2 as AerSamplerV2
 from qiskit_ibm_runtime.quantum_program import QuantumProgram
 
-from qiskit_noise_learning.aer_executor.run_quantum_program import (
-    get_aer_sampler,
-    run_quantum_program,
-)
+from qiskit_noise_learning.aer_executor.run_quantum_program import run_quantum_program
 
 
 def test_unsupported_item_type_raises_type_error(stabilizer_simulator):
@@ -82,7 +80,7 @@ def test_aer(stabilizer_simulator, angle: float, tol: float, noise: bool):
 
     bindings_array = BindingsArray({par: [angle + tol] * qc.num_qubits})
 
-    aer_sampler = get_aer_sampler(aer_simulator=stabilizer_simulator)
+    aer_sampler = AerSamplerV2.from_backend(stabilizer_simulator)
 
     sampler_job = aer_sampler.run([(qc, bindings_array)], shots=5)
     sampler_job.result()
