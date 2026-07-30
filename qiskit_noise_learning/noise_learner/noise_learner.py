@@ -64,8 +64,6 @@ class NoiseLearner:
         options: Learning options. If ``None``, default options are used.
         executor: An executor to submit generated programs to.  If ``None`` (default), a
             :class:`~qiskit_ibm_runtime.Executor` in ``backend``'s execution mode is used.
-            Supply one explicitly to run somewhere other than the backend itself, for
-            example an :class:`~.AerExecutor` that simulates ``backend`` locally.
     """
 
     def __init__(
