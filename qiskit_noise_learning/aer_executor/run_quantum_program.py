@@ -40,23 +40,6 @@ def _round_to_clifford(values: np.ndarray, decimals: int) -> np.ndarray:
     return np.round(values / (np.pi / 2), decimals=decimals) * (np.pi / 2)
 
 
-def get_aer_sampler(aer_simulator: AerSimulator, seed: int | None = None) -> AerSamplerV2:
-    """Return an :class:`~qiskit_aer.primitives.SamplerV2` that runs on ``aer_simulator``.
-
-    The simulator is used as given — neither copied nor mutated — so several samplers can
-    share one and any configuration the caller made survives.
-
-    Args:
-        aer_simulator: The simulator the sampler runs on.
-        seed: Seed for the sampler's random number generator.  If ``None``, the sampler
-            seeds itself nondeterministically.
-
-    Returns:
-        A sampler that runs on ``aer_simulator``.
-    """
-    return AerSamplerV2.from_backend(aer_simulator, seed=seed)
-
-
 def run_quantum_program(
     qasm_simulator: AerSimulator,
     program: QuantumProgram,
@@ -90,8 +73,9 @@ def run_quantum_program(
 
     for prog_item in program.items:
         # A fresh seed per item, so that items sharing a circuit are still sampled
-        # independently rather than returning identical shots.
-        aer_sampler = get_aer_sampler(qasm_simulator, seed=next_seed(seed_sequence))
+        # independently rather than returning identical shots.  Building a sampler per item
+        # is cheap: from_backend neither copies nor mutates the simulator.
+        aer_sampler = AerSamplerV2.from_backend(qasm_simulator, seed=next_seed(seed_sequence))
 
         if noise_dict is not None:
             circuit = PassManager(

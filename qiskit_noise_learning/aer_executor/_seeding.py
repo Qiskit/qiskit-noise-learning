@@ -10,13 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Derivation of independent seeds from a root seed.
-
-Randomness in this subpackage is drawn from several places — Aer's shot sampling, and the
-twirl and noise sampling done here — and a run may need many streams of it.  Each stream
-gets its own seed drawn from a shared ``numpy.random.SeedSequence``, so that one root seed
-reproduces a whole run without any two streams sharing randomness.
-"""
+"""Derivation of independent seeds from a root seed."""
 
 import numpy as np
 
@@ -27,9 +21,7 @@ def next_seed(seed_sequence: np.random.SeedSequence) -> int:
     Each call returns a seed for a stream independent of every other stream drawn from the
     same sequence.  Aer takes a plain integer rather than a seed sequence, and rejects
     values above ``2 ** 63 - 1``, so the drawn child is reduced to 63 bits.  That is wide
-    enough that two draws colliding — which would silently correlate the two streams — is
-    not a practical concern, unlike a 32-bit reduction, which would be for a program of
-    many items.
+    enough that two draws colliding — which would silently correlate the two streams.
 
     Args:
         seed_sequence: The sequence to draw from.  It is mutated, so successive calls

@@ -126,23 +126,19 @@ class AerExecutor:
 
     Args:
         qasm_simulator: The Aer simulator to run programs on.
-        noise_dict: A map from barrier label refs to Pauli-Lindblad noise maps.  Pass
+        noise_dict: A map from barrier label refs to Pauli-Lindblad noise maps. Pass
             ``None`` (default) to run without noise injection.
         angle_decimals: Gate angles are rounded to the nearest multiple of π/2 at this
-            decimal precision before simulation.  This prevents floating-point drift from
+            decimal precision before simulation. This prevents floating-point drift from
             preventing Clifford-method simulation when angles are nominally Clifford.
         warn_absent: If ``True`` (default), emit a warning when a tagged barrier's tag is
             not found in ``noise_dict``.  Set to ``False`` when partial coverage of tags is
             intentional.
         root_seed: Root seed for random number generation, covering both the sampling of
-            shots and the sampling of twirls.  Rather than being used directly, it seeds a
-            sequence that each call to :meth:`run` draws the next seed from, so that runs
-            are independently random.  A consequence is that a run's randomness depends on
-            its position in that sequence, not on its program: the same program submitted
-            as the first and then the second run gets different randomness, and reproducing
-            a script means replaying its runs in the same order.  With the default of
-            ``None`` a root seed is drawn nondeterministically; it is available as
-            :attr:`root_seed` either way.
+            shots and the sampling of twirls.  Rather than being used directly, it seeds a sequence
+            that each call to :meth:`run` draws the next seed from, so that runs are independently
+            random. With the default of ``None`` a root seed is drawn nondeterministically; it is
+            available as :attr:`root_seed` either way.
     """
 
     def __init__(
