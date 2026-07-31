@@ -67,8 +67,10 @@ intersphinx_mapping = {
 
 # -- MyST (Markdown) ---------------------------------------------------------
 
-# amsmath: support LaTeX align/aligned environments; dollarmath: $...$ / $$...$$ math.
-myst_enable_extensions = ["amsmath", "dollarmath"]
+# amsmath: support LaTeX align/aligned environments; dollarmath: $...$ / $$...$$ math;
+# colon_fence: ``:::{directive}`` fences, which unlike backtick fences can nest a code block
+# without the enclosing fence having to grow an extra backtick.
+myst_enable_extensions = ["amsmath", "colon_fence", "dollarmath"]
 
 # By default MyST writes its own ``mathjax3_config``.  This project runs MathJax 2 (see the MathJax
 # section below), which would then find a v3-shaped ``window.MathJax`` and fail to start; MyST's
