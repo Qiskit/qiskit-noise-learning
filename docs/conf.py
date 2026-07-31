@@ -1,5 +1,9 @@
 """Sphinx configuration for the qiskit-noise-learning documentation."""
 
+import re
+
+from docutils import nodes
+
 import qiskit_noise_learning
 
 # -- Project information -----------------------------------------------------
@@ -20,7 +24,8 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
     "sphinx.ext.viewcode",
-    "myst_parser",
+    # myst_nb bundles myst_parser, so it also handles the plain Markdown pages.
+    "myst_nb",
     "sphinxcontrib.bibtex",
     "sphinx_proof",
     "qiskit_sphinx_theme",
@@ -64,6 +69,44 @@ intersphinx_mapping = {
 
 # amsmath: support LaTeX align/aligned environments; dollarmath: $...$ / $$...$$ math.
 myst_enable_extensions = ["amsmath", "dollarmath"]
+
+# -- myst-nb (executable tutorials) ------------------------------------------
+
+# The tutorials in docs/tutorials are MyST Markdown notebooks with no stored outputs;
+# every build runs them.  "cache" keeps local rebuilds fast by reusing outputs whenever
+# the source is unchanged.
+nb_execution_mode = "cache"
+# Never publish a tutorial whose code raised.
+nb_execution_raise_on_error = True
+# The tutorials simulate whole learning experiments, which takes minutes, not seconds.
+nb_execution_timeout = 900
+# Render stderr inline rather than raising it as a Sphinx warning, which -W would turn into
+# a build failure.  Anything a tutorial warns about should be visible to the reader instead.
+nb_output_stderr = "show"
+
+
+# -- Plotly ------------------------------------------------------------------
+
+# Plotly's HTML renderers unconditionally pull in MathJax 2.7.5 alongside every figure, but
+# Sphinx already loads a much newer MathJax for the page.  Drop plotly's copy so the two do
+# not fight over ``window.MathJax``; the figures keep their own plotly.js script tag.
+_PLOTLY_MATHJAX_SCRIPT = re.compile(r'<script src="[^"]*mathjax[^"]*"></script>', re.IGNORECASE)
+
+
+def _strip_plotly_mathjax(_app, doctree):
+    for node in doctree.findall(nodes.raw):
+        if node.get("format") != "html":
+            continue
+        html = node.astext()
+        stripped = _PLOTLY_MATHJAX_SCRIPT.sub("", html)
+        if stripped != html:
+            node.children = [nodes.Text(stripped)]
+
+
+def setup(app):
+    """Register documentation-only Sphinx hooks."""
+    app.connect("doctree-read", _strip_plotly_mathjax)
+
 
 # -- sphinxcontrib-bibtex ----------------------------------------------------
 

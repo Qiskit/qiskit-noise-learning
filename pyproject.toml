@@ -51,12 +51,14 @@ dev = [
 
 vis = [
     "plotly",
+    "qiskit[visualization]",  # matplotlib/pylatexenc for QuantumCircuit.draw("mpl")
 ]
 
 docs = [
     "sphinx>=7",             # Documentation generator
     "qiskit-sphinx-theme",   # Qiskit ecosystem HTML theme
-    "myst-parser",           # Markdown (MyST) source support
+    "myst-nb>=1.1",          # Markdown (MyST) source support, plus executable notebooks
+    "ipykernel",             # Kernel that myst-nb executes tutorial notebooks with
     "sphinxcontrib-bibtex",  # BibTeX citations
     "sphinx-proof",          # Numbered proposition/proof directives
 ]
