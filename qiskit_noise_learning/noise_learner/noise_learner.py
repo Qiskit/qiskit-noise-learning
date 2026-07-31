@@ -66,13 +66,6 @@ class ProgramExecutor(Protocol):
         This protocol, and the ``executor`` argument of :class:`NoiseLearner` that consumes it,
         are provisional. They exist so that a learning experiment can be run against a locally
         simulated executor, and this setup is expected to eventually change.
-
-        In particular, the backend and the executor are separate arguments because an executor
-        is not an execution mode, and so cannot be folded into the single ``mode`` argument that
-        the qiskit-ibm-runtime primitives take. Naming a backend that the supplied executor
-        already knows about is therefore redundant on the runtime path. That redundancy is a
-        consequence of the current shape rather than a deliberate convention, and the shape
-        should not be relied upon as stable.
     """
 
     def run(self, program: QuantumProgram) -> ProgramJob:
@@ -90,16 +83,20 @@ class ProgramExecutor(Protocol):
 class NoiseLearner:
     """A noise learner.
 
+    .. note::
+
+        The arguments ``backend`` and ``executor`` are redundant. This is a temporary measure to
+        enable simulated execution with an :class:`~.AerExecutor` instance, and is not a stable
+        interface.
+
     Args:
         backend: The backend supplying the compilation target: the gate set, coupling map and
             qubit count that generated circuits are built against. When ``executor`` is given,
             this need not be the device the programs actually run on.
         options: Learning options. If ``None``, default options are used.
-        executor: Where generated programs are submitted, as described by
-            :class:`ProgramExecutor`. If ``None`` (default), a
+        executor: Where generated programs are submitted. If ``None`` (default), a
             :class:`~qiskit_ibm_runtime.Executor` in ``backend``'s execution mode is used, so
-            that programs run on ``backend`` itself. Supplying an executor built with
-            ``Executor(mode=...)`` is what makes session and batch execution reachable.
+            that programs run on ``backend`` itself.
     """
 
     def __init__(
