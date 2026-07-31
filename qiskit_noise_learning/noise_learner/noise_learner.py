@@ -13,7 +13,7 @@
 """Noise learner implementation."""
 
 from collections.abc import Sequence
-from typing import Protocol, TypeAlias
+from typing import Protocol, TypeAlias, runtime_checkable
 
 from qiskit.circuit import CircuitInstruction as _CircuitInstruction
 from qiskit.circuit import QuantumRegister
@@ -55,6 +55,7 @@ _PATH_GENERATION_STAGES = {
 CircuitInstruction: TypeAlias = _CircuitInstruction  # type: ignore
 
 
+@runtime_checkable
 class ProgramExecutor(Protocol):
     """The executor role that :class:`NoiseLearner` submits programs to.
 

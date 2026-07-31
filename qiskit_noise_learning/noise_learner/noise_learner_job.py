@@ -12,7 +12,7 @@
 
 """Noise learner job."""
 
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from qiskit_ibm_runtime.results import QuantumProgramResult
 
@@ -22,6 +22,7 @@ from ..circuit_generator.executor_data_mapper import ExecutorDataMapper
 from .noise_learner_result import NoiseLearnerResult
 
 
+@runtime_checkable
 class ProgramJob(Protocol):
     """The job role that :class:`NoiseLearnerJob` wraps.
 

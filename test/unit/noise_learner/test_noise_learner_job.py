@@ -16,12 +16,14 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from qiskit.quantum_info import QubitSparsePauliList
+from qiskit_ibm_runtime import RuntimeJobV2
 
+from qiskit_noise_learning.aer_executor import AerRuntimeJob
 from qiskit_noise_learning.analysis import AnalysisStage
 from qiskit_noise_learning.circuit_generator import ExecutorDataMapper
 from qiskit_noise_learning.data import ModelData, RawData
 from qiskit_noise_learning.models import PauliLindbladModel
-from qiskit_noise_learning.noise_learner import NoiseLearnerResult
+from qiskit_noise_learning.noise_learner import NoiseLearnerResult, ProgramJob
 from qiskit_noise_learning.noise_learner.noise_learner_job import NoiseLearnerJob
 
 
@@ -106,6 +108,12 @@ def analysis_stage():
 @pytest.fixture()
 def job(stub_runtime_job, data_mapper, analysis_stage):
     return NoiseLearnerJob(stub_runtime_job, data_mapper, analysis_stage)
+
+
+@pytest.mark.parametrize("job_cls", [RuntimeJobV2, AerRuntimeJob])
+def test_job_satisfies_program_job(job_cls):
+    """The job types the supported executors return structurally match ProgramJob."""
+    assert issubclass(job_cls, ProgramJob)
 
 
 def test_noise_learner_job_init(job, stub_runtime_job):
