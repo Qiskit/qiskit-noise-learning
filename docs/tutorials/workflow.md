@@ -134,7 +134,7 @@ experiment_builder = (
     + MergeInstructionSequences()
     # Finalize by completing the instruction sequences and setting experiment depths
     + CompleteSequences()
-    + BindFragmentDepths([2, 16, 32, 64, 128])
+    + BindFragmentDepths([2, 16, 32, 64])
 )
 
 experiment = experiment_builder.run(
