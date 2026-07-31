@@ -23,8 +23,11 @@ from qiskit_noise_learning.analysis import AnalysisStage
 from qiskit_noise_learning.circuit_generator import ExecutorDataMapper
 from qiskit_noise_learning.data import ModelData, RawData
 from qiskit_noise_learning.models import PauliLindbladModel
-from qiskit_noise_learning.noise_learner import NoiseLearnerResult, ProgramJob
-from qiskit_noise_learning.noise_learner.noise_learner_job import NoiseLearnerJob
+from qiskit_noise_learning.noise_learner import (
+    NoiseLearnerJob,
+    NoiseLearnerResult,
+    ProgramJob,
+)
 
 
 class _StubProgramResult:

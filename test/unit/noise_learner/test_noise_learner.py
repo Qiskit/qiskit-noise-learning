@@ -47,6 +47,14 @@ def _make_non_box_instruction(num_qubits=2):
     return qc.data[0]
 
 
+def _make_annotated_layer(backend, pair=(17, 27)):
+    """Build a circuit holding one twirled, noise-injectable box of a single CZ."""
+    circuit = QuantumCircuit(backend.num_qubits)
+    with circuit.box([Twirl(), InjectNoise("layer")]):
+        circuit.cz(*pair)
+    return circuit
+
+
 @pytest.fixture()
 def options():
     return LearningOptions(
@@ -126,14 +134,6 @@ def test_noise_learner_run_orchestration(mock_executor_cls, learner, gate_set_cz
     mock_executor_cls.return_value.run.assert_called_once_with(fake_program)
     assert result._data_mapper is fake_data_mapper  # noqa: SLF001
     assert result._analysis_stage is learner._analyzer  # noqa: SLF001
-
-
-def _make_annotated_layer(backend, pair=(17, 27)):
-    """Build a circuit holding one twirled, noise-injectable box of a single CZ."""
-    circuit = QuantumCircuit(backend.num_qubits)
-    with circuit.box([Twirl(), InjectNoise("layer")]):
-        circuit.cz(*pair)
-    return circuit
 
 
 @patch("qiskit_noise_learning.noise_learner.noise_learner.Executor")

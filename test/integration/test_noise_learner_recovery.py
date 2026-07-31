@@ -10,14 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""End-to-end tests that a learning experiment recovers the noise it was given.
-
-Unlike the tests under ``test/unit``, these do not target a single subpackage: each one drives the
-whole stack — experiment construction, circuit generation, execution and analysis — against a
-locally simulated executor carrying a known injected noise model, and asserts on the recovered
-rates. They are the check that the pieces still compose, so they are the tests most worth keeping
-green through any redesign of how executors are supplied.
-"""
+"""End-to-end tests that a simulated learning experiment recovers the noise it was given."""
 
 import pytest
 from qiskit.circuit import QuantumCircuit

@@ -31,7 +31,11 @@ class ProgramJob(Protocol):
     """
 
     def result(self, *args, **kwargs) -> QuantumProgramResult:
-        """Return the result of the executed program."""
+        """Return the result of the executed program.
+
+        Returns:
+            The program's :class:`~qiskit_ibm_runtime.results.QuantumProgramResult`.
+        """
         ...
 
 
