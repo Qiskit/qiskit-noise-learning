@@ -15,13 +15,20 @@ from unittest.mock import MagicMock, patch
 import pytest
 from qiskit.circuit import BoxOp, QuantumCircuit
 from qiskit.quantum_info import QubitSparsePauliList
+from qiskit_ibm_runtime import Executor
 from qiskit_ibm_runtime.fake_provider.backends.fez import FakeFez
 from qiskit_ibm_runtime.quantum_program import QuantumProgram
+from samplomatic import InjectNoise, Twirl
 
+from qiskit_noise_learning.aer_executor import AerExecutor
 from qiskit_noise_learning.circuit_generator import ExecutorDataMapper
 from qiskit_noise_learning.models import PauliLindbladModel
-from qiskit_noise_learning.noise_learner import LearningOptions, NoiseLearner
-from qiskit_noise_learning.noise_learner.noise_learner_job import NoiseLearnerJob
+from qiskit_noise_learning.noise_learner import (
+    LearningOptions,
+    NoiseLearner,
+    NoiseLearnerJob,
+    ProgramExecutor,
+)
 
 
 def _make_box_instruction(num_qubits=2):
@@ -40,6 +47,14 @@ def _make_non_box_instruction(num_qubits=2):
     return qc.data[0]
 
 
+def _make_annotated_layer(backend, pair=(17, 27)):
+    """Build a circuit holding one twirled, noise-injectable box of a single CZ."""
+    circuit = QuantumCircuit(backend.num_qubits)
+    with circuit.box([Twirl(), InjectNoise("layer")]):
+        circuit.cz(*pair)
+    return circuit
+
+
 @pytest.fixture()
 def options():
     return LearningOptions(
@@ -50,6 +65,12 @@ def options():
 @pytest.fixture()
 def learner(options):
     return NoiseLearner(FakeFez(), options)
+
+
+@pytest.mark.parametrize("executor_cls", [Executor, AerExecutor])
+def test_executor_satisfies_program_executor(executor_cls):
+    """The executors NoiseLearner is used with structurally match ProgramExecutor."""
+    assert issubclass(executor_cls, ProgramExecutor)
 
 
 def test_noise_learner_init():
@@ -109,6 +130,22 @@ def test_noise_learner_run_orchestration(mock_executor_cls, learner, gate_set_cz
 
     assert isinstance(result, NoiseLearnerJob)
     assert len(generate_calls) == 1
+    mock_executor_cls.assert_called_once_with(mode=learner.backend)
     mock_executor_cls.return_value.run.assert_called_once_with(fake_program)
     assert result._data_mapper is fake_data_mapper  # noqa: SLF001
     assert result._analysis_stage is learner._analyzer  # noqa: SLF001
+
+
+@patch("qiskit_noise_learning.noise_learner.noise_learner.Executor")
+def test_noise_learner_run_uses_supplied_executor(mock_executor_cls, options):
+    """An explicit executor receives the generated program, and no backend executor is built."""
+    backend = FakeFez()
+    executor = MagicMock()
+
+    learner = NoiseLearner(backend, options, executor=executor)
+    learner.run([_make_annotated_layer(backend)[0]])
+
+    mock_executor_cls.assert_not_called()
+    executor.run.assert_called_once()
+    (program,) = executor.run.call_args.args
+    assert isinstance(program, QuantumProgram)

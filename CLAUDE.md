@@ -57,7 +57,9 @@ qiskit_noise_learning/   # Main package
   sequences/
   utils/
   visualizations/
-test/unit/               # Unit tests
+test/unit/               # Unit tests, mirroring the package tree, one directory per subpackage
+test/integration/        # End-to-end tests spanning several subpackages
+test/docs/               # Checks on the docs themselves (apidocs coverage)
 docs/                    # Notebooks and demos
 tools/                   # Dev scripts (verify_headers.py)
 ```

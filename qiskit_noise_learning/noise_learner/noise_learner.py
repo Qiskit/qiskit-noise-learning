@@ -13,7 +13,7 @@
 """Noise learner implementation."""
 
 from collections.abc import Sequence
-from typing import TypeAlias
+from typing import Protocol, TypeAlias, runtime_checkable
 
 from qiskit.circuit import CircuitInstruction as _CircuitInstruction
 from qiskit.circuit import QuantumRegister
@@ -42,7 +42,7 @@ from ..experiment_builder import (
 from ..gate_sets import QiskitGateSet
 from ..models import PauliLindbladModel
 from .learning_options import LearningOptions
-from .noise_learner_job import NoiseLearnerJob
+from .noise_learner_job import NoiseLearnerJob, ProgramJob
 
 _ANALYZERS = {
     "standard": AnalysisPipeline(ComputeObservables(), CurveFitObservables(), NNLSSolve())
@@ -55,22 +55,60 @@ _PATH_GENERATION_STAGES = {
 CircuitInstruction: TypeAlias = _CircuitInstruction  # type: ignore
 
 
+@runtime_checkable
+class ProgramExecutor(Protocol):
+    """The executor role that :class:`NoiseLearner` submits programs to.
+
+    Only :meth:`run` is required, so both :class:`~qiskit_ibm_runtime.Executor` and the Aer
+    executor qualify without either declaring conformance.
+
+    .. note::
+        This protocol, and the ``executor`` argument of :class:`NoiseLearner` that consumes it,
+        are provisional. They exist so that a learning experiment can be run against a locally
+        simulated executor, and this setup is expected to eventually change.
+    """
+
+    def run(self, program: QuantumProgram) -> ProgramJob:
+        """Submit a program for execution.
+
+        Args:
+            program: The quantum program to submit.
+
+        Returns:
+            A job carrying the program's result.
+        """
+        ...
+
+
 class NoiseLearner:
     """A noise learner.
 
+    .. note::
+
+        The arguments ``backend`` and ``executor`` are redundant. This is a temporary measure to
+        enable simulated execution with an :class:`~.AerExecutor` instance, and is not a stable
+        interface.
+
     Args:
-        backend: The backend to learn noise from.
+        backend: The backend supplying the compilation target: the gate set, coupling map and
+            qubit count that generated circuits are built against. When ``executor`` is given,
+            this need not be the device the programs actually run on.
         options: Learning options. If ``None``, default options are used.
+        executor: Where generated programs are submitted. If ``None`` (default), a
+            :class:`~qiskit_ibm_runtime.Executor` in ``backend``'s execution mode is used, so
+            that programs run on ``backend`` itself.
     """
 
     def __init__(
         self,
         backend: BackendV2,
         options: LearningOptions | None = None,
+        executor: ProgramExecutor | None = None,
     ):
         self._backend = backend
         self._options = options or LearningOptions()
         self._analyzer = _ANALYZERS[self._options.analyzer]
+        self._executor = executor
 
     @property
     def backend(self) -> BackendV2:
@@ -82,7 +120,7 @@ class NoiseLearner:
         """The learning options."""
         return self._options
 
-    def run(self, instructions: Sequence[CircuitInstruction]):
+    def run(self, instructions: Sequence[CircuitInstruction]) -> NoiseLearnerJob:
         """Submit a job to learn the noise of the given instructions.
 
         Args:
@@ -100,7 +138,7 @@ class NoiseLearner:
                 raise ValueError(f"All instructions must be BoxOps, got '{instr.operation.name}'.")
 
         program, data_mapper = self._generate(instructions)
-        executor = Executor(mode=self._backend)
+        executor = self._executor if self._executor is not None else Executor(mode=self._backend)
         job = executor.run(program)
         return NoiseLearnerJob(job, data_mapper, self._analyzer)
 
