@@ -70,6 +70,11 @@ intersphinx_mapping = {
 # amsmath: support LaTeX align/aligned environments; dollarmath: $...$ / $$...$$ math.
 myst_enable_extensions = ["amsmath", "dollarmath"]
 
+# By default MyST writes its own ``mathjax3_config``.  This project runs MathJax 2 (see the MathJax
+# section below), which would then find a v3-shaped ``window.MathJax`` and fail to start; MyST's
+# ignore-class handling is folded into ``mathjax2_config`` instead.
+myst_update_mathjax = False
+
 # -- myst-nb (executable tutorials) ------------------------------------------
 
 # The tutorials in docs/tutorials are MyST Markdown notebooks with no stored outputs;
@@ -87,9 +92,10 @@ nb_output_stderr = "show"
 
 # -- Plotly ------------------------------------------------------------------
 
-# Plotly's HTML renderers unconditionally pull in MathJax 2.7.5 alongside every figure, but
-# Sphinx already loads a much newer MathJax for the page.  Drop plotly's copy so the two do
-# not fight over ``window.MathJax``; the figures keep their own plotly.js script tag.
+# Plotly's HTML renderers pull in MathJax 2.7.5 alongside every figure.  MathJax 2 and MathJax 3
+# both take ownership of ``window.MathJax``, so a page can only have one of them: whichever loads
+# second breaks the first.  Drop plotly's copy and let the page's single pinned MathJax (see the
+# MathJax section below) serve the figures too; they keep their own plotly.js script tag.
 _PLOTLY_MATHJAX_SCRIPT = re.compile(r'<script src="[^"]*mathjax[^"]*"></script>', re.IGNORECASE)
 
 
@@ -106,6 +112,10 @@ def _strip_plotly_mathjax(_app, doctree):
 def setup(app):
     """Register documentation-only Sphinx hooks."""
     app.connect("doctree-read", _strip_plotly_mathjax)
+    # By default MathJax is only loaded on pages Sphinx found math on.  A plotly figure's LaTeX
+    # is invisible to that check, so a tutorial whose only math is inside a figure would load no
+    # MathJax at all and silently render the figure's labels as raw source.
+    app.set_html_assets_policy("always")
 
 
 # -- sphinxcontrib-bibtex ----------------------------------------------------
@@ -113,9 +123,27 @@ def setup(app):
 bibtex_bibfiles = ["refs.bib"]
 
 # -- MathJax -----------------------------------------------------------------
-mathjax3_config = {
-    "tex": {
-        "macros": {
+
+# Sphinx defaults to MathJax 4, but plotly refuses to typeset against anything other than MathJax
+# 2 or 3, so figure labels would stay as raw LaTeX.  Of those two it has to be 2, even though it is
+# end-of-life: with MathJax 3, Firefox mismeasures the ``ex``-sized nested ``<svg>`` that MathJax
+# emits, and a figure's legend comes out with its entries overlapping each other and its title and
+# running off the right edge.  MathJax 2 is the path plotly actually tests, and it lays out
+# correctly in both Firefox and Chromium.  The bundle must be an SVG one, because plotly switches
+# the output jax to SVG while converting.
+mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_SVG"
+
+# MathJax 2 configuration, in ``MathJax.Hub.Config`` form.  Sphinx emits this as a
+# ``text/x-mathjax-config`` block and switches the loader from ``defer`` to ``async``.
+mathjax2_config = {
+    "tex2jax": {
+        # MyST marks a notebook page's whole section ``tex2jax_ignore``, so that a stray ``$`` in a
+        # code cell is not typeset.  Naming the classes that Sphinx and MyST put on actual math
+        # re-enables it inside that section, without re-enabling the code cells.
+        "processClass": "math|tex2jax_process|mathjax_process|output_area",
+    },
+    "TeX": {
+        "Macros": {
             # No-argument macros.
             "Z": r"\mathbb{Z}",
             "E": r"\mathcal{E}",
@@ -128,10 +156,15 @@ mathjax3_config = {
             "opbra": [r"\langle\!\langle #1 |", 1],
             "opket": [r"| #1 \rangle\!\rangle", 1],
         }
-    }
+    },
 }
 
 # -- HTML output -------------------------------------------------------------
 
 html_theme = "qiskit-ecosystem"
 html_title = f"{project} {release}"
+
+html_static_path = ["_static"]
+
+# Fixes up the tutorials' plotly figures once MathJax is ready; see the file itself.
+html_js_files = ["plotly_figures.js"]
