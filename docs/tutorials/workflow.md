@@ -10,27 +10,24 @@ kernelspec:
   name: python3
 ---
 
-# Building a learning experiment by hand
+# Building a learning experiment
 
-{class}`~.NoiseLearner` is a fixed pipeline behind a single call. In this tutorial we will build the
-same kind of experiment out of its parts, so that each one can be inspected, replaced, or reused.
+In this tutorial we will build a standard learning experiment from scratch, and use it to learn a
+model from simulated noisy data.
 
-1. A gate set with a single layer on a ring of qubits
-2. A 2-local Pauli-Lindblad model
+1. Define a gate set on a ring of qubits
+2. Choose a 2-local Pauli-Lindblad model
 3. Build the learning experiment
 4. Generate circuits
 5. Set up local simulation
 6. Run the program
 7. Analyze the data
-8. Grade the fit
 
 :::{admonition} Running on real hardware
 :class: note
 
-As in the [previous tutorial](noise_learner.md), the circuits run locally under
-{class}`~.AerExecutor` with a noise model written out below, so the fitted answer can be checked
-against a known truth. Three changes take this to a real device, each flagged again where it
-applies:
+The circuits below are simulated locally, so this tutorial needs no IBM Quantum credentials. Three
+changes take it to a real device, each flagged again where it applies:
 
 * **Step 1**: use a real backend in place of `FakeMarrakesh`.
 * **Step 5**: skip it.
@@ -46,12 +43,12 @@ import plotly.io as pio
 pio.renderers.default = "notebook_connected"
 ```
 
-## 1. A gate set with a single layer on a ring of qubits
+## 1. Define a gate set on a ring of qubits
 
-A {class}`~.QiskitGateSet` is built from a backend {class}`~qiskit.transpiler.Target` and a subset
-of its qubits — here a twelve-qubit ring of `FakeMarrakesh`, with one gate added to it: a layer of
-six `CZ` gates covering that ring. Adding the layer also brings in an implicit preparation gate `P`
-and measurement gate `M`, whose noise is learned alongside the layer's.
+Build a {class}`~.QiskitGateSet` from a backend {class}`~qiskit.transpiler.Target` and a subset of
+its qubits — here a twelve-qubit ring of `FakeMarrakesh` — then add one gate to it: a layer of six
+`CZ` gates covering that ring. By default the gate set is initialized with a preparation gate `P`
+and a measurement gate `M`.
 
 ```{code-cell} python
 from qiskit_ibm_runtime.fake_provider import FakeMarrakesh
@@ -61,12 +58,12 @@ from qiskit_noise_learning.gate_sets import QiskitGateSet
 backend = FakeMarrakesh()
 
 qubit_subset = [*range(25, 30), *range(37, 39), *range(45, 50)]
-layer_1_pairs = [(25, 26), (27, 28), (29, 38), (37, 45), (46, 47), (48, 49)]
+cz_pairs = [(25, 26), (27, 28), (29, 38), (37, 45), (46, 47), (48, 49)]
 
 gate_set = QiskitGateSet(backend.num_qubits, target=backend.target, qubit_subset=qubit_subset)
 
-with gate_set.build_new_gate("layer_1", latex_str=r"\mathrm{CZ}") as builder:
-    for pair in layer_1_pairs:
+with gate_set.build_new_gate("cz_gate", latex_str=r"\mathrm{CZ}") as builder:
+    for pair in cz_pairs:
         builder.circuit.cz(*pair)
 
 list(gate_set)
@@ -82,45 +79,36 @@ backend = QiskitRuntimeService().backend("ibm_marrakesh")
 ```
 :::
 
-{meth}`~.GateSet.draw` shows the layer on the device topology: the ring of qubits in the gate set,
-and which pairs of them the layer entangles.
+Call {meth}`~.GateSet.draw` to see the gate on the device topology: the ring of qubits in the gate
+set, and which pairs of them the gate entangles.
 
 ```{code-cell} python
 gate_set.draw()
 ```
 
-## 2. A 2-local Pauli-Lindblad model
+## 2. Choose a 2-local Pauli-Lindblad model
 
-A {class}`~.PauliLindbladModel` fixes which Pauli-Lindblad generators the noise is allowed to have.
-{meth}`~.PauliLindbladModel.k_local` builds that generator set from the gate set's connectivity —
-here every 2-local Pauli on connected qubit pairs of the layer, and single-qubit Paulis for
-preparation and measurement.
+Decide which Pauli-Lindblad generators the noise is allowed to have with a
+{class}`~.PauliLindbladModel`. Build that generator set from the gate set's connectivity with
+{meth}`~.PauliLindbladModel.k_local` — here every 2-local Pauli on connected qubit pairs of the
+unitary gate, and single-qubit Paulis for preparation and measurement.
 
 ```{code-cell} python
 from qiskit_noise_learning.models import PauliLindbladModel
 
-model = PauliLindbladModel.k_local(gate_set, gate_k={"layer_1": 2, "M": 1, "P": 1})
+model = PauliLindbladModel.k_local(gate_set, gate_k={"cz_gate": 2, "M": 1, "P": 1})
+```
 
+Display the unknown parameter count for the noise model of each gate.
+
+```{code-cell} python
 {name: len(generators) for name, generators in model.generators.items()}
 ```
 
-That is 168 unknown rates. The model doubles as the linear map from those rates to the
-log-fidelities the experiment can measure, which is the map the analysis pipeline inverts.
-
 ## 3. Build the learning experiment
 
-An {class}`~.Experiment` is assembled by composing builder stages with `+`. Each stage reads what
-earlier stages wrote, so order matters:
-
-- {class}`~.EvenDepthVanillaPaths` and {class}`~.VanillaInstructionSequences` lay down the
-  Pauli decay paths for the layer and the instruction sequences that realize them, and
-  {class}`~.IdentifyRelations` records which paths each sequence traverses.
-- {class}`~.SPAMPaths` adds the paths needed to separate preparation and measurement error from
-  the layer's, with {class}`~.GenerateInstructionSequences` producing sequences for them.
-- {class}`~.MergeInstructionSequences` and {class}`~.CompleteSequences` fold duplicate
-  sequences together and fill in the remaining gate slots.
-- {class}`~.BindFragmentDepths` sets the depths at which the repeatable fragment of each path is
-  measured.
+Assemble an {class}`~.Experiment` by composing builder stages. Each stage reads what earlier stages
+wrote, so order matters:
 
 ```{code-cell} python
 from qiskit_noise_learning.experiment_builder import (
@@ -136,12 +124,15 @@ from qiskit_noise_learning.experiment_builder import (
 )
 
 experiment_builder = (
+    # add standard vanilla learning paths and instruction sequences and identify relations
     EvenDepthVanillaPaths()
     + VanillaInstructionSequences()
     + IdentifyRelations()
+    # add paths for learning SPAM, then generate and merge instruction sequences for measuring them
     + SPAMPaths()
     + GenerateInstructionSequences()
     + MergeInstructionSequences()
+    # Finalize by completing the instruction sequences and setting experiment depths
     + CompleteSequences()
     + BindFragmentDepths([2, 16, 32, 64, 128])
 )
@@ -154,11 +145,17 @@ print(f"Number of paths: {len(experiment.paths)}")
 print(f"Number of instruction sequences: {len(experiment.instruction_sequences)}")
 ```
 
+Observe design matrix rank:
+
+```{code-cell} python
+print(f"Design matrix rank: {experiment.design_matrix.rank}")
+```
+
 ## 4. Generate circuits
 
-{class}`~.ExecutorCircuitGenerator` compiles the experiment into a
+Compile the experiment with an {class}`~.ExecutorCircuitGenerator`, generating a
 {class}`~qiskit_ibm_runtime.quantum_program.QuantumProgram` — one parameterized template circuit per
-fragment depth — together with a data mapper that records how to read results back out of it.
+fragment depth — together with a data mapper that records how to interpret results.
 
 ```{code-cell} python
 from qiskit_noise_learning.circuit_generator import ExecutorCircuitGenerator
@@ -169,9 +166,7 @@ quantum_program, data_mapper = circuit_generator.generate(experiment)
 print(f"Number of template circuits: {len(quantum_program.items)}")
 ```
 
-The shallowest template shows the anatomy of every circuit in the experiment: a prepared basis, the
-twirled layer repeated some number of times, and a measurement. The single-qubit gates around each
-layer are parameterized, since twirls are drawn per randomization at run time.
+Draw a template circuit to inspect.
 
 ```{code-cell} python
 quantum_program.items[0].circuit.draw("mpl", idle_wires=False, fold=False)
@@ -179,14 +174,13 @@ quantum_program.items[0].circuit.draw("mpl", idle_wires=False, fold=False)
 
 ## 5. Set up local simulation
 
-This step exists only because the tutorial simulates the program rather than running it. An
-{class}`~.AerExecutor` runs it on a local Aer simulator, injecting Pauli-Lindblad noise at the
-barriers samplomatic places around each layer.
+An {class}`~.AerExecutor` runs a program on a local Aer simulator, injecting Pauli-Lindblad
+noise at the barriers samplomatic places around each twirled gate.
 
-Where the [previous tutorial](noise_learner.md) hand-wrote a sparse noise map, this one gives *every
-one* of the model's 168 generators an independent random rate. A {class}`~.ModelData` holds a value
-for each generator, and {meth}`~.PauliLindbladModel.to_pauli_lindblad_maps` turns those values into
-one {class}`~qiskit.quantum_info.PauliLindbladMap` per gate.
+Generate a noise map by randomly choosing independent rates for *every one* of the model's 168
+generators. Hold those rates in a {class}`~.ModelData`, then turn them into one
+{class}`~qiskit.quantum_info.PauliLindbladMap` per gate with
+{meth}`~.PauliLindbladModel.to_pauli_lindblad_maps`.
 
 ```{code-cell} python
 import numpy as np
@@ -216,11 +210,10 @@ true_maps = model.to_pauli_lindblad_maps(true_model_data, include_spam=True)
 {name: noise_map.num_qubits for name, noise_map in true_maps.items()}
 ```
 
-Those maps are as wide as the device, since the model is expressed in `backend`'s qubit indexing.
-{class}`~.AerExecutor` instead wants each map to be as wide as the layer it applies to, with Pauli
-indices running over the layer's qubits in ascending physical order.
-{meth}`~qiskit.quantum_info.PauliLindbladMap.keep_qubits` performs exactly that conversion, tracing
-out everything off the ring:
+Those maps are as wide as the device, since the model is expressed in `backend`'s qubit indexing,
+but {class}`~.AerExecutor` wants each map to be as wide as the gate it applies to, with Pauli
+indices running over the gate's qubits in ascending physical order. Narrow them with
+{meth}`~qiskit.quantum_info.PauliLindbladMap.keep_qubits`, which traces out everything off the ring:
 
 ```{code-cell} python
 noise_dict = {
@@ -229,8 +222,8 @@ noise_dict = {
 {name: noise_map.num_qubits for name, noise_map in noise_dict.items()}
 ```
 
-The twirls make every circuit Clifford, so the stabilizer method applies. The `root_seed` makes the
-simulated data reproducible.
+Instantiate {class}`~.AerExecutor` with the stabilizer method. Set `root_seed` to make the simulated
+data reproducible.
 
 ```{code-cell} python
 from qiskit_aer import AerSimulator
@@ -250,9 +243,9 @@ Skip this step entirely.
 
 ## 6. Run the program
 
-{meth}`~.ExecutorCircuitGenerator.collect` pairs the returned bitstrings with the data mapper to
-produce a {class}`~.Fit`, the container the analysis stages read from and write to. Fifty
-randomizations at five depths takes about a minute.
+Run the program, then pair the returned bitstrings with the data mapper using
+{meth}`~.ExecutorCircuitGenerator.collect`, which produces a {class}`~.Fit` — the container the
+analysis stages read from and write to.
 
 ```{code-cell} python
 job = executor.run(quantum_program)
@@ -271,16 +264,13 @@ executor = Executor(mode=backend)
 
 ## 7. Analyze the data
 
-The analysis pipeline composes with `+` in the same way the experiment builder does, and each stage
-advances the fit one level: {class}`~.ComputeObservables` turns raw bits into Pauli observables,
-{class}`~.CurveFitObservables` fits an exponential decay to each path, and {class}`~.NNLSSolve`
-inverts the model to recover non-negative generator rates.
+Build an analysis pipeline around non-negative least squares fitting of the model.
 
 ```{code-cell} python
 from qiskit_noise_learning.analysis import (
-    ComputeObservables,
-    CurveFitObservables,
-    NNLSSolve,
+    ComputeObservables, # computes observables from raw data
+    CurveFitObservables, # performs exponential fitting
+    NNLSSolve, # solves model with non-negative least squares
 )
 
 analyzer = ComputeObservables() + CurveFitObservables() + NNLSSolve()
@@ -288,81 +278,24 @@ analyzer = ComputeObservables() + CurveFitObservables() + NNLSSolve()
 fit = analyzer.run(fit)
 ```
 
-Plotting the measured observable means against their fitted exponentials, one subplot per `CZ` pair,
-shows whether the decays being fitted are exponential at all.
+Plot the measured observable means against their fitted exponentials, one subplot per `CZ` pair, to
+see whether the decays being fitted are exponential at all.
 
 ```{code-cell} python
 fit.plot_qubit_pair_decays(
-    pairs=layer_1_pairs,
+    pairs=cz_pairs,
     observable_type="means",
     exponential_fit=True,
 )
 ```
 
-The same plot against the *model's* prediction compares the data to the decays implied by the rates
-that came out of the non-negative least squares solve.
+Swap `exponential_fit` for `model_prediction` to compare the same data against the decays implied by
+the rates that came out of the non-negative least squares solve.
 
 ```{code-cell} python
 fit.plot_qubit_pair_decays(
-    pairs=layer_1_pairs,
+    pairs=cz_pairs,
     observable_type="means",
     model_prediction=True,
 )
 ```
-
-## 8. Grade the fit
-
-The previous plot, made quantitative. For every decay path and every fragment depth the experiment
-produced an averaged observable value, and the fitted model predicts one: the path's intercept times
-its base raised to the depth. `predicted_path_decays`, from
-`qiskit_noise_learning.analysis.utils`, returns those `(bases, intercepts)`.
-
-```{code-cell} python
-from qiskit_noise_learning.analysis.utils import predicted_path_decays
-
-dataset = fit.observable_data.dataset
-path_column = dataset["unbound_path"].data
-depth_column = dataset["fragment_depth"].data
-observables = dataset["observables"].data
-
-decay_paths = [
-    path for path in dict.fromkeys(path_column) if path.is_unbound and path.repeatable_fragment
-]
-bases, intercepts = predicted_path_decays(model, fit.model_data, decay_paths)
-
-measured, predicted, errors_of_mean = [], [], []
-for row, (path, depth) in enumerate(zip(path_column, depth_column)):
-    if path not in bases:
-        continue
-    values = observables[row][~np.isnan(observables[row])]
-    measured.append(values.mean())
-    errors_of_mean.append(values.std(ddof=1) / np.sqrt(values.size))
-    predicted.append(intercepts[path] * bases[path] ** depth)
-
-measured = np.array(measured)
-predicted = np.array(predicted)
-errors_of_mean = np.array(errors_of_mean)
-residuals = np.abs(measured - predicted)
-
-print(f"points compared:        {len(measured)}")
-print(f"correlation:            {np.corrcoef(measured, predicted)[0, 1]:.4f}")
-print(f"median |residual|:      {np.median(residuals):.4f}")
-print(f"median standard error:  {np.median(errors_of_mean):.4f}")
-print(f"within two std. errors: {(residuals < 2 * errors_of_mean).mean():.1%}")
-```
-
-The residuals are *smaller than the statistical error of the data they are residuals of* — a median
-of about half a standard error, with almost every point inside two. The fitted model
-reproduces the experiment to within its shot noise, at every depth rather than only the shallow ones
-where the signal is largest.
-
-:::{note}
-Do not grade a fit by comparing its recovered per-generator *rates* against the injected ones. An
-experiment of this shape is rank deficient, and beyond that a gauge freedom leaves many different
-rate assignments predicting identical observables, so the solve is free to return any of them.
-`true_rates` is not even this model's own description of the channel that was applied:
-{class}`~.AerExecutor` injects noise *after* the layer, whereas {class}`~.PauliLindbladModel` models
-a unitary gate's noise as occurring *before* it, and conjugating the injected map back through the
-layer takes some of its 2-local generators outside the model's generator set entirely. What the
-experiment measures, graded above, is what a learned model supports.
-:::

@@ -15,7 +15,7 @@ kernelspec:
 In this tutorial we will walk through using {class}`~.NoiseLearner` to learn a noise model for a
 unitary gate.
 
-1. Define the layer
+1. Define the gate
 2. Set up local simulation
 3. Run the learner
 4. Read the results
@@ -39,12 +39,13 @@ import plotly.io as pio
 pio.renderers.default = "notebook_connected"
 ```
 
-## 1. Define the layer
+## 1. Define the gate
 
-The layer is a {class}`~qiskit.circuit.BoxOp` holding six disjoint `CZ` gates, with two samplomatic
-annotations: `Twirl()` marks the box as a layer to Pauli-twirl, and `InjectNoise("layer")` names
-it. That name is the key under which the learned noise map is reported — and, because this tutorial
-simulates the layer, also the key under which noise is injected.
+The gate whose noise we will learn is a {class}`~qiskit.circuit.BoxOp` holding a layer of six
+disjoint `CZ` gates, with two samplomatic annotations: `Twirl()` marks the box for Pauli twirling,
+and `InjectNoise("cz_gate")` names it. That name is the key under which the learned noise map is
+reported — and, because this tutorial simulates the gate, also the key under which noise is
+injected.
 
 ```{code-cell} python
 from qiskit.circuit import QuantumCircuit
@@ -53,11 +54,11 @@ from samplomatic import InjectNoise, Twirl
 
 backend = FakeMarrakesh()
 
-layer_pairs = [(91, 92), (93, 94), (95, 99), (98, 111), (112, 113), (114, 115)]
+cz_pairs = [(91, 92), (93, 94), (95, 99), (98, 111), (112, 113), (114, 115)]
 
 circuit = QuantumCircuit(backend.num_qubits)
-with circuit.box([Twirl(), InjectNoise("layer")]):
-    for pair in layer_pairs:
+with circuit.box([Twirl(), InjectNoise("cz_gate")]):
+    for pair in cz_pairs:
         circuit.cz(*pair)
 ```
 
@@ -74,27 +75,27 @@ backend = QiskitRuntimeService().backend("ibm_marrakesh")
 ## 2. Set up local simulation
 
 An {class}`~.AerExecutor` runs a program on a local Aer simulator, injecting Pauli-Lindblad
-noise at the barriers samplomatic places around each twirled layer.
+noise at the barriers samplomatic places around each twirled gate.
 
-The Pauli indices inside each map are local to the layer, in ascending physical-qubit order:
+The Pauli indices inside each map are local to the gate, in ascending physical-qubit order:
 
 ```{code-cell} python
-layer_qubits = sorted({qubit for pair in layer_pairs for qubit in pair})
-local = {qubit: index for index, qubit in enumerate(layer_qubits)}
+cz_qubits = sorted({qubit for pair in cz_pairs for qubit in pair})
+local = {qubit: index for index, qubit in enumerate(cz_qubits)}
 local
 ```
 
-The layer gets a correlated `ZZ` term and a weaker `XX` term on each `CZ` pair, plus a single-qubit
+The gate gets a correlated `ZZ` term and a weaker `XX` term on each `CZ` pair, plus a single-qubit
 `Z` term everywhere; preparation and measurement each get a bit-flip term per qubit.
 
 ```{code-cell} python
 from qiskit.quantum_info import PauliLindbladMap
 
-num_qubits = len(layer_qubits)
+num_qubits = len(cz_qubits)
 
-layer_noise = PauliLindbladMap.from_sparse_list(
-    [("ZZ", [local[a], local[b]], 8e-4) for a, b in layer_pairs]
-    + [("XX", [local[a], local[b]], 4e-4) for a, b in layer_pairs]
+cz_noise = PauliLindbladMap.from_sparse_list(
+    [("ZZ", [local[a], local[b]], 8e-4) for a, b in cz_pairs]
+    + [("XX", [local[a], local[b]], 4e-4) for a, b in cz_pairs]
     + [("Z", [index], 3e-4) for index in range(num_qubits)],
     num_qubits=num_qubits,
 )
@@ -103,12 +104,11 @@ spam_noise = PauliLindbladMap.from_sparse_list(
     [("X", [index], 5e-3) for index in range(num_qubits)], num_qubits=num_qubits
 )
 
-noise_dict = {"layer": layer_noise, "P": spam_noise, "M": spam_noise}
+noise_dict = {"cz_gate": cz_noise, "P": spam_noise, "M": spam_noise}
 ```
 
-Because the layer is Clifford and twirled with Paulis, the whole experiment simulates in the
-stabilizer formalism — no state vector required, which is what makes twelve qubits and 128-deep
-circuits cheap here. The `root_seed` makes the simulated data reproducible.
+Instantiate {class}`~.AerExecutor` with the stabilizer method. Set `root_seed` to make the simulated
+data reproducible.
 
 ```{code-cell} python
 from qiskit_aer import AerSimulator
@@ -128,7 +128,7 @@ Skip this step entirely.
 
 ## 3. Run the learner
 
-{class}`~.LearningOptions` controls the shape of the experiment: how deep the twirled layer is
+{class}`~.LearningOptions` controls the shape of the experiment: how deep the twirled gate is
 repeated, and how many randomizations and shots are spent at each depth. Passing `executor` diverts
 the generated program to the simulator; leave it out and {class}`~.NoiseLearner` submits to
 `backend` through IBM Quantum instead.
@@ -163,21 +163,21 @@ Use the fit to plot per-qubit-pair fidelity decays: both the data and the expone
 
 ```{code-cell} python
 result.fit.plot_qubit_pair_decays(
-    pairs=layer_pairs,
+    pairs=cz_pairs,
     observable_type="means",
     exponential_fit=True,
 )
 ```
 
 Extract the learned noise from {meth}`~.NoiseLearnerResult.to_dict`: one
-{class}`~qiskit.quantum_info.PauliLindbladMap` per learned layer, keyed by the name from the
-`InjectNoise` annotation, and expressed in the backend's own qubit indexing rather than the layer's.
+{class}`~qiskit.quantum_info.PauliLindbladMap` per learned gate, keyed by the name from the
+`InjectNoise` annotation, and expressed in the backend's own qubit indexing rather than the gate's.
 
 ```{code-cell} python
-learned = result.to_dict()["layer"]
+learned = result.to_dict()["cz_gate"]
 learned.num_terms
 ```
 
 By default {class}`~.NoiseLearner` fits a 2-local model, so the map carries a term for every Pauli
-supported on a connected pair of the layer's qubits — 144 of them, of which only 24 were given a
+supported on a connected pair of the gate's qubits — 144 of them, of which only 24 were given a
 nonzero rate in step 2.
