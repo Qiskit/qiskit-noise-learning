@@ -69,8 +69,6 @@ cvxpy = [
 
 [tool.pytest.ini_options]
 addopts = "--doctest-modules"
-# --doctest-modules imports every .py file it recurses into, so without this pytest also imports
-# docs/conf.py -- which has no tests, but does need the "docs" extra to import at all.
 testpaths = ["qiskit_noise_learning", "test"]
 filterwarnings = [
     "ignore:.*IBMFractionalTranslationPlugin is deprecated.*:DeprecationWarning",
