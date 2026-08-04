@@ -37,10 +37,13 @@ changes take it to a real device, each flagged again where it applies:
 ```{code-cell} python
 :tags: [remove-cell]
 
-# Emit plotly figures as self-contained HTML so Sphinx can render them.
+# Emit plotly figures as HTML for a host page that supplies its own MathJax.
 import plotly.io as pio
 
-pio.renderers.default = "notebook_connected"
+from qiskit_noise_learning.visualizations import host_page_renderer
+
+pio.renderers["qiskit-noise-learning"] = host_page_renderer()
+pio.renderers.default = "qiskit-noise-learning"
 ```
 
 ## 1. Define a gate set on a ring of qubits
@@ -177,36 +180,26 @@ quantum_program.items[0].circuit.draw("mpl", idle_wires=False, fold=False)
 An {class}`~.AerExecutor` runs a program on a local Aer simulator, injecting Pauli-Lindblad
 noise at the barriers samplomatic places around each twirled gate.
 
-Generate a noise map by randomly choosing independent rates for *every one* of the model's 168
-generators. Hold those rates in a {class}`~.ModelData`, then turn them into one
-{class}`~qiskit.quantum_info.PauliLindbladMap` per gate with
-{meth}`~.PauliLindbladModel.to_pauli_lindblad_maps`.
+Unlike the hand-picked noise of the {class}`~.NoiseLearner` tutorial, give *every one* of the
+model's 168 generators an independent random rate. The model's generators are already exactly the
+Paulis to put in a {class}`~qiskit.quantum_info.PauliLindbladMap`, so pair each one with a rate and
+build the map per gate directly:
 
 ```{code-cell} python
 import numpy as np
-
-from qiskit_noise_learning.data import ModelData
-from qiskit_noise_learning.models import GeneratorIndex
-
-generator_indices = [
-    GeneratorIndex(gate_name=name, generator=generator)
-    for name, generators in model.generators.items()
-    for generator in generators
-]
+from qiskit.quantum_info import PauliLindbladMap
 
 rng = np.random.default_rng(1234)
-true_rates = rng.uniform(2e-4, 1.5e-3, size=len(generator_indices))
 
-num_parameters = len(generator_indices)
-true_model_data = ModelData.from_arrays(
-    parameter_indices=generator_indices,
-    parameter_values=true_rates,
-    covariance=np.zeros((num_parameters, num_parameters)),
-    time_lbs=np.zeros(num_parameters, dtype="datetime64[ns]"),
-    time_ubs=np.zeros(num_parameters, dtype="datetime64[ns]"),
-)
-
-true_maps = model.to_pauli_lindblad_maps(true_model_data, include_spam=True)
+true_maps = {
+    name: PauliLindbladMap.from_terms(
+        [
+            PauliLindbladMap.GeneratorTerm(rate, generator)
+            for generator, rate in zip(generators, rng.uniform(2e-4, 1.5e-3, len(generators)))
+        ]
+    )
+    for name, generators in model.generators.items()
+}
 {name: noise_map.num_qubits for name, noise_map in true_maps.items()}
 ```
 

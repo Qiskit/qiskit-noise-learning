@@ -1,9 +1,5 @@
 """Sphinx configuration for the qiskit-noise-learning documentation."""
 
-import re
-
-from docutils import nodes
-
 import qiskit_noise_learning
 
 # -- Project information -----------------------------------------------------
@@ -94,26 +90,13 @@ nb_output_stderr = "show"
 
 # -- Plotly ------------------------------------------------------------------
 
-# Plotly's HTML renderers pull in MathJax 2.7.5 alongside every figure.  MathJax 2 and MathJax 3
-# both take ownership of ``window.MathJax``, so a page can only have one of them: whichever loads
-# second breaks the first.  Drop plotly's copy and let the page's single pinned MathJax (see the
-# MathJax section below) serve the figures too; they keep their own plotly.js script tag.
-_PLOTLY_MATHJAX_SCRIPT = re.compile(r'<script src="[^"]*mathjax[^"]*"></script>', re.IGNORECASE)
-
-
-def _strip_plotly_mathjax(_app, doctree):
-    for node in doctree.findall(nodes.raw):
-        if node.get("format") != "html":
-            continue
-        html = node.astext()
-        stripped = _PLOTLY_MATHJAX_SCRIPT.sub("", html)
-        if stripped != html:
-            node.children = [nodes.Text(stripped)]
+# The tutorials' figures are emitted through the package's own plotly renderer
+# (``qiskit_noise_learning.visualizations.host_page_renderer``), which knows not to bring a second
+# MathJax along and carries the per-figure redraw/resize script with it.  Nothing is needed here.
 
 
 def setup(app):
     """Register documentation-only Sphinx hooks."""
-    app.connect("doctree-read", _strip_plotly_mathjax)
     # By default MathJax is only loaded on pages Sphinx found math on.  A plotly figure's LaTeX
     # is invisible to that check, so a tutorial whose only math is inside a figure would load no
     # MathJax at all and silently render the figure's labels as raw source.
@@ -134,6 +117,17 @@ bibtex_bibfiles = ["refs.bib"]
 # correctly in both Firefox and Chromium.  The bundle must be an SVG one, because plotly switches
 # the output jax to SVG while converting.
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_SVG"
+
+# Pin the entry point by content hash.  This only covers ``MathJax.js`` itself -- MathJax 2 goes on
+# to pull its config bundle, output jax and fonts from the same CDN directory at runtime, and those
+# cannot carry hashes -- so it is a partial guarantee.  The full alternative is vendoring MathJax 2
+# into the repository, which its dynamic font loading makes a tens-of-megabytes commit for an
+# end-of-life dependency; jsdelivr serves npm tarball contents verbatim and npm does not delete
+# published versions, so the URL is stable enough not to be worth that.
+mathjax_options = {
+    "integrity": "sha384-vi9R4hb1goLJPJDHY+dOmXxcY3HGv6tJIwHxy5JunOTxJGHbsSuubPgl++SNxYYi",
+    "crossorigin": "anonymous",
+}
 
 # MathJax 2 configuration, in ``MathJax.Hub.Config`` form.  Sphinx emits this as a
 # ``text/x-mathjax-config`` block and switches the loader from ``defer`` to ``async``.
@@ -165,8 +159,3 @@ mathjax2_config = {
 
 html_theme = "qiskit-ecosystem"
 html_title = f"{project} {release}"
-
-html_static_path = ["_static"]
-
-# Fixes up the tutorials' plotly figures once MathJax is ready; see the file itself.
-html_js_files = ["plotly_figures.js"]

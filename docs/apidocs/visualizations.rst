@@ -14,3 +14,4 @@ Functions
    fidelity_index_math_label
    path_math_label
    gate_set_topology
+   host_page_renderer

@@ -33,10 +33,13 @@ changes take it to a real device, each flagged again where it applies:
 ```{code-cell} python
 :tags: [remove-cell]
 
-# Emit plotly figures as self-contained HTML so Sphinx can render them.
+# Emit plotly figures as HTML for a host page that supplies its own MathJax.
 import plotly.io as pio
 
-pio.renderers.default = "notebook_connected"
+from qiskit_noise_learning.visualizations import host_page_renderer
+
+pio.renderers["qiskit-noise-learning"] = host_page_renderer()
+pio.renderers.default = "qiskit-noise-learning"
 ```
 
 ## 1. Define the gate
