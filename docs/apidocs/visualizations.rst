@@ -14,4 +14,16 @@ Functions
    fidelity_index_math_label
    path_math_label
    gate_set_topology
-   host_page_renderer
+
+Embedding
+---------
+
+Support for placing the figures above in a static HTML page — a Sphinx site, a Jupyter Book, an
+``nbconvert`` report — rather than displaying them in a live notebook.
+
+.. autosummary::
+   :toctree: generated
+
+   html_page_renderer
+
+.. autodata:: RENDERER_NAME

@@ -33,13 +33,13 @@ changes take it to a real device, each flagged again where it applies:
 ```{code-cell} python
 :tags: [remove-cell]
 
-# Emit plotly figures as HTML for a host page that supplies its own MathJax.
+# Emit plotly figures as HTML for a static page that supplies its own MathJax.
 import plotly.io as pio
 
-from qiskit_noise_learning.visualizations import host_page_renderer
+from qiskit_noise_learning.visualizations import RENDERER_NAME, html_page_renderer
 
-pio.renderers["qiskit-noise-learning"] = host_page_renderer()
-pio.renderers.default = "qiskit-noise-learning"
+pio.renderers[RENDERER_NAME] = html_page_renderer()
+pio.renderers.default = RENDERER_NAME
 ```
 
 ## 1. Define the gate

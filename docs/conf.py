@@ -68,9 +68,9 @@ intersphinx_mapping = {
 # without the enclosing fence having to grow an extra backtick.
 myst_enable_extensions = ["amsmath", "colon_fence", "dollarmath"]
 
-# By default MyST writes its own ``mathjax3_config``.  This project runs MathJax 2 (see the MathJax
-# section below), which would then find a v3-shaped ``window.MathJax`` and fail to start; MyST's
-# ignore-class handling is folded into ``mathjax2_config`` instead.
+# By default MyST writes its own ``mathjax3_config``.  This site runs MathJax 2 (see "Math" below),
+# which would then find a v3-shaped ``window.MathJax`` and fail to start; MyST's ignore-class
+# handling is folded into ``mathjax2_config`` instead.
 myst_update_mathjax = False
 
 # -- myst-nb (executable tutorials) ------------------------------------------
@@ -88,34 +88,31 @@ nb_execution_timeout = 900
 nb_output_stderr = "show"
 
 
-# -- Plotly ------------------------------------------------------------------
-
-# The tutorials' figures are emitted through the package's own plotly renderer
-# (``qiskit_noise_learning.visualizations.host_page_renderer``), which knows not to bring a second
-# MathJax along and carries the per-figure redraw/resize script with it.  Nothing is needed here.
-
-
-def setup(app):
-    """Register documentation-only Sphinx hooks."""
-    # By default MathJax is only loaded on pages Sphinx found math on.  A plotly figure's LaTeX
-    # is invisible to that check, so a tutorial whose only math is inside a figure would load no
-    # MathJax at all and silently render the figure's labels as raw source.
-    app.set_html_assets_policy("always")
-
-
 # -- sphinxcontrib-bibtex ----------------------------------------------------
 
 bibtex_bibfiles = ["refs.bib"]
 
-# -- MathJax -----------------------------------------------------------------
-
-# Sphinx defaults to MathJax 4, but plotly refuses to typeset against anything other than MathJax
-# 2 or 3, so figure labels would stay as raw LaTeX.  Of those two it has to be 2, even though it is
-# end-of-life: with MathJax 3, Firefox mismeasures the ``ex``-sized nested ``<svg>`` that MathJax
-# emits, and a figure's legend comes out with its entries overlapping each other and its title and
-# running off the right edge.  MathJax 2 is the path plotly actually tests, and it lays out
-# correctly in both Firefox and Chromium.  The bundle must be an SVG one, because plotly switches
-# the output jax to SVG while converting.
+# -- Math --------------------------------------------------------------------
+#
+# All of the settings in this section, and the ``myst_update_mathjax`` above, follow from a single
+# decision, so they are kept together: **the whole site is on MathJax 2 because two tutorial pages
+# embed plotly figures whose curve labels are LaTeX.**
+#
+# Plotly typesets those labels by handing them to whatever MathJax the page loaded, and its
+# converter checks the major version and silently gives up on anything but 2 or 3 -- so a figure on
+# Sphinx's default MathJax 4 renders its legend as raw LaTeX source.  Of the two versions plotly
+# accepts it has to be 2, even though it is end-of-life: under MathJax 3, Firefox mismeasures the
+# ``ex``-sized nested ``<svg>`` that MathJax emits, and a legend comes out with its entries
+# overlapping each other and its title, running off the right edge of the figure.  MathJax 2 is the
+# path plotly actually tests, and it lays out correctly in both Firefox and Chromium.
+#
+# Sphinx has no per-page math configuration, so this choice is site-wide, and most of what it costs
+# is paid by pages that have nothing to do with plotly -- above all ``formalism/index.md``, which is
+# by far the largest body of math here.  Anything that changes about how prose math renders on this
+# site starts with the paragraph above.  Reverting to MathJax 3 or 4 means translating the macros
+# below back into the ``mathjax3_config`` schema and finding another way to render figure labels.
+#
+# The path must name an SVG bundle, because plotly switches the output jax to SVG while converting.
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_SVG"
 
 # Pin the entry point by content hash.  This only covers ``MathJax.js`` itself -- MathJax 2 goes on
@@ -154,6 +151,16 @@ mathjax2_config = {
         }
     },
 }
+
+
+def setup(app):
+    """Register documentation-only Sphinx hooks."""
+    # By default MathJax is only loaded on pages Sphinx found math on.  A plotly figure's LaTeX
+    # lives inside a JSON blob, which is invisible to that check, so a tutorial whose only math is
+    # inside a figure would load no MathJax at all and render the labels as raw source.  The cost is
+    # that pages with no math load MathJax too.
+    app.set_html_assets_policy("always")
+
 
 # -- HTML output -------------------------------------------------------------
 

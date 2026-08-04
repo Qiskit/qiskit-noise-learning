@@ -50,17 +50,21 @@ dev = [
 ]
 
 vis = [
-    "plotly",
-    "qiskit[visualization]",  # matplotlib/pylatexenc for QuantumCircuit.draw("mpl")
+    # The floor is where ``plotly.io.base_renderers`` became a public re-export of the renderer
+    # base classes that ``visualizations.html_page_renderer`` builds on.
+    "plotly>=5.24",
 ]
 
 docs = [
-    "sphinx>=7",             # Documentation generator
-    "qiskit-sphinx-theme",   # Qiskit ecosystem HTML theme
-    "myst-nb>=1.1",          # Markdown (MyST) source support, plus executable notebooks
-    "ipykernel",             # Kernel that myst-nb executes tutorial notebooks with
-    "sphinxcontrib-bibtex",  # BibTeX citations
-    "sphinx-proof",          # Numbered proposition/proof directives
+    "sphinx>=7",                    # Documentation generator
+    "qiskit-sphinx-theme",          # Qiskit ecosystem HTML theme
+    "myst-nb>=1.1",                 # Markdown (MyST) source support, plus executable notebooks
+    "ipykernel",                    # Kernel that myst-nb executes tutorial notebooks with
+    "sphinxcontrib-bibtex",         # BibTeX citations
+    "sphinx-proof",                 # Numbered proposition/proof directives
+    # The tutorials run for real at build time, so building the docs needs whatever they plot with:
+    "qiskit-noise-learning[vis]",   # plotly, for this package's own figures
+    "qiskit[visualization]",        # matplotlib/pylatexenc, for QuantumCircuit.draw("mpl")
 ]
 
 cvxpy = [
