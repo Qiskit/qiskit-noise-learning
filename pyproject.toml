@@ -50,8 +50,11 @@ dev = [
 ]
 
 vis = [
-    # The floor is where ``plotly.io.base_renderers`` became a public re-export of the renderer
-    # base classes that ``visualizations.html_page_renderer`` builds on.
+    # Nothing here needs a recent plotly: ``plotly.io.base_renderers`` (which
+    # ``visualizations.html_page_renderer`` builds on), ``to_html``'s ``post_script``, and the
+    # ``graph_objects``/``colors``/``subplots`` surface the figures use have all been public since
+    # the 4.x series.  This floor is just the oldest release any of it has been exercised against,
+    # not an API boundary -- lower it if something needs to run on an older plotly.
     "plotly>=5.24",
 ]
 

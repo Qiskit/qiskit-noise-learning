@@ -68,9 +68,11 @@ intersphinx_mapping = {
 # without the enclosing fence having to grow an extra backtick.
 myst_enable_extensions = ["amsmath", "colon_fence", "dollarmath"]
 
-# By default MyST writes its own ``mathjax3_config``.  This site runs MathJax 2 (see "Math" below),
-# which would then find a v3-shaped ``window.MathJax`` and fail to start; MyST's ignore-class
-# handling is folded into ``mathjax2_config`` instead.
+# By default MyST writes its own ``mathjax3_config`` and marks each page's top-level section
+# ``tex2jax_ignore``, re-enabling math node by node.  Neither suits this site, which runs MathJax 2
+# (see "Math" below) and would find a v3-shaped ``window.MathJax`` and fail to start.  Switching the
+# mechanism off takes the ignore classes with it, which is what the note on ``mathjax2_config``
+# below is about.
 myst_update_mathjax = False
 
 # -- myst-nb (executable tutorials) ------------------------------------------
@@ -128,13 +130,17 @@ mathjax_options = {
 
 # MathJax 2 configuration, in ``MathJax.Hub.Config`` form.  Sphinx emits this as a
 # ``text/x-mathjax-config`` block and switches the loader from ``defer`` to ``async``.
+#
+# There is deliberately no ``tex2jax`` entry.  MyST's ignore-class mechanism -- which would need a
+# matching ``processClass`` here to re-enable math -- only runs when ``myst_update_mathjax`` is
+# true, and it is false above, so no page carries an ignore class and MathJax 2's own defaults
+# already process the whole page.  The flip side is that nothing shields the code cells: MathJax 2
+# typesets ``$$...$$`` and ``\[...\]`` out of the box, so a tutorial that *prints* one of those
+# would have it typeset as math.  If that comes up, add an ``ignoreClass`` naming myst-nb's
+# ``cell_input`` and ``cell_output`` containers, and check in a browser that the plotly figures
+# still typeset -- plotly hands its labels to MathJax directly rather than relying on the page scan,
+# but it does so through an element whose position in the DOM is plotly's business, not ours.
 mathjax2_config = {
-    "tex2jax": {
-        # MyST marks a notebook page's whole section ``tex2jax_ignore``, so that a stray ``$`` in a
-        # code cell is not typeset.  Naming the classes that Sphinx and MyST put on actual math
-        # re-enables it inside that section, without re-enabling the code cells.
-        "processClass": "math|tex2jax_process|mathjax_process|output_area",
-    },
     "TeX": {
         "Macros": {
             # No-argument macros.

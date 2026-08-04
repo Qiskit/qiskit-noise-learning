@@ -23,8 +23,7 @@ pre-commit install
 This library has two levels of interface.
 The first is the low-level interface where the user directly interacts with objects representing core concepts in noise learning, enabling custom design of every aspect of a noise learning protocol.
 The second is a higher-level interface that wraps a stock workflow into an easy-to-use `NoiseLearner` object.
-You can see both demonstrated in the following tutorials, which run locally against a fake
-backend and need no IBM Quantum credentials:
+You can see both demonstrated in the following tutorials, which run locally against a fake backend and need no IBM Quantum credentials:
 
 - [`docs/tutorials/noise_learner.md`](docs/tutorials/noise_learner.md) — end-to-end use of `NoiseLearner`
 - [`docs/tutorials/workflow.md`](docs/tutorials/workflow.md) — step-by-step walkthrough of the internal pipeline

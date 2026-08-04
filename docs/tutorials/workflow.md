@@ -29,7 +29,7 @@ model from simulated noisy data.
 The circuits below are simulated locally, so this tutorial needs no IBM Quantum credentials. Three
 changes take it to a real device, each flagged again where it applies:
 
-* **Step 1**: use a real backend in place of `FakeMarrakesh`.
+* **Step 1**: replace {class}`~qiskit_ibm_runtime.fake_provider.FakeMarrakesh` with a real backend.
 * **Step 5**: skip it.
 * **Step 6**: submit through {class}`~qiskit_ibm_runtime.Executor`.
 :::
@@ -49,7 +49,8 @@ pio.renderers.default = RENDERER_NAME
 ## 1. Define a gate set on a ring of qubits
 
 Build a {class}`~.QiskitGateSet` from a backend {class}`~qiskit.transpiler.Target` and a subset of
-its qubits — here a twelve-qubit ring of `FakeMarrakesh` — then add one gate to it: a layer of six
+its qubits — here a twelve-qubit ring of
+{class}`~qiskit_ibm_runtime.fake_provider.FakeMarrakesh` — then add one gate to it: a layer of six
 `CZ` gates covering that ring. By default the gate set is initialized with a preparation gate `P`
 and a measurement gate `M`.
 
@@ -127,11 +128,11 @@ from qiskit_noise_learning.experiment_builder import (
 )
 
 experiment_builder = (
-    # add standard vanilla learning paths and instruction sequences and identify relations
+    # Add standard vanilla learning paths and instruction sequences, and identify relations
     EvenDepthVanillaPaths()
     + VanillaInstructionSequences()
     + IdentifyRelations()
-    # add paths for learning SPAM, then generate and merge instruction sequences for measuring them
+    # Add paths for learning SPAM, then generate and merge instruction sequences for measuring them
     + SPAMPaths()
     + GenerateInstructionSequences()
     + MergeInstructionSequences()
@@ -157,8 +158,8 @@ print(f"Design matrix rank: {experiment.design_matrix.rank}")
 ## 4. Generate circuits
 
 Compile the experiment with an {class}`~.ExecutorCircuitGenerator`, generating a
-{class}`~qiskit_ibm_runtime.quantum_program.QuantumProgram` — one parameterized template circuit per
-fragment depth — together with a data mapper that records how to interpret results.
+{class}`~qiskit_ibm_runtime.quantum_program.QuantumProgram` — one parameterized template circuit
+per fragment depth — together with a data mapper that records how to interpret results.
 
 ```{code-cell} python
 from qiskit_noise_learning.circuit_generator import ExecutorCircuitGenerator
@@ -261,9 +262,9 @@ Build an analysis pipeline around non-negative least squares fitting of the mode
 
 ```{code-cell} python
 from qiskit_noise_learning.analysis import (
-    ComputeObservables, # computes observables from raw data
-    CurveFitObservables, # performs exponential fitting
-    NNLSSolve, # solves model with non-negative least squares
+    ComputeObservables,  # computes observables from raw data
+    CurveFitObservables,  # performs exponential fitting
+    NNLSSolve,  # solves model with non-negative least squares
 )
 
 analyzer = ComputeObservables() + CurveFitObservables() + NNLSSolve()

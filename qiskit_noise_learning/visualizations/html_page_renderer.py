@@ -54,6 +54,15 @@ _FIGURE_SUPPORT_JS = r"""
 (function () {
     var gd = document.getElementById('{plot_id}');
     if (!gd || !window.Plotly) {
+        // Unreachable as long as plotly.js is loaded by a blocking script tag ahead of the figure,
+        // which is what ``include_plotlyjs`` emits either way.  Say something anyway, so that this
+        // is not the one way the figure can come out wrong in silence.
+        if (window.console && window.console.warn) {
+            window.console.warn(
+                'qiskit-noise-learning: no plotly.js or no figure element for {plot_id}; leaving ' +
+                'this figure as drawn.'
+            );
+        }
         return;
     }
 
@@ -70,7 +79,10 @@ _FIGURE_SUPPORT_JS = r"""
     // first draw finds no MathJax and leaves every label as raw source.
     function redraw() {
         if (gd.data) {
-            window.Plotly.redraw(gd).then(resize);
+            // Size the figure whichever way the redraw goes.  Passing ``resize`` as the rejection
+            // handler too keeps the sizing guarantee independent of the math, and keeps a failed
+            // redraw from surfacing only as an unhandled rejection.
+            window.Plotly.redraw(gd).then(resize, resize);
         }
     }
 
@@ -120,8 +132,11 @@ _FIGURE_SUPPORT_JS = r"""
         var mathJax = window.MathJax;
         if (mathJax && mathJax.startup && mathJax.startup.promise) {
             mathJax.startup.promise.then(start);
-        } else if (mathJax && mathJax.Hub) {
-            // Runs immediately if startup already finished.
+        } else if (mathJax && mathJax.Hub && mathJax.Hub.Register) {
+            // Runs immediately if startup already finished.  ``Hub.Register`` is checked as well as
+            // ``Hub``: MathJax 2 is loaded asynchronously and publishes ``window.MathJax`` before
+            // its API is fully built, and a throw in here would take the retry chain below down
+            // with it, leaving the figure neither redrawn nor complained about.
             mathJax.Hub.Register.StartupHook('End', start);
         } else if (attemptsLeft > 0) {
             window.setTimeout(function () {
@@ -141,7 +156,7 @@ _FIGURE_SUPPORT_JS = r"""
 
 
 @cache
-def _renderer_class() -> type:
+def _renderer_class() -> "type[MimetypeRenderer]":
     """Return the renderer class, building it on first use.
 
     The class cannot live at module scope, because plotly is an optional dependency and the base
@@ -151,9 +166,19 @@ def _renderer_class() -> type:
     from plotly.io.base_renderers import MimetypeRenderer
 
     class HtmlPageRenderer(MimetypeRenderer):
-        """Plotly renderer emitting figure HTML for a page that supplies its own MathJax."""
+        """Plotly renderer emitting figure HTML for a page that supplies its own MathJax.
 
-        def __init__(self, connected=True, config=None, post_script=None, height=525):
+        Constructor arguments are as documented on :func:`html_page_renderer`, which is the only
+        thing that instantiates this class.
+        """
+
+        def __init__(
+            self,
+            connected: bool = True,
+            config: dict[str, Any] | None = None,
+            post_script: str | Sequence[str] | None = None,
+            height: int = 525,
+        ):
             # Every parameter has to be stored as an attribute of the same name: plotly's
             # ``BaseRenderer.__repr__`` reads this signature and looks each parameter up in
             # ``__dict__``, and its ``__hash__`` is defined in terms of that repr.
@@ -162,7 +187,7 @@ def _renderer_class() -> type:
             self.post_script = post_script
             self.height = height
 
-        def __reduce__(self):
+        def __reduce__(self) -> tuple:
             # Pickle cannot look this class up by name, because it is built inside a function.
             # Round-trip through the module-level factory instead, so that instances copy and
             # pickle like plotly's own renderers, whose classes do live at module scope.
@@ -171,7 +196,8 @@ def _renderer_class() -> type:
                 (self.connected, self.config, self.post_script, self.height),
             )
 
-        def to_mimebundle(self, fig_dict):
+        def to_mimebundle(self, fig_dict: dict[str, Any]) -> dict[str, str]:
+            """Return the ``text/html`` rendering of one figure, script included."""
             from plotly.io import to_html
 
             post_script = [_FIGURE_SUPPORT_JS]
@@ -183,7 +209,9 @@ def _renderer_class() -> type:
 
             html = to_html(
                 fig_dict,
-                config=self.config,
+                # A copy: ``to_html`` writes into the config it is handed, and this renderer is
+                # registered once and reused for every figure on the page.
+                config=dict(self.config),
                 # A static page has nothing to gain from starting an animation on load, and a
                 # figure with no frames is unaffected either way.
                 auto_play=False,
@@ -206,7 +234,12 @@ def _renderer_class() -> type:
     return HtmlPageRenderer
 
 
-def _unpickle_renderer(connected, config, post_script, height):
+def _unpickle_renderer(
+    connected: bool,
+    config: dict[str, Any] | None,
+    post_script: str | Sequence[str] | None,
+    height: int,
+) -> "MimetypeRenderer":
     """Rebuild a renderer from the state captured by its ``__reduce__``."""
     return html_page_renderer(
         connected=connected, config=config, post_script=post_script, height=height
