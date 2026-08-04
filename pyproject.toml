@@ -50,15 +50,24 @@ dev = [
 ]
 
 vis = [
-    "plotly",
+    # Nothing here needs a recent plotly: ``plotly.io.base_renderers`` (which
+    # ``visualizations.html_page_renderer`` builds on), ``to_html``'s ``post_script``, and the
+    # ``graph_objects``/``colors``/``subplots`` surface the figures use have all been public since
+    # the 4.x series.  This floor is just the oldest release any of it has been exercised against,
+    # not an API boundary -- lower it if something needs to run on an older plotly.
+    "plotly>=5.24",
 ]
 
 docs = [
-    "sphinx>=7",             # Documentation generator
-    "qiskit-sphinx-theme",   # Qiskit ecosystem HTML theme
-    "myst-parser",           # Markdown (MyST) source support
-    "sphinxcontrib-bibtex",  # BibTeX citations
-    "sphinx-proof",          # Numbered proposition/proof directives
+    "sphinx>=7",                    # Documentation generator
+    "qiskit-sphinx-theme",          # Qiskit ecosystem HTML theme
+    "myst-nb>=1.1",                 # Markdown (MyST) source support, plus executable notebooks
+    "ipykernel",                    # Kernel that myst-nb executes tutorial notebooks with
+    "sphinxcontrib-bibtex",         # BibTeX citations
+    "sphinx-proof",                 # Numbered proposition/proof directives
+    # The tutorials run for real at build time, so building the docs needs whatever they plot with:
+    "qiskit-noise-learning[vis]",   # plotly, for this package's own figures
+    "qiskit[visualization]",        # matplotlib/pylatexenc, for QuantumCircuit.draw("mpl")
 ]
 
 cvxpy = [
@@ -67,6 +76,7 @@ cvxpy = [
 
 [tool.pytest.ini_options]
 addopts = "--doctest-modules"
+testpaths = ["qiskit_noise_learning", "test"]
 filterwarnings = [
     "ignore:.*IBMFractionalTranslationPlugin is deprecated.*:DeprecationWarning",
 ]
