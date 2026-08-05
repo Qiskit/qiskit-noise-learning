@@ -43,6 +43,40 @@ def _make_5q_target() -> Target:
     return target
 
 
+def _make_line_target(num_qubits: int) -> Target:
+    """Build a Target with CX along a line, Measure and Reset everywhere."""
+    target = Target(num_qubits=num_qubits)
+    cx_props = {}
+    for qubit in range(num_qubits - 1):
+        cx_props[(qubit, qubit + 1)] = InstructionProperties()
+        cx_props[(qubit + 1, qubit)] = InstructionProperties()
+    target.add_instruction(CXGate(), cx_props)
+    single_props = {(q,): InstructionProperties() for q in range(num_qubits)}
+    target.add_instruction(Measure(), single_props)
+    target.add_instruction(Reset(), single_props)
+    return target
+
+
+def _make_unconstrained_target(num_qubits: int) -> Target:
+    """Build a Target whose CX is globally applicable, so it constrains connectivity nowhere and
+    ``Target.build_coupling_map()`` returns ``None``."""
+    target = Target(num_qubits=num_qubits)
+    target.add_instruction(CXGate(), None)
+    single_props = {(q,): InstructionProperties() for q in range(num_qubits)}
+    target.add_instruction(Measure(), single_props)
+    target.add_instruction(Reset(), single_props)
+    return target
+
+
+def _gate_set_with_one_layer(target: Target) -> QiskitGateSet:
+    """A gate set over ``target`` carrying one two-qubit layer, so something is drawn."""
+    gate_set = QiskitGateSet(target=target)
+    circuit = QuantumCircuit(target.num_qubits)
+    circuit.cx(0, 1)
+    gate_set.add_circuit_as_gate(circuit, range(target.num_qubits), name="L0")
+    return gate_set
+
+
 #: What this figure legends itself by, in the order a trace's id carries their tokens.
 _GATE_DIMENSION, _ACTIVITY_DIMENSION = "gate", "activity"
 
@@ -110,6 +144,38 @@ def test_draw_method(gate_set_5q):
 def test_no_target_raises():
     gate_set = QiskitGateSet(5)
     with pytest.raises(ValueError, match="target is None"):
+        gate_set.draw()
+
+
+def test_draws_the_device_topology_under_the_gates(topology):
+    # The device's own edges are the one thing drawn that belongs to no gate, hence the only line
+    # without a gid. The contrast is with an unconstrained target, which has no topology at all.
+    assert any(line.get_gid() is None for line in topology.figure.axes[0].get_lines())
+
+
+def test_unconstrained_target_draws_without_topology_edges():
+    # A target whose two-qubit gate is globally applicable constrains connectivity nowhere, so there
+    # is no coupling graph: an ideal device to draw without edges, not a failure. Its size still has
+    # a conventional layout, so the qubits go where a reader expects them.
+    figure = gate_set_topology(_gate_set_with_one_layer(_make_unconstrained_target(5)))
+    axes = figure.figure.axes[0]
+    assert len(axes.patches) == 5  # one node circle per qubit
+    assert all(line.get_gid() for line in axes.get_lines())
+
+
+def test_unconventional_size_is_laid_out_from_the_coupling_graph():
+    # No conventional layout for 4 qubits, so the positions come from the coupling graph. Each qubit
+    # still gets its own node, which is what the rest of the drawing indexes by qubit.
+    figure = gate_set_topology(_gate_set_with_one_layer(_make_line_target(4)))
+    axes = figure.figure.axes[0]
+    assert len({tuple(patch.get_center()) for patch in axes.patches}) == 4
+    assert any(line.get_gid() is None for line in axes.get_lines())
+
+
+def test_unconventional_size_without_connectivity_raises():
+    # Neither a conventional layout for this size nor a graph to derive one from.
+    gate_set = _gate_set_with_one_layer(_make_unconstrained_target(4))
+    with pytest.raises(ValueError, match="no coupling map"):
         gate_set.draw()
 
 

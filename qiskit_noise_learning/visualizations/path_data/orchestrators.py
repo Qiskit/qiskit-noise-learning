@@ -538,7 +538,8 @@ def plot_qubit_pair_decays(
     Subplot titles show the actual pair.
 
     Args:
-        pairs: The qubit pairs to plot, one subplot each.
+        pairs: The qubit pairs to plot, one subplot each. A pair is unordered -- ``(1, 0)`` names
+            the same subplot as ``(0, 1)`` -- so no pair may be repeated.
         observable_data: Optional raw observable data for scatter points.
         observable_type: Which observable layer(s) to draw from ``observable_data`` — ``"raw"``,
             ``"means"``, or ``"both"`` (see :func:`standard_decay_layers`).
@@ -571,7 +572,8 @@ def plot_qubit_pair_decays(
         The subplot-grid figure.
 
     Raises:
-        ValueError: If no gate set is available (neither ``gate_set`` nor a model with one).
+        ValueError: If no gate set is available (neither ``gate_set`` nor a model with one), or if
+            ``pairs`` names the same pair twice.
     """
     resolved_gate_set = _resolve_gate_set(gate_set, model)
     if resolved_gate_set is None:
@@ -598,8 +600,17 @@ def plot_qubit_pair_decays(
 
     groups: dict[Hashable, list[Path]] = {}
     for pair in pairs:
+        # Keyed on the sorted pair, which is what the subplot title and the placeholder relabelling
+        # already read it as: keeping the order given would make ``(1, 0)`` and ``(0, 1)`` two
+        # subplots drawing the same decays under the same title.
+        key = tuple(sorted(pair))
+        if key in groups:
+            raise ValueError(
+                f"Duplicate qubit pair in pairs: {tuple(pair)}. A pair names one subplot, and is "
+                "unordered, so it can appear only once."
+            )
         pair_set = set(pair)
-        groups[tuple(pair)] = [path for path in paths if pair_set.issuperset(_path_qubits(path))]
+        groups[key] = [path for path in paths if pair_set.issuperset(_path_qubits(path))]
 
     def _label(path: Path, pair: Hashable) -> str:
         low, high = sorted(pair)

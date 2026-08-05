@@ -276,6 +276,24 @@ def test_pair_decays_custom_placeholders(make_cz_path, make_averaged_data, gate_
     assert "(a, b) = (0, 1)" in _subplot_titles(figure)
 
 
+def test_pair_decays_pair_order_does_not_matter(make_cz_path, make_averaged_data, gate_set_cz):
+    # A pair names a subplot and is unordered: reversing it is the same subplot, drawn the same way.
+    averaged = make_averaged_data([(make_cz_path("XI"), -1, 0.8)])
+    forwards = plot_qubit_pair_decays([(0, 1)], averaged_data=averaged, gate_set=gate_set_cz)
+    backwards = plot_qubit_pair_decays([(1, 0)], averaged_data=averaged, gate_set=gate_set_cz)
+    assert _subplot_titles(backwards) == _subplot_titles(forwards)
+    assert len(_sidecar(backwards)["cells"]) == len(_sidecar(forwards)["cells"])
+
+
+@pytest.mark.parametrize("pairs", [[(0, 1), (0, 1)], [(0, 1), (1, 0)]])
+def test_pair_decays_rejects_a_repeated_pair(pairs, make_cz_path, make_averaged_data, gate_set_cz):
+    # Two requests for one subplot would silently produce fewer subplots than the caller asked for,
+    # which is indistinguishable from a data problem.
+    averaged = make_averaged_data([(make_cz_path("XI"), -1, 0.8)])
+    with pytest.raises(ValueError, match="Duplicate qubit pair"):
+        plot_qubit_pair_decays(pairs, averaged_data=averaged, gate_set=gate_set_cz)
+
+
 def test_pair_decays_filters_non_decay_paths_for_model_prediction(
     make_cz_path, make_averaged_data, make_fidelity_model_data
 ):

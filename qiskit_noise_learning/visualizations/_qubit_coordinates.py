@@ -74,6 +74,14 @@ def qubit_coordinates(
             map was given to derive a layout from, or if ``coupling_map`` describes a different
             number of qubits than ``num_qubits``.
     """
+    # Checked before the layout is chosen, rather than where the coordinates are read: a map of the
+    # wrong size is a caller error whichever layout this device happens to get, and a conventional
+    # layout would otherwise absorb the disagreement and hand back positions for a different device.
+    if coupling_map is not None and coupling_map.size() != num_qubits:
+        raise ValueError(
+            f"Coupling map covers {coupling_map.size()} qubits, but the device has {num_qubits}."
+        )
+
     lattice = _lattice_coordinates(num_qubits)
     if lattice is not None:
         # A lattice row is drawn below the one before it, so the row index runs against the y axis.
@@ -92,22 +100,15 @@ def _derived_coordinates(num_qubits: int, coupling_map: "CouplingMap") -> list[t
 
     Args:
         num_qubits: Number of qubits in the device.
-        coupling_map: The device's coupling map.
+        coupling_map: The device's coupling map, which the caller has already checked covers exactly
+            ``num_qubits`` qubits.
 
     Returns:
         One ``(x, y)`` position per qubit, indexed by qubit.
-
-    Raises:
-        ValueError: If ``coupling_map`` does not cover every qubit.
     """
     import rustworkx as rx
 
     graph = coupling_map.graph.to_undirected(multigraph=False)
-    if graph.num_nodes() < num_qubits:
-        raise ValueError(
-            f"Coupling map covers {graph.num_nodes()} qubits, but the device has {num_qubits}."
-        )
-
     positions = rx.spring_layout(graph, seed=_LAYOUT_SEED)
     points = np.array([positions[qubit] for qubit in range(num_qubits)], dtype=float)
     points = _to_common_scale(points, list(graph.edge_list()))

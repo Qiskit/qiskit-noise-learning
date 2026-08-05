@@ -136,7 +136,9 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
     otherwise bury the rest; their legend entry brings them back.
 
     Qubits are placed in the device's conventional layout where it has one, and laid out from its
-    coupling graph otherwise.
+    coupling graph otherwise. A target that constrains connectivity nowhere -- an ideal or
+    all-to-all device -- has no topology to draw and no graph to lay out from, so its qubits are
+    drawn without edges, in the conventional layout if its size has one.
 
     Args:
         gate_set: The gate set to visualize. Must have a non-``None`` :attr:`~.GateSet.target` so
@@ -146,7 +148,9 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
         The figure.
 
     Raises:
-        ValueError: If ``gate_set.target`` is ``None``.
+        ValueError: If ``gate_set.target`` is ``None``, or if the device's size is not one of the
+            conventionally drawn ones and its target constrains connectivity nowhere, leaving no
+            coupling graph to derive a layout from.
         ImportError: If ``matplotlib`` is not installed.
     """
     from matplotlib.figure import Figure
@@ -159,12 +163,19 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
             "A Target is required to determine qubit coordinates and device connectivity."
         )
 
+    # ``None`` when the target constrains connectivity nowhere -- an ideal or all-to-all device, or
+    # one mixing constrained and globally defined two-qubit operations. There is then no topology to
+    # draw beneath the gates, which is a device to draw without edges rather than an error.
     coupling_map = gate_set.target.build_coupling_map()
     coords = qubit_coordinates(gate_set.num_qubits, coupling_map)
     xs = [x for x, _ in coords]
     ys = [y for _, y in coords]
 
-    topo_edges = {(min(q1, q2), max(q1, q2)) for q1, q2 in coupling_map.get_edges()}
+    topo_edges = (
+        set()
+        if coupling_map is None
+        else {(min(q1, q2), max(q1, q2)) for q1, q2 in coupling_map.get_edges()}
+    )
 
     gate_names = list(gate_set)
     # ``CN`` names the Nth color of the active style's property cycle, wrapping, so the palette

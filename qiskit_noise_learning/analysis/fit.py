@@ -222,7 +222,8 @@ class Fit:
         requested decay whose data has not been computed on this fit yet is skipped with a warning.
 
         Args:
-            pairs: The qubit pairs to plot, one subplot each.
+            pairs: The qubit pairs to plot, one subplot each. A pair is unordered -- ``(1, 0)``
+                names the same subplot as ``(0, 1)`` -- so no pair may be repeated.
             observable_type: How to draw the empirical observable data: ``"raw"`` (raw
                 per-randomization scatter), ``"means"`` (per-fragment-depth means with error bars),
                 ``"both"``, or ``None`` (the default) to omit the empirical points. Uses this fit's
@@ -254,7 +255,8 @@ class Fit:
             The figure with interactive legends.
 
         Raises:
-            ValueError: If the fit has no model (and hence no gate set) to build labels from.
+            ValueError: If the fit has no model (and hence no gate set) to build labels from, or if
+                ``pairs`` names the same pair twice.
             ImportError: If ``matplotlib`` is not installed.
         """
         from ..visualizations.path_data.orchestrators import (
