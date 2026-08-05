@@ -57,12 +57,12 @@ class LogFidelitySpace(IndexedSpace[FidelityIndex]):
             return False
 
         # reject the trivial identity fidelity
-        if len(index.pauli.indices) == 0 and not index.in_bit_indices and not index.out_bit_indices:
+        if len(index.pauli.indices) == 0 and not index.in_z_idxs and not index.out_z_idxs:
             return False
 
         return FidelityIndex.is_valid_for_gate(
             gate=self._gate_set[index.gate_name],
             pauli=index.pauli,
-            in_bit_indices=index.in_bit_indices,
-            out_bit_indices=index.out_bit_indices,
+            in_z_idxs=index.in_z_idxs,
+            out_z_idxs=index.out_z_idxs,
         )

@@ -37,8 +37,8 @@ def fidelity_index(gate_set):
     return FidelityIndex.from_gate(
         gate=gate_set["CZ"],
         pauli=QubitSparsePauli.from_sparse_label(("X", [0]), num_qubits=2),
-        in_bit_indices=frozenset(),
-        out_bit_indices=frozenset(),
+        in_z_idxs=frozenset(),
+        out_z_idxs=frozenset(),
     )
 
 

@@ -34,7 +34,7 @@ class TestSPAMPaths:
                     FidelityIndex.from_gate(
                         gate=gate_set_cz["P"],
                         pauli=QubitSparsePauli("II"),
-                        out_bit_indices=frozenset([0]),
+                        out_z_idxs=frozenset([0]),
                     )
                 ],
                 repeatable_fragment=[],
@@ -42,7 +42,7 @@ class TestSPAMPaths:
                     FidelityIndex.from_gate(
                         gate=gate_set_cz["M"],
                         pauli=QubitSparsePauli("II"),
-                        in_bit_indices=frozenset([0]),
+                        in_z_idxs=frozenset([0]),
                     )
                 ],
                 fragment_depth=0,
@@ -52,7 +52,7 @@ class TestSPAMPaths:
                     FidelityIndex.from_gate(
                         gate=gate_set_cz["P"],
                         pauli=QubitSparsePauli("II"),
-                        out_bit_indices=frozenset([1]),
+                        out_z_idxs=frozenset([1]),
                     )
                 ],
                 repeatable_fragment=[],
@@ -60,7 +60,7 @@ class TestSPAMPaths:
                     FidelityIndex.from_gate(
                         gate=gate_set_cz["M"],
                         pauli=QubitSparsePauli("II"),
-                        in_bit_indices=frozenset([1]),
+                        in_z_idxs=frozenset([1]),
                     )
                 ],
                 fragment_depth=0,

@@ -36,7 +36,7 @@ def fidelity_index_math_label(
             :attr:`~.Gate.math_label`.
         fidelity_index: The fidelity index to label.
         style: Either ``"transition"`` (shows input :math:`\to` output Pauli) or ``"formula"``
-            (shows index data ``pauli``, ``in_bit_indices``, ``out_bit_indices``).
+            (shows index data ``pauli``, ``in_z_idxs``, ``out_z_idxs``).
         noise_site: An optional mapping from gate name to ``"before"`` or ``"after"``, indicating
             the gate noise is modelled as a Pauli-channel occuring either before or after the gate.
             This simplifies the ``style="formula"`` label to only display the Pauli passing through
@@ -70,24 +70,20 @@ def fidelity_index_math_label(
 
         pauli_str = _qubit_sparse_pauli_math_label(fidelity_index.pauli, qubit_labels)
         parts = [pauli_str]
-        if fidelity_index.in_bit_indices:
-            in_bits = (
+        if fidelity_index.in_z_idxs:
+            in_z = (
                 r"\{"
-                + ",".join(
-                    _bit_label(i, qubit_labels) for i in sorted(fidelity_index.in_bit_indices)
-                )
+                + ",".join(_qubit_label(i, qubit_labels) for i in sorted(fidelity_index.in_z_idxs))
                 + r"\}"
             )
-            parts.append(rf"b_{{in}}={in_bits}")
-        if fidelity_index.out_bit_indices:
-            out_bits = (
+            parts.append(rf"z_{{in}}={in_z}")
+        if fidelity_index.out_z_idxs:
+            out_z = (
                 r"\{"
-                + ",".join(
-                    _bit_label(i, qubit_labels) for i in sorted(fidelity_index.out_bit_indices)
-                )
+                + ",".join(_qubit_label(i, qubit_labels) for i in sorted(fidelity_index.out_z_idxs))
                 + r"\}"
             )
-            parts.append(rf"b_{{out}}={out_bits}")
+            parts.append(rf"z_{{out}}={out_z}")
         return rf"f^{{{gate_sym}}}(" + r",\, ".join(parts) + r")"
     else:
         raise ValueError(f"Invalid style: {style!r}. Must be 'transition' or 'formula'.")
@@ -207,8 +203,8 @@ def _gate_arrow(gate_sym: str) -> str:
     return rf"\overset{{{gate_sym}}}{{\longrightarrow}}"
 
 
-def _bit_label(index: int, qubit_labels: Mapping[int, str] | None) -> str:
-    """The display string for a qubit/bit index, honoring an optional relabeling map."""
+def _qubit_label(index: int, qubit_labels: Mapping[int, str] | None) -> str:
+    """The display string for a qubit index, honoring an optional relabeling map."""
     return (qubit_labels or {}).get(int(index), str(int(index)))
 
 
@@ -223,5 +219,5 @@ def _qubit_sparse_pauli_math_label(
         return "I"
     parts = []
     for p, idx in zip(pauli.paulis, pauli.indices):
-        parts.append(f"{_PAULI_LABELS[int(p)]}_{{{_bit_label(idx, qubit_labels)}}}")
+        parts.append(f"{_PAULI_LABELS[int(p)]}_{{{_qubit_label(idx, qubit_labels)}}}")
     return " ".join(parts)

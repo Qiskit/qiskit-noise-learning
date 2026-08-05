@@ -103,7 +103,7 @@ def _even_depth_vanilla_paths(
                 FidelityIndex.from_gate(
                     prep_gate,
                     pauli=ident,
-                    out_bit_indices=frozenset(input_fidelity.transition[0].indices),
+                    out_z_idxs=frozenset(input_fidelity.transition[0].indices),
                 )
             ],
             repeatable_fragment=[input_fidelity, output_fidelity],
@@ -111,7 +111,7 @@ def _even_depth_vanilla_paths(
                 FidelityIndex.from_gate(
                     meas_gate,
                     pauli=ident,
-                    in_bit_indices=frozenset(output_fidelity.transition[1].indices),
+                    in_z_idxs=frozenset(output_fidelity.transition[1].indices),
                 )
             ],
         )
