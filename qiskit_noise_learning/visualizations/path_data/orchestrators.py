@@ -34,6 +34,12 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
 
 
+# The dimensions every figure in this module resolves visibility along, one legend each: which path
+# a mark belongs to, and which kind of mark it is. The order is the order the tokens appear in a
+# trace's ``gid``, which is what ``RenderContext.gid_factory`` builds them in.
+_DIMENSIONS = ("path", "layer")
+_PATH_DIMENSION, _LAYER_DIMENSION = _DIMENSIONS
+
 # Neutral color for the series legend's proxy handles: those entries mean a marker or a dash, not a
 # path, and taking a path's color would suggest otherwise.
 _SERIES_LEGEND_COLOR = "0.35"
@@ -192,7 +198,7 @@ def _add_legends(
             labelspacing=_PATH_LEGEND_LABEL_SPACING,
             frameon=False,
         )
-        tag_legend(legend, "path", [token for token, _, _ in path_entries])
+        tag_legend(legend, _PATH_DIMENSION, [token for token, _, _ in path_entries])
 
     if layer_entries:
         handles = [
@@ -208,7 +214,7 @@ def _add_legends(
             title="Series",
             frameon=False,
         )
-        tag_legend(legend, "layer", [token for token, _, _ in layer_entries])
+        tag_legend(legend, _LAYER_DIMENSION, [token for token, _, _ in layer_entries])
 
 
 def _legend_entries(
@@ -359,7 +365,7 @@ def plot_path_overlay(
             _layer_meta(layers),
         ),
     )
-    return InteractiveFigure(fig, cells={cell: ax}, traces=traces)
+    return InteractiveFigure(fig, dimensions=_DIMENSIONS, cells={cell: ax}, traces=traces)
 
 
 @HAS_MATPLOTLIB.require_in_call
@@ -496,7 +502,7 @@ def plot_path_grid_overlay(
             path_tokens, group_labels, group_colors, layer_tokens, _layer_meta(layers)
         ),
     )
-    return InteractiveFigure(fig, cells=cells, traces=traces)
+    return InteractiveFigure(fig, dimensions=_DIMENSIONS, cells=cells, traces=traces)
 
 
 @HAS_MATPLOTLIB.require_in_call

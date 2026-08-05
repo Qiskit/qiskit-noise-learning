@@ -57,14 +57,11 @@
   // which builds the ids this file takes apart.
   var SEP = "|";
 
-  // The dimensions a trace can be hidden along, one per legend.  Visibility is the conjunction over
-  // all of them.  Must agree with ``DIMENSIONS`` in ``interactive_svg.py``.
-  var DIMENSIONS = ["path", "layer"];
-
   /* Segments of an artist's ``id``, or ``[]`` for an element without one.
    *
    * The ids are built in ``interactive_svg.py``; the two shapes read here are
-   * ``trace|<cell>|<path>|<layer>|<n>`` and ``key|<dimension>|<token>|<part>``.
+   * ``trace|<cell>|<token>|...|<n>``, carrying one token per dimension the figure declares, and
+   * ``key|<dimension>|<token>|<part>``.
    */
   function segments(element) {
     var id = element.getAttribute("id");
@@ -76,15 +73,20 @@
     this.data = data || {};
     this.traces = [];
     this.entries = [];
+    // The dimensions this figure resolves visibility along, one per legend, in the order their
+    // tokens appear in a trace's id.  Declared by the figure rather than fixed here, so that a
+    // figure legends whatever it is about and the two sides have nothing to keep in step but the
+    // shape of an id.
+    this.dimensions = this.data.dimensions || [];
     // dimension -> Set of tokens currently switched off.  Seeded from the figure, which may open with
     // part of itself hidden; hidden artists are still in the SVG, one click away.
     this.hidden = {};
     // dimension -> every token that dimension's legend offers, for isolate-on-double-click.
     this.known = {};
     var initiallyHidden = this.data.hidden || {};
-    for (var i = 0; i < DIMENSIONS.length; i++) {
-      this.hidden[DIMENSIONS[i]] = new Set(initiallyHidden[DIMENSIONS[i]] || []);
-      this.known[DIMENSIONS[i]] = new Set();
+    for (var i = 0; i < this.dimensions.length; i++) {
+      this.hidden[this.dimensions[i]] = new Set(initiallyHidden[this.dimensions[i]] || []);
+      this.known[this.dimensions[i]] = new Set();
     }
 
     this._collect();
@@ -97,19 +99,27 @@
   /* Index the data artists and legend entries the SVG contains. */
   QnlFigure.prototype._collect = function () {
     var self = this;
+    var dimensions = this.dimensions;
 
     // Attribute selectors, not ``#id``: the ids contain ``|``, which is not valid in a CSS id
     // selector without escaping.
     this.root.querySelectorAll('[id^="trace|"]').forEach(function (element) {
       var parts = segments(element);
-      if (parts.length < 4) {
+      // ``trace``, the cell, one token per dimension, and the artist's number.  An id of any other
+      // length cannot be split into keys at all, since which token belongs to which dimension is
+      // only known from the position.
+      if (parts.length !== dimensions.length + 3) {
         return;
+      }
+      var keys = {};
+      for (var i = 0; i < dimensions.length; i++) {
+        keys[dimensions[i]] = parts[2 + i];
       }
       self.traces.push({
         element: element,
         gid: parts.join(SEP),
         cell: parts[1],
-        keys: { path: parts[2], layer: parts[3] },
+        keys: keys,
       });
     });
 
@@ -288,8 +298,8 @@
   };
 
   QnlFigure.prototype._isVisible = function (trace) {
-    for (var i = 0; i < DIMENSIONS.length; i++) {
-      var dimension = DIMENSIONS[i];
+    for (var i = 0; i < this.dimensions.length; i++) {
+      var dimension = this.dimensions[i];
       if (this.hidden[dimension].has(trace.keys[dimension])) {
         return false;
       }
@@ -325,10 +335,14 @@
     return label ? label.replace(/\$/g, "") : "";
   }
 
-  /* The text for one hit: whatever the figure supplied for that point, else its label and place. */
+  /* The text for one hit: whatever the figure supplied for that point, else its label and place.
+   *
+   * Supplied text goes through the same de-mathing as a label, so a figure can quote one into a
+   * readout without having to know that the delimiters come off.
+   */
   function readoutText(hit) {
     if (hit.trace.texts && hit.trace.texts[hit.index]) {
-      return hit.trace.texts[hit.index];
+      return plainLabel(hit.trace.texts[hit.index]);
     }
     var lines = [];
     var label = plainLabel(hit.trace.label);

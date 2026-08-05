@@ -35,6 +35,14 @@ if TYPE_CHECKING:
 _SCATTER_DEFAULTS = {"marker": "o", "linestyle": "none", "markersize": 4, "capsize": 2}
 _CURVE_DEFAULTS = {"linestyle": "-", "linewidth": 1.5}
 
+#: How many points along a fitted curve carry a hover readout.  The curve is *drawn* through every
+#: fragment depth it is evaluated at -- that is what makes it look smooth -- but its readout has
+#: nothing to say that varies from point to point: there is no measurement there, only the fit the
+#: curve was generated from.  Sampling the readout at a handful of anchors instead keeps the pointer
+#: always near one while dropping a payload that, over a grid of subplots, comes to outweigh the
+#: drawing it annotates.
+_CURVE_READOUT_ANCHORS = 5
+
 
 @dataclass(frozen=True, eq=False)
 class PointSeries:
@@ -75,6 +83,29 @@ def _tag(artists: Sequence["Artist"], gid: Callable[[int], str] | None) -> None:
         return
     for index, artist in enumerate(artists):
         artist.set_gid(gid(index))
+
+
+def _anchor_indices(count: int, wanted: int = _CURVE_READOUT_ANCHORS) -> np.ndarray:
+    """Up to ``wanted`` positions spread evenly over a series of ``count`` points.
+
+    A short series keeps all of its points rather than being thinned to fewer than it has, so the
+    only series this changes are the dense ones it exists for.
+    """
+    if count <= 0:
+        return np.empty(0, dtype=int)
+    return np.unique(np.linspace(0, count - 1, min(wanted, count)).round().astype(int))
+
+
+def _curve_readout(label: str | None, base: float, intercept: float) -> str:
+    """What hovering a fitted decay curve reports.
+
+    The fit itself, rather than the curve's height where the pointer happens to be: an analytic
+    curve passes through no measurement, so its coordinates say only where the reader put their
+    mouse.
+    """
+    lines = [] if not label else [label]
+    lines.append(f"fit: base = {base:.6g}, intercept = {intercept:.6g}")
+    return "\n".join(lines)
 
 
 def _errorbar_artists(container: Any) -> list["Artist"]:
@@ -170,7 +201,9 @@ def plot_path_decay_curves(
             ``linewidth``, ``alpha``), merged over the per-path color and the curve defaults.
 
     Returns:
-        The hover data for the drawn curves, keyed by the ``gid`` of the artist it belongs to.
+        The hover data for the drawn curves, keyed by the ``gid`` of the artist it belongs to. A
+        curve is drawn at every value in ``fragment_depths`` but reads out at only a few points
+        along it, each reporting the fit the curve came from rather than the curve's height there.
     """
     extra = dict(line_kwargs or {})
     fragment_depths_arr = np.asarray(fragment_depths, dtype=float)
@@ -183,7 +216,10 @@ def plot_path_decay_curves(
         _tag(lines, None if gid is None else lambda index, path=path: gid(path, index))
         if gid is not None and lines:
             label = labels.get(path) if labels else None
-            traces[gid(path, 0)] = _trace_data(label, fragment_depths_arr, ys)
+            anchors = _anchor_indices(fragment_depths_arr.size)
+            entry = _trace_data(label, fragment_depths_arr[anchors], ys[anchors])
+            entry["texts"] = [_curve_readout(label, base, intercepts[path])] * anchors.size
+            traces[gid(path, 0)] = entry
 
     return traces
 

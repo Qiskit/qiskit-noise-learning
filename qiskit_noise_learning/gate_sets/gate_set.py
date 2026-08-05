@@ -154,7 +154,7 @@ class GateSet(Mapping[str, GateType], metaclass=ABCMeta):
 
         Raises:
             ValueError: If :attr:`target` is ``None``.
-            ImportError: If ``matplotlib`` or ``qiskit-ibm-runtime`` is not installed.
+            ImportError: If ``matplotlib`` is not installed.
         """
         from ..visualizations.gate_set_topology import gate_set_topology
 

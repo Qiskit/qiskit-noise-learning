@@ -100,7 +100,9 @@ class RenderContext:
             # path in this figure would otherwise contribute an entry that switches nothing.
             path_token = self.path_tokens.token(self.groups[path])
             layer_token = self.layer_tokens.token(layer_key)
-            return trace_gid(self.cell, path_token, layer_token, index)
+            # In the order the orchestrators declare ``DIMENSIONS``, which is how the browser knows
+            # which of the two tokens belongs to which legend.
+            return trace_gid(self.cell, (path_token, layer_token), index)
 
         return gid
 

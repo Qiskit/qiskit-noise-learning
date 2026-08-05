@@ -43,6 +43,10 @@ def _make_5q_target() -> Target:
     return target
 
 
+#: What this figure legends itself by, in the order a trace's id carries their tokens.
+_GATE_DIMENSION, _ACTIVITY_DIMENSION = "gate", "activity"
+
+
 def _svg_ids(figure, prefix):
     """The ``id`` attributes of the rendered SVG that start with ``prefix``, in document order."""
     return [
@@ -69,7 +73,7 @@ def _key_tokens(figure, dimension):
 
 def _trace_tokens(figure):
     """The ``(gate_token, activity_token)`` pairs the rendered artists carry."""
-    return {tuple(found.split("|")[2:4]) for found in _svg_ids(figure, "trace|")}
+    return {tuple(found.split("|")[2:-1]) for found in _svg_ids(figure, "trace|")}
 
 
 @pytest.fixture()
@@ -111,7 +115,7 @@ def test_no_target_raises():
 
 def test_draws_marks_for_every_gate(topology, gate_set_5q):
     # One legend entry per gate that drew something, and nothing left unlabelled.
-    assert len(_key_tokens(topology, "path")) == len(gate_set_5q)
+    assert len(_key_tokens(topology, _GATE_DIMENSION)) == len(gate_set_5q)
 
 
 def test_aspect_is_held(topology):
@@ -134,8 +138,8 @@ def test_traces_and_legends_agree(topology):
     assert len(set(ids)) == len(ids)
 
     drawn = _trace_tokens(topology)
-    assert _key_tokens(topology, "path") == {tokens[0] for tokens in drawn}
-    assert _key_tokens(topology, "layer") == {tokens[1] for tokens in drawn}
+    assert _key_tokens(topology, _GATE_DIMENSION) == {tokens[0] for tokens in drawn}
+    assert _key_tokens(topology, _ACTIVITY_DIMENSION) == {tokens[1] for tokens in drawn}
 
 
 def test_hover_text_names_the_gate_and_the_qubits(topology, gate_set_5q):
@@ -158,17 +162,19 @@ def test_spam_gates_open_hidden(topology, gate_set_5q):
     # Preparation and measurement touch every qubit at once and would bury the rest of the figure,
     # so they start switched off -- but drawn, and with a legend entry, which is the whole
     # difference from leaving them out.
-    hidden = set(_sidecar(topology)["hidden"]["path"])
+    hidden = set(_sidecar(topology)["hidden"][_GATE_DIMENSION])
     spam = {name for name, gate in gate_set_5q.items() if gate.prep_idxs or gate.meas_idxs}
     assert len(hidden) == len(spam)
-    assert hidden <= _key_tokens(topology, "path")
+    assert hidden <= _key_tokens(topology, _GATE_DIMENSION)
     assert hidden <= {token for token, _ in _trace_tokens(topology)}
 
 
 def test_ordinary_gates_open_visible(topology, gate_set_5q):
-    hidden = set(_sidecar(topology)["hidden"]["path"])
-    layers = {name for name, gate in gate_set_5q.items() if not (gate.prep_idxs or gate.meas_idxs)}
-    assert layers
+    hidden = set(_sidecar(topology)["hidden"][_GATE_DIMENSION])
+    ordinary = {
+        name for name, gate in gate_set_5q.items() if not (gate.prep_idxs or gate.meas_idxs)
+    }
+    assert ordinary
     # Every gate that is neither a preparation nor a measurement still has a legend entry, and each
     # of those entries switches something that is on to begin with.
-    assert len(_key_tokens(topology, "path") - hidden) == len(layers)
+    assert len(_key_tokens(topology, _GATE_DIMENSION) - hidden) == len(ordinary)

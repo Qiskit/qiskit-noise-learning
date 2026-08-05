@@ -46,11 +46,19 @@ _ARC_LINEWIDTH = 5
 _IDLING_ALPHA = 0.35  # idling arcs, and the legend handle standing for them
 _LABEL_FONT_SIZE = 8
 
-# Names of the three kinds of mark, which are both the layer keys and the labels of the legend that
-# switches them.
-_INTERACTION_LAYER = "Interactions"
-_ACTIVE_LAYER = "Single-qubit"
-_IDLING_LAYER = "Idling"
+# The dimensions this figure resolves visibility along, one legend each: which gate a mark belongs
+# to, and what kind of activity it shows. The order is the order the tokens appear in a trace's
+# ``gid``. They are named for what this figure is about rather than reusing the decay plots' "path"
+# and "layer", since the figure declares its own dimensions and nothing outside it has to recognize
+# the names.
+_DIMENSIONS = ("gate", "activity")
+_GATE_DIMENSION, _ACTIVITY_DIMENSION = _DIMENSIONS
+
+# Names of the three kinds of mark, which are both the activity keys and the labels of the legend
+# that switches them.
+_INTERACTION_ACTIVITY = "Interactions"
+_ACTIVE_ACTIVITY = "Single-qubit"
+_IDLING_ACTIVITY = "Idling"
 
 # Layout. The canvas is sized from the extent of the device so that the aspect ratio matplotlib is
 # asked to hold is the one it is given room for; the legends sit outside it and are added to the
@@ -127,6 +135,9 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
     prepare or only measure open switched off, since they touch every qubit at once and would
     otherwise bury the rest; their legend entry brings them back.
 
+    Qubits are placed in the device's conventional layout where it has one, and laid out from its
+    coupling graph otherwise.
+
     Args:
         gate_set: The gate set to visualize. Must have a non-``None`` :attr:`~.GateSet.target` so
             that qubit coordinates and the device topology can be determined.
@@ -135,8 +146,7 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
         The figure.
 
     Raises:
-        ValueError: If ``gate_set.target`` is ``None``, or if no layout is known for a device with
-            this many qubits.
+        ValueError: If ``gate_set.target`` is ``None``.
         ImportError: If ``matplotlib`` is not installed.
     """
     from matplotlib.figure import Figure
@@ -149,13 +159,12 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
             "A Target is required to determine qubit coordinates and device connectivity."
         )
 
-    raw_coords = qubit_coordinates(gate_set.num_qubits)
-    xs = [float(col) for _, col in raw_coords]
-    ys = [float(-row) for row, _ in raw_coords]
+    coupling_map = gate_set.target.build_coupling_map()
+    coords = qubit_coordinates(gate_set.num_qubits, coupling_map)
+    xs = [x for x, _ in coords]
+    ys = [y for _, y in coords]
 
-    topo_edges = {
-        (min(q1, q2), max(q1, q2)) for q1, q2 in gate_set.target.build_coupling_map().get_edges()
-    }
+    topo_edges = {(min(q1, q2), max(q1, q2)) for q1, q2 in coupling_map.get_edges()}
 
     gate_names = list(gate_set)
     # ``CN`` names the Nth color of the active style's property cycle, wrapping, so the palette
@@ -237,18 +246,18 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
     ax.set_ylim(min(ys) - _PADDING, max(ys) + _PADDING)
 
     cell = cell_token(0)
-    path_tokens, layer_tokens = TokenMap("p"), TokenMap("l")
+    gate_tokens, activity_tokens = TokenMap("g"), TokenMap("a")
     traces: dict[str, dict[str, Any]] = {}
 
-    def draw(marks: Sequence[_Mark], gate_name: str, layer_key: str, **line_kwargs: Any) -> None:
+    def draw(marks: Sequence[_Mark], gate_name: str, activity: str, **line_kwargs: Any) -> None:
         """Draw one gate's marks of one kind, as a single artist the browser can switch."""
         if not marks:
             return
         line_x, line_y = _joined([(mark_x, mark_y) for mark_x, mark_y, _, _ in marks])
         (line,) = ax.plot(line_x, line_y, color=gate_colors[gate_name], **line_kwargs)
         # Both tokens are taken here rather than up front, so that a gate or a kind of mark only
-        # reaches a legend once it has actually drawn something.
-        gid = trace_gid(cell, path_tokens.token(gate_name), layer_tokens.token(layer_key))
+        # reaches a legend once it has actually drawn something. Their order is _DIMENSIONS'.
+        gid = trace_gid(cell, (gate_tokens.token(gate_name), activity_tokens.token(activity)))
         line.set_gid(gid)
         traces[gid] = {
             "label": gate_labels[gate_name],
@@ -287,7 +296,7 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
                     f"{gate_name}\n{op}: {q1}-{q2}",
                 )
             )
-        draw(edge_marks, gate_name, _INTERACTION_LAYER, linewidth=_EDGE_LINEWIDTH, zorder=2)
+        draw(edge_marks, gate_name, _INTERACTION_ACTIVITY, linewidth=_EDGE_LINEWIDTH, zorder=2)
 
     # colored arcs around nodes for single-qubit gate activity
     for gate_name in gate_names:
@@ -309,7 +318,7 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
                 arc_type_active[gate_name], xs, ys, qubit_to_all_gates, gate_name, _active_label
             ),
             gate_name,
-            _ACTIVE_LAYER,
+            _ACTIVE_ACTIVITY,
             linewidth=_ARC_LINEWIDTH,
             zorder=2,
         )
@@ -329,7 +338,7 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
                 lambda qubit, gn=gate_name: f"{gn}\nidle: {qubit}",
             ),
             gate_name,
-            _IDLING_LAYER,
+            _IDLING_ACTIVITY,
             linewidth=_ARC_LINEWIDTH,
             alpha=_IDLING_ALPHA,
             zorder=2,
@@ -356,7 +365,7 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
 
     fig.suptitle(f"{gate_set.name} on {len(gate_set.qubit_subset)} Qubits")
 
-    gate_entries = list(path_tokens.items())
+    gate_entries = list(gate_tokens.items())
     if gate_entries:
         legend = fig.legend(
             [Line2D([], [], color=gate_colors[name], linewidth=2) for name, _ in gate_entries],
@@ -366,9 +375,9 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
             title="Gate",
             frameon=False,
         )
-        tag_legend(legend, "path", [token for _, token in gate_entries])
+        tag_legend(legend, _GATE_DIMENSION, [token for _, token in gate_entries])
 
-    activity_entries = list(layer_tokens.items())
+    activity_entries = list(activity_tokens.items())
     if activity_entries:
         # The handles say nothing the labels do not -- an arc cannot be drawn in a legend, and a
         # straight sample line for all three would only look like a mistake -- so they are uniform,
@@ -381,7 +390,7 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
                     [],
                     color=_COLOR_ACTIVITY_PROXY,
                     linewidth=3,
-                    alpha=_IDLING_ALPHA if key == _IDLING_LAYER else 1.0,
+                    alpha=_IDLING_ALPHA if key == _IDLING_ACTIVITY else 1.0,
                 )
                 for key, _ in activity_entries
             ],
@@ -392,13 +401,15 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
             title="Activity",
             frameon=False,
         )
-        tag_legend(legend, "layer", [token for _, token in activity_entries])
+        tag_legend(legend, _ACTIVITY_DIMENSION, [token for _, token in activity_entries])
 
     hidden = {
-        "path": [
-            path_tokens.token(name)
+        _GATE_DIMENSION: [
+            gate_tokens.token(name)
             for name in gate_names
-            if name in hidden_by_default and name in path_tokens
+            if name in hidden_by_default and name in gate_tokens
         ]
     }
-    return InteractiveFigure(fig, cells={cell: ax}, traces=traces, hidden=hidden)
+    return InteractiveFigure(
+        fig, dimensions=_DIMENSIONS, cells={cell: ax}, traces=traces, hidden=hidden
+    )

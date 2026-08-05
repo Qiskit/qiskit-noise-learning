@@ -60,9 +60,9 @@ _CSS_UNITS_PER_INCH = {"pt": 72.0, "px": 96.0, "in": 1.0}
 _SVG_ROOT_PATTERN = re.compile(r"<svg\b[^>]*>")
 _SVG_LENGTH_PATTERN = re.compile(r'\s(width|height)="([0-9.]+)(pt|px|in)?"')
 
-#: The dimensions a trace's visibility is resolved along, one per legend.  Must agree with
-#: ``DIMENSIONS`` in the JavaScript, which computes visibility as the conjunction over them.
-DIMENSIONS = ("path", "layer")
+#: Fields of a trace ``gid`` that are not dimension tokens: the word ``trace``, the cell, and the
+#: artist's number.
+_TRACE_GID_FIXED_FIELDS = 3
 
 
 class TokenMap:
@@ -110,42 +110,38 @@ class TokenMap:
         return iter(self._tokens.items())
 
 
-def trace_gid(cell: str, path_token: str, layer_token: str, index: int = 0) -> str:
+def trace_gid(cell: str, tokens: Sequence[str], index: int = 0) -> str:
     """Return the ``gid`` for one data artist.
 
-    The ``gid`` names the artist's key in every dimension, rather than assigning it to a single
-    group, which is what lets the legends act independently.
+    The ``gid`` names the artist's key in each of its figure's dimensions, rather than assigning the
+    artist to a single group, which is what lets the legends act independently.
 
     Args:
         cell: Token of the subplot the artist is drawn in, from :func:`cell_token`.
-        path_token: Token of the path the artist belongs to.
-        layer_token: Token of the layer the artist belongs to.
-        index: Distinguishes artists that share all three keys.  A single series is often several
+        tokens: The artist's key in each dimension, in the order the figure declares its
+            :attr:`~InteractiveFigure.dimensions` -- the two orders being the same is how the
+            browser reads a key back out of an ``id``.
+        index: Distinguishes artists that share every key.  A single series is often several
             artists -- a line plus its error bars -- and each needs a distinct SVG ``id``.
 
     Returns:
         The ``gid`` to pass to :meth:`~matplotlib.artist.Artist.set_gid`.
     """
-    return _SEP.join(["trace", cell, path_token, layer_token, str(index)])
+    return _SEP.join(["trace", cell, *tokens, str(index)])
 
 
 def legend_gid(dimension: str, token: str, part: str) -> str:
     """Return the ``gid`` for one legend entry.
 
     Args:
-        dimension: Which legend this entry belongs to; one of :data:`DIMENSIONS`.
+        dimension: Which of its figure's :attr:`~InteractiveFigure.dimensions` this entry switches.
         token: Token of the key this entry switches.
         part: ``"handle"`` for the sample line or marker, ``"text"`` for the label.  Both are
             tagged, so that clicking either one works.
 
     Returns:
         The ``gid`` to pass to :meth:`~matplotlib.artist.Artist.set_gid`.
-
-    Raises:
-        ValueError: If ``dimension`` is not one of :data:`DIMENSIONS`.
     """
-    if dimension not in DIMENSIONS:
-        raise ValueError(f"Invalid dimension: {dimension!r}. Must be one of {DIMENSIONS}.")
     return _SEP.join(["key", dimension, token, part])
 
 
@@ -159,11 +155,8 @@ def tag_legend(legend: "Legend", dimension: str, tokens: Sequence[str]) -> None:
 
     Args:
         legend: The legend to tag, as returned by :meth:`~matplotlib.figure.Figure.legend`.
-        dimension: Which dimension this legend switches; one of :data:`DIMENSIONS`.
+        dimension: Which of its figure's :attr:`~InteractiveFigure.dimensions` this legend switches.
         tokens: The token each entry switches, parallel to the handles the legend was built from.
-
-    Raises:
-        ValueError: If ``dimension`` is not one of :data:`DIMENSIONS`.
     """
     for token, handle, text in zip(tokens, legend.legend_handles, legend.get_texts()):
         handle.set_gid(legend_gid(dimension, token, "handle"))
@@ -204,6 +197,13 @@ class InteractiveFigure:
 
     Args:
         figure: The figure to wrap.
+        dimensions: The dimensions a trace's visibility is resolved along, one per legend, in the
+            order their tokens appear in a trace's ``gid``.  An artist is shown only while none of
+            its keys is switched off, which is what lets the legends compose.  Each figure names
+            its own, so that what a legend switches can be what that figure is actually about -- a
+            decay plot switches paths and layers, a topology gates and kinds of activity -- and so
+            that the browser can learn the set from the figure instead of both sides having to
+            agree on one.
         cells: Mapping from cell token (see :func:`cell_token`) to the subplot it names.  Each
             subplot's background patch is tagged so the browser can find it, and its axis limits are
             read at render time rather than now, so adjusting the figure afterwards cannot leave the
@@ -215,16 +215,17 @@ class InteractiveFigure:
             the default one.  Traces absent from the mapping have no readout.  Coordinates are kept
             bare rather than pre-rendered per point, so the payload stays proportionate to the SVG
             even for a series of tens of thousands of points.
-        hidden: Mapping from a dimension in :data:`DIMENSIONS` to the tokens the figure opens with
-            switched off, so a figure too dense to read all at once can start on part of itself and
-            still offer the rest.  Only the interactive rendering honours this; a static export
-            shows everything, having no way to offer the rest back.
+        hidden: Mapping from one of ``dimensions`` to the tokens the figure opens with switched off,
+            so a figure too dense to read all at once can start on part of itself and still offer
+            the rest.  Only the interactive rendering honours this; a static export shows
+            everything, having no way to offer the rest back.
         container_id: Identifier for the ``<div>`` wrapping the SVG, unique per page.  Defaults to a
             fresh random one, which is what makes several figures on a page independent; pass a
             value only when reproducible output matters, as in tests.
 
     Raises:
-        ValueError: If ``hidden`` names a dimension that is not one of :data:`DIMENSIONS`.
+        ValueError: If ``hidden`` names a dimension the figure does not have, or if a ``gid`` in
+            ``traces`` does not name exactly one token per dimension.
     """
 
     @HAS_MATPLOTLIB.require_in_call
@@ -232,15 +233,30 @@ class InteractiveFigure:
         self,
         figure: "Figure",
         *,
+        dimensions: Sequence[str] = (),
         cells: Mapping[str, "Axes"] | None = None,
         traces: Mapping[str, Mapping[str, Any]] | None = None,
         hidden: Mapping[str, Sequence[str]] | None = None,
         container_id: str | None = None,
     ):
-        unknown = set(hidden or {}) - set(DIMENSIONS)
+        self._dimensions = list(dimensions)
+
+        unknown = set(hidden or {}) - set(self._dimensions)
         if unknown:
             raise ValueError(
-                f"Invalid dimension(s) in hidden: {sorted(unknown)}. Must be among {DIMENSIONS}."
+                f"Invalid dimension(s) in hidden: {sorted(unknown)}. "
+                f"Must be among this figure's dimensions {tuple(self._dimensions)}."
+            )
+
+        # An ``id`` naming the wrong number of keys is the one mistake here that leaves a figure
+        # looking finished: the browser cannot tell which token belongs to which dimension, so it
+        # skips the artist, and the result is a picture whose legends do nothing.
+        expected = len(self._dimensions) + _TRACE_GID_FIXED_FIELDS
+        wrong = [gid for gid in (traces or {}) if len(gid.split(_SEP)) != expected]
+        if wrong:
+            raise ValueError(
+                f"Trace gid(s) {sorted(wrong)} do not name one token per dimension. A figure with "
+                f"dimensions {tuple(self._dimensions)} builds gids of {expected} fields."
             )
 
         self._figure = figure
@@ -258,6 +274,11 @@ class InteractiveFigure:
     def figure(self) -> "Figure":
         """The wrapped matplotlib figure."""
         return self._figure
+
+    @property
+    def dimensions(self) -> tuple[str, ...]:
+        """The dimensions this figure's artists can be hidden along, one per legend."""
+        return tuple(self._dimensions)
 
     @property
     def container_id(self) -> str:
@@ -380,7 +401,12 @@ class InteractiveFigure:
                 "xlog": ax.get_xscale() == "log",
                 "ylog": ax.get_yscale() == "log",
             }
-        return {"cells": cells, "traces": self._traces, "hidden": self._hidden}
+        return {
+            "dimensions": self._dimensions,
+            "cells": cells,
+            "traces": self._traces,
+            "hidden": self._hidden,
+        }
 
 
 def _javascript() -> str:
