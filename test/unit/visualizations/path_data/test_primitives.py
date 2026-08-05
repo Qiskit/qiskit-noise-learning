@@ -11,7 +11,8 @@
 # that they have been altered from the originals.
 
 import numpy as np
-import plotly.graph_objects as go
+import pytest
+from matplotlib.figure import Figure
 
 from qiskit_noise_learning.visualizations.path_data.primitives import (
     PointSeries,
@@ -19,6 +20,17 @@ from qiskit_noise_learning.visualizations.path_data.primitives import (
     plot_path_decay_curves,
     plot_path_scatters,
 )
+
+
+@pytest.fixture
+def ax():
+    """A bare axes to draw into, with no pyplot state behind it."""
+    return Figure().subplots()
+
+
+def _gid(path, index):
+    return f"trace|c0|{path}|l0|{index}"
+
 
 # --------------------------------------------------------------------------------------------------
 # PointSeries
@@ -65,35 +77,56 @@ def test_default_fragment_depths_ignores_empty_series():
 # --------------------------------------------------------------------------------------------------
 
 
-def test_scatters_returns_figure_one_trace_per_path():
+def test_scatters_draws_one_series_per_path(ax):
     points = {
         "a": PointSeries(xs=np.array([0.0, 1.0]), ys=np.array([1.0, 0.5])),
         "b": PointSeries(xs=np.array([0.0]), ys=np.array([0.9])),
     }
-    fig = plot_path_scatters(points)
-    assert isinstance(fig, go.Figure)
-    assert len(fig.data) == 2
+    traces = plot_path_scatters(points, ax, gid=_gid)
+    assert set(traces) == {_gid("a", 0), _gid("b", 0)}
+    assert traces[_gid("a", 0)]["points"] == [[0.0, 1.0], [1.0, 0.5]]
 
 
-def test_scatters_error_bars_only_when_stds_set():
+def test_scatters_error_bars_only_when_stds_set(ax):
     points = {
         "with": PointSeries(xs=np.array([0.0]), ys=np.array([1.0]), stds=np.array([0.1])),
         "without": PointSeries(xs=np.array([0.0]), ys=np.array([1.0])),
     }
-    fig = plot_path_scatters(points, labels={"with": "with", "without": "without"})
-    by_name = {trace.name: trace for trace in fig.data}
-    assert by_name["with"].error_y.array is not None
-    assert by_name["without"].error_y.array is None
+    traces = plot_path_scatters(points, ax, gid=_gid)
+    assert traces[_gid("with", 0)]["stds"] == [0.1]
+    assert "stds" not in traces[_gid("without", 0)]
 
 
-def test_scatters_legend_follows_labels():
+def test_scatters_hover_label_follows_labels(ax):
     points = {"a": PointSeries(xs=np.array([0.0]), ys=np.array([1.0]))}
-    fig = plot_path_scatters(points, labels={"a": "series-a"})
-    assert fig.data[0].name == "series-a"
-    assert fig.data[0].showlegend is True
-    # No label -> omitted from legend.
-    fig2 = plot_path_scatters(points)
-    assert fig2.data[0].showlegend is False
+    traces = plot_path_scatters(points, ax, labels={"a": "series-a"}, gid=_gid)
+    assert traces[_gid("a", 0)]["label"] == "series-a"
+    # No label -> an empty one rather than a missing key, so the browser need not special-case it.
+    traces = plot_path_scatters(points, ax, gid=_gid)
+    assert traces[_gid("a", 0)]["label"] == ""
+
+
+def test_scatters_tags_every_artist_uniquely(ax):
+    # Error bars make a series several artists; each becomes an SVG ``id``, so each needs its own.
+    points = {"a": PointSeries(xs=np.array([0.0]), ys=np.array([1.0]), stds=np.array([0.1]))}
+    plot_path_scatters(points, ax, gid=_gid)
+    gids = [artist.get_gid() for artist in ax.get_children() if artist.get_gid()]
+    assert len(gids) > 1
+    assert len(set(gids)) == len(gids)
+
+
+def test_scatters_without_gid_draws_but_reports_nothing(ax):
+    points = {"a": PointSeries(xs=np.array([0.0]), ys=np.array([1.0]))}
+    assert plot_path_scatters(points, ax) == {}
+    assert ax.has_data()
+
+
+def test_scatters_marker_kwargs_override_defaults(ax):
+    points = {"a": PointSeries(xs=np.array([0.0]), ys=np.array([1.0]))}
+    plot_path_scatters(points, ax, colors={"a": "red"}, marker_kwargs={"marker": "s"})
+    (line,) = ax.get_lines()
+    assert line.get_marker() == "s"
+    assert line.get_color() == "red"
 
 
 # --------------------------------------------------------------------------------------------------
@@ -101,18 +134,22 @@ def test_scatters_legend_follows_labels():
 # --------------------------------------------------------------------------------------------------
 
 
-def test_decay_curve_values():
+def test_decay_curve_values(ax):
     fragment_depths = np.array([0.0, 1.0, 2.0])
-    fig = plot_path_decay_curves(
-        bases={"a": 0.5}, intercepts={"a": 0.9}, fragment_depths=fragment_depths
-    )
-    assert isinstance(fig, go.Figure)
-    assert len(fig.data) == 1
-    np.testing.assert_allclose(fig.data[0].y, 0.9 * 0.5**fragment_depths)
+    traces = plot_path_decay_curves({"a": 0.5}, {"a": 0.9}, fragment_depths, ax, gid=_gid)
+    (line,) = ax.get_lines()
+    np.testing.assert_allclose(line.get_ydata(), 0.9 * 0.5**fragment_depths)
+    ys = [point[1] for point in traces[_gid("a", 0)]["points"]]
+    np.testing.assert_allclose(ys, 0.9 * 0.5**fragment_depths)
 
 
-def test_decay_curve_line_kwargs_passthrough():
-    fig = plot_path_decay_curves(
-        bases={"a": 0.5}, intercepts={"a": 1.0}, fragment_depths=[0, 1], line_kwargs={"dash": "dot"}
-    )
-    assert fig.data[0].line.dash == "dot"
+def test_decay_curve_line_kwargs_passthrough(ax):
+    plot_path_decay_curves({"a": 0.5}, {"a": 1.0}, [0, 1], ax, line_kwargs={"linestyle": ":"})
+    (line,) = ax.get_lines()
+    assert line.get_linestyle() == ":"
+
+
+def test_decay_curve_carries_no_stds(ax):
+    # A fitted curve is exact at every point it is evaluated at; there is nothing to spread.
+    traces = plot_path_decay_curves({"a": 0.5}, {"a": 1.0}, [0, 1], ax, gid=_gid)
+    assert "stds" not in traces[_gid("a", 0)]

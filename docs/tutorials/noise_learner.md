@@ -30,18 +30,6 @@ changes take it to a real device, each flagged again where it applies:
 * **Step 2**: skip it, and drop the `executor` argument in step 3.
 :::
 
-```{code-cell} python
-:tags: [remove-cell]
-
-# Emit plotly figures as HTML for a static page that supplies its own MathJax.
-import plotly.io as pio
-
-from qiskit_noise_learning.visualizations import RENDERER_NAME, html_page_renderer
-
-pio.renderers[RENDERER_NAME] = html_page_renderer()
-pio.renderers.default = RENDERER_NAME
-```
-
 ## 1. Define the gate
 
 The gate whose noise we will learn is a {class}`~qiskit.circuit.BoxOp` holding a layer of six

@@ -32,6 +32,11 @@ dependencies = [
 [tool.setuptools.packages.find]
 include = ["qiskit_noise_learning*"]
 
+[tool.setuptools.package-data]
+# The interactive figures inline this script into their own HTML, so it has to travel with the
+# installed package rather than being fetched at view time.
+qiskit_noise_learning = ["visualizations/_static/*.js"]
+
 
 [tool.setuptools_scm]
 version_file = "qiskit_noise_learning/_version.py"
@@ -50,12 +55,9 @@ dev = [
 ]
 
 vis = [
-    # Nothing here needs a recent plotly: ``plotly.io.base_renderers`` (which
-    # ``visualizations.html_page_renderer`` builds on), ``to_html``'s ``post_script``, and the
-    # ``graph_objects``/``colors``/``subplots`` surface the figures use have all been public since
-    # the 4.x series.  This floor is just the oldest release any of it has been exercised against,
-    # not an API boundary -- lower it if something needs to run on an older plotly.
-    "plotly>=5.24",
+    # Draws the figures and typesets their labels.  3.8 is the floor for ``Figure.legend``'s
+    # ``ncols`` spelling, which the two-legend layout uses.
+    "matplotlib>=3.8",
 ]
 
 docs = [
@@ -66,7 +68,7 @@ docs = [
     "sphinxcontrib-bibtex",         # BibTeX citations
     "sphinx-proof",                 # Numbered proposition/proof directives
     # The tutorials run for real at build time, so building the docs needs whatever they plot with:
-    "qiskit-noise-learning[vis]",   # plotly, for this package's own figures
+    "qiskit-noise-learning[vis]",   # matplotlib, for this package's own figures
     "qiskit[visualization]",        # matplotlib/pylatexenc, for QuantumCircuit.draw("mpl")
 ]
 

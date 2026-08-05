@@ -27,7 +27,7 @@ from qiskit_noise_learning.models import FidelityModel, get_noise_site, is_fidel
 from qiskit_noise_learning.sequences import InstructionSequence, Path
 
 if TYPE_CHECKING:
-    import plotly.graph_objects as go
+    from ..visualizations.interactive_svg import InteractiveFigure
 
 LEVELS = (RawData, ObservableData, AveragedData, ModelData)
 """The levels of the analysis hierarchy."""
@@ -214,7 +214,7 @@ class Fit:
         paths: Sequence[Path] | None = None,
         fragment_depths: Sequence[float] | None = None,
         title: str | None = None,
-    ) -> "go.Figure":
+    ) -> "InteractiveFigure":
         """Plot a grid of fidelity decays over qubit pairs, drawn from this fit's data.
 
         One subplot per pair, sharing labels/colors across pairs. Which decays are drawn is
@@ -251,11 +251,11 @@ class Fit:
             title: An optional figure title.
 
         Returns:
-            A plotly Figure.
+            The figure with interactive legends.
 
         Raises:
             ValueError: If the fit has no model (and hence no gate set) to build labels from.
-            ImportError: If ``plotly`` is not installed.
+            ImportError: If ``matplotlib`` is not installed.
         """
         from ..visualizations.path_data.orchestrators import (
             plot_qubit_pair_decays as _plot_qubit_pair_decays,

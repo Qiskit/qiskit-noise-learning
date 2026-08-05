@@ -57,7 +57,7 @@ def fidelity_index_math_label(
         in_pauli, out_pauli = fidelity_index.transition
         in_str = _qubit_sparse_pauli_math_label(in_pauli, qubit_labels)
         out_str = _qubit_sparse_pauli_math_label(out_pauli, qubit_labels)
-        return rf"{in_str} \xrightarrow{{{gate_sym}}} {out_str}"
+        return rf"{in_str} {_gate_arrow(gate_sym)} {out_str}"
     elif style == "formula":
         if noise_site is not None and fidelity_index.gate_name in noise_site:
             pauli = (
@@ -193,13 +193,18 @@ def _fragment_math_label(
         parts = [_qubit_sparse_pauli_math_label(arrow_chain[0][0], qubit_labels)]
         for _, out_pauli, gate_sym in arrow_chain:
             out_str = _qubit_sparse_pauli_math_label(out_pauli, qubit_labels)
-            parts.append(rf"\xrightarrow{{{gate_sym}}} {out_str}")
+            parts.append(rf"{_gate_arrow(gate_sym)} {out_str}")
         chain_strs.append(" ".join(parts))
 
     return r" \rightarrow ".join(chain_strs)
 
 
 _PAULI_LABELS = {1: "Z", 2: "X", 3: "Y"}
+
+
+def _gate_arrow(gate_sym: str) -> str:
+    r"""A gate-labelled rightwards arrow, as ``\overset{gate}{\longrightarrow}``."""
+    return rf"\overset{{{gate_sym}}}{{\longrightarrow}}"
 
 
 def _bit_label(index: int, qubit_labels: Mapping[int, str] | None) -> str:

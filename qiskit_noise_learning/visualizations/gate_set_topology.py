@@ -12,18 +12,17 @@
 
 """Gate set topology visualization."""
 
-from __future__ import annotations
-
 import math
 from collections import defaultdict
-from collections.abc import Callable
-from typing import TYPE_CHECKING
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Any
 
-from ..optionals import HAS_PLOTLY
+import numpy as np
+
+from ..optionals import HAS_MATPLOTLIB
+from .interactive_svg import InteractiveFigure, TokenMap, cell_token, tag_legend, trace_gid
 
 if TYPE_CHECKING:
-    import plotly.graph_objects as go
-
     from ..gate_sets.gate import Gate
     from ..gate_sets.gate_set import GateSet
 
@@ -33,53 +32,86 @@ _ARC_NPTS = 50  # number of points per arc segment
 _ARC_GAP = 0.08  # fraction of sector span to leave as a visual gap on each side
 _EDGE_OFFSET = 0.14  # data-unit perpendicular offset between parallel edges
 
-_COLOR_BG_EDGE = "rgb(180,180,180)"  # unoccupied topology edges
-_COLOR_NODE_ACTIVE = "rgb(60,60,60)"  # nodes within qubit_subset
-_COLOR_NODE_INACTIVE = "rgb(180,180,180)"  # nodes outside qubit_subset
-_COLOR_LABEL = "rgb(210,210,220)"  # qubit index labels inside nodes
+_COLOR_BG_EDGE = "0.71"  # unoccupied topology edges
+_COLOR_NODE_ACTIVE = "0.24"  # nodes within qubit_subset
+_COLOR_NODE_INACTIVE = "0.71"  # nodes outside qubit_subset
+_COLOR_LABEL = "#d2d2dc"  # qubit index labels inside nodes
 _COLOR_FIGURE_BG = "white"  # figure and plot background
+_COLOR_ACTIVITY_PROXY = "0.35"  # activity legend handles, which stand for no gate in particular
+
+_BG_LINEWIDTH = 2
+_EDGE_LINEWIDTH = 4
+_ARC_LINEWIDTH = 5
+_IDLING_ALPHA = 0.35  # idling arcs, and the legend handle standing for them
+_LABEL_FONT_SIZE = 8
+
+# Names of the three kinds of mark, which are both the layer keys and the labels of the legend that
+# switches them.
+_INTERACTION_LAYER = "Interactions"
+_ACTIVE_LAYER = "Single-qubit"
+_IDLING_LAYER = "Idling"
+
+# Layout. The canvas is sized from the extent of the device so that the aspect ratio matplotlib is
+# asked to hold is the one it is given room for; the legends sit outside it and are added to the
+# crop by ``bbox_inches="tight"``.
+_INCHES_PER_UNIT = 0.45
+_MIN_FIG_INCHES = 3.0
+_PADDING = _ARC_RADIUS + 0.3  # data units of margin, enough that no arc touches the edge
+
+#: One drawn mark: the polyline to draw, the single point its hover readout hangs off, and the text
+#: of that readout.  The readout attaches to one point rather than every vertex because a mark is
+#: never larger than the pointer's catch radius, and a per-vertex payload on a full device would
+#: outweigh the figure.
+_Mark = tuple[np.ndarray, np.ndarray, tuple[float, float], str]
 
 
-def _arc_segments(
+def _arc_marks(
     qubits: frozenset[int],
     xs: list[float],
     ys: list[float],
     qubit_to_all_gates: dict[int, list[str]],
     gate_name: str,
     label_fn: Callable[[int], str],
-) -> tuple[list[float | None], list[float | None], list[str | None]]:
-    r"""Return (arc_x, arc_y, hover) for arc segments drawn around the given qubits.
+) -> list[_Mark]:
+    r"""Return one arc mark per qubit, drawn around that qubit's node.
 
     Sector ``sector_idx`` of ``num_sectors`` is centred at angle
     :math:`2\pi \cdot \mathrm{sector\_idx} / \mathrm{num\_sectors}` (``sector_idx=0``
     :math:`\to` right side), proceeding counter-clockwise.
     """
-    arc_x: list[float | None] = []
-    arc_y: list[float | None] = []
-    hover: list[str | None] = []
+    marks: list[_Mark] = []
     for qubit in sorted(qubits):
         gates_on_qubit = qubit_to_all_gates[qubit]
         sector_idx = gates_on_qubit.index(gate_name)
         num_sectors = len(gates_on_qubit)
         center = 2 * math.pi * sector_idx / num_sectors
         half = math.pi / num_sectors * (1 - _ARC_GAP)
-        angle_start, angle_end = center - half, center + half
-        angles = [
-            angle_start + (angle_end - angle_start) * idx / (_ARC_NPTS - 1)
-            for idx in range(_ARC_NPTS)
-        ]
-        arc_x.extend(xs[qubit] + _ARC_RADIUS * math.cos(angle) for angle in angles)
-        arc_y.extend(ys[qubit] + _ARC_RADIUS * math.sin(angle) for angle in angles)
-        arc_x.append(None)
-        arc_y.append(None)
-        label = label_fn(qubit)
-        hover.extend(label for _ in angles)
-        hover.append(None)
-    return arc_x, arc_y, hover
+        angles = np.linspace(center - half, center + half, _ARC_NPTS)
+        arc_x = xs[qubit] + _ARC_RADIUS * np.cos(angles)
+        arc_y = ys[qubit] + _ARC_RADIUS * np.sin(angles)
+        middle = _ARC_NPTS // 2
+        marks.append((arc_x, arc_y, (arc_x[middle], arc_y[middle]), label_fn(qubit)))
+    return marks
 
 
-@HAS_PLOTLY.require_in_call
-def gate_set_topology(gate_set: GateSet[Gate]) -> go.Figure:
+def _joined(pieces: Sequence[tuple[np.ndarray, np.ndarray]]) -> tuple[list[float], list[float]]:
+    """Concatenate several polylines into one, so that a gate's marks are a single artist.
+
+    A ``nan`` between them lifts the pen, which is what keeps them separate strokes; one artist is
+    what lets the whole set be switched by a single ``gid``.
+    """
+    line_x: list[float] = []
+    line_y: list[float] = []
+    for piece_x, piece_y in pieces:
+        line_x.extend(float(value) for value in piece_x)
+        line_y.extend(float(value) for value in piece_y)
+        line_x.append(math.nan)
+        line_y.append(math.nan)
+    return line_x, line_y
+
+
+@HAS_MATPLOTLIB.require_in_call
+def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
     """Draw the device topology with per-gate coloring.
 
     Gates with 2-qubit interactions are drawn as colored edges on the device
@@ -90,19 +122,24 @@ def gate_set_topology(gate_set: GateSet[Gate]) -> go.Figure:
     subsequent gates proceed counter-clockwise. Qubits that are idling in a given
     gate receive a slightly transparent arc.
 
+    Two legends switch what is shown: one per gate, and one per kind of mark. Gates that only
+    prepare or only measure open switched off, since they touch every qubit at once and would
+    otherwise bury the rest; their legend entry brings them back.
+
     Args:
         gate_set: The gate set to visualize. Must have a non-``None`` :attr:`~.GateSet.target` so
             that qubit coordinates and the device topology can be determined.
 
     Returns:
-        A plotly Figure.
+        The figure.
 
     Raises:
         ValueError: If ``gate_set.target`` is ``None``.
-        ImportError: If ``plotly`` or ``qiskit-ibm-runtime`` is not installed.
+        ImportError: If ``matplotlib`` or ``qiskit-ibm-runtime`` is not installed.
     """
-    import plotly.colors as pc
-    import plotly.graph_objects as go
+    from matplotlib.figure import Figure
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Circle
 
     if gate_set.target is None:
         raise ValueError(
@@ -125,9 +162,10 @@ def gate_set_topology(gate_set: GateSet[Gate]) -> go.Figure:
         (min(q1, q2), max(q1, q2)) for q1, q2 in gate_set.target.build_coupling_map().get_edges()
     }
 
-    palette = pc.qualitative.Plotly
     gate_names = list(gate_set)
-    gate_colors = {name: palette[idx % len(palette)] for idx, name in enumerate(gate_names)}
+    # ``CN`` names the Nth color of the active style's property cycle, wrapping, so the palette
+    # follows whatever style the figure is drawn under instead of being fixed here.
+    gate_colors = {name: f"C{idx % 10}" for idx, name in enumerate(gate_names)}
 
     gate_labels = {name: gate.label for name, gate in gate_set.items()}
 
@@ -170,7 +208,7 @@ def gate_set_topology(gate_set: GateSet[Gate]) -> go.Figure:
                 if gate_name not in edge_to_gates[pair]:
                     edge_to_gates[pair].append(gate_name)
 
-    # used by _arc_segments to assign consistent sector positions across active and idling arcs
+    # used by _arc_marks to assign consistent sector positions across active and idling arcs
     qubit_to_all_gates: dict[int, list[str]] = {qubit: [] for qubit in range(gate_set.num_qubits)}
     for gate_name in gate_names:
         gate = gate_set[gate_name]
@@ -179,36 +217,62 @@ def gate_set_topology(gate_set: GateSet[Gate]) -> go.Figure:
         for qubit in arc_active | idling:
             qubit_to_all_gates[qubit].append(gate_name)
 
-    traces: list = []
-    shown_in_legend: set[str] = set()
+    x_span = max(xs) - min(xs) if len(xs) > 1 else 2.0
+    y_span = max(ys) - min(ys) if len(ys) > 1 else 2.0
+    fig = Figure(
+        figsize=(
+            max(_MIN_FIG_INCHES, _INCHES_PER_UNIT * (x_span + 2 * _PADDING)),
+            max(_MIN_FIG_INCHES, _INCHES_PER_UNIT * (y_span + 2 * _PADDING)),
+        ),
+        layout="constrained",
+        facecolor=_COLOR_FIGURE_BG,
+    )
+    ax = fig.subplots()
+    ax.set_facecolor(_COLOR_FIGURE_BG)
+    # The coupling graph's proportions carry information -- which qubits are neighbours -- so both
+    # axes have to keep the same scale. Ticks and spines are hidden individually rather than with
+    # ``set_axis_off``, which would take the background patch with them, and the patch is what the
+    # browser measures to place the hover readout.
+    ax.set_aspect("equal")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    ax.set_xlim(min(xs) - _PADDING, max(xs) + _PADDING)
+    ax.set_ylim(min(ys) - _PADDING, max(ys) + _PADDING)
 
-    # add device topology edges
-    bg_x: list[float | None] = []
-    bg_y: list[float | None] = []
-    for q1, q2 in sorted(topo_edges):
-        bg_x += [xs[q1], xs[q2], None]
-        bg_y += [ys[q1], ys[q2], None]
-    if bg_x:
-        traces.append(
-            go.Scatter(
-                x=bg_x,
-                y=bg_y,
-                mode="lines",
-                line={"width": 2, "color": _COLOR_BG_EDGE},
-                hoverinfo="skip",
-                showlegend=False,
-            )
-        )
+    cell = cell_token(0)
+    path_tokens, layer_tokens = TokenMap("p"), TokenMap("l")
+    traces: dict[str, dict[str, Any]] = {}
+
+    def draw(marks: Sequence[_Mark], gate_name: str, layer_key: str, **line_kwargs: Any) -> None:
+        """Draw one gate's marks of one kind, as a single artist the browser can switch."""
+        if not marks:
+            return
+        line_x, line_y = _joined([(mark_x, mark_y) for mark_x, mark_y, _, _ in marks])
+        (line,) = ax.plot(line_x, line_y, color=gate_colors[gate_name], **line_kwargs)
+        # Both tokens are taken here rather than up front, so that a gate or a kind of mark only
+        # reaches a legend once it has actually drawn something.
+        gid = trace_gid(cell, path_tokens.token(gate_name), layer_tokens.token(layer_key))
+        line.set_gid(gid)
+        traces[gid] = {
+            "label": gate_labels[gate_name],
+            "points": [[float(point[0]), float(point[1])] for _, _, point, _ in marks],
+            "texts": [text for _, _, _, text in marks],
+        }
+
+    # device topology edges, under everything else and part of no gate
+    if topo_edges:
+        background = [
+            (np.array([xs[q1], xs[q2]]), np.array([ys[q1], ys[q2]]))
+            for q1, q2 in sorted(topo_edges)
+        ]
+        ax.plot(*_joined(background), color=_COLOR_BG_EDGE, linewidth=_BG_LINEWIDTH, zorder=1)
 
     # colored edges for 2-qubit gates, offset when multiple gates share an edge
     for gate_name in gate_names:
-        if gate_name not in edge_type_pairs:
-            continue
-        color = gate_colors[gate_name]
-        edge_x: list[float | None] = []
-        edge_y: list[float | None] = []
-        edge_hover: list[str | None] = []
-        for q1, q2 in edge_type_pairs[gate_name]:
+        edge_marks: list[_Mark] = []
+        for q1, q2 in edge_type_pairs.get(gate_name, []):
             gates_on_edge = edge_to_gates[(q1, q2)]
             gate_idx = gates_on_edge.index(gate_name)
             num_gates_on_edge = len(gates_on_edge)
@@ -217,32 +281,23 @@ def gate_set_topology(gate_set: GateSet[Gate]) -> go.Figure:
             perp_x, perp_y = (-delta_y / length, delta_x / length) if length > 0 else (0.0, 0.0)
             offset = _EDGE_OFFSET * (gate_idx - (num_gates_on_edge - 1) / 2)
             offset_x, offset_y = offset * perp_x, offset * perp_y
-            mid_x = (xs[q1] + xs[q2]) / 2 + offset_x
-            mid_y = (ys[q1] + ys[q2]) / 2 + offset_y
-            edge_x += [xs[q1] + offset_x, mid_x, xs[q2] + offset_x, None]
-            edge_y += [ys[q1] + offset_y, mid_y, ys[q2] + offset_y, None]
+            edge_x = np.array([xs[q1] + offset_x, xs[q2] + offset_x])
+            edge_y = np.array([ys[q1] + offset_y, ys[q2] + offset_y])
             op = gate_op_names[gate_name].get(frozenset({q1, q2}), gate_name)
-            edge_hover += [None, f"{gate_name}<br>{op}: {q1}-{q2}", None, None]
-        traces.append(
-            go.Scatter(
-                x=edge_x,
-                y=edge_y,
-                mode="lines",
-                line={"width": 4, "color": color},
-                name=gate_labels[gate_name],
-                legendgroup=gate_name,
-                showlegend=True,
-                hoverinfo="text",
-                text=edge_hover,
+            edge_marks.append(
+                (
+                    edge_x,
+                    edge_y,
+                    (float(edge_x.mean()), float(edge_y.mean())),
+                    f"{gate_name}\n{op}: {q1}-{q2}",
+                )
             )
-        )
-        shown_in_legend.add(gate_name)
+        draw(edge_marks, gate_name, _INTERACTION_LAYER, linewidth=_EDGE_LINEWIDTH, zorder=2)
 
     # colored arcs around nodes for single-qubit gate activity
     for gate_name in gate_names:
         if gate_name not in arc_type_active:
             continue
-        color = gate_colors[gate_name]
 
         def _active_label(qubit: int, gn: str = gate_name) -> str:
             gate = gate_set[gn]
@@ -252,129 +307,103 @@ def gate_set_topology(gate_set: GateSet[Gate]) -> go.Figure:
                 op = "measure"
             else:
                 op = gate_op_names[gn].get(frozenset({qubit}), gn)
-            return f"{gn}<br>{op}: {qubit}"
+            return f"{gn}\n{op}: {qubit}"
 
-        arc_x, arc_y, hover = _arc_segments(
-            arc_type_active[gate_name], xs, ys, qubit_to_all_gates, gate_name, _active_label
+        draw(
+            _arc_marks(
+                arc_type_active[gate_name], xs, ys, qubit_to_all_gates, gate_name, _active_label
+            ),
+            gate_name,
+            _ACTIVE_LAYER,
+            linewidth=_ARC_LINEWIDTH,
+            zorder=2,
         )
-        visible = "legendonly" if gate_name in hidden_by_default else True
-        traces.append(
-            go.Scatter(
-                x=arc_x,
-                y=arc_y,
-                mode="lines",
-                line={"width": 5, "color": color},
-                name=gate_labels[gate_name],
-                legendgroup=gate_name,
-                legendgrouptitle=None,
-                showlegend=gate_name not in shown_in_legend,
-                visible=visible,
-                hoverinfo="text",
-                text=hover,
-            )
-        )
-        shown_in_legend.add(gate_name)
 
     # faint arcs for idling qubits
     for gate_name in gate_names:
-        gate = gate_set[gate_name]
-        idling = frozenset(gate.idling_idxs)
+        idling = frozenset(gate_set[gate_name].idling_idxs)
         if not idling:
             continue
-        color = gate_colors[gate_name]
-        arc_x, arc_y, hover = _arc_segments(
-            idling,
-            xs,
-            ys,
-            qubit_to_all_gates,
+        draw(
+            _arc_marks(
+                idling,
+                xs,
+                ys,
+                qubit_to_all_gates,
+                gate_name,
+                lambda qubit, gn=gate_name: f"{gn}\nidle: {qubit}",
+            ),
             gate_name,
-            lambda qubit, gn=gate_name: f"{gn}<br>idle: {qubit}",
+            _IDLING_LAYER,
+            linewidth=_ARC_LINEWIDTH,
+            alpha=_IDLING_ALPHA,
+            zorder=2,
         )
-        visible = "legendonly" if gate_name in hidden_by_default else True
-        traces.append(
-            go.Scatter(
-                x=arc_x,
-                y=arc_y,
-                mode="lines",
-                line={"width": 5, "color": color},
-                opacity=0.35,
-                name=gate_labels[gate_name],
-                legendgroup=gate_name,
-                showlegend=gate_name not in shown_in_legend,
-                visible=visible,
-                hoverinfo="text",
-                text=hover,
-            )
-        )
-        shown_in_legend.add(gate_name)
 
-    # node circles (data-coordinate shapes so they scale with zoom like the arcs)
+    # node circles, in data coordinates so that they keep their place among the arcs, with the qubit
+    # index over the top
     active_qubits = gate_set.qubit_subset
-    node_shapes = []
     for qubit in range(gate_set.num_qubits):
         fill = _COLOR_NODE_ACTIVE if qubit in active_qubits else _COLOR_NODE_INACTIVE
-        node_shapes.append(
-            go.layout.Shape(
-                type="circle",
-                x0=xs[qubit] - _NODE_RADIUS,
-                y0=ys[qubit] - _NODE_RADIUS,
-                x1=xs[qubit] + _NODE_RADIUS,
-                y1=ys[qubit] + _NODE_RADIUS,
-                fillcolor=fill,
-                line={"color": fill, "width": 0},
-                layer="above",
-            )
+        ax.add_patch(
+            Circle((xs[qubit], ys[qubit]), _NODE_RADIUS, facecolor=fill, edgecolor="none", zorder=3)
+        )
+        ax.text(
+            xs[qubit],
+            ys[qubit],
+            str(qubit),
+            color=_COLOR_LABEL,
+            fontsize=_LABEL_FONT_SIZE,
+            ha="center",
+            va="center",
+            zorder=4,
         )
 
-    # hover-only scatter at node centres (labels are annotations rendered above shapes)
-    traces.append(
-        go.Scatter(
-            x=xs,
-            y=ys,
-            mode="markers",
-            marker={"size": 1, "opacity": 0},
-            hoverinfo="text",
-            hovertext=[f"{qubit}" for qubit in range(gate_set.num_qubits)],
-            showlegend=False,
+    fig.suptitle(f"{gate_set.name} on {len(gate_set.qubit_subset)} Qubits")
+
+    gate_entries = list(path_tokens.items())
+    if gate_entries:
+        legend = fig.legend(
+            [Line2D([], [], color=gate_colors[name], linewidth=2) for name, _ in gate_entries],
+            [gate_labels[name] for name, _ in gate_entries],
+            loc="center left",
+            bbox_to_anchor=(1.0, 0.5),
+            title="Gate",
+            frameon=False,
         )
-    )
+        tag_legend(legend, "path", [token for _, token in gate_entries])
 
-    # qubit-index annotations sit above the node shapes
-    label_annotations = [
-        go.layout.Annotation(
-            x=xs[qubit],
-            y=ys[qubit],
-            text=str(qubit),
-            showarrow=False,
-            font={"color": _COLOR_LABEL, "size": 8},
-            xanchor="center",
-            yanchor="middle",
+    activity_entries = list(layer_tokens.items())
+    if activity_entries:
+        # The handles say nothing the labels do not -- an arc cannot be drawn in a legend, and a
+        # straight sample line for all three would only look like a mistake -- so they are uniform,
+        # apart from the fading that distinguishes idling in the figure itself. Their job here is to
+        # be a second thing to click.
+        legend = fig.legend(
+            [
+                Line2D(
+                    [],
+                    [],
+                    color=_COLOR_ACTIVITY_PROXY,
+                    linewidth=3,
+                    alpha=_IDLING_ALPHA if key == _IDLING_LAYER else 1.0,
+                )
+                for key, _ in activity_entries
+            ],
+            [key for key, _ in activity_entries],
+            loc="lower left",
+            bbox_to_anchor=(0.0, 1.0),
+            ncols=len(activity_entries),
+            title="Activity",
+            frameon=False,
         )
-        for qubit in range(gate_set.num_qubits)
-    ]
+        tag_legend(legend, "layer", [token for _, token in activity_entries])
 
-    x_span = max(xs) - min(xs) if len(xs) > 1 else 2.0
-    y_span = max(ys) - min(ys) if len(ys) > 1 else 2.0
-    fig_size = max(500, int(45 * max(x_span, y_span)))
-
-    fig = go.Figure(data=traces)
-    fig.update_layout(
-        title=f"{gate_set.name} on {len(gate_set.qubit_subset)} Qubits",
-        showlegend=True,
-        legend={"yanchor": "middle", "y": 0.5},
-        paper_bgcolor=_COLOR_FIGURE_BG,
-        plot_bgcolor=_COLOR_FIGURE_BG,
-        shapes=node_shapes,
-        annotations=label_annotations,
-        margin={"l": 10, "r": 10, "t": 40, "b": 10},
-        xaxis={"showgrid": False, "zeroline": False, "showticklabels": False},
-        yaxis={
-            "showgrid": False,
-            "zeroline": False,
-            "showticklabels": False,
-            "scaleanchor": "x",
-        },
-        width=fig_size,
-        height=fig_size,
-    )
-    return fig
+    hidden = {
+        "path": [
+            path_tokens.token(name)
+            for name in gate_names
+            if name in hidden_by_default and name in path_tokens
+        ]
+    }
+    return InteractiveFigure(fig, cells={cell: ax}, traces=traces, hidden=hidden)

@@ -14,44 +14,48 @@
 
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from itertools import chain
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
 from ...data import AveragedData, ModelData, ObservableData
 from ...gate_sets import GateSet
 from ...math import LinearMap
-from ...optionals import HAS_PLOTLY
+from ...optionals import HAS_MATPLOTLIB
 from ...sequences import Path
 from ..fidelity_math_labels import path_math_label
+from ..interactive_svg import InteractiveFigure, TokenMap, cell_token, tag_legend
 from .data_adapters import _dataset_paths, averaged_data_points, observable_data_points
 from .layers import Layer, RenderContext, standard_decay_layers
 from .primitives import _default_fragment_depths
 
 if TYPE_CHECKING:
-    import plotly.graph_objects as go
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
 
 
-_SYMBOL_LEGEND_COLOR = "rgb(120,120,120)"
+# Neutral color for the series legend's proxy handles: those entries mean a marker or a dash, not a
+# path, and taking a path's color would suggest otherwise.
+_SERIES_LEGEND_COLOR = "0.35"
 
-# Layout tunables for the subplot grid. The width stays responsive (the figure fills its container);
-# only the height is fixed, scaled by the row count so each row stays tall enough to read. A fixed
-# pixel margin is reserved on the right for the path legend, anchored into that margin so it never
-# overlaps the rightmost column at any container width. ``_PATH_LEGEND_FONT_SIZE`` keeps the (LaTeX)
-# labels compact and ``_LEGEND_TRACEGROUP_GAP`` collapses plotly's per-group legend gap.
-_GRID_ROW_HEIGHT = 340
-_GRID_ROW_ALLOWANCE = 120
-_GRID_ROW_GAP = 120
-_GRID_LEGEND_WIDTH = 220
-_PATH_LEGEND_FONT_SIZE = 13
-_LEGEND_TRACEGROUP_GAP = 1
+# Layout, in inches. Both legends sit outside the axes and figures are saved with
+# ``bbox_inches="tight"``, so the canvas only has to hold the subplots -- whatever the legends need
+# is added to the crop. The path legend's font is small because its labels are (LaTeX) formulas and
+# there is one per path.
+_CELL_WIDTH = 3.4
+_CELL_HEIGHT = 2.6
+_SINGLE_WIDTH = 6.0
+_SINGLE_HEIGHT = 4.0
+_CELL_TITLE_FONT_SIZE = 10
+_PATH_LEGEND_FONT_SIZE = 9
+_PATH_LEGEND_LABEL_SPACING = 0.3
 
 
 def _palette() -> list[str]:
     """Color palette for assigning default colors."""
-    import plotly.colors as pc
+    import matplotlib as mpl
 
-    return pc.qualitative.Plotly
+    return list(mpl.rcParams["axes.prop_cycle"].by_key().get("color", ["C0"]))
 
 
 def _path_qubits(path: Path) -> set[int]:
@@ -64,8 +68,24 @@ def _path_qubits(path: Path) -> set[int]:
     return qubits
 
 
+def _resolve_identity(
+    paths: Sequence[Path], groups: Mapping[Path, Hashable | None] | None
+) -> dict[Path, Hashable]:
+    """Each path's series key -- what it shares a color and a path-legend entry with.
+
+    A key of ``None`` used to mean "leave this path out of the legend". It cannot any more: every
+    artist's ``gid`` names a series key and every key gets an entry, and a path without one could be
+    switched off and never brought back. Such paths become their own series instead.
+    """
+    resolved: dict[Path, Hashable] = {}
+    for path in paths:
+        group = groups.get(path) if groups else None
+        resolved[path] = path if group is None else group
+    return resolved
+
+
 def _colors_by_group(
-    groups: Mapping[Path, Hashable | None],
+    groups: Mapping[Path, Hashable],
     overrides: Mapping[Path, str] | None,
 ) -> dict[Path, str | None]:
     """Assign a color per path, keyed by group so paths in the same group share a color."""
@@ -75,8 +95,6 @@ def _colors_by_group(
     for path, group in groups.items():
         if overrides and path in overrides:
             result[path] = overrides[path]
-        elif group is None:
-            result[path] = None
         else:
             if group not in group_to_color:
                 group_to_color[group] = palette[len(group_to_color) % len(palette)]
@@ -84,18 +102,15 @@ def _colors_by_group(
     return result
 
 
-def _dedupe_legend(fig: "go.Figure") -> None:
-    """Show only the first trace of each ``legendgroup`` in the legend."""
-    seen: set[str] = set()
-    for trace in fig.data:
-        group = trace.legendgroup
-        if group is None:
-            continue
-        if group in seen:
-            trace.showlegend = False
-        else:
-            seen.add(group)
-            trace.showlegend = True
+def _by_group(
+    identity: Mapping[Path, Hashable], per_path: Mapping[Path, Any]
+) -> dict[Hashable, Any]:
+    """Collapse a per-path mapping to one value per series key, taking the first of each."""
+    result: dict[Hashable, Any] = {}
+    for path, group in identity.items():
+        if group not in result:
+            result[group] = per_path.get(path)
+    return result
 
 
 def _resolve_gate_set(gate_set: GateSet | None, model: LinearMap | None) -> GateSet | None:
@@ -109,70 +124,114 @@ def _resolve_gate_set(gate_set: GateSet | None, model: LinearMap | None) -> Gate
     return None
 
 
-def _add_symbol_legend(fig: "go.Figure", layers: Iterable[Layer]) -> None:
-    """Add a second legend (``legend2``) mapping each layer's symbol/dash to its name.
+def _layer_meta(layers: Sequence[Layer]) -> dict[Hashable, tuple[str, dict[str, object] | None]]:
+    """Each layer's display name and legend-handle style, keyed as its render calls key its gids."""
+    meta: dict[Hashable, tuple[str, dict[str, object] | None]] = {}
+    for index, layer in enumerate(layers):
+        key = layer.key if layer.key is not None else layer.name
+        name = layer.name if layer.name is not None else f"Layer {index + 1}"
+        meta.setdefault(key, (name, layer.proxy))
+    return meta
 
-    Emits one neutral-colored proxy trace per distinct layer that carries metadata; a symbol
-    legend is only added when at least two distinct layer types are present. No-op otherwise.
 
-    This legend is a static reference key: its clicks are disabled (``itemclick=False``). Plotly
-    ties a trace to a single ``legendgroup``/legend, and the data traces use that to group and
-    toggle by path in the main legend, so the symbol legend cannot also toggle whole layers.
+def _draw_cell(
+    ax: "Axes",
+    cell: str,
+    layers: Sequence[Layer],
+    paths: Sequence[Path],
+    colors: Mapping[Path, str | None],
+    labels: Mapping[Path, str | None],
+    identity: Mapping[Path, Hashable],
+    fragment_depths: np.ndarray,
+    path_tokens: TokenMap,
+    layer_tokens: TokenMap,
+) -> dict[str, dict[str, Any]]:
+    """Draw every layer into one axes, returning the merged hover data for what they drew.
+
+    The two token maps are the figure's, not the cell's: a series key appearing in several cells
+    must resolve to one legend entry, which is what makes a single click reach every cell at once.
     """
-    import plotly.graph_objects as go
-
-    entries: list[tuple[str, dict]] = []
-    seen: set[str] = set()
-    for layer in layers:
-        if layer.name is None or layer.proxy is None or layer.name in seen:
-            continue
-        seen.add(layer.name)
-        entries.append((layer.name, layer.proxy))
-
-    if len(entries) < 2:
-        return
-
-    for name, proxy in entries:
-        trace = {
-            "x": [None],
-            "y": [None],
-            "mode": proxy.get("mode", "markers"),
-            "name": name,
-            "legend": "legend2",
-            "showlegend": True,
-            "hoverinfo": "skip",
-        }
-        if "marker" in proxy:
-            trace["marker"] = {**proxy["marker"], "color": _SYMBOL_LEGEND_COLOR}
-        if "line" in proxy:
-            trace["line"] = {**proxy["line"], "color": _SYMBOL_LEGEND_COLOR}
-        fig.add_trace(go.Scatter(**trace))
-
-    fig.update_layout(
-        # Path legend: vertical, top-right (plotly default position). Series legend: a horizontal
-        # strip along the top so it never stacks on top of the (variable-height) path legend.
-        legend={
-            "title_text": "Path",
-            "x": 1.01,
-            "xanchor": "left",
-            "y": 1.0,
-            "yanchor": "top",
-            "font": {"size": _PATH_LEGEND_FONT_SIZE},
-            # Each path is its own ``legendgroup`` (for per-path toggling), so plotly's default
-            # per-group gap is inserted between every entry; shrink it to pack the labels together.
-            "tracegroupgap": _LEGEND_TRACEGROUP_GAP,
-        },
-        legend2={
-            "title_text": "Series",
-            "orientation": "h",
-            "yanchor": "bottom",
-            "y": 1.06,
-            "xanchor": "left",
-            "x": 0.0,
-            "itemclick": False,
-            "itemdoubleclick": False,
-        },
+    context = RenderContext(
+        ax=ax,
+        cell=cell,
+        colors=colors,
+        labels=labels,
+        groups=identity,
+        fragment_depths=fragment_depths,
+        paths=paths,
+        path_tokens=path_tokens,
+        layer_tokens=layer_tokens,
     )
+    traces: dict[str, dict[str, Any]] = {}
+    for layer in layers:
+        traces.update(layer.render(context))
+    return traces
+
+
+def _add_legends(
+    fig: "Figure",
+    path_entries: Sequence[tuple[str, str, str | None]],
+    layer_entries: Sequence[tuple[str, str, dict[str, object] | None]],
+) -> None:
+    """Add the path and series legends, tagged so the browser can drive them.
+
+    Both are placed outside the axes -- the paths in a column to the right, the series in a strip
+    above -- so neither can cover data, and ``bbox_inches="tight"`` grows the saved image to fit
+    however many entries there turn out to be.
+    """
+    from matplotlib.lines import Line2D
+
+    if path_entries:
+        legend = fig.legend(
+            [Line2D([], [], color=color, linewidth=2) for _, _, color in path_entries],
+            [label for _, label, _ in path_entries],
+            loc="center left",
+            bbox_to_anchor=(1.0, 0.5),
+            title="Path",
+            fontsize=_PATH_LEGEND_FONT_SIZE,
+            labelspacing=_PATH_LEGEND_LABEL_SPACING,
+            frameon=False,
+        )
+        tag_legend(legend, "path", [token for token, _, _ in path_entries])
+
+    if layer_entries:
+        handles = [
+            Line2D([], [], **{"color": _SERIES_LEGEND_COLOR, **(proxy or {"linestyle": "none"})})
+            for _, _, proxy in layer_entries
+        ]
+        legend = fig.legend(
+            handles,
+            [name for _, name, _ in layer_entries],
+            loc="lower left",
+            bbox_to_anchor=(0.0, 1.0),
+            ncols=len(layer_entries),
+            title="Series",
+            frameon=False,
+        )
+        tag_legend(legend, "layer", [token for token, _, _ in layer_entries])
+
+
+def _legend_entries(
+    path_tokens: TokenMap,
+    group_labels: Mapping[Hashable, str | None],
+    group_colors: Mapping[Hashable, str | None],
+    layer_tokens: TokenMap,
+    layer_meta: Mapping[Hashable, tuple[str, dict[str, object] | None]],
+) -> tuple[list[tuple[str, str, str | None]], list[tuple[str, str, dict[str, object] | None]]]:
+    """Build both legends' entries from the tokens that were actually allocated while drawing.
+
+    Only keys that reached an artist have tokens, so a layer or a path that turned out to draw
+    nothing -- a model curve with no prediction for any path in the figure, say -- contributes no
+    entry, rather than a control that does nothing.
+    """
+    paths = [
+        (token, group_labels.get(group) or token, group_colors.get(group))
+        for group, token in path_tokens.items()
+    ]
+    layers = [
+        (token, *layer_meta.get(key, (str(key), None))) for key, token in layer_tokens.items()
+    ]
+    return paths, layers
 
 
 def path_labels(
@@ -209,7 +268,7 @@ def path_labels(
     }
 
 
-@HAS_PLOTLY.require_in_call
+@HAS_MATPLOTLIB.require_in_call
 def plot_path_overlay(
     layers: Iterable[Layer],
     paths: Iterable[Path] | None = None,
@@ -221,18 +280,12 @@ def plot_path_overlay(
     label_style: str = "formula",
     fragment_depths: Sequence[float] | np.ndarray | None = None,
     title: str | None = None,
-    fig: "go.Figure | None" = None,
-    row: int | None = None,
-    col: int | None = None,
-) -> "go.Figure":
+    ax: "Axes | None" = None,
+) -> InteractiveFigure:
     """Overlay an arbitrary list of decay layers on a single axes, with shared coordination.
 
-    Each path is its own series: one color and one deduplicated legend entry shared across every
-    layer. Labels default to :func:`path_labels` when a gate set is available, else index strings.
-
-    When ``fig`` is ``None`` this creates the figure and finalizes it (dedupe legend, symbol legend,
-    axis titles). When an existing ``fig`` is passed (e.g. a subplot cell) it only adds traces and
-    leaves finalization to the caller — how :func:`plot_path_grid_overlay` renders each cell.
+    Each path is its own series: one color and one legend entry shared across every layer. Labels
+    default to :func:`path_labels` when a gate set is available, else index strings.
 
     Args:
         layers: The layers to draw (e.g. from :func:`exponential_fit_curves_layer`,
@@ -241,22 +294,19 @@ def plot_path_overlay(
         gate_set: The gate set used to build default labels.
         colors: Optional per-path color overrides; each path is otherwise assigned its own color.
         labels: Optional per-path legend labels.
-        groups: Optional per-path ``legendgroup``/color-identity keys. Defaults to a per-path
-            identity (each path its own color and legend entry).
+        groups: Optional per-path series-identity keys (a path's color and shared legend entry).
+            Defaults to a per-path identity (each path its own color and legend entry).
         label_style: The :func:`~.path_math_label` style for default labels.
         fragment_depths: The fragment-depth range passed to curve layers. Defaults to ``0``–``10``.
         title: An optional figure title.
-        fig: An existing figure to add traces to. If ``None``, a new figure is created + finalized.
-        row: The subplot row to add traces to (1-indexed).
-        col: The subplot column to add traces to (1-indexed).
+        ax: An existing axes to draw into. If ``None``, a figure with a single axes is created. Note
+            that the legends are added either way, to the figure the axes belongs to, since a figure
+            whose curves can be hidden but not restored is worse than no figure at all.
 
     Returns:
         The figure with the overlaid layers.
     """
-    import plotly.graph_objects as go
-
-    if is_new_fig := fig is None:
-        fig = go.Figure()
+    from matplotlib.figure import Figure
 
     layers = list(layers)
     if paths is not None:
@@ -269,35 +319,50 @@ def plot_path_overlay(
         else:
             labels = {path: str(index) for index, path in enumerate(path_list)}
 
-    identity = groups if groups is not None else {p: str(i) for i, p in enumerate(path_list)}
+    identity = _resolve_identity(path_list, groups)
     color_map = _colors_by_group(identity, colors)
     if fragment_depths is None:
         fragment_depths = _default_fragment_depths()
 
-    context = RenderContext(
-        fig=fig,
-        colors=color_map,
-        labels=labels,
-        groups=identity,
-        fragment_depths=np.asarray(fragment_depths, dtype=float),
-        paths=path_list,
-        row=row,
-        col=col,
+    if ax is None:
+        fig = Figure(figsize=(_SINGLE_WIDTH, _SINGLE_HEIGHT), layout="constrained")
+        ax = fig.subplots()
+    else:
+        fig = ax.figure
+
+    path_tokens, layer_tokens = TokenMap("p"), TokenMap("l")
+    cell = cell_token(0)
+    traces = _draw_cell(
+        ax,
+        cell,
+        layers,
+        path_list,
+        color_map,
+        labels,
+        identity,
+        np.asarray(fragment_depths, dtype=float),
+        path_tokens,
+        layer_tokens,
     )
-    for layer in layers:
-        layer.render(context)
 
-    # Finalize only when we own the figure; a caller passing ``fig`` (e.g. a grid cell) finalizes.
-    if is_new_fig:
-        _dedupe_legend(fig)
-        _add_symbol_legend(fig, layers)
-        fig.update_layout(xaxis_title="fragment_depth", yaxis_title="observable")
-        if title is not None:
-            fig.update_layout(title_text=title)
-    return fig
+    ax.set_xlabel("fragment_depth")
+    ax.set_ylabel("observable")
+    if title is not None:
+        fig.suptitle(title)
+    _add_legends(
+        fig,
+        *_legend_entries(
+            path_tokens,
+            _by_group(identity, labels),
+            _by_group(identity, color_map),
+            layer_tokens,
+            _layer_meta(layers),
+        ),
+    )
+    return InteractiveFigure(fig, cells={cell: ax}, traces=traces)
 
 
-@HAS_PLOTLY.require_in_call
+@HAS_MATPLOTLIB.require_in_call
 def plot_path_grid_overlay(
     groups: Mapping[Hashable, Sequence[Path]],
     layers: Iterable[Layer],
@@ -311,13 +376,14 @@ def plot_path_grid_overlay(
     label_style: str = "formula",
     fragment_depths: Sequence[float] | np.ndarray | None = None,
     title: str | None = None,
-) -> "go.Figure":
+) -> InteractiveFigure:
     """Lay out an arbitrary list of decay layers across a grid of subplots (one per group).
 
     Subplot membership (``groups``) and series identity (``series_key``) are independent: color and
-    the deduplicated legend entry are keyed by ``series_key``'s value, so paths that resolve to the
-    same key share a color and one legend entry across the whole grid, while ``label`` controls only
-    displayed text. The same ``layers`` are drawn in every cell, restricted to that cell's paths.
+    the shared legend entry are keyed by ``series_key``'s value, so paths that resolve to the same
+    key share a color and one legend entry across the whole grid — and one click on that entry hides
+    them in every cell at once — while ``label`` controls only displayed text. The same ``layers``
+    are drawn in every cell, restricted to that cell's paths.
 
     Args:
         groups: A mapping from a group key (subplot title) to the paths drawn in that subplot.
@@ -325,7 +391,8 @@ def plot_path_grid_overlay(
         num_cols: The number of subplot columns; rows are derived from the group count.
         gate_set: The gate set for default labels.
         label: A callable ``(path, group_key) -> str`` giving each path's displayed label. Defaults
-            to a group-independent :func:`~.path_math_label` (formula, repeatable only).
+            to a group-independent :func:`~.path_math_label` (formula, repeatable only), or to a
+            positional index when there is no gate set to build one from.
         group_title: A callable ``(group_key) -> str`` giving each subplot's title. Defaults to
             ``str(group_key)``.
         series_key: A callable ``(path, group_key) -> Hashable`` giving each path's series identity
@@ -338,28 +405,26 @@ def plot_path_grid_overlay(
     Returns:
         The subplot-grid figure.
     """
-    from plotly.subplots import make_subplots
+    from matplotlib.figure import Figure
 
     layers = list(layers)
     group_items = list(groups.items())
-    num_rows = max(1, -(-len(group_items) // num_cols))  # ceil division
-    # Fix the height by row count and express the inter-row gap as a fraction of it, so the gap is a
-    # consistent pixel size rather than plotly's generous default fraction.
-    figure_height = _GRID_ROW_HEIGHT * num_rows + _GRID_ROW_ALLOWANCE
-    fig = make_subplots(
-        rows=num_rows,
-        cols=num_cols,
-        subplot_titles=[(group_title or str)(key) for key, _ in group_items],
-        vertical_spacing=_GRID_ROW_GAP / figure_height,
-    )
+    num_rows = max(1, -(-len(group_items) // num_cols))
+    fig = Figure(figsize=(_CELL_WIDTH * num_cols, _CELL_HEIGHT * num_rows), layout="constrained")
+    axes = [ax for row in fig.subplots(num_rows, num_cols, squeeze=False) for ax in row]
+
     resolved_gate_set = _resolve_gate_set(gate_set, None)
     if fragment_depths is None:
         fragment_depths = _default_fragment_depths()
+    fragment_depths = np.asarray(fragment_depths, dtype=float)
 
     palette = _palette()
     series_to_color: dict[Hashable, str] = {}
+    # Numbers the paths across the whole grid, for the fallback label. Cell-local numbering would
+    # make two unrelated paths in different cells share a label, hence a color and a legend entry.
+    path_numbers: dict[Path, int] = {}
 
-    def _label_for(path: Path, key: Hashable) -> str | None:
+    def _label_for(path: Path, key: Hashable) -> str:
         if label is not None:
             return label(path, key)
         if resolved_gate_set is not None:
@@ -368,61 +433,73 @@ def plot_path_grid_overlay(
                 + path_math_label(resolved_gate_set, path, style=label_style, repeatable_only=True)
                 + "$"
             )
-        return None
+        return str(path_numbers.setdefault(path, len(path_numbers)))
 
-    def _color_for(series_val: Hashable | None) -> str | None:
-        if series_val is None:
-            return None
+    def _color_for(series_val: Hashable) -> str:
         if colors and series_val in colors:
             return colors[series_val]
         if series_val not in series_to_color:
             series_to_color[series_val] = palette[len(series_to_color) % len(palette)]
         return series_to_color[series_val]
 
+    path_tokens, layer_tokens = TokenMap("p"), TokenMap("l")
+    cells: dict[str, Axes] = {}
+    traces: dict[str, dict[str, Any]] = {}
+    group_labels: dict[Hashable, str] = {}
+    group_colors: dict[Hashable, str] = {}
+
     for index, (key, group_paths) in enumerate(group_items):
-        grid_row = index // num_cols + 1
-        grid_col = index % num_cols + 1
+        ax = axes[index]
+        cell = cell_token(index)
         group_paths = list(group_paths)
 
         cell_labels = {path: _label_for(path, key) for path in group_paths}
-        cell_series = {
+        cell_identity = {
             path: (series_key(path, key) if series_key is not None else cell_labels[path])
             for path in group_paths
         }
-        cell_colors = {path: _color_for(cell_series[path]) for path in group_paths}
-        cell_groups = {
-            path: None if cell_series[path] is None else str(cell_series[path])
-            for path in group_paths
-        }
+        cell_identity = _resolve_identity(group_paths, cell_identity)
+        cell_colors = {path: _color_for(cell_identity[path]) for path in group_paths}
+        for path in group_paths:
+            group_labels.setdefault(cell_identity[path], cell_labels[path])
+            group_colors.setdefault(cell_identity[path], cell_colors[path])
 
-        # Render this cell through the single-axes overlay (passing our resolved coordination and an
-        # existing ``fig`` so it only adds traces; we finalize the whole grid once below).
-        plot_path_overlay(
-            layers,
-            group_paths,
-            colors=cell_colors,
-            labels=cell_labels,
-            groups=cell_groups,
-            fragment_depths=fragment_depths,
-            fig=fig,
-            row=grid_row,
-            col=grid_col,
+        traces.update(
+            _draw_cell(
+                ax,
+                cell,
+                layers,
+                group_paths,
+                cell_colors,
+                cell_labels,
+                cell_identity,
+                fragment_depths,
+                path_tokens,
+                layer_tokens,
+            )
         )
+        ax.set_title((group_title or str)(key), fontsize=_CELL_TITLE_FONT_SIZE)
+        cells[cell] = ax
 
-    _dedupe_legend(fig)
-    _add_symbol_legend(fig, layers)
-    fig.update_xaxes(title_text="fragment_depth")
-    fig.update_yaxes(title_text="observable")
-    # Keep the width responsive (fills the container) and fix only the height, scaled by the row
-    # count so plots stay tall. Reserve a fixed right margin for the path legend, which is anchored
-    # into that margin so it never overlaps the rightmost column regardless of container width.
-    fig.update_layout(height=figure_height, margin={"r": _GRID_LEGEND_WIDTH})
+    # Cells past the last group have no data; leaving their frames drawn would read as an empty
+    # result rather than as no result at all.
+    for ax in axes[len(group_items) :]:
+        ax.set_axis_off()
+
+    fig.supxlabel("fragment_depth")
+    fig.supylabel("observable")
     if title is not None:
-        fig.update_layout(title_text=title)
-    return fig
+        fig.suptitle(title)
+    _add_legends(
+        fig,
+        *_legend_entries(
+            path_tokens, group_labels, group_colors, layer_tokens, _layer_meta(layers)
+        ),
+    )
+    return InteractiveFigure(fig, cells=cells, traces=traces)
 
 
-@HAS_PLOTLY.require_in_call
+@HAS_MATPLOTLIB.require_in_call
 def plot_qubit_pair_decays(
     pairs: Sequence[tuple[int, int]],
     *,
@@ -444,7 +521,7 @@ def plot_qubit_pair_decays(
     paths: Iterable[Path] | None = None,
     fragment_depths: Sequence[float] | np.ndarray | None = None,
     title: str | None = None,
-) -> "go.Figure":
+) -> InteractiveFigure:
     """Grid of fidelity decays over qubit pairs, one subplot per pair, with shared labels.
 
     Each subplot shows the decays for the paths acting on that pair, where a path acts on the qubits
@@ -459,13 +536,13 @@ def plot_qubit_pair_decays(
         observable_data: Optional raw observable data for scatter points.
         observable_type: Which observable layer(s) to draw from ``observable_data`` — ``"raw"``,
             ``"means"``, or ``"both"`` (see :func:`standard_decay_layers`).
-        observable_marker_kwargs: Optional ``marker`` properties for the raw observable points.
-        means_marker_kwargs: Optional ``marker`` properties for the observable-means points.
+        observable_marker_kwargs: Optional marker properties for the raw observable points.
+        means_marker_kwargs: Optional marker properties for the observable-means points.
         averaged_data: Optional averaged data supplying the exponential-fit decay curve.
-        exponential_fit_line_kwargs: Optional ``line`` properties for the exponential-fit curve.
+        exponential_fit_line_kwargs: Optional line properties for the exponential-fit curve.
         model: Optional fidelity model for predicted curves (requires ``model_data``).
         model_data: Optional fitted parameters for predicted curves (requires ``model``).
-        model_line_kwargs: Optional ``line`` properties for the model curves.
+        model_line_kwargs: Optional line properties for the model curves.
         gate_set: The gate set used to build labels. Defaults to the model's gate set; required
             (here or via the model) since labels are always drawn.
         num_cols: The number of subplot columns; rows are derived from the pair count.

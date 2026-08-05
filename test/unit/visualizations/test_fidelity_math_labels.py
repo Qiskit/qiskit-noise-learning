@@ -10,7 +10,10 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
+from itertools import chain
+
 import pytest
+from matplotlib.mathtext import MathTextParser
 from qiskit.circuit import QuantumCircuit
 from qiskit.quantum_info import Clifford, QubitSparsePauli
 
@@ -109,6 +112,103 @@ class TestPathMathLabel:
         )
         result = path_math_label(gate_set, path, repeatable_only=True)
         assert isinstance(result, str)
+
+
+_STYLES = ["transition", "formula"]
+_NOISE_SITES = [None, {"CZ": "before"}, {"CZ": "after"}]
+_QUBIT_LABELS = [None, {0: "i", 1: "j"}]
+
+
+def _assert_renders(label):
+    """Assert a label typesets, wrapped in ``$...$`` exactly as the plotting code wraps it.
+
+    These labels are typeset by matplotlib's mathtext, whose macro coverage is narrower than a real
+    LaTeX installation's, so a label can be valid LaTeX and still fail to render.
+    """
+    assert isinstance(label, str)
+    try:
+        MathTextParser("path").parse(f"${label}$")
+    except Exception as exc:  # noqa: BLE001 - surface the offending label, whatever the failure
+        pytest.fail(f"mathtext cannot render {label!r}: {exc}")
+
+
+class TestMathtextRenderability:
+    """Every label the package can generate must typeset under matplotlib's mathtext.
+
+    The interactive figures and the static exports share one math engine, so an unsupported macro
+    shows up as a broken legend in both. Before these labels were typeset in-process the only signal
+    for that was a browser console warning, which nothing could check.
+    """
+
+    @pytest.fixture()
+    def paths(self, make_cz_path):
+        """Structurally varied real paths over the ``CZ`` orbit.
+
+        ``CZ`` is an involution, so its orbits are at most two Paulis long and the interesting
+        variation is elsewhere: weight-one vs weight-two Paulis, an orbit ``CZ`` leaves fixed (whose
+        two transitions are identical, so the formula style collapses them to an exponent), the
+        explicit single-node orbit form, and a path with no SPAM fragments.
+        """
+        return [
+            make_cz_path("XI"),
+            make_cz_path("XX"),
+            make_cz_path("ZI"),
+            make_cz_path(["ZZ"]),
+            make_cz_path("XI", spam=False),
+        ]
+
+    @pytest.mark.parametrize("style", _STYLES)
+    @pytest.mark.parametrize("noise_site", _NOISE_SITES)
+    @pytest.mark.parametrize("qubit_labels", _QUBIT_LABELS)
+    def test_fidelity_index_labels_render(
+        self, gate_set_cz, paths, style, noise_site, qubit_labels
+    ):
+        indices = list(
+            chain.from_iterable(
+                chain(p.start_fragment, p.repeatable_fragment, p.end_fragment) for p in paths
+            )
+        )
+        assert indices, "fixture produced no fidelity indices to check"
+        for fidelity_index in indices:
+            _assert_renders(
+                fidelity_index_math_label(
+                    gate_set_cz,
+                    fidelity_index,
+                    style=style,
+                    noise_site=noise_site,
+                    qubit_labels=qubit_labels,
+                )
+            )
+
+    @pytest.mark.parametrize("style", _STYLES)
+    @pytest.mark.parametrize("noise_site", _NOISE_SITES)
+    @pytest.mark.parametrize("qubit_labels", _QUBIT_LABELS)
+    @pytest.mark.parametrize("repeatable_only", [True, False])
+    def test_path_labels_render(
+        self, gate_set_cz, paths, style, noise_site, qubit_labels, repeatable_only
+    ):
+        for path in paths:
+            _assert_renders(
+                path_math_label(
+                    gate_set_cz,
+                    path,
+                    style=style,
+                    noise_site=noise_site,
+                    repeatable_only=repeatable_only,
+                    qubit_labels=qubit_labels,
+                )
+            )
+
+    def test_bound_fragment_depth_exponent_renders(self, gate_set_cz, paths):
+        """An unbound path labels its exponent ``r``; a bound one substitutes the integer depth."""
+        for path in paths:
+            for bound in (path, path.bind_at(3)):
+                _assert_renders(path_math_label(gate_set_cz, bound, style="transition"))
+
+    def test_latex_str_gate_symbol_renders(self, gate_set, fidelity_index):
+        """A gate carrying an explicit ``latex_str`` (rather than the ``\\text{...}`` fallback)."""
+        for style in _STYLES:
+            _assert_renders(fidelity_index_math_label(gate_set, fidelity_index, style=style))
 
 
 class TestNoiseSiteMathLabel:
