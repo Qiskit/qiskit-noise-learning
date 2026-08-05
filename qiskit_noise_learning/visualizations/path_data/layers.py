@@ -28,7 +28,7 @@ import numpy as np
 from ...data import AveragedData, ModelData, ObservableData
 from ...math import LinearMap
 from ...sequences import Path
-from ..interactive_svg import TokenMap, trace_gid
+from ..interactive_figure import TokenMap, trace_gid
 from .data_adapters import (
     _dataset_paths,
     averaged_data_points,

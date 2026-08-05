@@ -27,7 +27,7 @@ from qiskit_noise_learning.models import FidelityModel, get_noise_site, is_fidel
 from qiskit_noise_learning.sequences import InstructionSequence, Path
 
 if TYPE_CHECKING:
-    from ..visualizations.interactive_svg import InteractiveFigure
+    from ..visualizations.interactive_figure import InteractiveFigure
 
 LEVELS = (RawData, ObservableData, AveragedData, ModelData)
 """The levels of the analysis hierarchy."""

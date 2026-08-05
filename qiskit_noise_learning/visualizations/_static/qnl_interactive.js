@@ -53,13 +53,13 @@
 
   var SVG_NS = "http://www.w3.org/2000/svg";
 
-  // Separator between the fields of an ``id``.  Must agree with ``_SEP`` in ``interactive_svg.py``,
+  // Separator between the fields of an ``id``.  Must agree with ``_SEP`` in ``interactive_figure.py``,
   // which builds the ids this file takes apart.
   var SEP = "|";
 
   /* Segments of an artist's ``id``, or ``[]`` for an element without one.
    *
-   * The ids are built in ``interactive_svg.py``; the two shapes read here are
+   * The ids are built in ``interactive_figure.py``; the two shapes read here are
    * ``trace|<cell>|<token>|...|<n>``, carrying one token per dimension the figure declares, and
    * ``key|<dimension>|<token>|<part>``.
    */

@@ -21,7 +21,7 @@ import numpy as np
 
 from ..optionals import HAS_MATPLOTLIB
 from ._qubit_coordinates import qubit_coordinates
-from .interactive_svg import InteractiveFigure, TokenMap, cell_token, tag_legend, trace_gid
+from .interactive_figure import InteractiveFigure, TokenMap, cell_token, tag_legend, trace_gid
 
 if TYPE_CHECKING:
     from ..gate_sets.gate import Gate

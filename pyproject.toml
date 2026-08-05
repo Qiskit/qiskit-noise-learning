@@ -23,6 +23,7 @@ dependencies = [
     "qiskit>=2.2.0",
     "qiskit-aer",
     "qiskit-ibm-runtime>=0.48",
+    "rustworkx>=0.15",
     "samplomatic>=0.17",
     "scipy>=1.13",
     "xarray>=2025.7",
@@ -61,7 +62,10 @@ vis = [
 ]
 
 docs = [
-    "sphinx>=7",                    # Documentation generator
+    # Documentation generator.  9 is the floor for ``mathjax4_config``, which ``docs/conf.py``
+    # defines the formalism pages' macros in; an older Sphinx ignores that setting silently and
+    # builds those pages with undefined macros rather than failing.
+    "sphinx>=9",
     "qiskit-sphinx-theme",          # Qiskit ecosystem HTML theme
     "myst-nb>=1.1",                 # Markdown (MyST) source support, plus executable notebooks
     "ipykernel",                    # Kernel that myst-nb executes tutorial notebooks with

@@ -16,7 +16,7 @@ import re
 import pytest
 
 from qiskit_noise_learning.sequences import Path
-from qiskit_noise_learning.visualizations.interactive_svg import InteractiveFigure
+from qiskit_noise_learning.visualizations.interactive_figure import InteractiveFigure
 from qiskit_noise_learning.visualizations.path_data.layers import (
     observable_points_layer,
     standard_decay_layers,

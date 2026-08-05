@@ -233,7 +233,7 @@ class InteractiveFigure:
         self,
         figure: "Figure",
         *,
-        dimensions: Sequence[str] = (),
+        dimensions: Sequence[str],
         cells: Mapping[str, "Axes"] | None = None,
         traces: Mapping[str, Mapping[str, Any]] | None = None,
         hidden: Mapping[str, Sequence[str]] | None = None,

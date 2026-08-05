@@ -20,7 +20,7 @@ from qiskit.transpiler import InstructionProperties, Target
 
 from qiskit_noise_learning.gate_sets import QiskitGateSet
 from qiskit_noise_learning.visualizations import gate_set_topology
-from qiskit_noise_learning.visualizations.interactive_svg import InteractiveFigure, axes_gid
+from qiskit_noise_learning.visualizations.interactive_figure import InteractiveFigure, axes_gid
 
 
 def _make_5q_target() -> Target:

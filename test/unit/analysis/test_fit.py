@@ -16,7 +16,7 @@ from qiskit_noise_learning.analysis import Fit
 from qiskit_noise_learning.data import AveragedData, ModelData, ObservableData
 from qiskit_noise_learning.models import IdentityFidelityModel, LogFidelitySpace
 from qiskit_noise_learning.sequences import LogPathMap
-from qiskit_noise_learning.visualizations.interactive_svg import InteractiveFigure
+from qiskit_noise_learning.visualizations.interactive_figure import InteractiveFigure
 
 
 def test_accepts_fidelity_model_and_none(gate_set_cz):

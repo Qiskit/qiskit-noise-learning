@@ -30,7 +30,7 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt  # noqa: E402 - must follow the backend selection above
 
-from qiskit_noise_learning.visualizations.interactive_svg import (  # noqa: E402
+from qiskit_noise_learning.visualizations.interactive_figure import (  # noqa: E402
     InteractiveFigure,
     TokenMap,
     axes_gid,
@@ -236,7 +236,9 @@ class TestSvgContract:
         Glyph outlines are excluded deliberately: matplotlib names those for a font and a character
         rather than by hash, and the same name is always the same outline.
         """
-        twin = InteractiveFigure(figure.figure, container_id="qnl-figure-twin")
+        twin = InteractiveFigure(
+            figure.figure, dimensions=_DIMENSIONS, container_id="qnl-figure-twin"
+        )
         hashed = re.compile(r"^[pm][0-9a-f]{8,}$")
         mine = {gid for gid in _definitions(figure.to_svg()) if hashed.match(gid)}
         theirs = {gid for gid in _definitions(twin.to_svg()) if hashed.match(gid)}
@@ -257,34 +259,34 @@ class TestVendoredScript:
     """
 
     def test_is_installed_with_the_package(self):
-        from qiskit_noise_learning.visualizations import interactive_svg
+        from qiskit_noise_learning.visualizations import interactive_figure
 
-        assert interactive_svg._JAVASCRIPT_PATH.is_file()  # noqa: SLF001 - checking the asset path
+        assert interactive_figure._JAVASCRIPT_PATH.is_file()  # noqa: SLF001 - the asset path
 
     def test_takes_the_dimensions_from_the_figure(self):
         """The set is the figure's, and the script has to read it rather than carry its own copy --
         a hard-coded one would inert every figure that legends anything else."""
-        from qiskit_noise_learning.visualizations import interactive_svg
+        from qiskit_noise_learning.visualizations import interactive_figure
 
-        source = interactive_svg._JAVASCRIPT_PATH.read_text()  # noqa: SLF001 - reading the asset
+        source = interactive_figure._JAVASCRIPT_PATH.read_text()  # noqa: SLF001 - reading the asset
         assert "this.data.dimensions" in source
 
     def test_reads_the_initially_hidden_keys(self):
         """The other field the two sides have to agree on by name, with the same failure mode."""
-        from qiskit_noise_learning.visualizations import interactive_svg
+        from qiskit_noise_learning.visualizations import interactive_figure
 
-        source = interactive_svg._JAVASCRIPT_PATH.read_text()  # noqa: SLF001 - reading the asset
+        source = interactive_figure._JAVASCRIPT_PATH.read_text()  # noqa: SLF001 - reading the asset
         assert "this.data.hidden" in source
 
     def test_the_id_separator_agrees_across_the_language_boundary(self):
         """Every id is written with it here and taken apart on it there; a disagreement inerts both
         legends at once."""
-        from qiskit_noise_learning.visualizations import interactive_svg
+        from qiskit_noise_learning.visualizations import interactive_figure
 
-        source = interactive_svg._JAVASCRIPT_PATH.read_text()  # noqa: SLF001 - reading the asset
+        source = interactive_figure._JAVASCRIPT_PATH.read_text()  # noqa: SLF001 - reading the asset
         declared = re.search(r'var SEP = "(.*?)";', source)
         assert declared
-        assert declared.group(1) == interactive_svg._SEP  # noqa: SLF001 - the shared constant
+        assert declared.group(1) == interactive_figure._SEP  # noqa: SLF001 - the shared constant
 
 
 class TestSidecar:
@@ -389,8 +391,8 @@ class TestHtml:
         assert html.rstrip().endswith("</html>")
 
     def test_container_ids_are_unique_by_default(self, figure):
-        first = InteractiveFigure(figure.figure)
-        second = InteractiveFigure(figure.figure)
+        first = InteractiveFigure(figure.figure, dimensions=_DIMENSIONS)
+        second = InteractiveFigure(figure.figure, dimensions=_DIMENSIONS)
         assert first.container_id != second.container_id
 
 

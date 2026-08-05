@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 from matplotlib.figure import Figure
 
-from qiskit_noise_learning.visualizations.interactive_svg import TokenMap
+from qiskit_noise_learning.visualizations.interactive_figure import TokenMap
 from qiskit_noise_learning.visualizations.path_data.layers import (
     RenderContext,
     exponential_fit_curves_layer,

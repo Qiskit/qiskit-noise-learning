@@ -24,7 +24,7 @@ from ...math import LinearMap
 from ...optionals import HAS_MATPLOTLIB
 from ...sequences import Path
 from ..fidelity_math_labels import path_math_label
-from ..interactive_svg import InteractiveFigure, TokenMap, cell_token, tag_legend
+from ..interactive_figure import InteractiveFigure, TokenMap, cell_token, tag_legend
 from .data_adapters import _dataset_paths, averaged_data_points, observable_data_points
 from .layers import Layer, RenderContext, standard_decay_layers
 from .primitives import _default_fragment_depths

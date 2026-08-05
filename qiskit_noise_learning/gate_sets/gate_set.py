@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, TypeVar
 from qiskit.transpiler import Target
 
 if TYPE_CHECKING:
-    from ..visualizations.interactive_svg import InteractiveFigure
+    from ..visualizations.interactive_figure import InteractiveFigure
     from .model_gate_set import ModelGateSet
 
 from ..utils.html_repr import HTMLTable
