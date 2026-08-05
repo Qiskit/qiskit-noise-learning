@@ -14,9 +14,3 @@ Functions
    fidelity_index_math_label
    path_math_label
    gate_set_topology
-   html_page_renderer
-
-Constants
----------
-
-.. autodata:: RENDERER_NAME

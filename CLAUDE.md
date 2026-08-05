@@ -21,6 +21,14 @@ pre-commit install
 | Run tests | `python -m pytest` |
 | Lint + format | `ruff check --fix . && ruff format .` |
 | All pre-commit checks | `pre-commit run --all-files` |
+| Build the docs | `sphinx-build -b html -W docs docs/_build/html` |
+
+The docs build executes the tutorials for real, which takes minutes; `-W` is what CI uses.
+
+myst-nb caches those executions in `docs/_build/.jupyter_cache`, keyed on the notebook source
+only — a change to the library itself does not invalidate it. After changing anything that affects
+tutorial *output* (the visualizations especially), `rm -rf docs/_build` before rebuilding, or the
+pages will be rebuilt from the old figures.
 
 Tests include doctests (`--doctest-modules` is set in `pyproject.toml`).
 
@@ -60,6 +68,6 @@ qiskit_noise_learning/   # Main package
 test/unit/               # Unit tests, mirroring the package tree, one directory per subpackage
 test/integration/        # End-to-end tests spanning several subpackages
 test/docs/               # Checks on the docs themselves (apidocs coverage)
-docs/                    # Notebooks and demos
+docs/                    # Sphinx site: API reference, formalism, and executable tutorials
 tools/                   # Dev scripts (verify_headers.py)
 ```

@@ -1,7 +1,3 @@
-% The math on this page is typeset by MathJax 2, not by Sphinx's default. That is not a choice about
-% this page: it is forced by the plotly figures in docs/tutorials, and Sphinx's math configuration is
-% site-wide. See the "Math" section of docs/conf.py before changing anything about how it renders.
-
 # Mathematical formalism
 
 Given the task of learning Pauli noise for a set of Clifford gates, a common analysis technique is

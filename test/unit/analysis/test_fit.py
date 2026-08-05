@@ -10,13 +10,13 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-import plotly.graph_objects as go
 import pytest
 
 from qiskit_noise_learning.analysis import Fit
 from qiskit_noise_learning.data import AveragedData, ModelData, ObservableData
 from qiskit_noise_learning.models import IdentityFidelityModel, LogFidelitySpace
 from qiskit_noise_learning.sequences import LogPathMap
+from qiskit_noise_learning.visualizations.interactive_figure import InteractiveFigure
 
 
 def test_accepts_fidelity_model_and_none(gate_set_cz):
@@ -55,7 +55,7 @@ def fit_with_data(make_cz_path, make_observable_data, make_averaged_data, make_f
 
 def test_plot_returns_figure(fit_with_data):
     fig = fit_with_data.plot_qubit_pair_decays([(0, 1)])
-    assert isinstance(fig, go.Figure)
+    assert isinstance(fig, InteractiveFigure)
 
 
 def test_plot_model_prediction_end_to_end(fit_with_data):
@@ -63,7 +63,7 @@ def test_plot_model_prediction_end_to_end(fit_with_data):
     fig = fit_with_data.plot_qubit_pair_decays(
         [(0, 1)], observable_type="means", exponential_fit=True, model_prediction=True
     )
-    assert isinstance(fig, go.Figure)
+    assert isinstance(fig, InteractiveFigure)
 
 
 @pytest.mark.parametrize(
@@ -76,7 +76,7 @@ def test_plot_model_prediction_end_to_end(fit_with_data):
     ],
 )
 def test_plot_drops_one_layer_without_error(fit_with_data, kwargs):
-    assert isinstance(fit_with_data.plot_qubit_pair_decays([(0, 1)], **kwargs), go.Figure)
+    assert isinstance(fit_with_data.plot_qubit_pair_decays([(0, 1)], **kwargs), InteractiveFigure)
 
 
 def test_plot_without_model_raises():
@@ -103,5 +103,5 @@ def test_plot_model_only_uses_fit_paths(make_cz_path, make_fidelity_model_data):
     fit = Fit(model=model, paths=[p])
     fit[ModelData] = model_data
     fig = fit.plot_qubit_pair_decays([(0, 1)], model_prediction=True)
-    assert isinstance(fig, go.Figure)
-    assert len(fig.data) > 0
+    assert isinstance(fig, InteractiveFigure)
+    assert fig.figure.axes[0].has_data()

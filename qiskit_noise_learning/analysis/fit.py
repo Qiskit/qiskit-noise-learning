@@ -27,7 +27,7 @@ from qiskit_noise_learning.models import FidelityModel, get_noise_site, is_fidel
 from qiskit_noise_learning.sequences import InstructionSequence, Path
 
 if TYPE_CHECKING:
-    import plotly.graph_objects as go
+    from ..visualizations.interactive_figure import InteractiveFigure
 
 LEVELS = (RawData, ObservableData, AveragedData, ModelData)
 """The levels of the analysis hierarchy."""
@@ -210,11 +210,11 @@ class Fit:
         exponential_fit_line_kwargs: Mapping[str, object] | None = None,
         model_line_kwargs: Mapping[str, object] | None = None,
         num_cols: int = 3,
-        noise_site: Mapping[str, str] | None = None,
+        noise_site: Mapping[str, Literal["before", "after"]] | None = None,
         paths: Sequence[Path] | None = None,
         fragment_depths: Sequence[float] | None = None,
         title: str | None = None,
-    ) -> "go.Figure":
+    ) -> "InteractiveFigure":
         """Plot a grid of fidelity decays over qubit pairs, drawn from this fit's data.
 
         One subplot per pair, sharing labels/colors across pairs. Which decays are drawn is
@@ -222,7 +222,8 @@ class Fit:
         requested decay whose data has not been computed on this fit yet is skipped with a warning.
 
         Args:
-            pairs: The qubit pairs to plot, one subplot each.
+            pairs: The qubit pairs to plot, one subplot each. A pair is unordered -- ``(1, 0)``
+                names the same subplot as ``(0, 1)`` -- so no pair may be repeated.
             observable_type: How to draw the empirical observable data: ``"raw"`` (raw
                 per-randomization scatter), ``"means"`` (per-fragment-depth means with error bars),
                 ``"both"``, or ``None`` (the default) to omit the empirical points. Uses this fit's
@@ -251,11 +252,12 @@ class Fit:
             title: An optional figure title.
 
         Returns:
-            A plotly Figure.
+            The figure with interactive legends.
 
         Raises:
-            ValueError: If the fit has no model (and hence no gate set) to build labels from.
-            ImportError: If ``plotly`` is not installed.
+            ValueError: If the fit has no model (and hence no gate set) to build labels from, or if
+                ``pairs`` names the same pair twice.
+            ImportError: If ``matplotlib`` is not installed.
         """
         from ..visualizations.path_data.orchestrators import (
             plot_qubit_pair_decays as _plot_qubit_pair_decays,

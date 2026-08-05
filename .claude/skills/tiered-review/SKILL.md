@@ -138,13 +138,13 @@ access (SLF), and trailing-whitespace/EOF. The checklist below is deliberately t
   functions referenced as prose or Sphinx cross-refs (`:class:`~.X``), not bare
   backticks in Sphinx-rendered docstrings.
 - **`from __future__ import annotations`:** CLAUDE.md says avoid it. There is legacy
-  drift (several `experiment_builder/` files, `visualizations/gate_set_topology.py`)
-  — new code must **not** add more; flag it if introduced.
+  drift (several `experiment_builder/` files) — new code must **not** add more; flag
+  it if introduced.
 - **Errors:** prefer `ValueError` with an f-string naming the offending value/stage;
   `TypeError` for wrong-type guards; `NotImplementedError` for unsupported physics;
   `ImportError` via `optionals.py`. Validation centralized in `_validate_*` free
   helpers.
-- **Optional deps** gated through `optionals.py` (`HAS_CVXPY`, `HAS_PLOTLY`):
+- **Optional deps** gated through `optionals.py` (`HAS_CVXPY`, `HAS_MATPLOTLIB`):
   `HAS_X.require_now("...")` then a local import inside the method; heavy/optional
   imports behind `TYPE_CHECKING`.
 - **Typing:** `Self`, `Generic`/`TypeVar` (`bound=Hashable` for label types),
@@ -157,8 +157,8 @@ access (SLF), and trailing-whitespace/EOF. The checklist below is deliberately t
   public-API imports only; `conftest.py` fixture hierarchy; `@pytest.mark.parametrize`;
   `np.isclose`/`allclose` with explicit `atol`; test docstrings describe the
   scenario/expected math.
-- **Rich repr:** `_repr_html_` via `utils/html_repr.HTMLTable`; `draw()` for plotly;
-  concise `__repr__`.
+- **Rich repr:** `_repr_html_` via `utils/html_repr.HTMLTable`; `draw()` returning the
+  figure wrapper the rest of `visualizations/` returns; concise `__repr__`.
 
 ## Closing every run
 

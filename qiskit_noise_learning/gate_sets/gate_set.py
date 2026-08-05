@@ -19,8 +19,7 @@ from typing import TYPE_CHECKING, TypeVar
 from qiskit.transpiler import Target
 
 if TYPE_CHECKING:
-    import plotly.graph_objects as go
-
+    from ..visualizations.interactive_figure import InteractiveFigure
     from .model_gate_set import ModelGateSet
 
 from ..utils.html_repr import HTMLTable
@@ -143,7 +142,7 @@ class GateSet(Mapping[str, GateType], metaclass=ABCMeta):
             f"names={sorted(self)}>)"
         )
 
-    def draw(self) -> "go.Figure":
+    def draw(self) -> "InteractiveFigure":
         """Draw the device topology with per-gate coloring.
 
         Each gate's 2-qubit interactions are drawn as colored edges on the device
@@ -151,11 +150,11 @@ class GateSet(Mapping[str, GateType], metaclass=ABCMeta):
         and measurement) are shown as shaped markers on the relevant nodes.
 
         Returns:
-            A plotly Figure.
+            The figure, with toggleable legends.
 
         Raises:
             ValueError: If :attr:`target` is ``None``.
-            ImportError: If ``plotly`` or ``qiskit-ibm-runtime`` is not installed.
+            ImportError: If ``matplotlib`` is not installed.
         """
         from ..visualizations.gate_set_topology import gate_set_topology
 
