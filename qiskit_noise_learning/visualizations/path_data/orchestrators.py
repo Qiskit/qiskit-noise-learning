@@ -283,7 +283,7 @@ def plot_path_overlay(
     colors: Mapping[Path, str] | None = None,
     labels: Mapping[Path, str] | None = None,
     groups: Mapping[Path, str] | None = None,
-    label_style: str = "formula",
+    label_style: Literal["transition", "formula"] = "formula",
     fragment_depths: Sequence[float] | np.ndarray | None = None,
     title: str | None = None,
     ax: "Axes | None" = None,
@@ -311,6 +311,9 @@ def plot_path_overlay(
 
     Returns:
         The figure with the overlaid layers.
+
+    Raises:
+        ImportError: If ``matplotlib`` is not installed.
     """
     from matplotlib.figure import Figure
 
@@ -379,7 +382,7 @@ def plot_path_grid_overlay(
     group_title: Callable[[Hashable], str] | None = None,
     series_key: Callable[[Path, Hashable], Hashable] | None = None,
     colors: Mapping[Hashable, str] | None = None,
-    label_style: str = "formula",
+    label_style: Literal["transition", "formula"] = "formula",
     fragment_depths: Sequence[float] | np.ndarray | None = None,
     title: str | None = None,
 ) -> InteractiveFigure:
@@ -387,9 +390,9 @@ def plot_path_grid_overlay(
 
     Subplot membership (``groups``) and series identity (``series_key``) are independent: color and
     the shared legend entry are keyed by ``series_key``'s value, so paths that resolve to the same
-    key share a color and one legend entry across the whole grid — and one click on that entry hides
-    them in every cell at once — while ``label`` controls only displayed text. The same ``layers``
-    are drawn in every cell, restricted to that cell's paths.
+    key share a color and one legend entry across the whole grid -- and one click on that entry
+    hides them in every cell at once -- while ``label`` controls only displayed text. The same
+    ``layers`` are drawn in every cell, restricted to that cell's paths.
 
     Args:
         groups: A mapping from a group key (subplot title) to the paths drawn in that subplot.
@@ -410,6 +413,9 @@ def plot_path_grid_overlay(
 
     Returns:
         The subplot-grid figure.
+
+    Raises:
+        ImportError: If ``matplotlib`` is not installed.
     """
     from matplotlib.figure import Figure
 
@@ -521,8 +527,8 @@ def plot_qubit_pair_decays(
     gate_set: GateSet | None = None,
     num_cols: int = 3,
     colors: Mapping[Hashable, str] | None = None,
-    label_style: str = "formula",
-    noise_site: Mapping[str, str] | None = None,
+    label_style: Literal["transition", "formula"] = "formula",
+    noise_site: Mapping[str, Literal["before", "after"]] | None = None,
     placeholders: tuple[str, str] = ("i", "j"),
     paths: Iterable[Path] | None = None,
     fragment_depths: Sequence[float] | np.ndarray | None = None,
@@ -541,7 +547,7 @@ def plot_qubit_pair_decays(
         pairs: The qubit pairs to plot, one subplot each. A pair is unordered -- ``(1, 0)`` names
             the same subplot as ``(0, 1)`` -- so no pair may be repeated.
         observable_data: Optional raw observable data for scatter points.
-        observable_type: Which observable layer(s) to draw from ``observable_data`` — ``"raw"``,
+        observable_type: Which observable layer(s) to draw from ``observable_data`` -- ``"raw"``,
             ``"means"``, or ``"both"`` (see :func:`standard_decay_layers`).
         observable_marker_kwargs: Optional marker properties for the raw observable points.
         means_marker_kwargs: Optional marker properties for the observable-means points.
@@ -560,7 +566,7 @@ def plot_qubit_pair_decays(
         placeholders: The two display symbols for the pair's (min, max) qubit indices.
         paths: The set of paths to draw across all layers. Defaults to the decay paths found in
             ``observable_data``/``averaged_data``. Supply this to plot decays that cannot be derived
-            from empirical data — most notably model curves with no observable or averaged data
+            from empirical data -- most notably model curves with no observable or averaged data
             present. When given, it scopes every layer (each layer still only draws a path for which
             its own data source has an entry); non-decay paths are dropped.
         fragment_depths: The fragment-depth range for the curves. Defaults to ``0`` through the
@@ -574,6 +580,7 @@ def plot_qubit_pair_decays(
     Raises:
         ValueError: If no gate set is available (neither ``gate_set`` nor a model with one), or if
             ``pairs`` names the same pair twice.
+        ImportError: If ``matplotlib`` is not installed.
     """
     resolved_gate_set = _resolve_gate_set(gate_set, model)
     if resolved_gate_set is None:

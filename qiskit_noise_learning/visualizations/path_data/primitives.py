@@ -31,7 +31,8 @@ if TYPE_CHECKING:
     from matplotlib.artist import Artist
     from matplotlib.axes import Axes
 
-#: default styles
+#: Marker and line properties every series starts from, before per-path color and caller
+#: overrides are merged over them.
 _SCATTER_DEFAULTS = {"marker": "o", "linestyle": "none", "markersize": 4, "capsize": 2}
 _CURVE_DEFAULTS = {"linestyle": "-", "linewidth": 1.5}
 
@@ -150,6 +151,9 @@ def plot_path_scatters(
 
     Returns:
         The hover data for the drawn series, keyed by the ``gid`` of the artist it belongs to.
+
+    Raises:
+        ImportError: If ``matplotlib`` is not installed.
     """
     extra = dict(marker_kwargs or {})
     traces: dict[str, dict[str, Any]] = {}
@@ -204,6 +208,9 @@ def plot_path_decay_curves(
         The hover data for the drawn curves, keyed by the ``gid`` of the artist it belongs to. A
         curve is drawn at every value in ``fragment_depths`` but reads out at only a few points
         along it, each reporting the fit the curve came from rather than the curve's height there.
+
+    Raises:
+        ImportError: If ``matplotlib`` is not installed.
     """
     extra = dict(line_kwargs or {})
     fragment_depths_arr = np.asarray(fragment_depths, dtype=float)

@@ -210,7 +210,7 @@ class Fit:
         exponential_fit_line_kwargs: Mapping[str, object] | None = None,
         model_line_kwargs: Mapping[str, object] | None = None,
         num_cols: int = 3,
-        noise_site: Mapping[str, str] | None = None,
+        noise_site: Mapping[str, Literal["before", "after"]] | None = None,
         paths: Sequence[Path] | None = None,
         fragment_depths: Sequence[float] | None = None,
         title: str | None = None,

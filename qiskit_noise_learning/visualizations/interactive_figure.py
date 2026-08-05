@@ -31,9 +31,9 @@ import io
 import json
 import re
 import uuid
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Hashable, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from ..optionals import HAS_MATPLOTLIB
 
@@ -41,6 +41,8 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
     from matplotlib.legend import Legend
+
+Key = TypeVar("Key", bound=Hashable)
 
 #: Separator between the fields of a ``gid``.  Chosen because it cannot occur in the fields
 #: themselves: every field is either a fixed word or a token from a :class:`TokenMap`.
@@ -65,7 +67,7 @@ _SVG_LENGTH_PATTERN = re.compile(r'\s(width|height)="([0-9.]+)(pt|px|in)?"')
 _TRACE_GID_FIXED_FIELDS = 3
 
 
-class TokenMap:
+class TokenMap(Generic[Key]):
     """Short, XML-safe names for the keys that ``gid``\\ s are built from.
 
     A ``gid`` becomes an SVG ``id`` verbatim, so it must be unique in the document and cannot
@@ -81,13 +83,13 @@ class TokenMap:
 
     def __init__(self, prefix: str):
         self._prefix = prefix
-        self._tokens: dict[Any, str] = {}
+        self._tokens: dict[Key, str] = {}
 
-    def token(self, key: Any) -> str:
+    def token(self, key: Key) -> str:
         """Return the token for ``key``, allocating one if this is the first time it is seen.
 
         Args:
-            key: Any hashable key.  Keys are compared by equality, so two equal keys share a token.
+            key: The key to name.  Keys are compared by equality, so two equal keys share a token.
 
         Returns:
             The token for ``key``.
@@ -96,16 +98,16 @@ class TokenMap:
             self._tokens[key] = f"{self._prefix}{len(self._tokens)}"
         return self._tokens[key]
 
-    def __contains__(self, key: Any) -> bool:
+    def __contains__(self, key: object) -> bool:
         return key in self._tokens
 
     def __len__(self) -> int:
         return len(self._tokens)
 
-    def __iter__(self) -> Iterator[Any]:
+    def __iter__(self) -> Iterator[Key]:
         return iter(self._tokens)
 
-    def items(self) -> Iterator[tuple[Any, str]]:
+    def items(self) -> Iterator[tuple[Key, str]]:
         """Iterate over ``(key, token)`` pairs in allocation order."""
         return iter(self._tokens.items())
 
@@ -226,9 +228,10 @@ class InteractiveFigure:
     Raises:
         ValueError: If ``hidden`` names a dimension the figure does not have, or if a ``gid`` in
             ``traces`` does not name exactly one token per dimension.
+        ImportError: If ``matplotlib`` is not installed.
     """
 
-    @HAS_MATPLOTLIB.require_in_call
+    @HAS_MATPLOTLIB.require_in_call("InteractiveFigure")
     def __init__(
         self,
         figure: "Figure",
@@ -438,7 +441,7 @@ def _sized_for_a_page(svg: str) -> tuple[str, tuple[float, float] | None]:
 
     root = match.group(0)
     sizes = {
-        name: float(length) * 96.0 / _CSS_UNITS_PER_INCH[unit or "px"]
+        name: float(length) * _CSS_UNITS_PER_INCH["px"] / _CSS_UNITS_PER_INCH[unit or "px"]
         for name, length, unit in _SVG_LENGTH_PATTERN.findall(root)
     }
     if "width" not in sizes or "height" not in sizes:

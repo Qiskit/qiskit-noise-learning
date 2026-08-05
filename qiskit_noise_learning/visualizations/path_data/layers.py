@@ -41,7 +41,8 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
 
-# Default per-layer marker symbols / line styles
+#: The marker symbol or line style each standard layer draws with, so that a reader can tell
+#: the layers apart in a static export, where the legends cannot be clicked.
 _OBSERVABLE_POINTS_MARKER = "o"
 _AVERAGED_POINTS_MARKER = "x"
 _FIT_LINESTYLE = "--"
@@ -191,9 +192,7 @@ def observable_means_layer(
     def render(ctx: RenderContext) -> dict[str, dict[str, Any]]:
         from ...analysis.average_observables import average_observables
 
-        averaged = average_observables(
-            observable_data, set(ctx.paths) if ctx.paths is not None else None
-        )
+        averaged = average_observables(observable_data, set(ctx.paths))
         return plot_path_scatters(
             averaged_data_points(averaged, ctx.paths),
             ctx.ax,
@@ -255,8 +254,8 @@ def model_curves_layer(
 ) -> Layer:
     """A layer drawing model-predicted decay curves (default solid line).
 
-    Carries no paths of its own — it renders whatever paths the orchestrator resolves from the other
-    layers (or the caller supplies explicitly).
+    Carries no paths of its own -- it renders whatever paths the orchestrator resolves from the
+    other layers (or the caller supplies explicitly).
 
     Args:
         model: The fidelity model to predict decays with.
@@ -308,8 +307,8 @@ def standard_decay_layers(
 
     Args:
         observable_data: Optional raw observable data.
-        observable_type: Which observable layer(s) to draw from ``observable_data`` — ``"raw"`` (raw
-            per-randomization scatter), ``"means"`` (per-fragment-depth means with error bars,
+        observable_type: Which observable layer(s) to draw from ``observable_data`` -- ``"raw"``
+            (raw per-randomization scatter), ``"means"`` (per-fragment-depth means with error bars,
             averaged via :class:`~.AverageObservables`), or ``"both"``. The raw and means layers are
             styled independently (defaulting to an ``o`` and an ``x`` marker respectively).
         observable_marker_kwargs: Optional marker overrides for the raw observable scatter.

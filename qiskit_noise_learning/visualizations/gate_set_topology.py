@@ -27,45 +27,52 @@ if TYPE_CHECKING:
     from ..gate_sets.gate import Gate
     from ..gate_sets.gate_set import GateSet
 
-_NODE_RADIUS = 0.20  # data-unit radius of qubit node circles
-_ARC_RADIUS = 0.24  # data-unit radius of gate arcs (must be > _NODE_RADIUS)
-_ARC_NPTS = 50  # number of points per arc segment
-_ARC_GAP = 0.08  # fraction of sector span to leave as a visual gap on each side
-_EDGE_OFFSET = 0.14  # data-unit perpendicular offset between parallel edges
+_NODE_RADIUS = 0.20  #: Data-unit radius of a qubit's node circle.
+_ARC_RADIUS = 0.24  #: Data-unit radius of a gate arc, which has to clear the node it surrounds.
+_ARC_NPTS = 50  #: Number of points drawn along one arc.
+_ARC_GAP = 0.08  #: Fraction of a sector's span left blank at each end, to separate neighbours.
+_EDGE_OFFSET = 0.14  #: Data-unit perpendicular offset between edges sharing one coupling.
 
-_COLOR_BG_EDGE = "0.71"  # unoccupied topology edges
-_COLOR_NODE_ACTIVE = "0.24"  # nodes within qubit_subset
-_COLOR_NODE_INACTIVE = "0.71"  # nodes outside qubit_subset
-_COLOR_LABEL = "#d2d2dc"  # qubit index labels inside nodes
-_COLOR_FIGURE_BG = "white"  # figure and plot background
-_COLOR_ACTIVITY_PROXY = "0.35"  # activity legend handles, which stand for no gate in particular
+_COLOR_BG_EDGE = "0.71"  #: Topology edges no gate occupies.
+_COLOR_NODE_ACTIVE = "0.24"  #: Nodes within the gate set's qubit subset.
+_COLOR_NODE_INACTIVE = "0.71"  #: Nodes outside the gate set's qubit subset.
+_COLOR_LABEL = "#d2d2dc"  #: Qubit index labels inside nodes.
+_COLOR_FIGURE_BG = "white"  #: Figure and plot background.
+_COLOR_ACTIVITY_PROXY = "0.35"  #: Activity legend handles, which stand for no gate in particular.
 
+#: Stroke weights, in points.  Ordered so that a gate's marks read above the topology beneath them.
 _BG_LINEWIDTH = 2
 _EDGE_LINEWIDTH = 4
 _ARC_LINEWIDTH = 5
-_IDLING_ALPHA = 0.35  # idling arcs, and the legend handle standing for them
-_LABEL_FONT_SIZE = 8
 
-# The dimensions this figure resolves visibility along, one legend each: which gate a mark belongs
-# to, and what kind of activity it shows. The order is the order the tokens appear in a trace's
-# ``gid``. They are named for what this figure is about rather than reusing the decay plots' "path"
-# and "layer", since the figure declares its own dimensions and nothing outside it has to recognize
-# the names.
+_IDLING_ALPHA = 0.35  #: Transparency of idling arcs, and of the legend handle standing for them.
+_LABEL_FONT_SIZE = 8  #: Point size of the qubit index drawn inside a node.
+
+#: The dimensions this figure resolves visibility along, one legend each: which gate a mark belongs
+#: to, and what kind of activity it shows.  The order is the order the tokens appear in a trace's
+#: ``gid``.  They are named for what this figure is about rather than reusing the decay plots'
+#: "path" and "layer", since the figure declares its own dimensions and nothing outside it has to
+#: recognize the names.
 _DIMENSIONS = ("gate", "activity")
 _GATE_DIMENSION, _ACTIVITY_DIMENSION = _DIMENSIONS
 
-# Names of the three kinds of mark, which are both the activity keys and the labels of the legend
-# that switches them.
+#: Names of the three kinds of mark, which are both the activity keys and the labels of the legend
+#: that switches them.
 _INTERACTION_ACTIVITY = "Interactions"
 _ACTIVE_ACTIVITY = "Single-qubit"
 _IDLING_ACTIVITY = "Idling"
 
-# Layout. The canvas is sized from the extent of the device so that the aspect ratio matplotlib is
-# asked to hold is the one it is given room for; the legends sit outside it and are added to the
-# crop by ``bbox_inches="tight"``.
+#: Layout.  The canvas is sized from the extent of the device so that the aspect ratio matplotlib is
+#: asked to hold is the one it is given room for; the legends sit outside it and are added to the
+#: crop by ``bbox_inches="tight"``.  The padding is enough data units of margin that no arc touches
+#: the edge.
 _INCHES_PER_UNIT = 0.45
 _MIN_FIG_INCHES = 3.0
-_PADDING = _ARC_RADIUS + 0.3  # data units of margin, enough that no arc touches the edge
+_PADDING = _ARC_RADIUS + 0.3
+
+#: How many colors matplotlib's ``CN`` shorthand offers: a style's property cycle is indexed by the
+#: digit, and the default cycle -- like every style shipped with matplotlib -- holds ten.
+_NUM_CYCLE_COLORS = 10
 
 #: One drawn mark: the polyline to draw, the single point its hover readout hangs off, and the text
 #: of that readout.  The readout attaches to one point rather than every vertex because a mark is
@@ -123,13 +130,12 @@ def _joined(pieces: Sequence[tuple[np.ndarray, np.ndarray]]) -> tuple[list[float
 def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
     """Draw the device topology with per-gate coloring.
 
-    Gates with 2-qubit interactions are drawn as colored edges on the device
-    coupling graph. Gates that act only on individual qubits (such as preparation
-    and measurement) are shown as colored arcs around the relevant nodes, with one
-    arc sector per gate per qubit. The arc sectors are arranged so that the first
-    gate in the set occupies the right-hand side of the circle (angle 0), and
-    subsequent gates proceed counter-clockwise. Qubits that are idling in a given
-    gate receive a slightly transparent arc.
+    Gates with 2-qubit interactions are drawn as colored edges on the device coupling graph. Gates
+    that act only on individual qubits (such as preparation and measurement) are shown as colored
+    arcs around the relevant nodes, with one arc sector per gate per qubit. The arc sectors are
+    arranged so that the first gate in the set occupies the right-hand side of the circle (angle 0),
+    and subsequent gates proceed counter-clockwise. Qubits that are idling in a given gate receive a
+    slightly transparent arc.
 
     Two legends switch what is shown: one per gate, and one per kind of mark. Gates that only
     prepare or only measure open switched off, since they touch every qubit at once and would
@@ -180,13 +186,13 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
     gate_names = list(gate_set)
     # ``CN`` names the Nth color of the active style's property cycle, wrapping, so the palette
     # follows whatever style the figure is drawn under instead of being fixed here.
-    gate_colors = {name: f"C{idx % 10}" for idx, name in enumerate(gate_names)}
+    gate_colors = {name: f"C{idx % _NUM_CYCLE_COLORS}" for idx, name in enumerate(gate_names)}
 
     gate_labels = {name: gate.label for name, gate in gate_set.items()}
 
-    # for each gate: edge_type_pairs holds 2-qubit pairs (drawn as colored edges);
-    # arc_type_active holds single-qubit non-idling qubits not in a multi-qubit op
-    # (drawn as colored arcs). a mixed gate participates in both.
+    # For each gate, ``edge_type_pairs`` holds the 2-qubit pairs, drawn as colored edges, and
+    # ``arc_type_active`` holds the single-qubit non-idling qubits that are in no multi-qubit
+    # operation, drawn as colored arcs. A mixed gate participates in both.
     edge_type_pairs: dict[str, list[tuple[int, int]]] = {}
     arc_type_active: dict[str, frozenset[int]] = {}
     hidden_by_default: set[str] = set()
@@ -223,7 +229,7 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
                 if gate_name not in edge_to_gates[pair]:
                     edge_to_gates[pair].append(gate_name)
 
-    # used by _arc_marks to assign consistent sector positions across active and idling arcs
+    # Used by the arc builder to assign consistent sector positions across active and idling arcs.
     qubit_to_all_gates: dict[int, list[str]] = {qubit: [] for qubit in range(gate_set.num_qubits)}
     for gate_name in gate_names:
         gate = gate_set[gate_name]
@@ -260,7 +266,7 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
     gate_tokens, activity_tokens = TokenMap("g"), TokenMap("a")
     traces: dict[str, dict[str, Any]] = {}
 
-    def draw(marks: Sequence[_Mark], gate_name: str, activity: str, **line_kwargs: Any) -> None:
+    def _draw(marks: Sequence[_Mark], gate_name: str, activity: str, **line_kwargs: Any) -> None:
         """Draw one gate's marks of one kind, as a single artist the browser can switch."""
         if not marks:
             return
@@ -276,7 +282,7 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
             "texts": [text for _, _, _, text in marks],
         }
 
-    # device topology edges, under everything else and part of no gate
+    # Device topology edges, under everything else and part of no gate.
     if topo_edges:
         background = [
             (np.array([xs[q1], xs[q2]]), np.array([ys[q1], ys[q2]]))
@@ -284,7 +290,7 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
         ]
         ax.plot(*_joined(background), color=_COLOR_BG_EDGE, linewidth=_BG_LINEWIDTH, zorder=1)
 
-    # colored edges for 2-qubit gates, offset when multiple gates share an edge
+    # Colored edges for 2-qubit gates, offset when several gates share an edge.
     for gate_name in gate_names:
         edge_marks: list[_Mark] = []
         for q1, q2 in edge_type_pairs.get(gate_name, []):
@@ -307,9 +313,9 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
                     f"{gate_name}\n{op}: {q1}-{q2}",
                 )
             )
-        draw(edge_marks, gate_name, _INTERACTION_ACTIVITY, linewidth=_EDGE_LINEWIDTH, zorder=2)
+        _draw(edge_marks, gate_name, _INTERACTION_ACTIVITY, linewidth=_EDGE_LINEWIDTH, zorder=2)
 
-    # colored arcs around nodes for single-qubit gate activity
+    # Colored arcs around nodes for single-qubit gate activity.
     for gate_name in gate_names:
         if gate_name not in arc_type_active:
             continue
@@ -324,7 +330,7 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
                 op = gate_op_names[gn].get(frozenset({qubit}), gn)
             return f"{gn}\n{op}: {qubit}"
 
-        draw(
+        _draw(
             _arc_marks(
                 arc_type_active[gate_name], xs, ys, qubit_to_all_gates, gate_name, _active_label
             ),
@@ -334,12 +340,12 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
             zorder=2,
         )
 
-    # faint arcs for idling qubits
+    # Faint arcs for idling qubits.
     for gate_name in gate_names:
         idling = frozenset(gate_set[gate_name].idling_idxs)
         if not idling:
             continue
-        draw(
+        _draw(
             _arc_marks(
                 idling,
                 xs,
@@ -355,8 +361,8 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
             zorder=2,
         )
 
-    # node circles, in data coordinates so that they keep their place among the arcs, with the qubit
-    # index over the top
+    # Node circles, in data coordinates so that they keep their place among the arcs, with the qubit
+    # index over the top.
     active_qubits = gate_set.qubit_subset
     for qubit in range(gate_set.num_qubits):
         fill = _COLOR_NODE_ACTIVE if qubit in active_qubits else _COLOR_NODE_INACTIVE

@@ -10,9 +10,6 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-import json
-import re
-
 import pytest
 from qiskit.circuit import Measure, QuantumCircuit, Reset
 from qiskit.circuit.library import CXGate
@@ -79,35 +76,6 @@ def _gate_set_with_one_layer(target: Target) -> QiskitGateSet:
 
 #: What this figure legends itself by, in the order a trace's id carries their tokens.
 _GATE_DIMENSION, _ACTIVITY_DIMENSION = "gate", "activity"
-
-
-def _svg_ids(figure, prefix):
-    """The ``id`` attributes of the rendered SVG that start with ``prefix``, in document order."""
-    return [
-        found for found in re.findall(r'id="([^"]+)"', figure.to_svg()) if found.startswith(prefix)
-    ]
-
-
-def _sidecar(figure):
-    """The figure's JSON sidecar, as the browser receives it."""
-    payload = re.search(
-        r'class="qnl-figure-data">(.*?)</script>', figure.to_html(), re.DOTALL
-    ).group(1)
-    return json.loads(payload)
-
-
-def _key_tokens(figure, dimension):
-    """The tokens the given legend offers, taken from the rendered SVG."""
-    return {
-        found.split("|")[2]
-        for found in _svg_ids(figure, "key|")
-        if found.split("|")[1] == dimension
-    }
-
-
-def _trace_tokens(figure):
-    """The ``(gate_token, activity_token)`` pairs the rendered artists carry."""
-    return {tuple(found.split("|")[2:-1]) for found in _svg_ids(figure, "trace|")}
 
 
 @pytest.fixture()
@@ -179,9 +147,9 @@ def test_unconventional_size_without_connectivity_raises():
         gate_set.draw()
 
 
-def test_draws_marks_for_every_gate(topology, gate_set_5q):
+def test_draws_marks_for_every_gate(topology, gate_set_5q, key_tokens):
     # One legend entry per gate that drew something, and nothing left unlabelled.
-    assert len(_key_tokens(topology, _GATE_DIMENSION)) == len(gate_set_5q)
+    assert len(key_tokens(topology, _GATE_DIMENSION)) == len(gate_set_5q)
 
 
 def test_aspect_is_held(topology):
@@ -189,58 +157,58 @@ def test_aspect_is_held(topology):
     assert topology.figure.axes[0].get_aspect() == 1.0
 
 
-def test_axes_patch_survives_hiding_the_frame(topology):
+def test_axes_patch_survives_hiding_the_frame(topology, sidecar, svg_ids):
     # Ticks and spines are hidden one by one rather than with ``set_axis_off`` precisely so that the
     # patch stays: the browser measures it to place the hover readout.
-    (cell,) = _sidecar(topology)["cells"]
-    assert axes_gid(cell) in _svg_ids(topology, "axes|")
+    (cell,) = sidecar(topology)["cells"]
+    assert axes_gid(cell) in svg_ids(topology, "axes|")
 
 
-def test_traces_and_legends_agree(topology):
+def test_traces_and_legends_agree(topology, svg_ids, key_tokens, trace_tokens):
     """This figure builds its own ids, so it earns the same contract check as the grid: distinct
     ids, and legend keys that are exactly the keys something is drawn under."""
-    ids = _svg_ids(topology, "trace|")
+    ids = svg_ids(topology, "trace|")
     assert len(ids) > 1
     assert len(set(ids)) == len(ids)
 
-    drawn = _trace_tokens(topology)
-    assert _key_tokens(topology, _GATE_DIMENSION) == {tokens[0] for tokens in drawn}
-    assert _key_tokens(topology, _ACTIVITY_DIMENSION) == {tokens[1] for tokens in drawn}
+    drawn = trace_tokens(topology)
+    assert key_tokens(topology, _GATE_DIMENSION) == {tokens[0] for tokens in drawn}
+    assert key_tokens(topology, _ACTIVITY_DIMENSION) == {tokens[1] for tokens in drawn}
 
 
-def test_hover_text_names_the_gate_and_the_qubits(topology, gate_set_5q):
-    texts = [text for trace in _sidecar(topology)["traces"].values() for text in trace["texts"]]
+def test_hover_text_names_the_gate_and_the_qubits(topology, gate_set_5q, sidecar):
+    texts = [text for trace in sidecar(topology)["traces"].values() for text in trace["texts"]]
     assert any("cx: 0-1" in text for text in texts)
     assert any("measure: 0" in text for text in texts)
     assert any("idle: 3" in text for text in texts)
     assert all(text.startswith(tuple(gate_set_5q)) for text in texts)
 
 
-def test_hover_points_are_finite(topology):
+def test_hover_points_are_finite(topology, sidecar):
     # The polylines are joined with ``nan`` to lift the pen between marks, and ``nan`` is not JSON;
     # a leaked one would make the whole sidecar unparseable and cost the readout entirely.
-    for trace in _sidecar(topology)["traces"].values():
+    for trace in sidecar(topology)["traces"].values():
         for point in trace["points"]:
             assert all(value == value for value in point), "NaN reached the sidecar"
 
 
-def test_spam_gates_open_hidden(topology, gate_set_5q):
+def test_spam_gates_open_hidden(topology, gate_set_5q, sidecar, key_tokens, trace_tokens):
     # Preparation and measurement touch every qubit at once and would bury the rest of the figure,
     # so they start switched off -- but drawn, and with a legend entry, which is the whole
     # difference from leaving them out.
-    hidden = set(_sidecar(topology)["hidden"][_GATE_DIMENSION])
+    hidden = set(sidecar(topology)["hidden"][_GATE_DIMENSION])
     spam = {name for name, gate in gate_set_5q.items() if gate.prep_idxs or gate.meas_idxs}
     assert len(hidden) == len(spam)
-    assert hidden <= _key_tokens(topology, _GATE_DIMENSION)
-    assert hidden <= {token for token, _ in _trace_tokens(topology)}
+    assert hidden <= key_tokens(topology, _GATE_DIMENSION)
+    assert hidden <= {token for token, _ in trace_tokens(topology)}
 
 
-def test_ordinary_gates_open_visible(topology, gate_set_5q):
-    hidden = set(_sidecar(topology)["hidden"][_GATE_DIMENSION])
+def test_ordinary_gates_open_visible(topology, gate_set_5q, sidecar, key_tokens):
+    hidden = set(sidecar(topology)["hidden"][_GATE_DIMENSION])
     ordinary = {
         name for name, gate in gate_set_5q.items() if not (gate.prep_idxs or gate.meas_idxs)
     }
     assert ordinary
     # Every gate that is neither a preparation nor a measurement still has a legend entry, and each
     # of those entries switches something that is on to begin with.
-    assert len(_key_tokens(topology, _GATE_DIMENSION) - hidden) == len(ordinary)
+    assert len(key_tokens(topology, _GATE_DIMENSION) - hidden) == len(ordinary)

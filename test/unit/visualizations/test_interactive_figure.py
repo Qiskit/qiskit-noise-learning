@@ -22,15 +22,13 @@ renders as a picture, which is exactly why the failure needs a test rather than 
 import json
 import re
 import xml.etree.ElementTree as ET
+from importlib import resources
 
-import matplotlib
 import pytest
+from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
 
-matplotlib.use("Agg")
-
-import matplotlib.pyplot as plt  # noqa: E402 - must follow the backend selection above
-
-from qiskit_noise_learning.visualizations.interactive_figure import (  # noqa: E402
+from qiskit_noise_learning.visualizations.interactive_figure import (
     InteractiveFigure,
     TokenMap,
     axes_gid,
@@ -43,31 +41,11 @@ from qiskit_noise_learning.visualizations.interactive_figure import (  # noqa: E
 #: the property being exercised: dimensions belong to a figure, so a test figure names its own.
 _DIMENSIONS = ("path", "layer")
 
-
-def _svg_ids(svg):
-    """Every ``id`` attribute in an SVG document, as a list so duplicates are visible."""
-    return [
-        element.get("id") for element in ET.fromstring(svg).iter() if element.get("id") is not None
-    ]
-
-
-def _legend_tokens(figure):
-    """The tokens each legend of the rendered figure offers, keyed by dimension."""
-    offered = {}
-    for value in _svg_ids(figure.to_svg()):
-        parts = value.split("|")
-        if parts[0] == "key":
-            offered.setdefault(parts[1], set()).add(parts[2])
-    return offered
-
-
-def _trace_tokens(figure):
-    """The token tuple each rendered data artist carries, one token per dimension, in id order."""
-    return {
-        tuple(value.split("|")[2:-1])
-        for value in _svg_ids(figure.to_svg())
-        if value.startswith("trace|")
-    }
+#: The vendored script as it is shipped, reached the way an installed package is read rather than
+#: through a path the module keeps to itself.
+_SCRIPT = resources.files("qiskit_noise_learning.visualizations").joinpath(
+    "_static/qnl_interactive.js"
+)
 
 
 def _definitions(svg):
@@ -97,7 +75,8 @@ def figure():
     ``(path, layer)`` pair recurs in both cells, which is what makes ``id`` uniqueness a real
     question rather than a formality.
     """
-    fig, axes = plt.subplots(1, 2, figsize=(7, 3))
+    fig = Figure(figsize=(7, 3))
+    axes = fig.subplots(1, 2)
     paths, layers = TokenMap("p"), TokenMap("l")
     traces = {}
 
@@ -126,7 +105,7 @@ def figure():
     for dimension, tokens, loc in zip(_DIMENSIONS, (paths, layers), ("center left", "lower left")):
         keyed = list(tokens.items())
         legend = fig.legend(
-            [plt.Line2D([], [], label=f"{dimension}:{key}") for key, _ in keyed],
+            [Line2D([], [], label=f"{dimension}:{key}") for key, _ in keyed],
             [f"{dimension}:{key}" for key, _ in keyed],
             loc=loc,
         )
@@ -134,14 +113,13 @@ def figure():
             handle.set_gid(legend_gid(dimension, token, "handle"))
             text.set_gid(legend_gid(dimension, token, "text"))
 
-    yield InteractiveFigure(
+    return InteractiveFigure(
         fig,
         dimensions=_DIMENSIONS,
         cells={cell_token(i): ax for i, ax in enumerate(axes)},
         traces=traces,
         container_id="qnl-figure-test",
     )
-    plt.close(fig)
 
 
 class TestTokenMap:
@@ -162,13 +140,13 @@ class TestTokenMap:
 
 class TestGids:
     @pytest.mark.parametrize("position", range(len(_DIMENSIONS)))
-    def test_trace_gid_carries_every_dimension_in_order(self, position):
+    def test_trace_gid_carries_every_dimension_in_order(self, position, gid_separator):
         """A trace resolves against every legend, so every key must be recoverable -- and by
         position, since that is all the script has to tell which token answers to which legend."""
         tokens = ("p3", "l1")
         gid = trace_gid(cell_token(0), tokens, 2)
         entry = legend_gid(_DIMENSIONS[position], tokens[position], "handle")
-        assert gid.split("|")[2 + position] == entry.split("|")[2]
+        assert gid.split(gid_separator)[2 + position] == entry.split(gid_separator)[2]
 
     def test_trace_gids_differ_by_index(self):
         assert trace_gid("c0", ("p0", "l0"), 0) != trace_gid("c0", ("p0", "l0"), 1)
@@ -179,44 +157,45 @@ class TestGids:
 
 
 class TestSvgContract:
-    def test_ids_are_unique(self, figure):
+    def test_ids_are_unique(self, figure, svg_ids):
         """Duplicate ids are invalid markup, and make the script act on the wrong element."""
-        ids = _svg_ids(figure.to_svg())
+        ids = svg_ids(figure)
         duplicates = {value for value in ids if ids.count(value) > 1}
         assert not duplicates
 
-    def test_every_trace_resolves_to_every_legend(self, figure):
+    def test_every_trace_resolves_to_every_legend(self, figure, key_tokens, trace_tokens):
         """A trace whose key has no legend entry can never be switched back on once hidden."""
-        offered = _legend_tokens(figure)
-        drawn = _trace_tokens(figure)
+        drawn = trace_tokens(figure)
         assert drawn, "figure produced no tagged data artists"
         for position, dimension in enumerate(figure.dimensions):
-            assert {tokens[position] for tokens in drawn} <= offered[dimension]
+            assert {tokens[position] for tokens in drawn} <= key_tokens(figure, dimension)
 
-    def test_no_orphan_legend_entries(self, figure):
+    def test_no_orphan_legend_entries(
+        self, figure, svg_ids, key_tokens, trace_tokens, gid_separator
+    ):
         """A legend entry switching nothing is a control the reader can click to no effect."""
-        offered = _legend_tokens(figure)
-        drawn = _trace_tokens(figure)
+        drawn = trace_tokens(figure)
         # Nothing keyed under a dimension the figure does not have, either: the browser learns the
         # set from the figure, so a legend outside it would be inert rather than merely orphaned.
-        assert set(offered) == set(figure.dimensions)
+        keyed = {found.split(gid_separator)[1] for found in svg_ids(figure, "key|")}
+        assert keyed == set(figure.dimensions)
         for position, dimension in enumerate(figure.dimensions):
-            assert offered[dimension] <= {tokens[position] for tokens in drawn}
+            assert key_tokens(figure, dimension) <= {tokens[position] for tokens in drawn}
 
-    def test_both_handle_and_text_are_tagged(self, figure):
+    def test_both_handle_and_text_are_tagged(self, figure, svg_ids, key_tokens):
         """Clicking the label has to work, not just clicking the little line beside it."""
-        ids = set(_svg_ids(figure.to_svg()))
-        offered = _legend_tokens(figure)
+        ids = set(svg_ids(figure))
         for dimension in figure.dimensions:
-            assert offered[dimension]
-            for token in offered[dimension]:
+            offered = key_tokens(figure, dimension)
+            assert offered
+            for token in offered:
                 assert legend_gid(dimension, token, "handle") in ids
                 assert legend_gid(dimension, token, "text") in ids
 
-    def test_every_cell_patch_is_tagged(self, figure):
+    def test_every_cell_patch_is_tagged(self, figure, svg_ids, sidecar):
         """The hover readout locates a subplot by its patch; an untagged one gets no readout."""
-        ids = set(_svg_ids(figure.to_svg()))
-        for cell in figure._sidecar()["cells"]:  # noqa: SLF001 - the mapping has no public accessor
+        ids = set(svg_ids(figure))
+        for cell in sidecar(figure)["cells"]:
             assert axes_gid(cell) in ids
 
     def test_carries_no_font_references(self, figure):
@@ -259,57 +238,46 @@ class TestVendoredScript:
     """
 
     def test_is_installed_with_the_package(self):
-        from qiskit_noise_learning.visualizations import interactive_figure
-
-        assert interactive_figure._JAVASCRIPT_PATH.is_file()  # noqa: SLF001 - the asset path
+        """Reached as package data, which is the form an installed wheel has to carry it in."""
+        assert _SCRIPT.is_file()
 
     def test_takes_the_dimensions_from_the_figure(self):
         """The set is the figure's, and the script has to read it rather than carry its own copy --
         a hard-coded one would inert every figure that legends anything else."""
-        from qiskit_noise_learning.visualizations import interactive_figure
-
-        source = interactive_figure._JAVASCRIPT_PATH.read_text()  # noqa: SLF001 - reading the asset
-        assert "this.data.dimensions" in source
+        assert "this.data.dimensions" in _SCRIPT.read_text(encoding="utf-8")
 
     def test_reads_the_initially_hidden_keys(self):
         """The other field the two sides have to agree on by name, with the same failure mode."""
-        from qiskit_noise_learning.visualizations import interactive_figure
+        assert "this.data.hidden" in _SCRIPT.read_text(encoding="utf-8")
 
-        source = interactive_figure._JAVASCRIPT_PATH.read_text()  # noqa: SLF001 - reading the asset
-        assert "this.data.hidden" in source
-
-    def test_the_id_separator_agrees_across_the_language_boundary(self):
+    def test_the_id_separator_agrees_across_the_language_boundary(self, gid_separator):
         """Every id is written with it here and taken apart on it there; a disagreement inerts both
         legends at once."""
-        from qiskit_noise_learning.visualizations import interactive_figure
-
-        source = interactive_figure._JAVASCRIPT_PATH.read_text()  # noqa: SLF001 - reading the asset
-        declared = re.search(r'var SEP = "(.*?)";', source)
+        declared = re.search(r'var SEP = "(.*?)";', _SCRIPT.read_text(encoding="utf-8"))
         assert declared
-        assert declared.group(1) == interactive_figure._SEP  # noqa: SLF001 - the shared constant
+        assert declared.group(1) == gid_separator
 
 
 class TestSidecar:
-    def test_limits_track_the_axes(self, figure):
+    def test_limits_track_the_axes(self, figure, sidecar):
         """Read at render time, so a figure adjusted after construction still reads out right."""
-        list(figure._cells.values())[0].set_xlim(0.0, 42.0)  # noqa: SLF001 - no public accessor
-        assert figure._sidecar()["cells"]["c0"]["xlim"] == [0.0, 42.0]  # noqa: SLF001
+        figure.figure.axes[0].set_xlim(0.0, 42.0)
+        assert sidecar(figure)["cells"]["c0"]["xlim"] == [0.0, 42.0]
 
-    def test_records_axis_scales(self, figure):
-        ax = figure._cells["c0"]  # noqa: SLF001 - no public accessor
-        ax.set_yscale("log")
-        cell = figure._sidecar()["cells"]["c0"]  # noqa: SLF001
+    def test_records_axis_scales(self, figure, sidecar):
+        figure.figure.axes[0].set_yscale("log")
+        cell = sidecar(figure)["cells"]["c0"]
         assert cell["ylog"] is True
         assert cell["xlog"] is False
 
-    def test_carries_the_dimensions(self, figure):
+    def test_carries_the_dimensions(self, figure, sidecar):
         """How the browser learns what the legends switch, there being nowhere else it could."""
-        assert figure._sidecar()["dimensions"] == list(_DIMENSIONS)  # noqa: SLF001 - no accessor
+        assert sidecar(figure)["dimensions"] == list(_DIMENSIONS)
 
-    def test_carries_the_keys_the_figure_opens_switched_off(self, figure):
+    def test_carries_the_keys_the_figure_opens_switched_off(self, figure, sidecar):
         """A figure may open on part of itself; the tokens for the rest travel in the sidecar."""
         partial = InteractiveFigure(figure.figure, dimensions=_DIMENSIONS, hidden={"layer": ["l1"]})
-        assert partial._sidecar()["hidden"] == {"layer": ["l1"]}  # noqa: SLF001 - no accessor
+        assert sidecar(partial)["hidden"] == {"layer": ["l1"]}
 
     def test_rejects_hiding_along_a_dimension_the_figure_does_not_have(self, figure):
         """Silently ignoring the name would leave a figure that hides nothing and says nothing."""
@@ -327,12 +295,12 @@ class TestSidecar:
                 traces={trace_gid("c0", ("p0",)): {"label": "", "points": []}},
             )
 
-    def test_trace_data_is_keyed_by_gid(self, figure):
+    def test_trace_data_is_keyed_by_gid(self, figure, svg_ids, sidecar):
         """The script joins the SVG to the data by id, so the keys have to be the same ids."""
-        sidecar = figure._sidecar()  # noqa: SLF001 - no public accessor
-        ids = set(_svg_ids(figure.to_svg()))
-        assert sidecar["traces"]
-        for gid in sidecar["traces"]:
+        payload = sidecar(figure)
+        ids = set(svg_ids(figure))
+        assert payload["traces"]
+        for gid in payload["traces"]:
             assert gid in ids
 
 
@@ -355,9 +323,14 @@ class TestHtml:
 
     def test_sidecar_cannot_close_the_script_early(self, figure):
         """A ``<`` in a label would otherwise be able to truncate the document."""
-        gid = next(iter(figure._sidecar()["traces"]))  # noqa: SLF001 - no public accessor
-        figure._traces[gid] = {"label": "</script><img src=x>", "points": []}  # noqa: SLF001
-        html = figure.to_html()
+        gid = trace_gid("c0", ("p0", "l0"))
+        label = "</script><img src=x>"
+        hostile = InteractiveFigure(
+            figure.figure,
+            dimensions=_DIMENSIONS,
+            traces={gid: {"label": label, "points": []}},
+        )
+        html = hostile.to_html()
         assert "</script><img" not in html
         # Still valid JSON, and still says what it said.
         payload = re.search(
@@ -365,7 +338,7 @@ class TestHtml:
             html,
             re.DOTALL,
         )
-        assert json.loads(payload.group(1))["traces"][gid]["label"] == "</script><img src=x>"
+        assert json.loads(payload.group(1))["traces"][gid]["label"] == label
 
     def test_initializes_its_own_container(self, figure):
         html = figure.to_html()

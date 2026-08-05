@@ -14,6 +14,7 @@ import numpy as np
 import pytest
 from matplotlib.figure import Figure
 
+from qiskit_noise_learning.visualizations.interactive_figure import trace_gid
 from qiskit_noise_learning.visualizations.path_data.primitives import (
     PointSeries,
     _default_fragment_depths,
@@ -22,14 +23,15 @@ from qiskit_noise_learning.visualizations.path_data.primitives import (
 )
 
 
-@pytest.fixture
+@pytest.fixture()
 def ax():
     """A bare axes to draw into, with no pyplot state behind it."""
     return Figure().subplots()
 
 
 def _gid(path, index):
-    return f"trace|c0|{path}|l0|{index}"
+    """The ``gid`` a single-cell, single-layer caller would hand these primitives."""
+    return trace_gid("c0", (str(path), "l0"), index)
 
 
 # --------------------------------------------------------------------------------------------------
