@@ -157,8 +157,8 @@ access (SLF), and trailing-whitespace/EOF. The checklist below is deliberately t
   public-API imports only; `conftest.py` fixture hierarchy; `@pytest.mark.parametrize`;
   `np.isclose`/`allclose` with explicit `atol`; test docstrings describe the
   scenario/expected math.
-- **Rich repr:** `_repr_html_` via `utils/html_repr.HTMLTable`; `draw()` returning a
-  `visualizations.InteractiveFigure`; concise `__repr__`.
+- **Rich repr:** `_repr_html_` via `utils/html_repr.HTMLTable`; `draw()` returning the
+  figure wrapper the rest of `visualizations/` returns; concise `__repr__`.
 
 ## Closing every run
 
