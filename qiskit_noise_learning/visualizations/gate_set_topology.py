@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from ..optionals import HAS_MATPLOTLIB
+from ._qubit_coordinates import qubit_coordinates
 from .interactive_svg import InteractiveFigure, TokenMap, cell_token, tag_legend, trace_gid
 
 if TYPE_CHECKING:
@@ -134,8 +135,9 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
         The figure.
 
     Raises:
-        ValueError: If ``gate_set.target`` is ``None``.
-        ImportError: If ``matplotlib`` or ``qiskit-ibm-runtime`` is not installed.
+        ValueError: If ``gate_set.target`` is ``None``, or if no layout is known for a device with
+            this many qubits.
+        ImportError: If ``matplotlib`` is not installed.
     """
     from matplotlib.figure import Figure
     from matplotlib.lines import Line2D
@@ -147,14 +149,7 @@ def gate_set_topology(gate_set: "GateSet[Gate]") -> InteractiveFigure:
             "A Target is required to determine qubit coordinates and device connectivity."
         )
 
-    try:
-        from qiskit_ibm_runtime.visualization.embeddings import _get_qubits_coordinates
-    except ImportError as exc:
-        raise ImportError(
-            "qiskit-ibm-runtime is required for gate set topology visualization."
-        ) from exc
-
-    raw_coords = _get_qubits_coordinates(gate_set.num_qubits)
+    raw_coords = qubit_coordinates(gate_set.num_qubits)
     xs = [float(col) for _, col in raw_coords]
     ys = [float(-row) for row, _ in raw_coords]
 
