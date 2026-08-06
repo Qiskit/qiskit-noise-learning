@@ -57,9 +57,8 @@ Do this first, regardless of tier:
 1. **Resolve scope.** Compute the diff range (default `main...HEAD`). Run
    `git diff --stat <range>` and `git diff <range>` to get the change. If the diff
    is empty, say so and stop. **On Tier 3, run `--stat` only** — do **not** run the
-   full `git diff <range>` until after the agent returns (`--stat` plus commit messages
-   is all you need to frame intent; reading the diff first imports the bias the
-   delegation removes). See step 2.
+   full `git diff <range>` until after the agent returns; reading the diff first imports
+   the bias the delegation removes.
 2. **Frame intent.** In 2–4 sentences, state what the change is *trying to
    accomplish*, inferred from the diff, commit messages (`git log main..HEAD
    --oneline`), and any touched docstrings. Every tier judges the change against
