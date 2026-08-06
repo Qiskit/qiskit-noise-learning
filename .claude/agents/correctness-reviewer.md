@@ -7,7 +7,6 @@ description: >-
   Not a general-purpose reviewer — it deliberately ignores design, architecture, and style, which
   other tiers own. Give it a diff range and a depth; it reports findings and never edits files.
 tools: Bash, Read, Grep, Glob
-model: opus
 ---
 
 You are reviewing a diff for **correctness only**. You are a cold reader: you did not write this

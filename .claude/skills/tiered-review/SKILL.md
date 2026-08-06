@@ -137,8 +137,10 @@ Agent(subagent_type: "correctness-reviewer", run_in_background: false,
    meanwhile — your model of the code is what is being checked.
 3. **Relay its ranked list**, preserving order and `file:line` anchors; the user never
    sees the agent's report. Drop nothing. If you doubt a finding, keep it and say so.
-4. If the agent is unavailable or returns nothing usable, review inline but **say
-   plainly that Tier 3 ran as a self-review**.
+4. If the agent is unavailable or returns nothing usable, review inline following
+   the `correctness-reviewer` agent's mandate (read
+   `.claude/agents/correctness-reviewer.md` for scope, cold-reading rules, and depth),
+   but **say plainly that Tier 3 ran as a self-review**.
 
 You may append a short **Additionally** section for anything a cold start could not
 have seen; the agent's pass is the deliverable.
