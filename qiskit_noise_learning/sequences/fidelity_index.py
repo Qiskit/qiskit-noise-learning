@@ -239,12 +239,12 @@ class FidelityIndex:
 
     @property
     def in_z_idxs(self) -> frozenset[int]:
-        r"""The subset of measured qubits carrying a :math:`Z` on instrument input."""
+        r"""The measured qubits carrying a :math:`Z` on the instrument input."""
         return self._in_z_idxs
 
     @property
     def out_z_idxs(self) -> frozenset[int]:
-        r"""The subset of measured and reset qubits carrying a :math:`Z` on instrument output."""
+        r"""The measured and reset qubits carrying a :math:`Z` on the instrument output."""
         return self._out_z_idxs
 
     @property
@@ -273,7 +273,7 @@ class FidelityIndex:
 
     @property
     def observable_idxs(self) -> list[int]:
-        """Qubit indices of the associated Z observable in ascending order."""
+        r"""Qubit indices of the associated :math:`Z` observable in ascending order."""
         return sorted(
             self.out_z_idxs.intersection(self._meas_idxs).symmetric_difference(self.in_z_idxs)
         )

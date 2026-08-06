@@ -99,7 +99,7 @@ def test_is_valid_for_gate():
     ident = Clifford(QuantumCircuit(2))
     gate = ModelGate("L0", [((0, 1), ident)], qubit_idxs=range(2), meas_idxs=[0])
 
-    # valid: Pauli on the unmeasured qubit, input bit on the measured qubit
+    # valid: Pauli on the unmeasured qubit, Z on the measured qubit at the input
     assert FidelityIndex.is_valid_for_gate(
         gate=gate,
         pauli=QubitSparsePauli("XI"),
@@ -137,7 +137,7 @@ def test_observable_idxs_and_mask():
     assert fid_idx.observable_idxs == []
     assert np.array_equal(fid_idx.mask, np.array([False], np.bool_))
 
-    # qubit 0 Z measured, qubit 1 reset to Z (set bits of out_z_idxs don't matter)
+    # qubit 0 Z measured, qubit 1 reset to Z (out_z_idxs on reset-only qubits don't matter)
     gate = ModelGate(
         "L0", cliffords=[((1,), qc)], qubit_idxs=range(2), meas_idxs=[0], prep_idxs=[1]
     )

@@ -72,8 +72,7 @@ def fidelity_index_math_label(
 
         pauli_str = _qubit_sparse_pauli_math_label(fidelity_index.pauli, qubit_labels)
         parts = [pauli_str]
-        # the exponents are named x and y to match the formalism, and are displayed as the set of
-        # qubit indices on which they are non-zero
+        # the exponents are named x and y to match the formalism
         for exponent, z_idxs in (("x", fidelity_index.in_z_idxs), ("y", fidelity_index.out_z_idxs)):
             if z_idxs:
                 idx_str = ",".join(_qubit_label(i, qubit_labels) for i in sorted(z_idxs))

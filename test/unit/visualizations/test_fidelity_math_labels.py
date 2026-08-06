@@ -75,7 +75,8 @@ class TestFidelityIndexMathLabel:
 
         A measurement carrying :math:`Z` on qubit 0 at its input and :math:`Z` on both qubits at its
         output labels as ``f^{M}(I,\, x=\{0\},\, y=\{0,1\})``, with the exponents shown as the qubit
-        indices on which they are non-zero.
+        indices on which they are non-zero. This uses the conftest gate set, since the module
+        fixture is CZ-only and so has no measurement gate to carry non-empty exponents.
         """
         fidelity_index = FidelityIndex.from_gate(
             gate=gate_set_cz["M"],

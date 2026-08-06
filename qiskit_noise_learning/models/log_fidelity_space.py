@@ -37,7 +37,7 @@ class LogFidelitySpace(IndexedSpace[FidelityIndex]):
         return self._gate_set
 
     @property
-    def dim(self) -> int | float:
+    def dim(self) -> int:
         r"""The total number of fidelities of the gate set, excluding the trivial identity ones.
 
         Each gate contributes the count given by Equation :eq:`num_fidelities` of the
