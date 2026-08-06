@@ -16,10 +16,10 @@ re-diffs the current tree), and each tier **assumes the tiers above it are alrea
 and refuses to drift downward.
 
 ```
-Tier 1  design       — approach & intent            (chat only)
-Tier 2  architecture — structure & API              (chat only)
-Tier 3  correctness  — bugs        (delegates to the built-in code-review skill)
-Tier 4  polish       — conventions (delegates to the built-in code-review skill)
+Tier 1  design       — approach & intent   (chat only)
+Tier 2  architecture — structure & API     (chat only)
+Tier 3  correctness  — bugs                (delegated to a cold-context agent)
+Tier 4  polish       — conventions         (inline, may offer --fix)
 ```
 
 The user controls the transitions between tiers: they invoke a tier, resolve what
@@ -47,8 +47,8 @@ Two public API tiers:
   diff of the current branch against `main` — only what this branch changed). A
   bare branch name `X` means `main...X`. Accept an explicit range verbatim.
 - **effort** (optional): `low` | `medium` | `high` | `xhigh` | `max`. Default
-  `high`. Only meaningful for tiers 3–4 (passed through to `code-review`); for
-  tiers 1–2 it scales how deep you trace.
+  `high`. Scales how deep you trace. On Tier 3 it is passed to the reviewing agent
+  as its depth; on the other tiers it scales your own tracing.
 
 ## Step 0 — set up (every tier)
 
@@ -56,11 +56,17 @@ Do this first, regardless of tier:
 
 1. **Resolve scope.** Compute the diff range (default `main...HEAD`). Run
    `git diff --stat <range>` and `git diff <range>` to get the change. If the diff
-   is empty, say so and stop.
+   is empty, say so and stop. **On Tier 3, run `--stat` only** — do **not** run the
+   full `git diff <range>` until after the agent returns; reading the diff first imports
+   the bias the delegation removes.
 2. **Frame intent.** In 2–4 sentences, state what the change is *trying to
    accomplish*, inferred from the diff, commit messages (`git log main..HEAD
    --oneline`), and any touched docstrings. Every tier judges the change against
    this intent.
+
+   **On Tier 3**, keep this brief, derive it from `--stat` and commit messages rather
+   than a close read, and state it for the user only — never pass it to the agent. Read
+   the diff closely only afterwards, to relay and judge the agent's findings.
 3. **Load context.** Read the root `CLAUDE.md`, then work through the section for the
    requested tier under [Tier logic](#tier-logic) below.
 4. **Review cold.** Judge the diff on its own merits. Do not make assumptions based on other
@@ -114,19 +120,39 @@ for label/key objects, serialization convention, Qiskit-mirroring API shape,
 placement of responsibility, naming of public surfaces, backward-compat. Report to
 chat. Do not edit files.
 
-### Tier 3 — `correctness` (delegates to code-review)
-Bugs and logic errors, **assuming design and architecture are settled**. This
-includes **test coverage of the change itself**: new or changed behavior, branches,
-and edge cases must be exercised — an untested path is a latent correctness gap, not
-a style nit. (Whether the *existing* tests follow project conventions is Tier 4.)
-Delegate the heavy lifting to the built-in review skill.
+### Tier 3 — `correctness` (delegated to a cold-context agent)
+Bugs, logic errors, and test coverage of the change itself — **assuming design and
+architecture are settled**. The full mandate (scope in/out, cold-reading rules, depth
+ladder, output format) lives in the `correctness-reviewer` agent and is the single
+source of truth — do not restate or pre-empt it here. Your job is to delegate and relay:
 
-### Tier 4 — `polish` (delegates to code-review)
+```
+Agent(subagent_type: "correctness-reviewer", run_in_background: false,
+      prompt: "Diff range: <range>\nDepth: <effort>")
+```
+
+1. **Pass the range and depth, nothing else** — not the Step 0 intent summary, your
+   reading of the change, a focus-file list, or findings you suspect. Each one reimports
+   the bias the fresh context removes. The agent fetches the diff itself.
+2. **Wait for it** (`run_in_background: false`), and do not review the diff yourself
+   meanwhile — your model of the code is what is being checked.
+3. **Relay its ranked list**, preserving order and `file:line` anchors; the user never
+   sees the agent's report. Drop nothing. If you doubt a finding, keep it and say so.
+4. If the agent is unavailable or returns nothing usable, review inline following
+   the `correctness-reviewer` agent's mandate (read
+   `.claude/agents/correctness-reviewer.md` for scope, cold-reading rules, and depth),
+   but **say plainly that Tier 3 ran as a self-review**.
+
+You may append a short **Additionally** section for anything a cold start could not
+have seen; the agent's pass is the deliverable.
+
+### Tier 4 — `polish` (inline)
 Conventions, nits, docs, and micro-cleanups, **assuming everything above is settled**
-(CLAUDE.md rules made executable, plus de-facto conventions). Invoke the built-in
-**code-review** skill steered toward convention/simplification findings against the
-checklist below, and away from design/architecture/correctness (those are other
-tiers). Present ranked findings; offer `--fix`.
+(CLAUDE.md rules made executable, plus de-facto conventions). Work through the
+checklist below against the diff **inline, in this context** — do not delegate; walking
+a finite checklist is what makes a fresh context unnecessary here. Present ranked
+findings, then offer to apply them (`--fix`). No design, architecture, or bug findings —
+those are other tiers.
 
 Do **not** spend findings on anything `ruff` + pre-commit already enforce — they
 fail CI on their own: copyright headers (`verify_headers.py`), formatting and
