@@ -197,8 +197,8 @@ def test_rows(gate_set_cz, generators_cz):
     fidelity = FidelityIndex.from_gate(
         gate=gate_set_cz["CZ"],
         pauli=QubitSparsePauli("IX"),
-        in_bit_indices=frozenset(),
-        out_bit_indices=frozenset(),
+        in_z_idxs=frozenset(),
+        out_z_idxs=frozenset(),
     )
     # should be the generators that anticommute with ZX
     indices = [
@@ -215,8 +215,8 @@ def test_rows(gate_set_cz, generators_cz):
     fidelity = FidelityIndex.from_gate(
         gate=gate_set_cz["CZ"],
         pauli=QubitSparsePauli("IX"),
-        in_bit_indices=frozenset(),
-        out_bit_indices=frozenset(),
+        in_z_idxs=frozenset(),
+        out_z_idxs=frozenset(),
     )
     indices = [
         GeneratorIndex("CZ", pauli)
@@ -229,8 +229,8 @@ def test_rows(gate_set_cz, generators_cz):
     fidelity = FidelityIndex.from_gate(
         gate=gate_set_cz["M"],
         pauli=QubitSparsePauli("II"),
-        in_bit_indices=frozenset([1]),
-        out_bit_indices=frozenset(),
+        in_z_idxs=frozenset([1]),
+        out_z_idxs=frozenset(),
     )
     indices = [GeneratorIndex("M", pauli) for pauli in QubitSparsePauliList(["XI", "XX"])]
     expected = IndexedVector({k: 2.0 for k in indices})
@@ -249,8 +249,8 @@ def test_rows_unknown_gate_raises(gate_set_cz, generators_cz):
     fidelity = FidelityIndex.from_gate(
         gate=gate_set_cz["CZ"],
         pauli=QubitSparsePauli("IX"),
-        in_bit_indices=frozenset(),
-        out_bit_indices=frozenset(),
+        in_z_idxs=frozenset(),
+        out_z_idxs=frozenset(),
     )
     with pytest.raises(ValueError, match="Gate with name CZ not in gate set."):
         pauli_lindblad_model.rows([fidelity])

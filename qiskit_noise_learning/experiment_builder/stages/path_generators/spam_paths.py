@@ -63,8 +63,8 @@ class SPAMPaths(AddPaths):
                     FidelityIndex.from_gate(
                         gate=prep_gate,
                         pauli=QubitSparsePauli.identity(num_qubits),
-                        in_bit_indices=frozenset(),
-                        out_bit_indices=frozenset(indices),
+                        in_z_idxs=frozenset(),
+                        out_z_idxs=frozenset(indices),
                     )
                 ],
                 repeatable_fragment=[],
@@ -72,8 +72,8 @@ class SPAMPaths(AddPaths):
                     FidelityIndex.from_gate(
                         gate=meas_gate,
                         pauli=QubitSparsePauli.identity(num_qubits),
-                        in_bit_indices=frozenset(indices),
-                        out_bit_indices=frozenset(),
+                        in_z_idxs=frozenset(indices),
+                        out_z_idxs=frozenset(),
                     )
                 ],
                 fragment_depth=0,

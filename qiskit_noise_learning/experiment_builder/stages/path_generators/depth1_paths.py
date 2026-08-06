@@ -92,14 +92,14 @@ def _depth1_paths(
         yield Path(
             start_fragment=[
                 FidelityIndex.from_gate(
-                    prep_gate, pauli=ident, out_bit_indices=frozenset(pauli.indices)
+                    prep_gate, pauli=ident, out_z_idxs=frozenset(pauli.indices)
                 ),
                 FidelityIndex.from_gate(gate, pauli=out_pauli),
             ],
             repeatable_fragment=[],
             end_fragment=[
                 FidelityIndex.from_gate(
-                    meas_gate, pauli=ident, in_bit_indices=frozenset(out_pauli.indices)
+                    meas_gate, pauli=ident, in_z_idxs=frozenset(out_pauli.indices)
                 )
             ],
             fragment_depth=0,

@@ -33,15 +33,11 @@ def test_construction():
     meas = ModelGate("M", ident, qubit_idxs=range(2), meas_idxs=range(2))
 
     start_fragment = [
-        FidelityIndex.from_gate(
-            prep, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2))
-        )
+        FidelityIndex.from_gate(prep, pauli=QubitSparsePauli("II"), out_z_idxs=frozenset(range(2)))
     ]
     repeatable_fragment = [FidelityIndex.from_gate(gate, pauli=QubitSparsePauli("IX"))] * 2
     end_fragment = [
-        FidelityIndex.from_gate(
-            meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2))
-        )
+        FidelityIndex.from_gate(meas, pauli=QubitSparsePauli("II"), in_z_idxs=frozenset(range(2)))
     ]
 
     path = Path(
@@ -64,15 +60,11 @@ def test_construction_with_depth():
     meas = ModelGate("M", ident, qubit_idxs=range(2), meas_idxs=range(2))
 
     start_fragment = [
-        FidelityIndex.from_gate(
-            prep, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2))
-        )
+        FidelityIndex.from_gate(prep, pauli=QubitSparsePauli("II"), out_z_idxs=frozenset(range(2)))
     ]
     repeatable_fragment = [FidelityIndex.from_gate(gate, pauli=QubitSparsePauli("IX"))] * 2
     end_fragment = [
-        FidelityIndex.from_gate(
-            meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2))
-        )
+        FidelityIndex.from_gate(meas, pauli=QubitSparsePauli("II"), in_z_idxs=frozenset(range(2)))
     ]
 
     path = Path(
@@ -96,18 +88,14 @@ def test_iter():
     meas = ModelGate("M", ident, qubit_idxs=range(2), meas_idxs=range(2))
 
     start_fragment = [
-        FidelityIndex.from_gate(
-            prep, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2))
-        )
+        FidelityIndex.from_gate(prep, pauli=QubitSparsePauli("II"), out_z_idxs=frozenset(range(2)))
     ]
     repeatable_fragment = [
         FidelityIndex.from_gate(gate0, pauli=QubitSparsePauli("IX")),
         FidelityIndex.from_gate(gate1, pauli=QubitSparsePauli("IY")),
     ]
     end_fragment = [
-        FidelityIndex.from_gate(
-            meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2))
-        )
+        FidelityIndex.from_gate(meas, pauli=QubitSparsePauli("II"), in_z_idxs=frozenset(range(2)))
     ]
 
     path = Path(
@@ -139,10 +127,10 @@ def test_getitem():
 
     start_fragment = [
         FidelityIndex.from_gate(
-            prep0, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2))
+            prep0, pauli=QubitSparsePauli("II"), out_z_idxs=frozenset(range(2))
         ),
         FidelityIndex.from_gate(
-            prep1, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2))
+            prep1, pauli=QubitSparsePauli("II"), out_z_idxs=frozenset(range(2))
         ),
     ]
     repeatable_fragment = [
@@ -150,9 +138,7 @@ def test_getitem():
         FidelityIndex.from_gate(gate1, pauli=QubitSparsePauli("IY")),
     ]
     end_fragment = [
-        FidelityIndex.from_gate(
-            meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2))
-        )
+        FidelityIndex.from_gate(meas, pauli=QubitSparsePauli("II"), in_z_idxs=frozenset(range(2)))
     ]
 
     path = Path(
@@ -185,15 +171,11 @@ def test_getitem_out_of_bounds():
     meas = ModelGate("M", ident, qubit_idxs=range(2), meas_idxs=range(2))
 
     start_fragment = [
-        FidelityIndex.from_gate(
-            prep, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2))
-        )
+        FidelityIndex.from_gate(prep, pauli=QubitSparsePauli("II"), out_z_idxs=frozenset(range(2)))
     ]
     repeatable_fragment = [FidelityIndex.from_gate(gate, pauli=QubitSparsePauli("IX"))]
     end_fragment = [
-        FidelityIndex.from_gate(
-            meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2))
-        )
+        FidelityIndex.from_gate(meas, pauli=QubitSparsePauli("II"), in_z_idxs=frozenset(range(2)))
     ]
 
     path = Path(
@@ -211,8 +193,8 @@ def test_getitem_out_of_bounds():
         path[-1]
 
 
-def test_observable_indices(gate_set_1q):
-    """Test the *_fragment_observable_indices properties."""
+def test_observable_idxs(gate_set_1q):
+    """Test the *_fragment_observable_idxs properties."""
     path = Path(
         start_fragment=[
             FidelityIndex.from_transition(
@@ -231,9 +213,9 @@ def test_observable_indices(gate_set_1q):
         ],
     )
 
-    assert path.start_fragment_observable_indices == [[]]
-    assert path.repeatable_fragment_observable_indices == [[]]
-    assert path.end_fragment_observable_indices == [[0]]
+    assert path.start_fragment_observable_idxs == [[]]
+    assert path.repeatable_fragment_observable_idxs == [[]]
+    assert path.end_fragment_observable_idxs == [[0]]
 
     # example with MCM
     qc = QuantumCircuit(1)
@@ -252,9 +234,9 @@ def test_observable_indices(gate_set_1q):
             FidelityIndex.from_transition(meas, QubitSparsePauli("ZZ"), QubitSparsePauli("II"))
         ],
     )
-    assert path.start_fragment_observable_indices == [[]]
-    assert path.repeatable_fragment_observable_indices == [[]]
-    assert path.end_fragment_observable_indices == [[0, 1]]
+    assert path.start_fragment_observable_idxs == [[]]
+    assert path.repeatable_fragment_observable_idxs == [[]]
+    assert path.end_fragment_observable_idxs == [[0, 1]]
 
 
 def test_to_instruction_sequence_single_qubit_single_box(gate_set_1q):
@@ -1162,15 +1144,11 @@ def test_hash():
     meas = ModelGate("M", [], qubit_idxs=range(2), meas_idxs=range(2))
 
     start_fragment = [
-        FidelityIndex.from_gate(
-            prep, pauli=QubitSparsePauli("II"), out_bit_indices=frozenset(range(2))
-        )
+        FidelityIndex.from_gate(prep, pauli=QubitSparsePauli("II"), out_z_idxs=frozenset(range(2)))
     ]
     repeatable_fragment = [FidelityIndex.from_gate(gate, pauli=QubitSparsePauli("IX"))] * 2
     end_fragment = [
-        FidelityIndex.from_gate(
-            meas, pauli=QubitSparsePauli("II"), in_bit_indices=frozenset(range(2))
-        )
+        FidelityIndex.from_gate(meas, pauli=QubitSparsePauli("II"), in_z_idxs=frozenset(range(2)))
     ]
 
     path = Path(

@@ -132,7 +132,7 @@ Z^y}\opbra{G^\dagger(Q \otimes I_{N \cap R} \otimes Z^x)}. $$ (clifford_mcm_rese
 
 This decomposition indicates that the number of fidelities $\lambda^Q_{x, y}$ is
 
-$$4^{|N \setminus R|} 2^{|M|}2^{|M \cup R|} = 4^{K}2^{|M|}2^{-|M \cup R|} = 4^K 2^{-|R \setminus M|}.$$
+$$4^{|N \setminus R|} 2^{|M|}2^{|M \cup R|} = 4^{K}2^{|M|}2^{-|M \cup R|} = 4^K 2^{-|R \setminus M|}.$$ (num_fidelities)
 
 Consider limiting cases: (1) For no measurement or reset, $M = R = \emptyset$, and the expression
 yields $4^K$, the number of phase-less Pauli operators on $K$ qubits. (2) For $M = \emptyset$ and

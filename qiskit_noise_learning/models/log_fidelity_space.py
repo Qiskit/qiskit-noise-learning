@@ -21,11 +21,7 @@ class LogFidelitySpace(IndexedSpace[FidelityIndex]):
     r"""The space of log fidelities of a gate set.
 
     The basis indices are the :class:`~.FidelityIndex` objects of the gate set, excluding the
-    trivial identity fidelity of each gate. For each gate, the fidelities are in bijection with a
-    Pauli on the unmeasured and unreset qubits :math:`U`, a set of input bits on the measured qubits
-    :math:`M`, and a set of output bits on the measured and reset qubits :math:`M \cup R` (see
-    :class:`~.FidelityIndex`). The dimension is therefore :math:`\sum_{\text{gates}} \left(4^{|U|}
-    \, 2^{|M|} \, 2^{|M \cup R|} - 1\right)`.
+    trivial identity fidelity of each gate. See :class:`~.FidelityIndex` for more information.
 
     Args:
         gate_set: The gate set whose fidelities the space describes. Converted to a
@@ -41,7 +37,12 @@ class LogFidelitySpace(IndexedSpace[FidelityIndex]):
         return self._gate_set
 
     @property
-    def dim(self) -> int | float:
+    def dim(self) -> int:
+        r"""The total number of fidelities of the gate set, excluding the trivial identity ones.
+
+        Each gate contributes the count given by Equation :eq:`num_fidelities` of the
+        :doc:`mathematical formalism </formalism/index>`, less one.
+        """
         total = 0
         for gate in self._gate_set.values():
             measured = gate.meas_idxs
@@ -57,12 +58,12 @@ class LogFidelitySpace(IndexedSpace[FidelityIndex]):
             return False
 
         # reject the trivial identity fidelity
-        if len(index.pauli.indices) == 0 and not index.in_bit_indices and not index.out_bit_indices:
+        if len(index.pauli.indices) == 0 and not index.in_z_idxs and not index.out_z_idxs:
             return False
 
         return FidelityIndex.is_valid_for_gate(
             gate=self._gate_set[index.gate_name],
             pauli=index.pauli,
-            in_bit_indices=index.in_bit_indices,
-            out_bit_indices=index.out_bit_indices,
+            in_z_idxs=index.in_z_idxs,
+            out_z_idxs=index.out_z_idxs,
         )

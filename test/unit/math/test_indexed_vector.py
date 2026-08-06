@@ -26,14 +26,14 @@ def fidelity_list():
         FidelityIndex.from_gate(
             gate=gate,
             pauli=QubitSparsePauli("ZX"),
-            in_bit_indices=frozenset(),
-            out_bit_indices=frozenset(),
+            in_z_idxs=frozenset(),
+            out_z_idxs=frozenset(),
         ),
         FidelityIndex.from_gate(
             gate=gate,
             pauli=QubitSparsePauli("XX"),
-            in_bit_indices=frozenset(),
-            out_bit_indices=frozenset(),
+            in_z_idxs=frozenset(),
+            out_z_idxs=frozenset(),
         ),
     ]
 
@@ -57,8 +57,8 @@ def test_add(fidelity_list):
     new_index = FidelityIndex.from_gate(
         gate=gate,
         pauli=QubitSparsePauli("ZZ"),
-        in_bit_indices=frozenset(),
-        out_bit_indices=frozenset(),
+        in_z_idxs=frozenset(),
+        out_z_idxs=frozenset(),
     )
     indexed_vector3 = IndexedVector({new_index: 3.0})
     assert indexed_vector + indexed_vector3 == IndexedVector(

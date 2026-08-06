@@ -29,12 +29,18 @@ class FidelityIndex:
     gate, each fidelity is specified by:
 
     - A Pauli on the unmeasured and unreset qubits :math:`Q \in P^{[K]\setminus (M \cup R)}`,
-    - A list of "input bits" on the measured qubits :math:`x \in Z_2^M`, and
-    - A list of "output bits" on the measured and reset qubits :math:`y \in Z_2^{M \cup R}`.
+    - A :math:`Z`-type operator :math:`Z^x` on the measured qubits, :math:`x \in Z_2^M`, and
+    - A :math:`Z`-type operator :math:`Z^y` on the measured and reset qubits,
+      :math:`y \in Z_2^{M \cup R}`.
 
     This list constitutes the "index data" for a generalized fidelity for a given gate, in the sense
     that there is a bijection between all generalized fidelities and the above set of all objects
-    satisfying the above description.
+    satisfying the above description. See Equation :eq:`clifford_mcm_reset_form` of the
+    :doc:`mathematical formalism </formalism/index>` for the decomposition in which these appear.
+
+    The exponents :math:`x` and :math:`y` are stored as the sets of qubit indices on which they are
+    non-zero, namely :attr:`in_z_idxs` and :attr:`out_z_idxs` -- equivalently, the qubits on which
+    :math:`Z^x` and :math:`Z^y` act non-trivially.
 
     The constructor :meth:`FidelityIndex.from_gate` builds a :class:`.FidelityIndex` from a
     :class:`.ModelGate` and the above unique index data. Alternatively,
@@ -46,8 +52,8 @@ class FidelityIndex:
         gate_name: The name of the gate.
         pauli: A Pauli operator with support on unmeasured and unreset qubits. Note that
             ``pauli.num_qubits`` controls the size of the operators returned by ``self.transition``.
-        in_bit_indices: The qubit indices of the non-zero "input bits".
-        out_bit_indices: The qubit indices of the non-zero "output bits".
+        in_z_idxs: The qubit indices on which :math:`x` is non-zero.
+        out_z_idxs: The qubit indices on which :math:`y` is non-zero.
         input_pauli: The input Pauli of the transition.
         output_pauli: The output Pauli of the transition.
         sign_flip: Whether the transition involves a sign flip.
@@ -58,8 +64,8 @@ class FidelityIndex:
         self,
         gate_name: str,
         pauli: QubitSparsePauli,
-        in_bit_indices: frozenset[int],
-        out_bit_indices: frozenset[int],
+        in_z_idxs: frozenset[int],
+        out_z_idxs: frozenset[int],
         input_pauli: QubitSparsePauli,
         output_pauli: QubitSparsePauli,
         sign_flip: bool,
@@ -67,8 +73,8 @@ class FidelityIndex:
     ):
         self._gate_name = gate_name
         self._pauli = pauli
-        self._in_bit_indices = in_bit_indices
-        self._out_bit_indices = out_bit_indices
+        self._in_z_idxs = in_z_idxs
+        self._out_z_idxs = out_z_idxs
         self._input_pauli = input_pauli
         self._output_pauli = output_pauli
         self._sign_flip = sign_flip
@@ -79,35 +85,35 @@ class FidelityIndex:
         cls,
         gate: ModelGate,
         pauli: QubitSparsePauli,
-        in_bit_indices: frozenset[int] = frozenset(),
-        out_bit_indices: frozenset[int] = frozenset(),
+        in_z_idxs: frozenset[int] = frozenset(),
+        out_z_idxs: frozenset[int] = frozenset(),
     ) -> Self:
         """Construct a fidelity index from a gate and unique index data.
 
         Args:
             gate: The model gate.
             pauli: A Pauli operator with support on unmeasured and unreset qubits.
-            in_bit_indices: The subset of measurement qubit indices corresponding to non-zero "input
-                bits".
-            out_bit_indices: The subset of the union of measurement and reset qubit indices
-                corresponding non-zero "output bits".
+            in_z_idxs: The subset of measurement qubit indices carrying a :math:`Z` on the
+                instrument input.
+            out_z_idxs: The subset of the union of measurement and reset qubit indices carrying a
+                :math:`Z` on the instrument output.
 
         Raises:
             ValueError: If the provided data is inconsistent with the gate.
         """
-        error = _index_data_error(gate, pauli, in_bit_indices, out_bit_indices)
+        error = _index_data_error(gate, pauli, in_z_idxs, out_z_idxs)
         if error is not None:
             raise ValueError(error)
 
         input_pauli, output_pauli, sign_flip = _compute_transition(
-            gate, pauli, in_bit_indices, out_bit_indices
+            gate, pauli, in_z_idxs, out_z_idxs
         )
 
         return cls(
             gate_name=gate.name,
             pauli=pauli,
-            in_bit_indices=in_bit_indices,
-            out_bit_indices=out_bit_indices,
+            in_z_idxs=in_z_idxs,
+            out_z_idxs=out_z_idxs,
             input_pauli=input_pauli,
             output_pauli=output_pauli,
             sign_flip=sign_flip,
@@ -119,8 +125,8 @@ class FidelityIndex:
         cls,
         gate: ModelGate,
         pauli: QubitSparsePauli,
-        in_bit_indices: frozenset[int] = frozenset(),
-        out_bit_indices: frozenset[int] = frozenset(),
+        in_z_idxs: frozenset[int] = frozenset(),
+        out_z_idxs: frozenset[int] = frozenset(),
     ) -> bool:
         """Whether the given index data forms a valid fidelity index for the gate.
 
@@ -130,12 +136,12 @@ class FidelityIndex:
         Args:
             gate: The model gate.
             pauli: A Pauli operator with support on unmeasured and unreset qubits.
-            in_bit_indices: The subset of measurement qubit indices corresponding to non-zero "input
-                bits".
-            out_bit_indices: The subset of the union of measurement and reset qubit indices
-                corresponding to non-zero "output bits".
+            in_z_idxs: The subset of measurement qubit indices carrying a :math:`Z` on the
+                instrument input.
+            out_z_idxs: The subset of the union of measurement and reset qubit indices carrying a
+                :math:`Z` on the instrument output.
         """
-        return _index_data_error(gate, pauli, in_bit_indices, out_bit_indices) is None
+        return _index_data_error(gate, pauli, in_z_idxs, out_z_idxs) is None
 
     @classmethod
     def from_transition(
@@ -143,8 +149,8 @@ class FidelityIndex:
     ) -> Self:
         """Construct a fidelity index from a Pauli transition on the quantum registers.
 
-        This constructor deduces the Pauli and bit indices of a :class:`FidelityIndex` from the
-        given Pauli transition.
+        This constructor deduces the Pauli and :math:`Z` index sets of a :class:`FidelityIndex` from
+        the given Pauli transition.
 
         Args:
             gate: The model gate.
@@ -169,7 +175,7 @@ class FidelityIndex:
                 "out_pauli restricted to measured and reset qubits must only have I and Z "
                 "components."
             )
-        out_bit_indices = frozenset(int(x) for x in out_Z.indices)
+        out_z_idxs = frozenset(int(x) for x in out_Z.indices)
 
         mapped_input = gate.clifford_propagate(pauli=in_pauli, inverse=False)
 
@@ -180,7 +186,7 @@ class FidelityIndex:
                 "in_pauli mapped by Clifford and restricted to measured qubits must only have I "
                 "and Z components."
             )
-        in_bit_indices = frozenset(int(x) for x in in_Z.indices)
+        in_z_idxs = frozenset(int(x) for x in in_Z.indices)
 
         # mapped_input restricted to unmeasured and reset qubits should be identity
         if (
@@ -207,14 +213,14 @@ class FidelityIndex:
             )
 
         input_pauli, output_pauli, sign_flip = _compute_transition(
-            gate, pauli, in_bit_indices, out_bit_indices
+            gate, pauli, in_z_idxs, out_z_idxs
         )
 
         return cls(
             gate_name=gate.name,
             pauli=pauli,
-            in_bit_indices=in_bit_indices,
-            out_bit_indices=out_bit_indices,
+            in_z_idxs=in_z_idxs,
+            out_z_idxs=out_z_idxs,
             input_pauli=input_pauli,
             output_pauli=output_pauli,
             sign_flip=sign_flip,
@@ -232,14 +238,14 @@ class FidelityIndex:
         return self._pauli
 
     @property
-    def in_bit_indices(self) -> frozenset[int]:
-        """The input bit index data as a subset of the gate measurement indices."""
-        return self._in_bit_indices
+    def in_z_idxs(self) -> frozenset[int]:
+        r"""The measured qubits carrying a :math:`Z` on the instrument input."""
+        return self._in_z_idxs
 
     @property
-    def out_bit_indices(self) -> frozenset[int]:
-        """The output bit index data as a subset of the union of the measured and reset qubits."""
-        return self._out_bit_indices
+    def out_z_idxs(self) -> frozenset[int]:
+        r"""The measured and reset qubits carrying a :math:`Z` on the instrument output."""
+        return self._out_z_idxs
 
     @property
     def sign_flip(self) -> bool:
@@ -260,18 +266,16 @@ class FidelityIndex:
             [
                 idx
                 for idx, meas_idx in enumerate(sorted_meas_idxs)
-                if meas_idx in self.observable_indices
+                if meas_idx in self.observable_idxs
             ]
         ] = True
         return mask
 
     @property
-    def observable_indices(self) -> list[int]:
-        """Qubit indices of the associated Z observable in ascending order."""
+    def observable_idxs(self) -> list[int]:
+        r"""Qubit indices of the associated :math:`Z` observable in ascending order."""
         return sorted(
-            self.out_bit_indices.intersection(self._meas_idxs).symmetric_difference(
-                self.in_bit_indices
-            )
+            self.out_z_idxs.intersection(self._meas_idxs).symmetric_difference(self.in_z_idxs)
         )
 
     def __eq__(self, other: "FidelityIndex") -> bool:
@@ -279,8 +283,8 @@ class FidelityIndex:
             isinstance(other, FidelityIndex)
             and self.gate_name == other.gate_name
             and self.pauli == other.pauli
-            and self.in_bit_indices == other.in_bit_indices
-            and self.out_bit_indices == other.out_bit_indices
+            and self.in_z_idxs == other.in_z_idxs
+            and self.out_z_idxs == other.out_z_idxs
         )
 
     def __hash__(self) -> int:
@@ -289,8 +293,8 @@ class FidelityIndex:
                 (
                     self.gate_name,
                     (tuple(self.pauli.paulis), tuple(self.pauli.indices), self.pauli.num_qubits),
-                    self.in_bit_indices,
-                    self.out_bit_indices,
+                    self.in_z_idxs,
+                    self.out_z_idxs,
                 )
             )
         return self._hash
@@ -299,8 +303,8 @@ class FidelityIndex:
         s = "FidelityIndex(\n"
         s += f"    gate_name='{self.gate_name}',\n"
         s += f"    pauli={self.pauli},\n"
-        s += f"    in_bit_indices={self.in_bit_indices},\n"
-        s += f"    out_bit_indices={self.out_bit_indices},\n"
+        s += f"    in_z_idxs={self.in_z_idxs},\n"
+        s += f"    out_z_idxs={self.out_z_idxs},\n"
         s += ")"
         return s
 
@@ -308,8 +312,8 @@ class FidelityIndex:
 def _index_data_error(
     gate: ModelGate,
     pauli: QubitSparsePauli,
-    in_bit_indices: frozenset[int],
-    out_bit_indices: frozenset[int],
+    in_z_idxs: frozenset[int],
+    out_z_idxs: frozenset[int],
 ) -> str | None:
     """Return why the index data is inconsistent with the gate, or ``None`` if it is valid.
 
@@ -323,11 +327,11 @@ def _index_data_error(
     ):
         return "pauli.indices must lie within the unreset and unmeasured qubits of gate."
 
-    if not in_bit_indices.issubset(gate.meas_idxs):
-        return "in_bit_indices must be a subset of gate.meas_idxs"
+    if not in_z_idxs.issubset(gate.meas_idxs):
+        return "in_z_idxs must be a subset of gate.meas_idxs"
 
-    if not out_bit_indices.issubset(meas_and_prep_qubits):
-        return "out_bit_indices must be a subset of gate.meas_idxs.union(gate.prep_idxs)"
+    if not out_z_idxs.issubset(meas_and_prep_qubits):
+        return "out_z_idxs must be a subset of gate.meas_idxs.union(gate.prep_idxs)"
 
     return None
 
@@ -335,14 +339,14 @@ def _index_data_error(
 def _compute_transition(
     gate: ModelGate,
     pauli: QubitSparsePauli,
-    in_bit_indices: frozenset[int],
-    out_bit_indices: frozenset[int],
+    in_z_idxs: frozenset[int],
+    out_z_idxs: frozenset[int],
 ) -> tuple[QubitSparsePauli, QubitSparsePauli, bool]:
     """Compute the transition Paulis and sign flip for a fidelity index."""
     phased_input_pauli = gate.clifford_propagate(
         pauli=PhasedQubitSparsePauli(pauli.to_pauli())
         @ PhasedQubitSparsePauli.from_sparse_label(
-            (0, "Z" * len(in_bit_indices), list(in_bit_indices)),
+            (0, "Z" * len(in_z_idxs), list(in_z_idxs)),
             num_qubits=pauli.num_qubits,
         ),
         inverse=True,
@@ -355,7 +359,7 @@ def _compute_transition(
     sign_flip = phased_input_pauli.phase == 2
 
     output_pauli = pauli @ QubitSparsePauli.from_sparse_label(
-        ("Z" * len(out_bit_indices), list(out_bit_indices)),
+        ("Z" * len(out_z_idxs), list(out_z_idxs)),
         num_qubits=pauli.num_qubits,
     )
 

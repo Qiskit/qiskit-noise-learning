@@ -33,19 +33,19 @@ class Path(BaseSequence[FidelityIndex]):
     """
 
     @property
-    def start_fragment_observable_indices(self) -> list[list[int]]:
+    def start_fragment_observable_idxs(self) -> list[list[int]]:
         """The observable indices of the start fragment."""
-        return [x.observable_indices for x in self.start_fragment]
+        return [x.observable_idxs for x in self.start_fragment]
 
     @property
-    def repeatable_fragment_observable_indices(self) -> list[list[int]]:
+    def repeatable_fragment_observable_idxs(self) -> list[list[int]]:
         """The observable indices of the repeatable fragment."""
-        return [x.observable_indices for x in self.repeatable_fragment]
+        return [x.observable_idxs for x in self.repeatable_fragment]
 
     @property
-    def end_fragment_observable_indices(self) -> list[list[int]]:
+    def end_fragment_observable_idxs(self) -> list[list[int]]:
         """The observable indices of the end fragment."""
-        return [x.observable_indices for x in self.end_fragment]
+        return [x.observable_idxs for x in self.end_fragment]
 
     def extend_permutations(
         self, instruction_sequence: InstructionSequence

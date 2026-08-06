@@ -349,7 +349,7 @@ class TestComputeObservables:
     def test_unbound_path_observables_mask_2q(self, gate_set_cz, make_cz_path):
         """Verify the observable mask selects only the correct qubits."""
         unbound_path_ix = make_cz_path("IX")
-        assert unbound_path_ix.end_fragment[-1].observable_indices == [0]
+        assert unbound_path_ix.end_fragment[-1].observable_idxs == [0]
 
         unbound_seq = unbound_path_ix.to_instruction_sequence().complete()
         se_flip, r_flip = unbound_path_ix.fragment_sign_flips(unbound_seq)
