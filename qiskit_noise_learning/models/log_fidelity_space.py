@@ -21,11 +21,7 @@ class LogFidelitySpace(IndexedSpace[FidelityIndex]):
     r"""The space of log fidelities of a gate set.
 
     The basis indices are the :class:`~.FidelityIndex` objects of the gate set, excluding the
-    trivial identity fidelity of each gate. For each gate, the fidelities are in bijection with a
-    Pauli on the unmeasured and unreset qubits :math:`U`, a set of input bits on the measured qubits
-    :math:`M`, and a set of output bits on the measured and reset qubits :math:`M \cup R` (see
-    :class:`~.FidelityIndex`). The dimension is therefore :math:`\sum_{\text{gates}} \left(4^{|U|}
-    \, 2^{|M|} \, 2^{|M \cup R|} - 1\right)`.
+    trivial identity fidelity of each gate. See :class:`~.FidelityIndex` for more information.
 
     Args:
         gate_set: The gate set whose fidelities the space describes. Converted to a

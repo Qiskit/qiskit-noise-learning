@@ -70,6 +70,31 @@ class TestFidelityIndexMathLabel:
         )
         assert "X_{0}" in labeled
 
+    def test_formula_z_exponents_use_formalism_symbols(self, gate_set_cz):
+        r"""The :math:`Z` exponents render as :math:`x` and :math:`y`, as in the formalism.
+
+        A measurement carrying :math:`Z` on qubit 0 at its input and :math:`Z` on both qubits at its
+        output labels as ``f^{M}(I,\, x=\{0\},\, y=\{0,1\})``, with the exponents shown as the qubit
+        indices on which they are non-zero.
+        """
+        fidelity_index = FidelityIndex.from_gate(
+            gate=gate_set_cz["M"],
+            pauli=QubitSparsePauli("II"),
+            in_z_idxs=frozenset([0]),
+            out_z_idxs=frozenset([0, 1]),
+        )
+
+        label = fidelity_index_math_label(gate_set_cz, fidelity_index, style="formula")
+        assert r"x=\{0\}" in label
+        assert r"y=\{0,1\}" in label
+
+        # the exponent index sets honor the qubit relabeling map
+        labeled = fidelity_index_math_label(
+            gate_set_cz, fidelity_index, style="formula", qubit_labels={0: "i", 1: "j"}
+        )
+        assert r"x=\{i\}" in labeled
+        assert r"y=\{i,j\}" in labeled
+
 
 class TestPathMathLabel:
     def test_transition_format(self, gate_set, fidelity_index):

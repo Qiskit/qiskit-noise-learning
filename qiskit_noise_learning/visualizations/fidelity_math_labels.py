@@ -36,7 +36,9 @@ def fidelity_index_math_label(
             :attr:`~.Gate.math_label`.
         fidelity_index: The fidelity index to label.
         style: Either ``"transition"`` (shows input :math:`\to` output Pauli) or ``"formula"``
-            (shows index data ``pauli``, ``in_z_idxs``, ``out_z_idxs``).
+            (shows the index data :attr:`~.FidelityIndex.pauli` alongside the :math:`Z` exponents
+            :math:`x` and :math:`y`, displayed as the qubit indices on which they are non-zero, i.e.
+            :attr:`~.FidelityIndex.in_z_idxs` and :attr:`~.FidelityIndex.out_z_idxs`).
         noise_site: An optional mapping from gate name to ``"before"`` or ``"after"``, indicating
             the gate noise is modelled as a Pauli-channel occuring either before or after the gate.
             This simplifies the ``style="formula"`` label to only display the Pauli passing through
@@ -70,20 +72,12 @@ def fidelity_index_math_label(
 
         pauli_str = _qubit_sparse_pauli_math_label(fidelity_index.pauli, qubit_labels)
         parts = [pauli_str]
-        if fidelity_index.in_z_idxs:
-            in_z = (
-                r"\{"
-                + ",".join(_qubit_label(i, qubit_labels) for i in sorted(fidelity_index.in_z_idxs))
-                + r"\}"
-            )
-            parts.append(rf"z_{{in}}={in_z}")
-        if fidelity_index.out_z_idxs:
-            out_z = (
-                r"\{"
-                + ",".join(_qubit_label(i, qubit_labels) for i in sorted(fidelity_index.out_z_idxs))
-                + r"\}"
-            )
-            parts.append(rf"z_{{out}}={out_z}")
+        # the exponents are named x and y to match the formalism, and are displayed as the set of
+        # qubit indices on which they are non-zero
+        for exponent, z_idxs in (("x", fidelity_index.in_z_idxs), ("y", fidelity_index.out_z_idxs)):
+            if z_idxs:
+                idx_str = ",".join(_qubit_label(i, qubit_labels) for i in sorted(z_idxs))
+                parts.append(rf"{exponent}=\{{{idx_str}\}}")
         return rf"f^{{{gate_sym}}}(" + r",\, ".join(parts) + r")"
     else:
         raise ValueError(f"Invalid style: {style!r}. Must be 'transition' or 'formula'.")
