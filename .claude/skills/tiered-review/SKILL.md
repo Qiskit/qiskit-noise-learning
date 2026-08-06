@@ -120,13 +120,10 @@ placement of responsibility, naming of public surfaces, backward-compat. Report 
 chat. Do not edit files.
 
 ### Tier 3 — `correctness` (delegated to a cold-context agent)
-Bugs and logic errors, **assuming design and architecture are settled**. This
-includes **test coverage of the change itself**: new or changed behavior, branches,
-and edge cases must be exercised — an untested path is a latent correctness gap, not
-a style nit. (Whether the *existing* tests follow project conventions is Tier 4.)
-
-Delegate to the **`correctness-reviewer`** agent, which holds the full mandate and
-reads the diff cold:
+Bugs, logic errors, and test coverage of the change itself — **assuming design and
+architecture are settled**. The full mandate (scope in/out, cold-reading rules, depth
+ladder, output format) lives in the `correctness-reviewer` agent and is the single
+source of truth — do not restate or pre-empt it here. Your job is to delegate and relay:
 
 ```
 Agent(subagent_type: "correctness-reviewer", run_in_background: false,
