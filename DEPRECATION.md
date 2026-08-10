@@ -1,4 +1,4 @@
-# Deprecation Policy
+# Deprecation policy
 
 This library is in the `0.x` stage of development, where breaking changes are permitted between
 releases. It is alpha software: no part of the public interface is yet considered stable, and we

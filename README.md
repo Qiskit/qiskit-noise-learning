@@ -27,7 +27,6 @@ pip install "qiskit-noise-learning[vis]"
 See the [contribution guidelines](CONTRIBUTING.md) for developer dependencies and editable
 installations.
 
-
 ## Interfaces and Documentation
 
 This library has two levels of interface. The first is the low-level interface where the user
