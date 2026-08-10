@@ -28,14 +28,14 @@ class ObservableData(LeveledData):
 
     - Data variables:
 
-        - ``observables``: Observables computed from single :class:`InstructionSequence`
+        - ``observable_values``: Observables computed from single :class:`InstructionSequence`
           and :class:`Path` pairs at a given fragment depth, separated by randomizations. Has
           dimensions ``("observable", "randomization")``. ``np.nan`` values are assumed to be due to
           raggedness of the ``"randomization"`` dimension for different observables.
         - ``time_lbs``: Lower bound on data acquisition times, with dimensions
           ``("observable", "randomization")``, and of type ``"datetime64[us]"``.
         - ``time_ubs``: Upper bound on data acquisition times, with dimensions
-          ``("randomization", "randomization")``, and of type ``"datetime64[us]"``.
+          ``("observable", "randomization")``, and of type ``"datetime64[us]"``.
 
     - Coordinates:
 
@@ -59,7 +59,7 @@ class ObservableData(LeveledData):
         cls,
         unbound_paths: list[Path],
         fragment_depths: np.ndarray[int],
-        observables: np.ndarray[np.float64],
+        observable_values: np.ndarray[np.float64],
         time_lbs: np.ndarray[np.datetime64],
         time_ubs: np.ndarray[np.datetime64],
     ):
@@ -68,7 +68,7 @@ class ObservableData(LeveledData):
         Args:
             unbound_paths: The unbound paths corresponding to the observables.
             fragment_depths: The fragment depths for each observable.
-            observables: A 2d numpy array of ``floats`` with axes
+            observable_values: A 2d numpy array of ``floats`` with axes
                 ``("observable", "randomization")``.
             time_lbs: A lower bound on the data collection time for each observable and
                 randomization. Has axes ``("observable", "randomization")``.
@@ -78,7 +78,9 @@ class ObservableData(LeveledData):
 
         dataset = xr.Dataset(
             data_vars={
-                "observables": xr.DataArray(data=observables, dims=["observable", "randomization"]),
+                "observable_values": xr.DataArray(
+                    data=observable_values, dims=["observable", "randomization"]
+                ),
                 "time_lbs": xr.DataArray(data=time_lbs, dims=["observable", "randomization"]),
                 "time_ubs": xr.DataArray(data=time_ubs, dims=["observable", "randomization"]),
             },
@@ -91,9 +93,9 @@ class ObservableData(LeveledData):
         return cls(dataset=dataset)
 
     @property
-    def observables(self) -> xr.DataArray:
+    def observable_values(self) -> xr.DataArray:
         """Observables data array."""
-        return self.dataset["observables"]
+        return self.dataset["observable_values"]
 
     @property
     def time_lbs(self) -> xr.DataArray:

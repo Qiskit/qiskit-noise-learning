@@ -100,7 +100,7 @@ class TestSymmetrizeGenerators:
         result = SymmetrizeGenerators().run(fit)
 
         result_rates = result.model_data.dataset["parameter_values"].data
-        cz_mask = [p.gate_name == "CZ" for p in result.model_data.dataset["parameter"].data]
+        cz_mask = [p.gate_name == "CZ" for p in result.model_data.dataset["parameter_index"].data]
         np.testing.assert_allclose(result_rates[cz_mask], [0.1, 0.2])
 
     def test_paired_generators_averaged(self, cz_model):
@@ -116,7 +116,7 @@ class TestSymmetrizeGenerators:
         fit[ModelData] = model_data
         result = SymmetrizeGenerators().run(fit)
 
-        result_params = result.model_data.dataset["parameter"].data
+        result_params = result.model_data.dataset["parameter_index"].data
         result_rates = result.model_data.dataset["parameter_values"].data
 
         rate_map = {(p.gate_name, str(p.generator)): r for p, r in zip(result_params, result_rates)}
@@ -175,7 +175,7 @@ class TestSymmetrizeFidelities:
         result = SymmetrizeFidelities().run(fit)
 
         result_rates = result.model_data.dataset["parameter_values"].data
-        cz_mask = [p.gate_name == "CZ" for p in result.model_data.dataset["parameter"].data]
+        cz_mask = [p.gate_name == "CZ" for p in result.model_data.dataset["parameter_index"].data]
         assert np.all(result_rates[cz_mask] >= -1e-10)
 
     def test_projection_non_negative(self, cz_model):
@@ -223,7 +223,7 @@ class TestSymmetrizeFidelities:
         fit[ModelData] = model_data
         result = SymmetrizeFidelities().run(fit)
 
-        result_params = result.model_data.dataset["parameter"].data
+        result_params = result.model_data.dataset["parameter_index"].data
         result_rates = result.model_data.dataset["parameter_values"].data
 
         p_mask = [p.gate_name == "P" for p in result_params]
@@ -257,7 +257,7 @@ class TestSymmetrizeFidelities:
         fit[ModelData] = model_data
         result = SymmetrizeFidelities().run(fit)
 
-        result_params = result.model_data.dataset["parameter"].data
+        result_params = result.model_data.dataset["parameter_index"].data
         result_rates = result.model_data.dataset["parameter_values"].data
 
         gate = cz_model.gate_set["CZ"]

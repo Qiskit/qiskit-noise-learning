@@ -24,7 +24,7 @@ from qiskit.quantum_info import PauliLindbladMap, PauliList, QubitSparsePauliLis
 from scipy.sparse import csr_array
 
 from qiskit_noise_learning.analysis import AnalysisStage, Fit
-from qiskit_noise_learning.data import AveragedData, ModelData
+from qiskit_noise_learning.data import AggregatedObservableData, ModelData
 from qiskit_noise_learning.data.xarray_utils import time_bound
 from qiskit_noise_learning.models import GeneratorIndex
 
@@ -44,11 +44,11 @@ class LegacySolve(AnalysisStage):
     ``optimizer_name="nnls"``, and ``constrained=True``.
     """
 
-    input_level = AveragedData
+    input_level = AggregatedObservableData
     output_level = ModelData
 
     def _run(self, fit: Fit) -> None:
-        averaged_data = fit[AveragedData]
+        aggregated_data = fit[AggregatedObservableData]
 
         noise_map = fit_noise_model_legacy(
             fit,
@@ -59,7 +59,10 @@ class LegacySolve(AnalysisStage):
         )
 
         layer_name = (
-            fit.averaged_data.dataset.unbound_path[0].item().repeatable_fragment[0].gate_name
+            fit.aggregated_observable_data.dataset.unbound_path[0]
+            .item()
+            .repeatable_fragment[0]
+            .gate_name
         )
 
         param_labels = [
@@ -69,8 +72,8 @@ class LegacySolve(AnalysisStage):
         cov_x = np.zeros(shape=(len(x), len(x)))
         metadata = {}
         # Filter to decay data (fragment_depth == -1)
-        decay_mask = averaged_data.dataset["fragment_depth"].data == -1
-        decay_dataset = averaged_data.dataset.sel({"observable": decay_mask})
+        decay_mask = aggregated_data.dataset["fragment_depth"].data == -1
+        decay_dataset = aggregated_data.dataset.sel({"observable": decay_mask})
 
         time_lb = time_bound(decay_dataset["time_lbs"].data, "min")
         time_ub = time_bound(decay_dataset["time_ubs"].data, "max")
@@ -201,7 +204,7 @@ def fit_noise_model_legacy(
     :class:`~.ModelSolve` and friends.
 
     Args:
-        fit: A :class:`~.Fit` container holding :class:`~.AveragedData`.
+        fit: A :class:`~.Fit` container holding :class:`~.AggregatedObservableData`.
         noise_assumption: How to treat Clifford conjugation of generators.
             ``"symmetric_fidelities"`` uses the square root of each pair fidelity as a
             single-layer fidelity. ``"symmetric_generators"`` assumes conjugate generator
@@ -222,8 +225,10 @@ def fit_noise_model_legacy(
         MissingOptionalLibraryError: If ``optimizer_name="cvxpy"`` and ``cvxpy`` is not
             installed.
     """
-    fid_ps_1, fid_ps_2 = get_fid_pairs(fit.averaged_data.dataset.observables.unbound_path.data)
-    fid_pair_data = fit.averaged_data.dataset.observables
+    fid_ps_1, fid_ps_2 = get_fid_pairs(
+        fit.aggregated_observable_data.dataset.estimate_values.unbound_path.data
+    )
+    fid_pair_data = fit.aggregated_observable_data.dataset.estimate_values
     fidelities_canonical = make_canonical_fid_dict(
         fid_ps_1.to_pauli_list().to_labels(), fid_ps_2.to_pauli_list().to_labels(), fid_pair_data
     )

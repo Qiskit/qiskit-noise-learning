@@ -143,11 +143,13 @@ def test_grid_paths_are_numbered_globally_without_a_gate_set(
 
 
 @pytest.fixture()
-def pair_grid(make_cz_path, make_observable_data, make_averaged_data, make_fidelity_model_data):
+def pair_grid(
+    make_cz_path, make_observable_data, make_aggregated_observable_data, make_fidelity_model_data
+):
     """A multi-cell, multi-layer, multi-path figure -- the shape the invariants have to hold on."""
     paths = [make_cz_path("XI"), make_cz_path("XX")]
     obs = make_observable_data([(path, 1.0, 0.9, [0, 1, 2]) for path in paths])
-    averaged = make_averaged_data(
+    averaged = make_aggregated_observable_data(
         [(path, fragment_depth, 0.8) for path in paths for fragment_depth in (-1, 0, 1)]
     )
     model, model_data = make_fidelity_model_data(paths)
@@ -155,7 +157,7 @@ def pair_grid(make_cz_path, make_observable_data, make_averaged_data, make_fidel
         [(0, 1), (1, 2)],
         observable_data=obs,
         observable_type="both",
-        averaged_data=averaged,
+        aggregated_observable_data=averaged,
         model=model,
         model_data=model_data,
         gate_set=model.gate_set,
@@ -218,68 +220,84 @@ def test_legends_do_not_overlap_the_subplots_or_each_other(pair_grid):
 # --------------------------------------------------------------------------------------------------
 
 
-def test_pair_decays_requires_gate_set(make_cz_path, make_averaged_data):
-    averaged = make_averaged_data([(make_cz_path("XI"), -1, 0.8)])
+def test_pair_decays_requires_gate_set(make_cz_path, make_aggregated_observable_data):
+    averaged = make_aggregated_observable_data([(make_cz_path("XI"), -1, 0.8)])
     with pytest.raises(ValueError, match="gate_set"):
-        plot_qubit_pair_decays([(0, 1)], averaged_data=averaged)
+        plot_qubit_pair_decays([(0, 1)], aggregated_observable_data=averaged)
 
 
-def test_pair_decays_returns_interactive_figure(make_cz_path, make_averaged_data, gate_set_cz):
-    averaged = make_averaged_data([(make_cz_path("XI"), -1, 0.8)])
-    figure = plot_qubit_pair_decays([(0, 1)], averaged_data=averaged, gate_set=gate_set_cz)
+def test_pair_decays_returns_interactive_figure(
+    make_cz_path, make_aggregated_observable_data, gate_set_cz
+):
+    averaged = make_aggregated_observable_data([(make_cz_path("XI"), -1, 0.8)])
+    figure = plot_qubit_pair_decays(
+        [(0, 1)], aggregated_observable_data=averaged, gate_set=gate_set_cz
+    )
     assert isinstance(figure, InteractiveFigure)
 
 
-def test_pair_decays_subplot_title_uses_placeholders(make_cz_path, make_averaged_data, gate_set_cz):
-    averaged = make_averaged_data([(make_cz_path("XI"), -1, 0.8)])
-    figure = plot_qubit_pair_decays([(0, 1)], averaged_data=averaged, gate_set=gate_set_cz)
+def test_pair_decays_subplot_title_uses_placeholders(
+    make_cz_path, make_aggregated_observable_data, gate_set_cz
+):
+    averaged = make_aggregated_observable_data([(make_cz_path("XI"), -1, 0.8)])
+    figure = plot_qubit_pair_decays(
+        [(0, 1)], aggregated_observable_data=averaged, gate_set=gate_set_cz
+    )
     assert "(i, j) = (0, 1)" in _subplot_titles(figure)
 
 
-def test_pair_decays_custom_placeholders(make_cz_path, make_averaged_data, gate_set_cz):
-    averaged = make_averaged_data([(make_cz_path("XI"), -1, 0.8)])
+def test_pair_decays_custom_placeholders(
+    make_cz_path, make_aggregated_observable_data, gate_set_cz
+):
+    averaged = make_aggregated_observable_data([(make_cz_path("XI"), -1, 0.8)])
     figure = plot_qubit_pair_decays(
-        [(0, 1)], averaged_data=averaged, gate_set=gate_set_cz, placeholders=("a", "b")
+        [(0, 1)], aggregated_observable_data=averaged, gate_set=gate_set_cz, placeholders=("a", "b")
     )
     assert "(a, b) = (0, 1)" in _subplot_titles(figure)
 
 
 def test_pair_decays_pair_order_does_not_matter(
-    make_cz_path, make_averaged_data, gate_set_cz, sidecar
+    make_cz_path, make_aggregated_observable_data, gate_set_cz, sidecar
 ):
     # A pair names a subplot and is unordered: reversing it is the same subplot, drawn the same way.
-    averaged = make_averaged_data([(make_cz_path("XI"), -1, 0.8)])
-    forwards = plot_qubit_pair_decays([(0, 1)], averaged_data=averaged, gate_set=gate_set_cz)
-    backwards = plot_qubit_pair_decays([(1, 0)], averaged_data=averaged, gate_set=gate_set_cz)
+    averaged = make_aggregated_observable_data([(make_cz_path("XI"), -1, 0.8)])
+    forwards = plot_qubit_pair_decays(
+        [(0, 1)], aggregated_observable_data=averaged, gate_set=gate_set_cz
+    )
+    backwards = plot_qubit_pair_decays(
+        [(1, 0)], aggregated_observable_data=averaged, gate_set=gate_set_cz
+    )
     assert _subplot_titles(backwards) == _subplot_titles(forwards)
     assert len(sidecar(backwards)["cells"]) == len(sidecar(forwards)["cells"])
 
 
 @pytest.mark.parametrize("pairs", [[(0, 1), (0, 1)], [(0, 1), (1, 0)]])
-def test_pair_decays_rejects_a_repeated_pair(pairs, make_cz_path, make_averaged_data, gate_set_cz):
+def test_pair_decays_rejects_a_repeated_pair(
+    pairs, make_cz_path, make_aggregated_observable_data, gate_set_cz
+):
     # Two requests for one subplot would silently produce fewer subplots than the caller asked for,
     # which is indistinguishable from a data problem.
-    averaged = make_averaged_data([(make_cz_path("XI"), -1, 0.8)])
+    averaged = make_aggregated_observable_data([(make_cz_path("XI"), -1, 0.8)])
     with pytest.raises(ValueError, match="Duplicate qubit pair"):
-        plot_qubit_pair_decays(pairs, averaged_data=averaged, gate_set=gate_set_cz)
+        plot_qubit_pair_decays(pairs, aggregated_observable_data=averaged, gate_set=gate_set_cz)
 
 
 def test_pair_decays_filters_non_decay_paths_for_model_prediction(
-    make_cz_path, make_averaged_data, make_fidelity_model_data
+    make_cz_path, make_aggregated_observable_data, make_fidelity_model_data
 ):
     # A real decay path plus a non-decay (empty repeatable) SPAM-like path sharing the pair.
     decay = make_cz_path("XI")
     non_decay = Path(
         start_fragment=decay.start_fragment, repeatable_fragment=[], end_fragment=decay.end_fragment
     )
-    averaged = make_averaged_data([(decay, -1, 0.8), (non_decay, -1, 0.9)])
+    averaged = make_aggregated_observable_data([(decay, -1, 0.8), (non_decay, -1, 0.9)])
     model, model_data = make_fidelity_model_data([decay])
 
     # Without filtering the non-decay path, model_curves would raise; a clean render proves the
     # non-decay path was dropped before reaching the model-curve layer.
     figure = plot_qubit_pair_decays(
         [(0, 1)],
-        averaged_data=averaged,
+        aggregated_observable_data=averaged,
         model=model,
         model_data=model_data,
         gate_set=model.gate_set,
@@ -288,15 +306,19 @@ def test_pair_decays_filters_non_decay_paths_for_model_prediction(
 
 
 def test_pair_decays_assigns_empty_start_fragment_path_via_transition(
-    make_cz_path, make_averaged_data, gate_set_cz, sidecar
+    make_cz_path, make_aggregated_observable_data, gate_set_cz, sidecar
 ):
     # A decay path with no start fragment still acts on the CZ's qubits through its transition
     # Paulis, so it is assigned to pair (0, 1) and dropped from an unrelated pair.
     p = make_cz_path("XI", spam=False)
     assert not p.start_fragment
-    averaged = make_averaged_data([(p, -1, 0.8)])
-    on_pair = plot_qubit_pair_decays([(0, 1)], averaged_data=averaged, gate_set=gate_set_cz)
-    off_pair = plot_qubit_pair_decays([(2, 3)], averaged_data=averaged, gate_set=gate_set_cz)
+    averaged = make_aggregated_observable_data([(p, -1, 0.8)])
+    on_pair = plot_qubit_pair_decays(
+        [(0, 1)], aggregated_observable_data=averaged, gate_set=gate_set_cz
+    )
+    off_pair = plot_qubit_pair_decays(
+        [(2, 3)], aggregated_observable_data=averaged, gate_set=gate_set_cz
+    )
     assert sidecar(on_pair)["traces"]
     assert sidecar(off_pair)["traces"] == {}
 

@@ -25,8 +25,8 @@ def test_from_arrays():
         time_ubs=np.array(["2026-01-02", "2026-01-02"], dtype="datetime64[us]"),
     )
     ds = md.dataset
-    assert ds["parameter_values"].sel(parameter="r0").item() == 0.1
-    assert ds["parameter_values"].sel(parameter="r1").item() == 0.2
+    assert ds["parameter_values"].sel(parameter_index="r0").item() == 0.1
+    assert ds["parameter_values"].sel(parameter_index="r1").item() == 0.2
     assert ds["covariance"].shape == (2, 2)
 
 

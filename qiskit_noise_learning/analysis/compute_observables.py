@@ -208,7 +208,7 @@ class ComputeObservables(AnalysisStage):
         fit[ObservableData] = ObservableData(
             dataset=xr.Dataset(
                 data_vars={
-                    "observables": xr.DataArray(
+                    "observable_values": xr.DataArray(
                         data=observable_array, dims=["observable", "randomization"]
                     ),
                     "time_lbs": xr.DataArray(data=time_lbs, dims=["observable", "randomization"]),

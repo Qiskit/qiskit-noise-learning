@@ -12,7 +12,7 @@
 
 """Data containers."""
 
-from .averaged_data import AveragedData
+from .aggregated_observable_data import AggregatedObservableData
 from .leveled_data import LeveledData
 from .model_data import ModelData
 from .observable_data import ObservableData

@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
-from ...data import AveragedData, ModelData, ObservableData
+from ...data import AggregatedObservableData, ModelData, ObservableData
 from ...gate_sets import GateSet
 from ...math import LinearMap
 from ...optionals import HAS_MATPLOTLIB
@@ -519,7 +519,7 @@ def plot_qubit_pair_decays(
     observable_type: Literal["raw", "means", "both"] = "raw",
     observable_marker_kwargs: Mapping[str, object] | None = None,
     means_marker_kwargs: Mapping[str, object] | None = None,
-    averaged_data: AveragedData | None = None,
+    aggregated_observable_data: AggregatedObservableData | None = None,
     exponential_fit_line_kwargs: Mapping[str, object] | None = None,
     model: LinearMap | None = None,
     model_data: ModelData | None = None,
@@ -551,7 +551,8 @@ def plot_qubit_pair_decays(
             ``"means"``, or ``"both"`` (see :func:`standard_decay_layers`).
         observable_marker_kwargs: Optional marker properties for the raw observable points.
         means_marker_kwargs: Optional marker properties for the observable-means points.
-        averaged_data: Optional averaged data supplying the exponential-fit decay curve.
+        aggregated_observable_data: Optional aggregated observable data supplying the
+            exponential-fit decay curve.
         exponential_fit_line_kwargs: Optional line properties for the exponential-fit curve.
         model: Optional fidelity model for predicted curves (requires ``model_data``).
         model_data: Optional fitted parameters for predicted curves (requires ``model``).
@@ -565,13 +566,14 @@ def plot_qubit_pair_decays(
             ``style="formula"`` this yields the compact ``f^{gate}_{pauli}`` label).
         placeholders: The two display symbols for the pair's (min, max) qubit indices.
         paths: The set of paths to draw across all layers. Defaults to the decay paths found in
-            ``observable_data``/``averaged_data``. Supply this to plot decays that cannot be derived
-            from empirical data -- most notably model curves with no observable or averaged data
-            present. When given, it scopes every layer (each layer still only draws a path for which
-            its own data source has an entry); non-decay paths are dropped.
+            ``observable_data``/``aggregated_observable_data``. Supply this to plot decays that
+            cannot be derived from empirical data -- most notably model curves with no observable or
+            aggregated observable data present. When given, it scopes every layer (each layer still
+            only draws a path for which its own data source has an entry); non-decay paths are
+            dropped.
         fragment_depths: The fragment-depth range for the curves. Defaults to ``0`` through the
-            largest fragment depth in the empirical data present (observable and averaged-data
-            points), or ``0``–``10`` when there is none.
+            largest fragment depth in the empirical data present (observable and aggregated
+            observable data points), or ``0``–``10`` when there is none.
         title: An optional figure title.
 
     Returns:
@@ -589,7 +591,7 @@ def plot_qubit_pair_decays(
     # Resolve the path set (explicit wins, else derived from the empirical data) and restrict it to
     # decay paths (unbound, non-empty repeatable fragment).
     if paths is None:
-        candidate_paths = _dataset_paths(observable_data, averaged_data)
+        candidate_paths = _dataset_paths(observable_data, aggregated_observable_data)
     else:
         candidate_paths = list(paths)
     paths = [path for path in candidate_paths if path.is_unbound and path.repeatable_fragment]
@@ -601,8 +603,8 @@ def plot_qubit_pair_decays(
         empirical_points: list[dict] = []
         if observable_data is not None:
             empirical_points.append(observable_data_points(observable_data, paths))
-        if averaged_data is not None:
-            empirical_points.append(averaged_data_points(averaged_data, paths))
+        if aggregated_observable_data is not None:
+            empirical_points.append(averaged_data_points(aggregated_observable_data, paths))
         fragment_depths = _default_fragment_depths(*empirical_points)
 
     groups: dict[Hashable, list[Path]] = {}
@@ -644,7 +646,7 @@ def plot_qubit_pair_decays(
         observable_type=observable_type,
         observable_marker_kwargs=observable_marker_kwargs,
         means_marker_kwargs=means_marker_kwargs,
-        averaged_data=averaged_data,
+        aggregated_observable_data=aggregated_observable_data,
         exponential_fit_line_kwargs=exponential_fit_line_kwargs,
         model=model,
         model_data=model_data,

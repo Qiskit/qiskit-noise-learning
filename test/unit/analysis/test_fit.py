@@ -13,7 +13,7 @@
 import pytest
 
 from qiskit_noise_learning.analysis import Fit
-from qiskit_noise_learning.data import AveragedData, ModelData, ObservableData
+from qiskit_noise_learning.data import AggregatedObservableData, ModelData, ObservableData
 from qiskit_noise_learning.models import IdentityFidelityModel, LogFidelitySpace
 from qiskit_noise_learning.sequences import LogPathMap
 from qiskit_noise_learning.visualizations.interactive_figure import InteractiveFigure
@@ -37,13 +37,15 @@ def test_rejects_non_fidelity_linear_map(gate_set_cz):
 
 
 @pytest.fixture()
-def fit_with_data(make_cz_path, make_observable_data, make_averaged_data, make_fidelity_model_data):
+def fit_with_data(
+    make_cz_path, make_observable_data, make_aggregated_observable_data, make_fidelity_model_data
+):
     """A real :class:`~.Fit` carrying observable / averaged / model data for one decay path."""
     p = make_cz_path("XI")
     model, model_data = make_fidelity_model_data([p])
     fit = Fit(model=model)
     fit[ObservableData] = make_observable_data([(p, 1.0, 0.9, [0, 1, 2])])
-    fit[AveragedData] = make_averaged_data([(p, -1, 0.9)])
+    fit[AggregatedObservableData] = make_aggregated_observable_data([(p, -1, 0.9)])
     fit[ModelData] = model_data
     return fit
 

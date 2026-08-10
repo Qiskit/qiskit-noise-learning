@@ -12,41 +12,41 @@
 
 import numpy as np
 
-from qiskit_noise_learning.data import AveragedData
+from qiskit_noise_learning.data import AggregatedObservableData
 
 
 def test_from_arrays(make_cz_path):
-    """Test constructing AveragedData from arrays."""
+    """Test constructing AggregatedObservableData from arrays."""
     p = make_cz_path("IX")
-    avg = AveragedData.from_arrays(
+    avg = AggregatedObservableData.from_arrays(
         unbound_paths=[p],
         fragment_depths=[-1],
-        observables=np.array([0.8]),
-        std=np.array([0.01]),
+        estimate_values=np.array([0.8]),
+        estimate_std=np.array([0.01]),
         time_lbs=np.array(["2026-01-01"], dtype="datetime64[us]"),
         time_ubs=np.array(["2026-01-02"], dtype="datetime64[us]"),
     )
     ds = avg.dataset
-    assert ds["observables"].shape == (1,)
+    assert ds["estimate_values"].shape == (1,)
     assert ds["unbound_path"].values[0] == p
     assert ds["fragment_depth"].values[0] == -1
-    assert float(ds["observables"].values[0]) == 0.8
-    assert float(ds["std"].values[0]) == 0.01
+    assert float(ds["estimate_values"].values[0]) == 0.8
+    assert float(ds["estimate_std"].values[0]) == 0.01
 
 
 def test_filter_time(make_cz_path):
     """Test that filter_time keeps only data within the time window."""
     p0 = make_cz_path("IX")
     p1 = make_cz_path("XI")
-    avg = AveragedData.from_arrays(
+    avg = AggregatedObservableData.from_arrays(
         unbound_paths=[p0, p1],
         fragment_depths=[-1, -1],
-        observables=np.array([0.8, 0.7]),
-        std=np.array([0.01, 0.02]),
+        estimate_values=np.array([0.8, 0.7]),
+        estimate_std=np.array([0.01, 0.02]),
         time_lbs=np.array(["2026-01-01", "2026-01-05"], dtype="datetime64[us]"),
         time_ubs=np.array(["2026-01-02", "2026-01-06"], dtype="datetime64[us]"),
     )
     filtered = avg.filter_time(lb=np.datetime64("2026-01-04"), ub=np.datetime64("2026-01-07"))
-    vals = filtered.dataset["observables"].values
+    vals = filtered.dataset["estimate_values"].values
     assert np.isnan(vals[0])
     assert vals[1] == 0.7

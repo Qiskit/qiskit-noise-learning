@@ -171,7 +171,7 @@ class TestComputeObservables:
             assert isinstance(obs, ObservableData)
             assert obs.dataset.sizes["observable"] == 1
             assert path.unbind() in obs.dataset["unbound_path"]
-            np.testing.assert_allclose(obs.dataset["observables"][0], sign * 1.0)
+            np.testing.assert_allclose(obs.dataset["observable_values"][0], sign * 1.0)
 
             # All-one data -> compute_expectation_value = -1.0
             result = _run_compute_observables(
@@ -184,7 +184,7 @@ class TestComputeObservables:
             assert isinstance(obs, ObservableData)
             assert obs.dataset.sizes["observable"] == 1
             assert path.unbind() in obs.dataset["unbound_path"]
-            np.testing.assert_allclose(obs.dataset["observables"][0], sign * -1.0)
+            np.testing.assert_allclose(obs.dataset["observable_values"][0], sign * -1.0)
 
     def test_observables_basic_1q(self, gate_set_1q):
         """Basic 1-qubit test verifying ev computation for fixed fragment_depths."""
@@ -232,7 +232,7 @@ class TestComputeObservables:
                     & (ds["fragment_depth"].values == path.fragment_depth)
                 )[0, 0]
             )
-            np.testing.assert_allclose(ds["observables"][idx], expected_sign * 1.0)
+            np.testing.assert_allclose(ds["observable_values"][idx], expected_sign * 1.0)
 
     def test_unbound_and_bound_observables_basic_1q(self, gate_set_1q):
         """Test with both variable-fragment_depth and fixed-fragment_depth paths."""
@@ -287,7 +287,7 @@ class TestComputeObservables:
                     (ds["unbound_path"].values == unbound_path) & (ds["fragment_depth"].values == d)
                 )[0, 0]
             )
-            np.testing.assert_allclose(ds["observables"][idx], sign * 1.0)
+            np.testing.assert_allclose(ds["observable_values"][idx], sign * 1.0)
 
         # Fixed-fragment_depth paths should also be matched (fragment_depths 1, 2 overlap)
         for fp in fixed_paths:
@@ -342,8 +342,8 @@ class TestComputeObservables:
                 (ds["unbound_path"].values == unbound_path) & (ds["fragment_depth"].values == 2)
             )[0, 0]
         )
-        ev1 = ds["observables"][idx1].values
-        ev2 = ds["observables"][idx2].values
+        ev1 = ds["observable_values"][idx1].values
+        ev2 = ds["observable_values"][idx2].values
         assert ev1 == pytest.approx(-ev2)
 
     def test_unbound_path_observables_mask_2q(self, gate_set_cz, make_cz_path):
@@ -366,7 +366,9 @@ class TestComputeObservables:
             data=[np.tile([False, True], (1, 10, 1))],
             measurement_flips=[np.zeros((1, 2), dtype=bool)],
         )
-        np.testing.assert_allclose(result.observable_data.dataset["observables"][0], sign * 1.0)
+        np.testing.assert_allclose(
+            result.observable_data.dataset["observable_values"][0], sign * 1.0
+        )
 
         # Data: qubit 0 = True (one), qubit 1 = False (zero)
         # Qubit 0: True -> ev = -1
@@ -376,7 +378,9 @@ class TestComputeObservables:
             data=[np.tile([True, False], (1, 10, 1))],
             measurement_flips=[np.zeros((1, 2), dtype=bool)],
         )
-        np.testing.assert_allclose(result.observable_data.dataset["observables"][0], sign * (-1.0))
+        np.testing.assert_allclose(
+            result.observable_data.dataset["observable_values"][0], sign * (-1.0)
+        )
 
     def test_unbound_path_observables_multiway(self, gate_set_cz, make_cz_path):
         """Verify computation with multiple unbound paths per instruction sequence."""
@@ -413,7 +417,7 @@ class TestComputeObservables:
                     & (ds["fragment_depth"].values == path.fragment_depth)
                 )[0, 0]
             )
-            np.testing.assert_allclose(ds["observables"][idx], expected_sign * 1.0)
+            np.testing.assert_allclose(ds["observable_values"][idx], expected_sign * 1.0)
 
     def test_unbound_path_observables_multiple_depths(self, gate_set_1q):
         """Verify computation handles multiple fragment_depths correctly."""
@@ -465,8 +469,8 @@ class TestComputeObservables:
                 (ds["unbound_path"].values == unbound_path) & (ds["fragment_depth"].values == 2)
             )[0, 0]
         )
-        np.testing.assert_allclose(ds["observables"][idx1], sign1 * 1.0)
-        np.testing.assert_allclose(ds["observables"][idx2], sign2 * 1.0)
+        np.testing.assert_allclose(ds["observable_values"][idx1], sign1 * 1.0)
+        np.testing.assert_allclose(ds["observable_values"][idx2], sign2 * 1.0)
 
     def test_path_to_multiple_sequences(self, gate_set_1q):
         """Test computation of an observable for a single path measured by two different instruction
@@ -532,7 +536,7 @@ class TestComputeObservables:
         assert ds.sizes["observable"] == 1
 
         # value without sign flips is -1 for both, but unbound_inst_seq0 requires a sign flip
-        np.testing.assert_allclose(ds["observables"], np.array([[1.0, -1.0]]))
+        np.testing.assert_allclose(ds["observable_values"], np.array([[1.0, -1.0]]))
 
     def test_unbound_path_in_fit_paths(self, gate_set_1q):
         """Test that an unbound path in fit.paths accepts all fragment_depths from raw data."""
@@ -578,7 +582,7 @@ class TestComputeObservables:
                     & (ds["fragment_depth"].values == fragment_depth)
                 )[0, 0]
             )
-            np.testing.assert_allclose(ds["observables"][idx], sign * 1.0)
+            np.testing.assert_allclose(ds["observable_values"][idx], sign * 1.0)
 
     def test_unbound_and_bound_paths_in_fit_paths(self, gate_set_1q):
         """Test with both unbound and bound paths in fit.paths (greedy fallback)."""
@@ -628,7 +632,7 @@ class TestComputeObservables:
                     & (ds["fragment_depth"].values == fragment_depth)
                 )[0, 0]
             )
-            np.testing.assert_allclose(ds["observables"][idx], sign * 1.0)
+            np.testing.assert_allclose(ds["observable_values"][idx], sign * 1.0)
 
     def test_unbound_and_bound_paths_with_relations(self, gate_set_1q):
         """Test with both unbound and bound paths in fit.paths using relations."""
@@ -683,7 +687,7 @@ class TestComputeObservables:
                     & (ds["fragment_depth"].values == fragment_depth)
                 )[0, 0]
             )
-            np.testing.assert_allclose(ds["observables"][idx], sign * 1.0)
+            np.testing.assert_allclose(ds["observable_values"][idx], sign * 1.0)
 
     def test_relations_based_code_path(self, gate_set_1q):
         """Test ComputeObservables using fit.relations instead of greedy discovery."""
@@ -734,7 +738,7 @@ class TestComputeObservables:
                     & (ds["fragment_depth"].values == fragment_depth)
                 )[0, 0]
             )
-            np.testing.assert_allclose(ds["observables"][idx], sign * 1.0)
+            np.testing.assert_allclose(ds["observable_values"][idx], sign * 1.0)
 
     def test_relations_ignores_unrelated_sequences(self, gate_set_1q):
         """Test that relations-based path ignores raw data for unrelated sequences."""

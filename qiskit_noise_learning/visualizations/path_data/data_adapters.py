@@ -16,38 +16,38 @@ from collections.abc import Iterable
 
 import numpy as np
 
-from ...data import AveragedData, ObservableData
+from ...data import AggregatedObservableData, ObservableData
 from ...sequences import Path
 from .primitives import PointSeries
 
 
 def exponential_fit_curves(
-    averaged_data: AveragedData,
+    aggregated_observable_data: AggregatedObservableData,
     paths: Iterable[Path] | None = None,
 ) -> tuple[dict[Path, float], dict[Path, float]]:
-    """Extract exponential-fit decay parameters from averaged data.
+    """Extract exponential-fit decay parameters from aggregated observable data.
 
     Extracts the ``base`` and ``intercept`` for entries with ``fragment_depth == -1``, for use in
     :func:`plot_path_decay_curves`. The ``intercept`` is drawn from ``metadata["spam_fidelity"]``,
     and defaults to ``1.0`` if absent.
 
     Args:
-        averaged_data: The averaged data to extract from.
+        aggregated_observable_data: The aggregated observable data to extract from.
         paths: Optional paths to restrict extraction to. Defaults to all paths in the data.
 
     Returns:
         A ``(bases, intercepts)`` pair of mappings from path to float.
     """
-    dataset = averaged_data.dataset
+    dataset = aggregated_observable_data.dataset
     wanted = set(paths) if paths is not None else None
     mask = dataset["fragment_depth"].data == -1
     entry_paths = dataset["unbound_path"].data[mask]
-    observables = dataset["observables"].data[mask]
+    estimate_values = dataset["estimate_values"].data[mask]
     metadata = dataset["metadata"].data[mask]
 
     bases: dict[Path, float] = {}
     intercepts: dict[Path, float] = {}
-    for path, fidelity, meta in zip(entry_paths, observables, metadata):
+    for path, fidelity, meta in zip(entry_paths, estimate_values, metadata):
         if wanted is not None and path not in wanted:
             continue
         bases[path] = float(fidelity)
@@ -57,25 +57,25 @@ def exponential_fit_curves(
 
 
 def averaged_data_points(
-    averaged_data: AveragedData,
+    aggregated_observable_data: AggregatedObservableData,
     paths: Iterable[Path] | None = None,
 ) -> dict[Path, PointSeries]:
-    """Extract point series data for the bound paths in an average data instance.
+    """Extract point series data for the bound paths in an aggregated observable data instance.
 
     Args:
-        averaged_data: The averaged data to extract from.
+        aggregated_observable_data: The aggregated observable data to extract from.
         paths: Optional paths to restrict extraction to. Defaults to all paths in the data.
 
     Returns:
         A mapping from path to its :class:`PointSeries` (with ``stds`` populated).
     """
-    dataset = averaged_data.dataset
+    dataset = aggregated_observable_data.dataset
     wanted = set(paths) if paths is not None else None
     mask = dataset["fragment_depth"].data >= 0
     entry_paths = dataset["unbound_path"].data[mask]
     fragment_depths = dataset["fragment_depth"].data[mask]
-    observables = dataset["observables"].data[mask]
-    stds = dataset["std"].data[mask]
+    estimate_values = dataset["estimate_values"].data[mask]
+    estimate_std = dataset["estimate_std"].data[mask]
 
     rows_by_path: dict[Path, list[int]] = {}
     for row, path in enumerate(entry_paths):
@@ -88,8 +88,8 @@ def averaged_data_points(
         rows = np.asarray(rows)
         result[path] = PointSeries(
             xs=fragment_depths[rows].astype(float),
-            ys=observables[rows].astype(float),
-            stds=stds[rows].astype(float),
+            ys=estimate_values[rows].astype(float),
+            stds=estimate_std[rows].astype(float),
         )
 
     return result
@@ -115,7 +115,7 @@ def observable_data_points(
     wanted = set(paths) if paths is not None else None
     entry_paths = dataset["unbound_path"].data
     fragment_depths = dataset["fragment_depth"].data
-    observables = dataset["observables"].data
+    observable_values = dataset["observable_values"].data
 
     rows_by_path: dict[Path, list[int]] = {}
     for row, path in enumerate(entry_paths):
@@ -128,7 +128,7 @@ def observable_data_points(
         flat_fragment_depths: list[float] = []
         flat_values: list[float] = []
         for row in rows:
-            valid = observables[row][~np.isnan(observables[row])]
+            valid = observable_values[row][~np.isnan(observable_values[row])]
             flat_fragment_depths.extend([float(fragment_depths[row])] * valid.size)
             flat_values.extend(float(value) for value in valid)
 
@@ -140,7 +140,7 @@ def observable_data_points(
     return result
 
 
-def _dataset_paths(*datas: AveragedData | ObservableData | None) -> list[Path]:
+def _dataset_paths(*datas: AggregatedObservableData | ObservableData | None) -> list[Path]:
     """The unique unbound paths across the given data objects, in first-seen order."""
     seen: dict[Path, None] = {}
     for data in datas:

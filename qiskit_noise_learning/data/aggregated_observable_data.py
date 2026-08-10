@@ -21,26 +21,34 @@ from .leveled_data import LeveledData
 from .xarray_utils import filter_time
 
 
-class AveragedData(LeveledData):
-    """Observable data aggregated over randomizations, or through other curve fitting.
+class AggregatedObservableData(LeveledData):
+    """Per-path estimates obtained by aggregating :class:`~.ObservableData`.
 
-    This class represents aggregated information for specific observables, averaged over
-    randomizations, including through potential curve fitting. The data is stored as an XArray
-    ``Dataset`` with the following data:
+    This class holds a single estimate per observable, obtained by collapsing the
+    per-randomization structure of :class:`~.ObservableData`. Each observable estimate is labelled
+    by an unbound path and a corresponding fragment depth. A non-negative fragment depth corresponds
+    to labelling by a bound path with that depth, and a fragment depth of ``-1`` signals that the
+    estimate corresponds to a genuinely unbound path. For a non-negative fragment depth, the
+    estimate value corresponds to the product of all fidelities in the path, and the estimate for a
+    fragment depth of ``-1`` corresponds to the product of the fidelities in the repeatable
+    fragment.
 
     - Data variables:
 
-        - ``observables``: A 1d float array with dimensions ``("observable",)``.
-        - ``std``: A 1d array of standard deviations for the observable estimates, with
-          dimensions ``("observable",)``.
-        - ``time_lbs``: A lower bound on the data collection for observable, with dimensions
+        - ``estimate_values``: A 1d float array of per-observable estimates, with dimensions
           ``("observable",)``.
-        - ``time_ubs``: An upper bound on the data collection for observable, with dimensions
+        - ``estimate_std``: A 1d array of standard deviations for the estimates, with dimensions
+          ``("observable",)``.
+        - ``time_lbs``: A lower bound on the data collection for each observable, with dimensions
+          ``("observable",)``.
+        - ``time_ubs``: An upper bound on the data collection for each observable, with dimensions
+          ``("observable",)``.
+        - ``metadata``: A 1d object array of any additional per-observable data, with dimensions
           ``("observable",)``.
 
     - Coordinates:
 
-        - ``unbound_path``: A 1d array of unbound :class:`Path` instances labelling each
+        - ``unbound_path``: A 1d array of unbound :class:`~.Path` instances labelling each
           observable, with dimensions ``("observable",)``.
         - ``fragment_depth``: A 1d array of type ``int`` specifying the fragment depth
           associated to the observable. A value of ``-1`` indicates an estimate of only the
@@ -55,7 +63,7 @@ class AveragedData(LeveledData):
 
     @property
     def dataset(self) -> xr.Dataset:
-        """The averaged observable data set."""
+        """The aggregated observable data set."""
         return self._dataset
 
     @classmethod
@@ -63,8 +71,8 @@ class AveragedData(LeveledData):
         cls,
         unbound_paths: list[Path],
         fragment_depths: list[int],
-        observables: np.ndarray[float],
-        std: np.ndarray[float],
+        estimate_values: np.ndarray[float],
+        estimate_std: np.ndarray[float],
         time_lbs: np.ndarray[np.datetime64],
         time_ubs: np.ndarray[np.datetime64],
         metadata: np.ndarray[object] | None = None,
@@ -74,22 +82,22 @@ class AveragedData(LeveledData):
         Args:
             unbound_paths: A list of unbound paths (with ``fragment_depth=None``).
             fragment_depths: A list of fragment depths, with ``-1`` indicating the corresponding
-                observable is in reference to only the repeatable fragment of the corresponding
+                estimate is in reference to only the repeatable fragment of the corresponding
                 path.
-            observables: A 1d array of observable estimates.
-            std: A 1d array of standard deviations.
+            estimate_values: A 1d array of per-observable estimates.
+            estimate_std: A 1d array of standard deviations.
             time_lbs: A 1d array of time lower bounds.
             time_ubs: A 1d array of time upper bounds.
             metadata: Any additional data associated with a given observable.
         """
         dataset = xr.Dataset(
             data_vars={
-                "observables": xr.DataArray(data=observables, dims=["observable"]),
-                "std": xr.DataArray(data=std, dims=["observable"]),
+                "estimate_values": xr.DataArray(data=estimate_values, dims=["observable"]),
+                "estimate_std": xr.DataArray(data=estimate_std, dims=["observable"]),
                 "time_lbs": xr.DataArray(data=time_lbs, dims=["observable"]),
                 "time_ubs": xr.DataArray(data=time_ubs, dims=["observable"]),
                 "metadata": xr.DataArray(
-                    data=metadata or np.array([None] * len(observables), dtype=object),
+                    data=metadata or np.array([None] * len(estimate_values), dtype=object),
                     dims=["observable"],
                 ),
             },
@@ -110,7 +118,7 @@ class AveragedData(LeveledData):
         Returns:
             A new instance containing both data sets.
         """
-        return AveragedData(xr.concat([self.dataset, other.dataset], dim="observable"))
+        return AggregatedObservableData(xr.concat([self.dataset, other.dataset], dim="observable"))
 
     def filter_time(self, lb: np.datetime64, ub: np.datetime64) -> Self:
         """Filter to data gathered within the time bounds.
@@ -122,4 +130,6 @@ class AveragedData(LeveledData):
         Returns:
             The time filtered version of self.
         """
-        return AveragedData(filter_time(xr.DataTree(self.dataset), lb=lb, ub=ub).dataset)
+        return AggregatedObservableData(
+            filter_time(xr.DataTree(self.dataset), lb=lb, ub=ub).dataset
+        )

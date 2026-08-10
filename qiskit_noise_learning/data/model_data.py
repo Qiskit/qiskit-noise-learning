@@ -27,11 +27,11 @@ class ModelData(LeveledData, Generic[ParameterIndex]):
 
     The dataset has data variables:
 
-    - ``parameters``: 1D array with dimension ``parameter``.
-    - ``covariance``: 2D array with dimensions ``(parameter_row, parameter_col)``.
+    - ``parameter_values``: 1D array with dimension ``parameter_index``.
+    - ``covariance``: 2D array with dimensions ``(parameter_row_index, parameter_col_index)``.
 
-    The ``parameter``, ``parameter_row``, and ``parameter_col`` coordinates all share the same
-    parameter labels. Additional fit metadata is stored in dataset attrs.
+    The ``parameter_index``, ``parameter_row_index``, and ``parameter_col_index`` coordinates all
+    share the same parameter labels. Additional fit metadata is stored in dataset attrs.
     """
 
     def __init__(self, dataset: xr.Dataset):
@@ -65,17 +65,17 @@ class ModelData(LeveledData, Generic[ParameterIndex]):
 
         dataset = xr.Dataset(
             data_vars={
-                "parameter_values": xr.DataArray(data=parameter_values, dims=["parameter"]),
+                "parameter_values": xr.DataArray(data=parameter_values, dims=["parameter_index"]),
                 "covariance": xr.DataArray(
-                    data=covariance, dims=["parameter_row", "parameter_col"]
+                    data=covariance, dims=["parameter_row_index", "parameter_col_index"]
                 ),
-                "time_lbs": xr.DataArray(data=time_lbs, dims=["parameter"]),
-                "time_ubs": xr.DataArray(data=time_ubs, dims=["parameter"]),
+                "time_lbs": xr.DataArray(data=time_lbs, dims=["parameter_index"]),
+                "time_ubs": xr.DataArray(data=time_ubs, dims=["parameter_index"]),
             },
             coords={
-                "parameter": labels,
-                "parameter_row": labels.copy(),
-                "parameter_col": labels.copy(),
+                "parameter_index": labels,
+                "parameter_row_index": labels.copy(),
+                "parameter_col_index": labels.copy(),
             },
             attrs=metadata or {},
         )

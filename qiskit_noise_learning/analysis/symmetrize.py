@@ -37,7 +37,7 @@ class SymmetrizeGenerators(AnalysisStage):
             raise TypeError("SymmetrizeGenerators requires a PauliLindbladModel on the Fit.")
 
         model_data = fit[ModelData]
-        params = model_data.dataset["parameter"].data
+        params = model_data.dataset["parameter_index"].data
         rates = model_data.dataset["parameter_values"].data.copy()
         covariance = model_data.dataset["covariance"].data.copy()
 
@@ -103,7 +103,7 @@ class SymmetrizeFidelities(AnalysisStage):
             raise TypeError("SymmetrizeFidelities requires a PauliLindbladModel on the Fit.")
 
         model_data = fit[ModelData]
-        params = model_data.dataset["parameter"].data
+        params = model_data.dataset["parameter_index"].data
         rates = model_data.dataset["parameter_values"].data.copy()
 
         for gate_name, gate in model.gate_set.items():

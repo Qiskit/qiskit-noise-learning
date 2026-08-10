@@ -25,7 +25,7 @@ from qiskit_noise_learning.analysis.legacy import (
     make_canonical_fid_dict,
     make_conj_pauli_list,
 )
-from qiskit_noise_learning.data import AveragedData, ModelData
+from qiskit_noise_learning.data import AggregatedObservableData, ModelData
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
 from qiskit_noise_learning.sequences import FidelityIndex, Path
 
@@ -64,13 +64,13 @@ def _pp(gate_set: ModelGateSet, in_pauli: str, out_pauli: str) -> Path:
     )
 
 
-def _make_averaged_data(pps: list, fidelities: np.ndarray) -> AveragedData:
+def _make_aggregated_observable_data(pps: list, fidelities: np.ndarray) -> AggregatedObservableData:
     n = len(pps)
-    return AveragedData.from_arrays(
+    return AggregatedObservableData.from_arrays(
         unbound_paths=pps,
         fragment_depths=[-1] * n,
-        observables=fidelities,
-        std=np.full(n, 0.001),
+        estimate_values=fidelities,
+        estimate_std=np.full(n, 0.001),
         time_lbs=np.empty(n, dtype="datetime64[us]"),
         time_ubs=np.empty(n, dtype="datetime64[us]"),
     )
@@ -124,11 +124,13 @@ def test_get_fid_pairs_returns_two_qubit_sparse_pauli_lists(gate_set_2q_identity
     # Self-conjugate XI and ZI under the identity Clifford: each Path's
     # repeatable_fragment[0].pauli and [1].pauli are the same.
     pps = [_pp(gate_set_2q_identity, "XI", "XI"), _pp(gate_set_2q_identity, "ZI", "ZI")]
-    ad = _make_averaged_data(pps, np.array([0.9, 0.8]))
+    ad = _make_aggregated_observable_data(pps, np.array([0.9, 0.8]))
     fit = Fit()
-    fit[AveragedData] = ad
+    fit[AggregatedObservableData] = ad
 
-    fid_ps_1, fid_ps_2 = get_fid_pairs(fit.averaged_data.dataset.observables.unbound_path.data)
+    fid_ps_1, fid_ps_2 = get_fid_pairs(
+        fit.aggregated_observable_data.dataset.estimate_values.unbound_path.data
+    )
     assert fid_ps_1.to_pauli_list().to_labels() == ["XI", "ZI"]
     assert fid_ps_2.to_pauli_list().to_labels() == ["XI", "ZI"]
 
@@ -141,12 +143,12 @@ def test_get_fid_pairs_raises_on_wrong_fragment_length(gate_set_2q_identity):
     )
     pp_3 = Path(start_fragment=[], repeatable_fragment=[fi, fi, fi], end_fragment=[])
 
-    ad = _make_averaged_data([pp_3], np.array([0.9]))
+    ad = _make_aggregated_observable_data([pp_3], np.array([0.9]))
     fit = Fit()
-    fit[AveragedData] = ad
+    fit[AggregatedObservableData] = ad
 
     with pytest.raises(ValueError, match="repeatable_fragment"):
-        get_fid_pairs(fit.averaged_data.dataset.observables.unbound_path.data)
+        get_fid_pairs(fit.aggregated_observable_data.dataset.estimate_values.unbound_path.data)
 
 
 @pytest.fixture()
@@ -162,7 +164,7 @@ def two_qubit_anticomm_fit(gate_set_2q_identity) -> Fit:
     f_xi = np.exp(-0.2)  # so that -log(f)/4 = 0.05 = M-row dot λ for XI
     f_zi = np.exp(-0.4)  # so that -log(f)/4 = 0.10 = M-row dot λ for ZI
     fit = Fit()
-    fit[AveragedData] = _make_averaged_data(pps, np.array([f_xi, f_zi]))
+    fit[AggregatedObservableData] = _make_aggregated_observable_data(pps, np.array([f_xi, f_zi]))
     return fit
 
 
@@ -234,7 +236,7 @@ def test_zero_noise_yields_zero_rates(gate_set_2q_identity):
     # Perfect (1.0) fidelities → all rates zero (NNLS lower bound is 0).
     pps = [_pp(gate_set_2q_identity, "XI", "XI"), _pp(gate_set_2q_identity, "ZI", "ZI")]
     fit = Fit()
-    fit[AveragedData] = _make_averaged_data(pps, np.array([1.0, 1.0]))
+    fit[AggregatedObservableData] = _make_aggregated_observable_data(pps, np.array([1.0, 1.0]))
     nm = fit_noise_model_legacy(fit)
     assert all(r == pytest.approx(0.0, abs=1e-12) for r in nm.rates)
 
@@ -247,7 +249,7 @@ def test_legacy_solve_writes_model_data(two_qubit_anticomm_fit):
 
     # Parameter labels should be GeneratorIndex objects with the gate name from the
     # unbound path's repeatable_fragment[0].gate_name (the gate set fixture uses "LL").
-    indices = md.dataset["parameter"].values.tolist()
+    indices = md.dataset["parameter_index"].values.tolist()
     assert all(idx.gate_name == "LL" for idx in indices)
 
     # Recovered rates should match the analytical values.
