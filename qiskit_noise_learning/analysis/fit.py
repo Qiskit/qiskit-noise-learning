@@ -245,9 +245,10 @@ class Fit:
                 label). Defaults to the noise site of the fit's model when it is, or contains, a
                 single :class:`~.PauliLindbladModel`.
             paths: The paths to draw across all layers. Defaults to the decay paths found in this
-                fit's observable/averaged data, falling back to the fit's own ``paths`` when no such
-                data is present. Supply this to draw model-prediction curves for a fit that carries
-                only a model (no observable or averaged data to derive the paths from).
+                fit's observable/aggregated observable data, falling back to the fit's own ``paths``
+                when no such data is present. Supply this to draw model-prediction curves for a fit
+                that carries only a model (no observable or aggregated observable data to derive the
+                paths from).
             fragment_depths: The fragment-depth range for the curves. Defaults to ``0`` through the
                 largest fragment depth in the empirical data present, or ``0``–``10`` when there is
                 none.

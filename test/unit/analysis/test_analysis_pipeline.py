@@ -43,7 +43,7 @@ class _StubRawToObs(AnalysisStage):
         )
 
 
-class _StubObsToAveraged(AnalysisStage):
+class _StubObsToAggregated(AnalysisStage):
     @property
     def input_level(self):
         return ObservableData
@@ -63,7 +63,7 @@ class _StubObsToAveraged(AnalysisStage):
         )
 
 
-class _StubAveragedToModel(AnalysisStage):
+class _StubAggregatedToModel(AnalysisStage):
     @property
     def input_level(self):
         return AggregatedObservableData
@@ -82,7 +82,7 @@ class _StubAveragedToModel(AnalysisStage):
         )
 
 
-class _StubRawToAveraged(AnalysisStage):
+class _StubRawToAggregated(AnalysisStage):
     @property
     def input_level(self):
         return RawData
@@ -113,7 +113,7 @@ class TestAnalysisPipeline:
 
     def test_stages_property(self):
         """Test the stages property."""
-        stages = (_StubRawToObs(), _StubObsToAveraged(), _StubAveragedToModel())
+        stages = (_StubRawToObs(), _StubObsToAggregated(), _StubAggregatedToModel())
         pipeline = AnalysisPipeline(*stages)
 
         assert pipeline.input_level is RawData
@@ -123,11 +123,11 @@ class TestAnalysisPipeline:
     def test_incompatible_stages_raises(self):
         """Test that the output of a level must match the input of the subsequent level."""
         with pytest.raises(ValueError, match="does not match"):
-            AnalysisPipeline(_StubObsToAveraged(), _StubRawToObs())
+            AnalysisPipeline(_StubObsToAggregated(), _StubRawToObs())
 
     def test_skipped_and_absent_marking(self):
         """Test skipped and absent levels are marked accordingly."""
-        stage = _StubRawToAveraged()
+        stage = _StubRawToAggregated()
         raw = RawData(datatree=xr.DataTree())
         fit = Fit()
         fit[RawData] = raw
@@ -140,7 +140,7 @@ class TestAnalysisPipeline:
 
     def test_pipeline_run_does_not_mutate_original(self):
         """Test that returns a new fit and does not mutate the input fit."""
-        pipeline = AnalysisPipeline(_StubObsToAveraged(), _StubAveragedToModel())
+        pipeline = AnalysisPipeline(_StubObsToAggregated(), _StubAggregatedToModel())
         obs = ObservableData.from_arrays(
             unbound_paths=[],
             fragment_depths=[],
@@ -159,7 +159,7 @@ class TestAnalysisPipeline:
 
     def test_history_through_pipeline(self):
         """Test that the data history is set appropriately."""
-        pipeline = AnalysisPipeline(_StubObsToAveraged(), _StubAveragedToModel())
+        pipeline = AnalysisPipeline(_StubObsToAggregated(), _StubAggregatedToModel())
         obs = ObservableData.from_arrays(
             unbound_paths=[],
             fragment_depths=[],
@@ -171,10 +171,10 @@ class TestAnalysisPipeline:
         fit[ObservableData] = obs
         result = pipeline.run(fit)
 
-        averaged_hist = result.history.aggregated_observable_data
-        assert isinstance(averaged_hist[0], AbsentType)
-        assert isinstance(averaged_hist[1], SkippedType)
-        assert isinstance(averaged_hist[-1], AggregatedObservableData)
+        aggregated_hist = result.history.aggregated_observable_data
+        assert isinstance(aggregated_hist[0], AbsentType)
+        assert isinstance(aggregated_hist[1], SkippedType)
+        assert isinstance(aggregated_hist[-1], AggregatedObservableData)
 
         model_hist = result.history.model_data
         assert isinstance(model_hist[0], AbsentType)
@@ -183,7 +183,7 @@ class TestAnalysisPipeline:
 
     def test_history_preserves_input_data(self):
         """Test that the history contains the input data."""
-        pipeline = AnalysisPipeline(_StubObsToAveraged(), _StubAveragedToModel())
+        pipeline = AnalysisPipeline(_StubObsToAggregated(), _StubAggregatedToModel())
         obs = ObservableData.from_arrays(
             unbound_paths=[],
             fragment_depths=[],
@@ -200,16 +200,16 @@ class TestAnalysisPipeline:
 
     def test_nested_pipeline_levels(self):
         """Test properties for nested pipelines (constructor flattens)."""
-        inner = AnalysisPipeline(_StubRawToObs(), _StubObsToAveraged())
-        outer = AnalysisPipeline(inner, _StubAveragedToModel())
+        inner = AnalysisPipeline(_StubRawToObs(), _StubObsToAggregated())
+        outer = AnalysisPipeline(inner, _StubAggregatedToModel())
         assert outer.input_level is RawData
         assert outer.output_level is ModelData
         assert len(outer.stages) == 3  # flattened
 
     def test_nested_pipeline_run(self):
         """Test the run method for nested pipelines."""
-        inner = AnalysisPipeline(_StubRawToObs(), _StubObsToAveraged())
-        outer = AnalysisPipeline(inner, _StubAveragedToModel())
+        inner = AnalysisPipeline(_StubRawToObs(), _StubObsToAggregated())
+        outer = AnalysisPipeline(inner, _StubAggregatedToModel())
         raw = RawData(datatree=xr.DataTree())
         fit = Fit()
         fit[RawData] = raw
@@ -221,8 +221,8 @@ class TestAnalysisPipeline:
     def test_deeply_nested_pipeline(self):
         """Test a deeply nested pipeline (constructor flattens at each level)."""
         p1 = AnalysisPipeline(_StubRawToObs())
-        p2 = AnalysisPipeline(p1, _StubObsToAveraged())
-        p3 = AnalysisPipeline(p2, _StubAveragedToModel())
+        p2 = AnalysisPipeline(p1, _StubObsToAggregated())
+        p3 = AnalysisPipeline(p2, _StubAggregatedToModel())
         assert p3.input_level is RawData
         assert p3.output_level is ModelData
         assert len(p3.stages) == 3  # flattened
@@ -235,14 +235,14 @@ class TestAnalysisPipeline:
 
     def test_add_creates_pipeline(self):
         """Test that + on two stages returns an AnalysisPipeline."""
-        stage1, stage2 = _StubRawToObs(), _StubObsToAveraged()
+        stage1, stage2 = _StubRawToObs(), _StubObsToAggregated()
         result = stage1 + stage2
         assert isinstance(result, AnalysisPipeline)
         assert result.stages == (stage1, stage2)
 
     def test_add_flattens_pipelines(self):
         """Test that + flattens when one operand is a pipeline."""
-        s1, s2, s3 = _StubRawToObs(), _StubObsToAveraged(), _StubAveragedToModel()
+        s1, s2, s3 = _StubRawToObs(), _StubObsToAggregated(), _StubAggregatedToModel()
         pipeline = AnalysisPipeline(s1, s2)
         result = pipeline + s3
         assert result.stages == (s1, s2, s3)
@@ -253,7 +253,7 @@ class TestAnalysisPipeline:
     def test_add_incompatible_raises(self):
         """Test that + on incompatible stages raises ValueError."""
         with pytest.raises(ValueError, match="does not match"):
-            _StubObsToAveraged() + _StubRawToObs()
+            _StubObsToAggregated() + _StubRawToObs()
 
     def test_repr_stage(self):
         """Test the repr of a bare stage."""
@@ -261,13 +261,13 @@ class TestAnalysisPipeline:
 
     def test_repr_pipeline(self):
         """Test the repr of a pipeline."""
-        s1, s2 = _StubRawToObs(), _StubObsToAveraged()
+        s1, s2 = _StubRawToObs(), _StubObsToAggregated()
         pipeline = AnalysisPipeline(s1, s2)
-        assert repr(pipeline) == "AnalysisPipeline(_StubRawToObs(), _StubObsToAveraged())"
+        assert repr(pipeline) == "AnalysisPipeline(_StubRawToObs(), _StubObsToAggregated())"
 
     def test_pipeline_run_with_leveled_data(self):
         """Test that the run method on leveled data returns a fit with the right data."""
-        pipeline = AnalysisPipeline(_StubObsToAveraged(), _StubAveragedToModel())
+        pipeline = AnalysisPipeline(_StubObsToAggregated(), _StubAggregatedToModel())
         obs = ObservableData.from_arrays(
             unbound_paths=[],
             fragment_depths=[],
