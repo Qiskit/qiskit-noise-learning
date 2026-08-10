@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
-from ...data import AveragedData, ModelData, ObservableData
+from ...data import AggregatedObservableData, ModelData, ObservableData
 from ...math import LinearMap
 from ...sequences import Path
 from ..interactive_figure import TokenMap, trace_gid
@@ -212,12 +212,16 @@ def observable_means_layer(
 
 
 def exponential_fit_curves_layer(
-    averaged_data: AveragedData, *, line_kwargs: Mapping[str, object] | None = None
+    aggregated_observable_data: AggregatedObservableData,
+    *,
+    line_kwargs: Mapping[str, object] | None = None,
 ) -> Layer:
-    """A layer drawing the exponential-fit decay curves from averaged data (default dashed line).
+    """A layer drawing the exponential-fit decay curves from aggregated observable data.
+
+    Draws with a dashed line by default.
 
     Args:
-        averaged_data: The averaged data whose fitted decays to draw.
+        aggregated_observable_data: The aggregated observable data whose fitted decays to draw.
         line_kwargs: Optional matplotlib properties for the lines (e.g. ``linestyle``,
             ``linewidth``, ``alpha``).
 
@@ -228,7 +232,7 @@ def exponential_fit_curves_layer(
     style = {"linestyle": _FIT_LINESTYLE, **(line_kwargs or {})}
 
     def render(ctx: RenderContext) -> dict[str, dict[str, Any]]:
-        bases, intercepts = exponential_fit_curves(averaged_data, ctx.paths)
+        bases, intercepts = exponential_fit_curves(aggregated_observable_data, ctx.paths)
         return plot_path_decay_curves(
             bases,
             intercepts,
@@ -245,7 +249,7 @@ def exponential_fit_curves_layer(
         name=key,
         key=key,
         proxy=dict(style),
-        paths=tuple(_dataset_paths(averaged_data)),
+        paths=tuple(_dataset_paths(aggregated_observable_data)),
     )
 
 
@@ -293,7 +297,7 @@ def standard_decay_layers(
     observable_type: Literal["raw", "means", "both"] = "raw",
     observable_marker_kwargs: Mapping[str, object] | None = None,
     means_marker_kwargs: Mapping[str, object] | None = None,
-    averaged_data: AveragedData | None = None,
+    aggregated_observable_data: AggregatedObservableData | None = None,
     exponential_fit_line_kwargs: Mapping[str, object] | None = None,
     model: LinearMap | None = None,
     model_data: ModelData | None = None,
@@ -302,8 +306,8 @@ def standard_decay_layers(
     """Build the standard decay layer stack for the supplied data sources.
 
     Includes observable-scatter layer(s) (if ``observable_data``), the exponential-fit decay curve
-    (if ``averaged_data``), and a model-curve layer (if ``model`` and ``model_data``). Pass the
-    result to :func:`~.plot_path_overlay` or :func:`~.plot_path_grid_overlay`.
+    (if ``aggregated_observable_data``), and a model-curve layer (if ``model`` and ``model_data``).
+    Pass the result to :func:`~.plot_path_overlay` or :func:`~.plot_path_grid_overlay`.
 
     Args:
         observable_data: Optional raw observable data.
@@ -313,7 +317,8 @@ def standard_decay_layers(
             styled independently (defaulting to an ``o`` and an ``x`` marker respectively).
         observable_marker_kwargs: Optional marker overrides for the raw observable scatter.
         means_marker_kwargs: Optional marker overrides for the observable-means scatter.
-        averaged_data: Optional averaged data supplying the exponential-fit decay curve.
+        aggregated_observable_data: Optional aggregated observable data supplying the
+            exponential-fit decay curve.
         exponential_fit_line_kwargs: Optional line overrides for the exponential-fit curve.
         model: Optional fidelity model for predicted curves (requires ``model_data``).
         model_data: Optional fitted parameters for predicted curves (requires ``model``).
@@ -340,9 +345,11 @@ def standard_decay_layers(
             layers.append(
                 observable_means_layer(observable_data, marker_kwargs=means_marker_kwargs)
             )
-    if averaged_data is not None:
+    if aggregated_observable_data is not None:
         layers.append(
-            exponential_fit_curves_layer(averaged_data, line_kwargs=exponential_fit_line_kwargs)
+            exponential_fit_curves_layer(
+                aggregated_observable_data, line_kwargs=exponential_fit_line_kwargs
+            )
         )
     if model is not None and model_data is not None:
         layers.append(model_curves_layer(model, model_data, line_kwargs=model_line_kwargs))

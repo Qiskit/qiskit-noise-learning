@@ -21,7 +21,7 @@ from qiskit_noise_learning.analysis import (
     Fit,
 )
 from qiskit_noise_learning.analysis.fit import AbsentType, SkippedType
-from qiskit_noise_learning.data import AveragedData, ModelData, ObservableData, RawData
+from qiskit_noise_learning.data import AggregatedObservableData, ModelData, ObservableData, RawData
 
 
 class _StubRawToObs(AnalysisStage):
@@ -37,7 +37,7 @@ class _StubRawToObs(AnalysisStage):
         fit[ObservableData] = ObservableData.from_arrays(
             unbound_paths=[],
             fragment_depths=[],
-            observables=np.empty((0, 0)),
+            observable_values=np.empty((0, 0)),
             time_lbs=np.empty((0, 0), dtype="datetime64[us]"),
             time_ubs=np.empty((0, 0), dtype="datetime64[us]"),
         )
@@ -50,14 +50,14 @@ class _StubObsToAveraged(AnalysisStage):
 
     @property
     def output_level(self):
-        return AveragedData
+        return AggregatedObservableData
 
     def _run(self, fit):
-        fit[AveragedData] = AveragedData.from_arrays(
+        fit[AggregatedObservableData] = AggregatedObservableData.from_arrays(
             unbound_paths=[],
             fragment_depths=[],
-            observables=np.array([]),
-            std=np.array([]),
+            estimate_values=np.array([]),
+            estimate_std=np.array([]),
             time_lbs=np.empty(0, dtype="datetime64[us]"),
             time_ubs=np.empty(0, dtype="datetime64[us]"),
         )
@@ -66,7 +66,7 @@ class _StubObsToAveraged(AnalysisStage):
 class _StubAveragedToModel(AnalysisStage):
     @property
     def input_level(self):
-        return AveragedData
+        return AggregatedObservableData
 
     @property
     def output_level(self):
@@ -89,14 +89,14 @@ class _StubRawToAveraged(AnalysisStage):
 
     @property
     def output_level(self):
-        return AveragedData
+        return AggregatedObservableData
 
     def _run(self, fit):
-        fit[AveragedData] = AveragedData.from_arrays(
+        fit[AggregatedObservableData] = AggregatedObservableData.from_arrays(
             unbound_paths=[],
             fragment_depths=[],
-            observables=np.array([]),
-            std=np.array([]),
+            estimate_values=np.array([]),
+            estimate_std=np.array([]),
             time_lbs=np.empty(0, dtype="datetime64[us]"),
             time_ubs=np.empty(0, dtype="datetime64[us]"),
         )
@@ -135,7 +135,7 @@ class TestAnalysisPipeline:
 
         assert result[RawData] is raw
         assert isinstance(result[ObservableData], SkippedType)
-        assert isinstance(result[AveragedData], AveragedData)
+        assert isinstance(result[AggregatedObservableData], AggregatedObservableData)
         assert isinstance(result[ModelData], AbsentType)
 
     def test_pipeline_run_does_not_mutate_original(self):
@@ -144,7 +144,7 @@ class TestAnalysisPipeline:
         obs = ObservableData.from_arrays(
             unbound_paths=[],
             fragment_depths=[],
-            observables=np.empty((0, 0)),
+            observable_values=np.empty((0, 0)),
             time_lbs=np.empty((0, 0), dtype="datetime64[us]"),
             time_ubs=np.empty((0, 0), dtype="datetime64[us]"),
         )
@@ -152,9 +152,9 @@ class TestAnalysisPipeline:
         fit[ObservableData] = obs
         new_fit = pipeline.run(fit)
 
-        assert isinstance(fit[AveragedData], AbsentType)
+        assert isinstance(fit[AggregatedObservableData], AbsentType)
         assert isinstance(fit[ModelData], AbsentType)
-        assert isinstance(new_fit[AveragedData], AveragedData)
+        assert isinstance(new_fit[AggregatedObservableData], AggregatedObservableData)
         assert isinstance(new_fit[ModelData], ModelData)
 
     def test_history_through_pipeline(self):
@@ -163,7 +163,7 @@ class TestAnalysisPipeline:
         obs = ObservableData.from_arrays(
             unbound_paths=[],
             fragment_depths=[],
-            observables=np.empty((0, 0)),
+            observable_values=np.empty((0, 0)),
             time_lbs=np.empty((0, 0), dtype="datetime64[us]"),
             time_ubs=np.empty((0, 0), dtype="datetime64[us]"),
         )
@@ -171,10 +171,10 @@ class TestAnalysisPipeline:
         fit[ObservableData] = obs
         result = pipeline.run(fit)
 
-        averaged_hist = result.history.averaged_data
+        averaged_hist = result.history.aggregated_observable_data
         assert isinstance(averaged_hist[0], AbsentType)
         assert isinstance(averaged_hist[1], SkippedType)
-        assert isinstance(averaged_hist[-1], AveragedData)
+        assert isinstance(averaged_hist[-1], AggregatedObservableData)
 
         model_hist = result.history.model_data
         assert isinstance(model_hist[0], AbsentType)
@@ -187,7 +187,7 @@ class TestAnalysisPipeline:
         obs = ObservableData.from_arrays(
             unbound_paths=[],
             fragment_depths=[],
-            observables=np.empty((0, 0)),
+            observable_values=np.empty((0, 0)),
             time_lbs=np.empty((0, 0), dtype="datetime64[us]"),
             time_ubs=np.empty((0, 0), dtype="datetime64[us]"),
         )
@@ -216,7 +216,7 @@ class TestAnalysisPipeline:
         result = outer.run(fit)
 
         assert isinstance(result[ModelData], ModelData)
-        assert isinstance(result[AveragedData], AveragedData)
+        assert isinstance(result[AggregatedObservableData], AggregatedObservableData)
 
     def test_deeply_nested_pipeline(self):
         """Test a deeply nested pipeline (constructor flattens at each level)."""
@@ -271,7 +271,7 @@ class TestAnalysisPipeline:
         obs = ObservableData.from_arrays(
             unbound_paths=[],
             fragment_depths=[],
-            observables=np.empty((0, 0)),
+            observable_values=np.empty((0, 0)),
             time_lbs=np.empty((0, 0), dtype="datetime64[us]"),
             time_ubs=np.empty((0, 0), dtype="datetime64[us]"),
         )

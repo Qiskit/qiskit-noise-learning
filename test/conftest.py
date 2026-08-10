@@ -20,7 +20,7 @@ from qiskit import QuantumCircuit
 from qiskit.circuit.library import CZGate, XGate
 from qiskit.quantum_info import Clifford, QubitSparsePauli
 
-from qiskit_noise_learning.data import AveragedData, ModelData, ObservableData
+from qiskit_noise_learning.data import AggregatedObservableData, ModelData, ObservableData
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
 from qiskit_noise_learning.models import IdentityFidelityModel
 from qiskit_noise_learning.sequences import (
@@ -153,8 +153,8 @@ def make_instruction_sequence():
 
 
 @pytest.fixture()
-def make_averaged_data():
-    """Return a builder ``(entries, std_default=0.001) -> AveragedData``.
+def make_aggregated_observable_data():
+    """Return a builder ``(entries, std_default=0.001) -> AggregatedObservableData``.
 
     Each entry is ``(unbound_path, fragment_depth, value)`` with an optional trailing ``std``
     (float) and/or ``meta`` (dict), e.g. ``(path, -1, 0.8, 0.01, {"spam_fidelity": 0.95})``. Use
@@ -165,8 +165,8 @@ def make_averaged_data():
     def _make(entries, std_default=0.001):
         unbound_paths = [e[0] for e in entries]
         fragment_depths = [e[1] for e in entries]
-        observables = np.array([e[2] for e in entries], dtype=float)
-        std = np.array(
+        estimate_values = np.array([e[2] for e in entries], dtype=float)
+        estimate_std = np.array(
             [next((x for x in e[3:] if not isinstance(x, dict)), std_default) for e in entries],
             dtype=float,
         )
@@ -174,11 +174,11 @@ def make_averaged_data():
         # ``from_arrays`` uses ``metadata or ...``, so only pass an array when something is present.
         metadata = np.array(metas, dtype=object) if any(m is not None for m in metas) else None
         n = len(entries)
-        return AveragedData.from_arrays(
+        return AggregatedObservableData.from_arrays(
             unbound_paths=unbound_paths,
             fragment_depths=fragment_depths,
-            observables=observables,
-            std=std,
+            estimate_values=estimate_values,
+            estimate_std=estimate_std,
             time_lbs=np.empty(n, dtype="datetime64[us]"),
             time_ubs=np.empty(n, dtype="datetime64[us]"),
             metadata=metadata,
@@ -212,7 +212,7 @@ def make_observable_data():
         return ObservableData.from_arrays(
             unbound_paths=all_unbound_paths,
             fragment_depths=all_depths,
-            observables=np.stack(all_observables),
+            observable_values=np.stack(all_observables),
             time_lbs=np.empty((n, n_rand), dtype="datetime64[us]"),
             time_ubs=np.empty((n, n_rand), dtype="datetime64[us]"),
         )

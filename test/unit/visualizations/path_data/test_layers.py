@@ -30,8 +30,8 @@ def observable_data(make_cz_path, make_observable_data):
 
 
 @pytest.fixture()
-def averaged_data(make_cz_path, make_averaged_data):
-    return make_averaged_data([(make_cz_path("XI"), -1, 0.8)])
+def aggregated_observable_data(make_cz_path, make_aggregated_observable_data):
+    return make_aggregated_observable_data([(make_cz_path("XI"), -1, 0.8)])
 
 
 def _context(paths, **overrides):
@@ -56,14 +56,14 @@ def _context(paths, **overrides):
 
 
 def test_curve_layers_draw_the_style_their_proxies_advertise(
-    averaged_data, make_cz_path, make_fidelity_model_data
+    aggregated_observable_data, make_cz_path, make_fidelity_model_data
 ):
     # A legend handle drawn in a style the data is not drawn in tells the reader the opposite of the
     # truth, which is worse than either style being wrong on its own.
     path = make_cz_path("XI")
     model, model_data = make_fidelity_model_data([path])
     for layer in (
-        exponential_fit_curves_layer(averaged_data),
+        exponential_fit_curves_layer(aggregated_observable_data),
         model_curves_layer(model, model_data),
     ):
         context = _context([path])
@@ -153,13 +153,13 @@ def test_standard_layers_both_observable(observable_data):
 
 
 def test_standard_layers_full_stack(
-    observable_data, averaged_data, make_cz_path, make_fidelity_model_data
+    observable_data, aggregated_observable_data, make_cz_path, make_fidelity_model_data
 ):
     model, model_data = make_fidelity_model_data([make_cz_path("XI")])
     layers = standard_decay_layers(
         observable_data=observable_data,
         observable_type="raw",
-        averaged_data=averaged_data,
+        aggregated_observable_data=aggregated_observable_data,
         model=model,
         model_data=model_data,
     )

@@ -30,7 +30,7 @@ _PM_GENS = {"P": QubitSparsePauliList(["XI"]), "M": QubitSparsePauliList(["XI"])
 def _get_rate_from_fit(fit, gate_name, label):
     """Read a fitted rate by its generator label."""
     gen = GeneratorIndex(gate_name, QubitSparsePauli(label))
-    return fit.model_data.dataset["parameter_values"].sel(parameter=gen).item()
+    return fit.model_data.dataset["parameter_values"].sel(parameter_index=gen).item()
 
 
 class TestAnalysisPipelineIntegration:

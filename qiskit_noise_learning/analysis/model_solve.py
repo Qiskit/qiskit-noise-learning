@@ -17,7 +17,7 @@ import numpy as np
 import scipy.optimize as opt
 
 from qiskit_noise_learning.analysis import AnalysisStage, Fit
-from qiskit_noise_learning.data import AveragedData, ModelData
+from qiskit_noise_learning.data import AggregatedObservableData, ModelData
 from qiskit_noise_learning.data.xarray_utils import time_bound
 from qiskit_noise_learning.math import IndexedMatrix, IndexedVector
 from qiskit_noise_learning.models import (
@@ -32,19 +32,19 @@ class ModelSolve(AnalysisStage):
     """Base class for model fitting routines.
 
     Constructs the design matrix from the :class:`~.FidelityModel` stored on the :class:`~.Fit`
-    container and the paths in the :class:`~.AveragedData`. Then solves ``A @ x = b`` using a
-    specified method, where ``A`` is the design matrix and ``b`` is the vector of negative log
-    observables ``-log(o)``.
+    container and the paths in the :class:`~.AggregatedObservableData`. Then solves ``A @ x = b``
+    using a specified method, where ``A`` is the design matrix and ``b`` is the vector of negative
+    log observables ``-log(o)``.
 
     If paths are specified on the :class:`~.Fit`, only data matching those paths is used. If no
-    paths are specified, all data in the :class:`~.AveragedData` is used.
+    paths are specified, all data in the :class:`~.AggregatedObservableData` is used.
 
     This stage assumes a single observable value for each unique :class:`Path`.
     """
 
     @property
     def input_level(self):
-        return AveragedData
+        return AggregatedObservableData
 
     @property
     def output_level(self):
@@ -100,7 +100,7 @@ class ModelSolve(AnalysisStage):
         Returns:
             A tuple of ``(A, b, sigma_b, param_labels, path_labels, time_lb, time_ub)``.
         """
-        dataset = fit[AveragedData].dataset
+        dataset = fit[AggregatedObservableData].dataset
         fidelity_model = fit.model
 
         # Index the as "(unbound_path, fragment_depth) -> row position", where -1 denotes unbound
@@ -138,14 +138,15 @@ class ModelSolve(AnalysisStage):
         for lookup_key, path in targets:
             if (idx := index_by_key.get(lookup_key)) is None:
                 raise ValueError(
-                    f"Required path-fragment-depth pair {lookup_key} missing from AveragedData."
+                    f"Required path-fragment-depth pair {lookup_key} missing from "
+                    "AggregatedObservableData."
                 )
 
             row_indices.append(path)
             dataset_idxs.append(idx)
 
-        fidelities = dataset["observables"].data[dataset_idxs]
-        fidelity_stds = dataset["std"].data[dataset_idxs]
+        fidelities = dataset["estimate_values"].data[dataset_idxs]
+        fidelity_stds = dataset["estimate_std"].data[dataset_idxs]
         time_lbs_list = dataset["time_lbs"].data[dataset_idxs]
         time_ubs_list = dataset["time_ubs"].data[dataset_idxs]
 

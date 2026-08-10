@@ -60,7 +60,7 @@ def predicted_path_decays(
             "paths). Filter to decay paths before predicting model curves."
         )
     rates = dict(
-        zip(model_data.dataset["parameter"].data, model_data.dataset["parameter_values"].data)
+        zip(model_data.dataset["parameter_index"].data, model_data.dataset["parameter_values"].data)
     )
     path_map = LogPathMap(model.output_space) @ model
 

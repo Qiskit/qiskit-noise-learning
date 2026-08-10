@@ -34,10 +34,10 @@ class TestCurveFitObservables:
         pp = make_cz_path("IX")
         obs = make_observable_data([(pp, a_true, f_true, [1, 2, 3, 4, 5])])
         result = _run_stage(obs)
-        ds = result.averaged_data.dataset
+        ds = result.aggregated_observable_data.dataset
         mask = (ds["unbound_path"].data == pp) & (ds["fragment_depth"].data == -1)
         assert np.isclose(ds["metadata"].data[mask][0]["spam_fidelity"], a_true, atol=0.02)
-        assert np.isclose(ds["observables"].data[mask][0], f_true, atol=0.02)
+        assert np.isclose(ds["estimate_values"].data[mask][0], f_true, atol=0.02)
 
     def test_multiple_unbound_paths(self, make_cz_path, make_observable_data):
         """Test fitting multiple unbound paths."""
@@ -49,23 +49,23 @@ class TestCurveFitObservables:
             ]
         )
         result = _run_stage(obs)
-        ds = result.averaged_data.dataset
+        ds = result.aggregated_observable_data.dataset
         decay_mask = ds["fragment_depth"].data == -1
 
         mask0 = (ds["unbound_path"].data == pp0) & decay_mask
-        assert np.isclose(ds["observables"].data[mask0][0], 0.9, atol=0.02)
+        assert np.isclose(ds["estimate_values"].data[mask0][0], 0.9, atol=0.02)
 
         mask1 = (ds["unbound_path"].data == pp1) & decay_mask
-        assert np.isclose(ds["observables"].data[mask1][0], 0.7, atol=0.02)
+        assert np.isclose(ds["estimate_values"].data[mask1][0], 0.7, atol=0.02)
 
     def test_decay_fidelity_value(self, make_cz_path, make_observable_data):
         """Test the decay fidelity is close to the true value."""
         pp = make_cz_path("IX")
         obs = make_observable_data([(pp, 0.9, 0.8, [1, 2, 3, 4, 5])])
         result = _run_stage(obs)
-        ds = result.averaged_data.dataset
+        ds = result.aggregated_observable_data.dataset
         mask = (ds["unbound_path"].data == pp) & (ds["fragment_depth"].data == -1)
-        fidelity = ds["observables"].data[mask][0]
+        fidelity = ds["estimate_values"].data[mask][0]
         assert np.isclose(fidelity, 0.8, atol=0.02)
 
     def test_unbound_path_in_fit_paths_triggers_curve_fit(self, make_cz_path, make_observable_data):
@@ -73,9 +73,9 @@ class TestCurveFitObservables:
         pp = make_cz_path("IX")
         obs = make_observable_data([(pp, 0.9, 0.8, [1, 2, 3, 4, 5])])
         result = _run_stage(obs, paths=[pp])
-        ds = result.averaged_data.dataset
+        ds = result.aggregated_observable_data.dataset
         mask = (ds["unbound_path"].data == pp) & (ds["fragment_depth"].data == -1)
-        assert np.isclose(ds["observables"].data[mask][0], 0.8, atol=0.02)
+        assert np.isclose(ds["estimate_values"].data[mask][0], 0.8, atol=0.02)
 
     def test_bound_path_in_fit_paths_triggers_average(self, make_cz_path, make_observable_data):
         """Test that a bound path (not in curve_fit_paths) is averaged, not curve-fit."""
@@ -88,7 +88,7 @@ class TestCurveFitObservables:
         )
         # Only pp0 is unbound (curve-fit); pp1 is not in fit.paths unbound set → averaged
         result = _run_stage(obs, paths=[pp0])
-        ds = result.averaged_data.dataset
+        ds = result.aggregated_observable_data.dataset
 
         # pp0 was curve-fit (fragment_depth = -1)
         mask0 = (ds["unbound_path"].data == pp0) & (ds["fragment_depth"].data == -1)

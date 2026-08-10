@@ -444,7 +444,7 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
 
         noise_maps = {}
         for generator_index, rate in zip(
-            model_data.dataset["parameter"].data, model_data.dataset["parameter_values"].data
+            model_data.dataset["parameter_index"].data, model_data.dataset["parameter_values"].data
         ):
             if (gate_name := generator_index.gate_name) not in self.gate_set:
                 raise ValueError(f"Encountered generator for {gate_name} not present in gate set.")

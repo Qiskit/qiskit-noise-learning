@@ -17,7 +17,7 @@ import scipy.optimize as opt
 
 from qiskit_noise_learning.analysis import AnalysisStage
 from qiskit_noise_learning.analysis.average_observables import average_observables
-from qiskit_noise_learning.data import AveragedData, ObservableData
+from qiskit_noise_learning.data import AggregatedObservableData, ObservableData
 from qiskit_noise_learning.data.xarray_utils import time_bound
 
 
@@ -36,7 +36,7 @@ class CurveFitObservables(AnalysisStage):
 
     @property
     def output_level(self):
-        return AveragedData
+        return AggregatedObservableData
 
     def _run(self, fit):
         observable_data = fit.observable_data
@@ -84,7 +84,7 @@ class CurveFitObservables(AnalysisStage):
 
             for fragment_depth in unique_fragment_depths:
                 fragment_depth_mask = path_dataset["fragment_depth"].data == fragment_depth
-                values = path_dataset["observables"].data[fragment_depth_mask].flatten()
+                values = path_dataset["observable_values"].data[fragment_depth_mask].flatten()
                 values = values[~np.isnan(values)]
 
                 mean = float(np.mean(values))
@@ -114,11 +114,11 @@ class CurveFitObservables(AnalysisStage):
             decay_time_lbs_out.append(time_bound(path_dataset["time_lbs"].data, "min"))
             decay_time_ubs_out.append(time_bound(path_dataset["time_ubs"].data, "max"))
 
-        decay_data = AveragedData.from_arrays(
+        decay_data = AggregatedObservableData.from_arrays(
             unbound_paths=decay_paths,
             fragment_depths=np.array([-1] * len(decay_paths), dtype=int),
-            observables=np.array(decay_fidelities),
-            std=np.array(decay_fidelity_stds),
+            estimate_values=np.array(decay_fidelities),
+            estimate_std=np.array(decay_fidelity_stds),
             time_lbs=np.array(decay_time_lbs_out, dtype="datetime64[us]"),
             time_ubs=np.array(decay_time_ubs_out, dtype="datetime64[us]"),
             metadata=[
@@ -133,7 +133,7 @@ class CurveFitObservables(AnalysisStage):
             observable_data=observable_data, unique_unbound_paths=single_fragment_depth_paths
         )
 
-        fit[AveragedData] = decay_data.merge(single_fragment_depth_data)
+        fit[AggregatedObservableData] = decay_data.merge(single_fragment_depth_data)
 
 
 def fit_exponential(

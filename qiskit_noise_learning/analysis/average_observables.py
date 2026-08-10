@@ -13,7 +13,7 @@
 import numpy as np
 
 from qiskit_noise_learning.analysis import AnalysisStage
-from qiskit_noise_learning.data import AveragedData, ObservableData
+from qiskit_noise_learning.data import AggregatedObservableData, ObservableData
 from qiskit_noise_learning.data.xarray_utils import time_bound
 from qiskit_noise_learning.sequences import Path
 
@@ -27,15 +27,15 @@ class AverageObservables(AnalysisStage):
 
     @property
     def output_level(self):
-        return AveragedData
+        return AggregatedObservableData
 
     def _run(self, fit):
-        fit[AveragedData] = average_observables(fit.observable_data)
+        fit[AggregatedObservableData] = average_observables(fit.observable_data)
 
 
 def average_observables(
     observable_data: ObservableData, unique_unbound_paths: set[Path] | None = None
-) -> AveragedData:
+) -> AggregatedObservableData:
     """Compute averaged observables for the paths.
 
     Args:
@@ -61,7 +61,7 @@ def average_observables(
 
         for fragment_depth in sorted(set(path_dataset["fragment_depth"].data)):
             fragment_depth_mask = path_dataset["fragment_depth"].data == fragment_depth
-            values = path_dataset["observables"].data[fragment_depth_mask].flatten()
+            values = path_dataset["observable_values"].data[fragment_depth_mask].flatten()
             values = values[~np.isnan(values)]
 
             obs_unbound_paths.append(unbound_path)
@@ -80,11 +80,11 @@ def average_observables(
                 time_bound(path_dataset["time_ubs"].data[fragment_depth_mask], "max")
             )
 
-    return AveragedData.from_arrays(
+    return AggregatedObservableData.from_arrays(
         unbound_paths=np.array(obs_unbound_paths, dtype=object),
         fragment_depths=np.array(obs_fragment_depths, dtype=int),
-        observables=np.array(obs_means, dtype=float),
-        std=np.array(obs_stds, dtype=float),
+        estimate_values=np.array(obs_means, dtype=float),
+        estimate_std=np.array(obs_stds, dtype=float),
         time_lbs=np.array(obs_time_lbs, dtype="datetime64[us]"),
         time_ubs=np.array(obs_time_ubs, dtype="datetime64[us]"),
     )

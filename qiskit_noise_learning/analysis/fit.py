@@ -17,7 +17,7 @@ from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Literal, Self
 
 from qiskit_noise_learning.data import (
-    AveragedData,
+    AggregatedObservableData,
     LeveledData,
     ModelData,
     ObservableData,
@@ -29,7 +29,7 @@ from qiskit_noise_learning.sequences import InstructionSequence, Path
 if TYPE_CHECKING:
     from ..visualizations.interactive_figure import InteractiveFigure
 
-LEVELS = (RawData, ObservableData, AveragedData, ModelData)
+LEVELS = (RawData, ObservableData, AggregatedObservableData, ModelData)
 """The levels of the analysis hierarchy."""
 
 
@@ -68,9 +68,11 @@ class FitHistory:
         return self._store[ObservableData]
 
     @property
-    def averaged_data(self) -> list[AveragedData | AbsentType | SkippedType]:
-        """History of values written to the :class:`AveragedData` level."""
-        return self._store[AveragedData]
+    def aggregated_observable_data(
+        self,
+    ) -> list[AggregatedObservableData | AbsentType | SkippedType]:
+        """History of values written to the :class:`AggregatedObservableData` level."""
+        return self._store[AggregatedObservableData]
 
     @property
     def model_data(self) -> list[ModelData | AbsentType | SkippedType]:
@@ -86,8 +88,8 @@ class Fit:
     * :class:`RawData` corresponding to bit counts of executed instruction sequences.
     * :class:`ObservableData` corresponding to observables of randomizations of paths that traverse
       the instruction sequences.
-    * :class:`AveragedData` corresponding to a combination of observables averaged across
-      randomizations.
+    * :class:`AggregatedObservableData` corresponding to a combination of observables aggregated
+      across randomizations.
     * :class:`ModelData` corresponding to model fit parameters.
 
     Each level holds a history of all values written to it; the current value is always
@@ -174,9 +176,9 @@ class Fit:
         return self[ObservableData]
 
     @property
-    def averaged_data(self) -> AveragedData | AbsentType | SkippedType:
-        """Current data at the :class:`AveragedData` level."""
-        return self[AveragedData]
+    def aggregated_observable_data(self) -> AggregatedObservableData | AbsentType | SkippedType:
+        """Current data at the :class:`AggregatedObservableData` level."""
+        return self[AggregatedObservableData]
 
     @property
     def model_data(self) -> ModelData | AbsentType | SkippedType:
@@ -229,8 +231,8 @@ class Fit:
                 ``"both"``, or ``None`` (the default) to omit the empirical points. Uses this fit's
                 :class:`~.ObservableData`.
             exponential_fit: Whether to draw the fitted exponential decay curve, from this fit's
-                :class:`~.AveragedData` (its ``fragment_depth == -1`` fitted parameters). Defaults
-                to ``False``.
+                :class:`~.AggregatedObservableData` (its ``fragment_depth == -1`` fitted
+                parameters). Defaults to ``False``.
             model_prediction: Whether to draw the model-predicted decay curve, from this fit's
                 model and :class:`~.ModelData`. Defaults to ``False``.
             observable_marker_kwargs: Optional ``marker`` overrides for the raw observable points.
@@ -276,14 +278,16 @@ class Fit:
             noise_site = get_noise_site(self._model)
 
         observable_data = _present(self.observable_data) if observable_type is not None else None
-        averaged_data = _present(self.averaged_data) if exponential_fit else None
+        aggregated_observable_data = (
+            _present(self.aggregated_observable_data) if exponential_fit else None
+        )
         model_data = _present(self.model_data) if model_prediction else None
         model = self._model if model_data is not None else None
 
         # Warn (rather than silently skip) when a decay was requested but its data is not available.
         for requested, resolved, name in (
             (observable_type is not None, observable_data, "observable points"),
-            (exponential_fit, averaged_data, "exponential-fit curve"),
+            (exponential_fit, aggregated_observable_data, "exponential-fit curve"),
             (model_prediction, model_data, "model-prediction curve"),
         ):
             if requested and resolved is None:
@@ -295,7 +299,7 @@ class Fit:
 
         # Fall back to the fit's own paths only when there is no empirical data to derive them from
         # (e.g. a model-only prediction plot); explicit paths always win.
-        if paths is None and observable_data is None and averaged_data is None:
+        if paths is None and observable_data is None and aggregated_observable_data is None:
             paths = self._paths or None
 
         return _plot_qubit_pair_decays(
@@ -304,7 +308,7 @@ class Fit:
             observable_type=observable_type or "raw",
             observable_marker_kwargs=observable_marker_kwargs,
             means_marker_kwargs=means_marker_kwargs,
-            averaged_data=averaged_data,
+            aggregated_observable_data=aggregated_observable_data,
             exponential_fit_line_kwargs=exponential_fit_line_kwargs,
             model=model,
             model_data=model_data,
