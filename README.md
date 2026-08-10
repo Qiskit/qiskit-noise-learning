@@ -2,28 +2,38 @@
 
 A Python toolkit for randomization-based quantum noise characterization.
 
-> **Alpha software.** This library is unversioned and under active development. Interfaces are unstable and may change without notice between commits. All users not directly involved in active development and testing should be cautious, though all feedback is appreciated.
+> [!NOTE]
+> **Alpha software.** This library is in the `0.x` stage of development and under active
+> development. No part of the public interface is yet stable: while the major version is `0`,
+> expect breaking changes between releases and pin your dependency accordingly (for example,
+> `qiskit-noise-learning==0.1.*`). We do not currently issue deprecation warnings, but all changes
+> are recorded in the changelog. See the [deprecation policy](DEPRECATION.md) for details. All
+> feedback is appreciated.
 
 ## Installation
 
-```bash
-pip install .
-```
-
-Include development dependencies with `[dev]` and visualization dependencies with `[vis]`:
+You can install `qiskit-noise-learning` via pip from PyPI:
 
 ```bash
-pip install -e ".[dev,vis]"
-pre-commit install
+pip install qiskit-noise-learning
 ```
 
+For visualization support, include the visualization dependencies:
+
+```bash
+pip install "qiskit-noise-learning[vis]"
+```
+
+See the [contribution guidelines](CONTRIBUTING.md) for developer dependencies and editable
+installations.
 
 ## Interfaces and Documentation
 
-This library has two levels of interface.
-The first is the low-level interface where the user directly interacts with objects representing core concepts in noise learning, enabling custom design of every aspect of a noise learning protocol.
-The second is a higher-level interface that wraps a stock workflow into an easy-to-use `NoiseLearner` object.
-You can see both demonstrated in the following tutorials, which run locally against a fake backend and need no IBM Quantum credentials:
+This library has two levels of interface. The first is the low-level interface where the user
+directly interacts with objects representing core concepts in noise learning, enabling custom design
+of every aspect of a noise learning protocol. The second is a higher-level interface that wraps a
+stock workflow into an easy-to-use `NoiseLearner` object. You can see both demonstrated in the
+following tutorials, which run locally against a fake backend and need no IBM Quantum credentials:
 
 - [`docs/tutorials/noise_learner.md`](docs/tutorials/noise_learner.md) — end-to-end use of `NoiseLearner`
 - [`docs/tutorials/workflow.md`](docs/tutorials/workflow.md) — step-by-step walkthrough of the internal pipeline
@@ -36,6 +46,9 @@ python -m pytest          # run tests (includes doctests)
 ruff check --fix . && ruff format .   # lint and format
 pre-commit run --all-files            # all checks
 ```
+
+See the [contribution guidelines](CONTRIBUTING.md) for details on developer setup, testing,
+building the documentation, and the changelog workflow.
 
 ## License
 
