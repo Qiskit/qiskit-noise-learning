@@ -504,6 +504,36 @@ class TestPositivityMinSolve:
         with pytest.raises(ValueError, match="'weights rows' policy produced 1 label"):
             solver.run(fit)
 
+    def test_policy_reads_arbitrary_row_diagnostic(
+        self, gate_set_cz, make_cz_path, make_aggregated_observable_data
+    ):
+        """A policy can bound rows using any real-valued observable metadata key, not just the ones
+        the built-in policies know about."""
+        model = PauliLindbladModel(
+            gate_set_cz, {"CZ": QubitSparsePauliList(["ZI", "IZ"]), **_PM_GENS}
+        )
+        path0 = make_cz_path("XI")  # row = {CZ:ZI: 4.0}
+        path1 = make_cz_path("IX")  # row = {CZ:IZ: 4.0}
+
+        seen = {}
+
+        def deltas(system):
+            seen["slack"] = dict(zip(system.row_labels, system.row_diagnostics["slack"]))
+            return seen["slack"]
+
+        solver = PositivityMinSolve(coefficients={"CZ": 1.0}, deltas=deltas)
+        fit = Fit(model=model)
+        fit[AggregatedObservableData] = make_aggregated_observable_data(
+            [(path0, -1, 0.9, 0.0, {"slack": 1e-8}), (path1, -1, 0.9, 0.0, {"slack": 0.5})]
+        )
+        result = solver.run(fit)
+
+        assert seen["slack"] == {path0: 1e-8, path1: 0.5}
+        # The tightly bounded row is pinned to its least-squares value, while the loosely bounded
+        # one is pulled toward zero by the positivity objective.
+        assert np.isclose(_get_rate_from_fit(result, "CZ", "ZI"), -np.log(0.9) / 4, atol=1e-5)
+        assert _get_rate_from_fit(result, "CZ", "IZ") < -np.log(0.9) / 4 - 1e-3
+
     def test_metadata_contains_problem(
         self, gate_set_cz, make_cz_path, make_aggregated_observable_data
     ):

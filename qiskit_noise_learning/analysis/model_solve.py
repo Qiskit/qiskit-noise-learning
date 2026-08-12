@@ -10,6 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
+import numbers
 from abc import abstractmethod
 from collections.abc import Callable, Hashable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
@@ -39,16 +40,22 @@ class LinearSystemData(Generic[RowIndex, ColumnIndex]):
 
     A linear system ``A @ x = b`` with axis labels and metadata.
 
+    The row and column labels are of arbitrary hashable types: this class carries no assumptions
+    about what a row or column denotes. In the systems built by :meth:`from_fit` the rows are
+    :class:`~.Path` objects and the columns are the fidelity model's parameter labels.
+
     The index maps are the authoritative record of how labels correspond to positions in ``A``.
     Anything that needs to align a label-keyed quantity with the arrays should index through
     :attr:`row_index_map` or :attr:`column_index_map` rather than rebuilding the correspondence
-    from :attr:`path_labels` or :attr:`param_labels`.
+    from :attr:`row_labels` or :attr:`column_labels`.
 
     Args:
         A: The matrix with shape ``(m, n)``.
         b: The target vector length ``m``.
         sigma_b: Statistical ``1``-sigma uncertainty on ``b`` per row, with length ``m``.
-        chi2_red: Reduced chi-squared for ``b``, with length ``m``. ``nan`` where undefined.
+        row_diagnostics: Named per-row quantities recorded by the stages that produced ``b``, each
+            an array of length ``m`` holding ``nan`` for rows the quantity is undefined for. Keys
+            are the metadata names used upstream; see :meth:`from_fit`.
         row_index_map: A mapping from row labels to their integer row position in ``A``.
         column_index_map: A mapping from column labels to their integer column position in ``A``.
         time_lb: Earliest time bound across the rows.
@@ -58,25 +65,31 @@ class LinearSystemData(Generic[RowIndex, ColumnIndex]):
     A: np.ndarray
     b: np.ndarray
     sigma_b: np.ndarray
-    chi2_red: np.ndarray
+    row_diagnostics: Mapping[str, np.ndarray]
     row_index_map: Mapping[RowIndex, int]
     column_index_map: Mapping[ColumnIndex, int]
     time_lb: np.datetime64
     time_ub: np.datetime64
 
     @property
-    def path_labels(self) -> list[RowIndex]:
+    def row_labels(self) -> list[RowIndex]:
         """Row labels, ordered by their row position in ``A``."""
         return sorted(self.row_index_map, key=self.row_index_map.__getitem__)
 
     @property
-    def param_labels(self) -> list[ColumnIndex]:
+    def column_labels(self) -> list[ColumnIndex]:
         """Column labels, ordered by their column position in ``A``."""
         return sorted(self.column_index_map, key=self.column_index_map.__getitem__)
 
     @classmethod
     def from_fit(cls, fit: "Fit") -> "LinearSystemData[Path, Hashable]":
-        """Build the linear system arrays from a :class:`~.Fit`."""
+        """Build the linear system arrays from a :class:`~.Fit`.
+
+        Rows are the :class:`~.Path` objects of the :class:`~.AggregatedObservableData`, columns are
+        the fidelity model's parameter labels, and :attr:`row_diagnostics` holds every real-valued
+        per-observable metadata entry under the name the producing stage used — for instance
+        ``"reduced_chi_squared"`` from :class:`~.CurveFitObservables`.
+        """
         dataset = fit[AggregatedObservableData].dataset
         fidelity_model = fit.model
 
@@ -133,20 +146,27 @@ class LinearSystemData(Generic[RowIndex, ColumnIndex]):
         path_model = LogPathMap(fidelity_model.output_space) @ fidelity_model
         design_matrix = path_model.rows(row_indices)
 
-        # Build b, sigma_b and chi2_red aligned with the design matrix's row order. add_rows may
-        # drop all-zero rows, so iterate row_index_map, the surviving rows.
+        # Build b, sigma_b and the diagnostics aligned with the design matrix's row order. add_rows
+        # may drop all-zero rows, so iterate row_index_map, the surviving rows.
         row_data = dict(zip(row_indices, zip(fidelities, fidelity_stds, metadatas)))
         n_rows = len(design_matrix.row_index_map)
         b = np.empty(n_rows, dtype=float)
         sigma_b = np.empty(n_rows, dtype=float)
-        chi2_red = np.empty(n_rows, dtype=float)
+        row_diagnostics: dict[str, np.ndarray] = {}
         for row_index, array_idx in design_matrix.row_index_map.items():
             fidelity, fidelity_std, meta = row_data[row_index]
             b[array_idx] = -np.log(max(fidelity, 1e-300))
             sigma_b[array_idx] = fidelity_std / max(fidelity, 1e-300)
-            chi2_red[array_idx] = (
-                meta.get("reduced_chi_squared", np.nan) if isinstance(meta, dict) else np.nan
-            )
+
+            # Carry every real-valued metadata entry through under its own name, rather than
+            # hard-coding the ones a policy happens to want. Rows without an entry keep the nan the
+            # array was created with, so a key's array covers all rows or says where it does not.
+            if isinstance(meta, Mapping):
+                for key, value in meta.items():
+                    if isinstance(value, numbers.Real):
+                        if key not in row_diagnostics:
+                            row_diagnostics[key] = np.full(n_rows, np.nan, dtype=float)
+                        row_diagnostics[key][array_idx] = float(value)
 
         all_time_lbs = np.array(time_lbs_list, dtype="datetime64[us]")
         all_time_ubs = np.array(time_ubs_list, dtype="datetime64[us]")
@@ -157,7 +177,7 @@ class LinearSystemData(Generic[RowIndex, ColumnIndex]):
             A=design_matrix.data,
             b=b,
             sigma_b=sigma_b,
-            chi2_red=chi2_red,
+            row_diagnostics=row_diagnostics,
             row_index_map=dict(design_matrix.row_index_map),
             column_index_map=dict(design_matrix.column_index_map),
             time_lb=time_lb,
@@ -206,11 +226,11 @@ class ModelSolve(AnalysisStage):
         residual_vec = system.A @ x - system.b
         metadata["residual"] = np.linalg.norm(residual_vec)
         metadata["path_residual"] = IndexedVector(
-            {path: val for path, val in zip(system.path_labels, np.abs(residual_vec))}
+            {path: val for path, val in zip(system.row_labels, np.abs(residual_vec))}
         )
 
         fit[ModelData] = ModelData.from_arrays(
-            parameter_indices=system.param_labels,
+            parameter_indices=system.column_labels,
             parameter_values=x,
             covariance=cov_x,
             time_lbs=np.full(len(x), system.time_lb, dtype="datetime64[us]"),
@@ -298,7 +318,7 @@ class LSQLinearSolve(ModelSolve):
 # delta policy; users may supply their own. Fixed literals are wrapped into constant policies by
 # ``PositivityMinSolve.from_constants``.
 EpsilonPolicy = Callable[[LinearSystemData], float]
-DeltaPolicy = Callable[[LinearSystemData], Mapping[Path, float]]
+DeltaPolicy = Callable[[LinearSystemData], Mapping[Hashable, float]]
 WeightsPolicy = Callable[[LinearSystemData], IndexedMatrix]
 
 
@@ -441,7 +461,8 @@ class PositivityMinSolve(ModelSolve):
 
         Each row's tolerance is set from that row's statistical uncertainty and its
         exponential-fit goodness-of-fit. For row :math:`i`, with statistical ``1``-sigma
-        ``sigma_b`` and reduced chi-squared ``chi2_red``:
+        ``sigma_b`` and the reduced chi-squared ``chi2_red`` read from the
+        ``"reduced_chi_squared"`` entry of :attr:`~.LinearSystemData.row_diagnostics`:
 
         .. math::
 
@@ -455,9 +476,10 @@ class PositivityMinSolve(ModelSolve):
         ``sigma_b`` with ``absolute_sigma=True``, it is blind to model mismatch; the
         ``sqrt(chi2_red)`` factor loosens rows whose exponential fit is poor, and the ``max(1, .)``
         clamp means mismatch can only loosen a row, never tighten it below the statistical floor.
-        Rows with an undefined ``chi2_red`` (``nan``, e.g. averaged rows) get no inflation. The
-        median floor keeps a near-zero-``sigma`` row from forcing a hard equality and making the
-        problem ill-posed.
+        Rows with an undefined ``chi2_red`` (``nan``, e.g. averaged rows), and every row when the
+        system carries no ``"reduced_chi_squared"`` diagnostic at all, get no inflation. The median
+        floor keeps a near-zero-``sigma`` row from forcing a hard equality and making the problem
+        ill-posed.
 
         Args:
             coefficients: Per-gate coefficients for the objective function, as a mapping from gate
@@ -468,14 +490,16 @@ class PositivityMinSolve(ModelSolve):
             non_negative: Whether to enforce ``x >= 0``.
         """
 
-        def deltas(system: LinearSystemData) -> dict[Path, float]:
-            inflation = np.where(
-                np.isfinite(system.chi2_red), np.sqrt(np.maximum(system.chi2_red, 1.0)), 1.0
-            )
+        def deltas(system: LinearSystemData) -> dict[Hashable, float]:
+            chi2_red = system.row_diagnostics.get("reduced_chi_squared")
+            if chi2_red is None:
+                inflation = 1.0
+            else:
+                inflation = np.where(np.isfinite(chi2_red), np.sqrt(np.maximum(chi2_red, 1.0)), 1.0)
             effective = inflation * system.sigma_b
             floor = floor_frac * np.median(effective)
             values = scale * np.maximum(effective, floor)
-            return dict(zip(system.path_labels, values))
+            return dict(zip(system.row_labels, values))
 
         return cls(coefficients, deltas=deltas, non_negative=non_negative)
 
@@ -497,7 +521,7 @@ class PositivityMinSolve(ModelSolve):
         import cvxpy as cp
 
         A, b = system.A, system.b
-        param_labels, path_labels = system.param_labels, system.path_labels
+        column_labels, row_labels = system.column_labels, system.row_labels
         row_index_map = system.row_index_map
 
         n = A.shape[1]
@@ -509,7 +533,7 @@ class PositivityMinSolve(ModelSolve):
         weights = self.weights(system) if self.weights is not None else None
 
         # Build coefficient vector from gate-name mapping
-        coeff_vector = np.array([self.coefficients[label.gate_name] for label in param_labels])
+        coeff_vector = np.array([self.coefficients[label.gate_name] for label in column_labels])
 
         x = cp.Variable(n)
         objective = cp.Minimize(coeff_vector @ cp.pos(x))
@@ -545,7 +569,7 @@ class PositivityMinSolve(ModelSolve):
         if deltas is not None:
             # Every row needs a bound: a row absent from the mapping would be left unconstrained.
             _validate_policy_labels(deltas, row_index_map, "deltas")
-            deltas_array = np.array([deltas[path] for path in path_labels])
+            deltas_array = np.array([deltas[row_label] for row_label in row_labels])
             constraints.append(cp.abs(residual) <= deltas_array)
 
         if self.non_negative:
