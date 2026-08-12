@@ -11,7 +11,7 @@
 # that they have been altered from the originals.
 
 from abc import abstractmethod
-from collections.abc import Callable, Hashable, Iterator, Mapping
+from collections.abc import Callable, Hashable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from typing import Generic, TypeVar
 
@@ -39,13 +39,18 @@ class LinearSystemData(Generic[RowIndex, ColumnIndex]):
 
     A linear system ``A @ x = b`` with axis labels and metadata.
 
+    The index maps are the authoritative record of how labels correspond to positions in ``A``.
+    Anything that needs to align a label-keyed quantity with the arrays should index through
+    :attr:`row_index_map` or :attr:`column_index_map` rather than rebuilding the correspondence
+    from :attr:`path_labels` or :attr:`param_labels`.
+
     Args:
         A: The matrix with shape ``(m, n)``.
         b: The target vector length ``m``.
         sigma_b: Statistical ``1``-sigma uncertainty on ``b`` per row, with length ``m``.
-        chi2_red: Reduced chi-squared for ``b``, with length ``m``. ``nan`` where underfined.
-        param_labels: Ordered parameter labels corresponding to columns of ``A``.
-        path_labels: Ordered path labels corresponding to rows of ``A``.
+        chi2_red: Reduced chi-squared for ``b``, with length ``m``. ``nan`` where undefined.
+        row_index_map: A mapping from row labels to their integer row position in ``A``.
+        column_index_map: A mapping from column labels to their integer column position in ``A``.
         time_lb: Earliest time bound across the rows.
         time_ub: Latest time bound across the rows.
     """
@@ -54,10 +59,20 @@ class LinearSystemData(Generic[RowIndex, ColumnIndex]):
     b: np.ndarray
     sigma_b: np.ndarray
     chi2_red: np.ndarray
-    param_labels: list[ColumnIndex]
-    path_labels: list[RowIndex]
+    row_index_map: Mapping[RowIndex, int]
+    column_index_map: Mapping[ColumnIndex, int]
     time_lb: np.datetime64
     time_ub: np.datetime64
+
+    @property
+    def path_labels(self) -> list[RowIndex]:
+        """Row labels, ordered by their row position in ``A``."""
+        return sorted(self.row_index_map, key=self.row_index_map.__getitem__)
+
+    @property
+    def param_labels(self) -> list[ColumnIndex]:
+        """Column labels, ordered by their column position in ``A``."""
+        return sorted(self.column_index_map, key=self.column_index_map.__getitem__)
 
     @classmethod
     def from_fit(cls, fit: "Fit") -> "LinearSystemData[Path, Hashable]":
@@ -138,16 +153,13 @@ class LinearSystemData(Generic[RowIndex, ColumnIndex]):
         time_lb = time_bound(all_time_lbs, "min")
         time_ub = time_bound(all_time_ubs, "max")
 
-        param_labels = sorted(x := design_matrix.column_index_map, key=x.get)
-        path_labels = sorted(x := design_matrix.row_index_map, key=x.get)
-
         return cls(
             A=design_matrix.data,
             b=b,
             sigma_b=sigma_b,
             chi2_red=chi2_red,
-            param_labels=param_labels,
-            path_labels=path_labels,
+            row_index_map=dict(design_matrix.row_index_map),
+            column_index_map=dict(design_matrix.column_index_map),
             time_lb=time_lb,
             time_ub=time_ub,
         )
@@ -157,9 +169,9 @@ class ModelSolve(AnalysisStage):
     """Base class for model fitting routines.
 
     Constructs the design matrix from the :class:`~.FidelityModel` stored on the :class:`~.Fit`
-    container and the paths in the :class:`~.AggregatedObservableData`. Then solves ``A @ x = b`` using a
-    specified method, where ``A`` is the design matrix and ``b`` is the vector of negative log
-    observables ``-log(o)``.
+    container and the paths in the :class:`~.AggregatedObservableData`. Then solves ``A @ x = b``
+    using a specified method, where ``A`` is the design matrix and ``b`` is the vector of negative
+    log observables ``-log(o)``.
 
     If paths are specified on the :class:`~.Fit`, only data matching those paths is used. If no
     paths are specified, all data in the :class:`~.AggregatedObservableData` is used.
@@ -290,6 +302,42 @@ DeltaPolicy = Callable[[LinearSystemData], Mapping[Path, float]]
 WeightsPolicy = Callable[[LinearSystemData], IndexedMatrix]
 
 
+def _validate_policy_labels(
+    labels: Iterable[Hashable],
+    row_index_map: Mapping[Hashable, int],
+    name: str,
+    require_complete: bool = True,
+):
+    """Check the labels a constraint policy produced against the rows of the linear system.
+
+    Args:
+        labels: The row labels the policy supplied a value for.
+        row_index_map: The linear system's row index map.
+        name: Name of the policy output, used in the error messages.
+        require_complete: Whether every row of the linear system must appear in ``labels``.
+
+    Raises:
+        ValueError: If ``labels`` contains a label that is not a row of the linear system.
+        ValueError: If ``require_complete`` and a row of the linear system is absent from
+            ``labels``.
+    """
+    labels = set(labels)
+    rows = set(row_index_map)
+
+    if unknown := labels - rows:
+        raise ValueError(
+            f"The '{name}' policy produced {len(unknown)} label(s) that are not rows of the linear "
+            f"system, for example '{next(iter(unknown))}'. Note that rows whose design matrix "
+            "entries are all zero are dropped from the system."
+        )
+
+    if require_complete and (missing := rows - labels):
+        raise ValueError(
+            f"The '{name}' policy did not produce a value for {len(missing)} row(s) of the linear "
+            f"system, for example '{next(iter(missing))}'."
+        )
+
+
 class PositivityMinSolve(ModelSolve):
     r"""Solves for the :class:`~.ModelData` while minimizing Pauli-Lindblad rate positivity.
 
@@ -326,12 +374,19 @@ class PositivityMinSolve(ModelSolve):
             name to float.
         epsilon: Policy returning the tolerance for the overall weighted L2 norm constraint. At
             least one of ``epsilon`` or ``deltas`` must be provided.
-        deltas: Policy returning per-row tolerances as a mapping from :class:`~.Path` to float. At
-            least one of ``epsilon`` or ``deltas`` must be provided.
+        deltas: Policy returning per-row tolerances as a mapping from :class:`~.Path` to float. It
+            must cover every row of the linear system, since a row absent from the mapping would be
+            left unconstrained. At least one of ``epsilon`` or ``deltas`` must be provided.
         weights: Policy returning the weight matrix ``W`` for the L2 constraint as an
             :class:`~.IndexedMatrix` whose row and column indices are :class:`~.Path` objects.
-            Defaults to identity. Only used when ``epsilon`` is provided.
+            Defaults to identity. A row or column of the linear system absent from ``W`` is
+            weighted zero, which drops its residual from the norm. Only used when ``epsilon`` is
+            provided.
         non_negative: Whether to enforce ``x >= 0``.
+
+    Raises:
+        ValueError: At solve time, if the ``deltas`` or ``weights`` policy produces a label that is
+            not a row of the linear system, or if ``deltas`` omits one.
     """
 
     def __init__(
@@ -443,6 +498,7 @@ class PositivityMinSolve(ModelSolve):
 
         A, b = system.A, system.b
         param_labels, path_labels = system.param_labels, system.path_labels
+        row_index_map = system.row_index_map
 
         n = A.shape[1]
         m = A.shape[0]
@@ -464,11 +520,21 @@ class PositivityMinSolve(ModelSolve):
 
         if epsilon is not None:
             if weights is not None:
-                path_to_row = {path: i for i, path in enumerate(path_labels)}
+                # A row or column absent from the weight matrix is weighted zero, dropping its
+                # residual from the norm. Unknown labels are a misconfiguration.
+                _validate_policy_labels(
+                    weights.row_index_map, row_index_map, "weights rows", require_complete=False
+                )
+                _validate_policy_labels(
+                    weights.column_index_map,
+                    row_index_map,
+                    "weights columns",
+                    require_complete=False,
+                )
                 w = np.zeros((m, m))
                 for row_label, row_idx in weights.row_index_map.items():
                     for col_label, col_idx in weights.column_index_map.items():
-                        w[path_to_row[row_label], path_to_row[col_label]] = weights.data[
+                        w[row_index_map[row_label], row_index_map[col_label]] = weights.data[
                             row_idx, col_idx
                         ]
                 weighted_residual = w @ residual
@@ -477,6 +543,8 @@ class PositivityMinSolve(ModelSolve):
             constraints.append(cp.norm(weighted_residual, 2) <= epsilon)
 
         if deltas is not None:
+            # Every row needs a bound: a row absent from the mapping would be left unconstrained.
+            _validate_policy_labels(deltas, row_index_map, "deltas")
             deltas_array = np.array([deltas[path] for path in path_labels])
             constraints.append(cp.abs(residual) <= deltas_array)
 
