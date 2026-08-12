@@ -10,6 +10,8 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
+import warnings
+
 import numpy as np
 import pytest
 from qiskit.quantum_info import QubitSparsePauli, QubitSparsePauliList
@@ -171,6 +173,40 @@ def test_metadata_contains_residual(gate_set_cz, make_cz_path, make_aggregated_o
     assert "residual" in result.model_data.metadata
 
 
+@pytest.mark.parametrize("bad_std", [0.0, float("nan"), float("inf")])
+def test_unusable_uncertainty_warns_with_the_row_position(
+    bad_std, gate_set_cz, make_cz_path, make_aggregated_observable_data
+):
+    """A row carrying no statistical weight is reported, by its position in the row labels."""
+    model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI", "IZ"]), **_PM_GENS})
+    path0 = make_cz_path("XI")
+    path1 = make_cz_path("IX")
+
+    fit = Fit(model=model)
+    fit[AggregatedObservableData] = make_aggregated_observable_data(
+        [(path0, -1, 0.9, bad_std), (path1, -1, 0.8, 0.01)]
+    )
+
+    # ``path0`` is the first entry, so it is row 0 of the system.
+    with pytest.warns(UserWarning, match=r"1 of 2 row.*row_labels: 0\."):
+        NNLSSolve().run(fit)
+
+
+def test_usable_uncertainties_do_not_warn(
+    gate_set_cz, make_cz_path, make_aggregated_observable_data
+):
+    """Positive, finite uncertainties on every row produce no warning."""
+    model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
+    path = make_cz_path("XI")
+
+    fit = Fit(model=model)
+    fit[AggregatedObservableData] = make_aggregated_observable_data([(path, -1, 0.9, 0.01)])
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        NNLSSolve().run(fit)
+
+
 @pytest.mark.parametrize("solver", _SOLVERS)
 def test_bound_paths_in_fit_paths(
     solver, gate_set_cz, make_cz_path, make_aggregated_observable_data
@@ -254,7 +290,9 @@ class TestPositivityMinSolve:
         # IdentityFidelityModel is a real FidelityModel that is not a PauliLindbladModel.
         model = IdentityFidelityModel(gate_set_cz)
         path = make_cz_path("XI")
-        solver = PositivityMinSolve(coefficients={"CZ": 1.0}, epsilon=1.0, deltas={path: 1.0})
+        solver = PositivityMinSolve.from_constants(
+            coefficients={"CZ": 1.0}, epsilon=1.0, deltas={path: 1.0}
+        )
 
         fit = Fit(model=model)
         fit[AggregatedObservableData] = make_aggregated_observable_data([(path, -1, 0.8)])
@@ -268,7 +306,7 @@ class TestPositivityMinSolve:
         """With loose constraints, the optimizer makes the parameter non-positive."""
         model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
         path = make_cz_path("XI")  # row = {CZ:ZI: 4.0}
-        solver = PositivityMinSolve(
+        solver = PositivityMinSolve.from_constants(
             coefficients={"CZ": 1.0},
             epsilon=10.0,
             deltas={path: 10.0},
@@ -288,7 +326,7 @@ class TestPositivityMinSolve:
         f_true = 0.8
         model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
         path = make_cz_path("XI")  # row = {CZ:ZI: 4.0}
-        solver = PositivityMinSolve(
+        solver = PositivityMinSolve.from_constants(
             coefficients={"CZ": 1.0},
             epsilon=1e-6,
             deltas={path: 1e-6},
@@ -311,7 +349,7 @@ class TestPositivityMinSolve:
         )
         path0 = make_cz_path("XI")  # row = {CZ:ZI: 4.0}
         path1 = make_cz_path("IX")  # row = {CZ:IZ: 4.0}
-        solver = PositivityMinSolve(
+        solver = PositivityMinSolve.from_constants(
             coefficients={"CZ": 1.0},
             epsilon=1e-6,
             deltas={path0: 1e-6, path1: 1e-6},
@@ -335,7 +373,7 @@ class TestPositivityMinSolve:
         unbound = make_cz_path("XI")
         bound = unbound.bind_at(1)
         # unbound row = {CZ:ZI: 4.0}; bound row = {CZ:ZI: 4.0, P:XI: 2.0, M:XI: 2.0}.
-        solver = PositivityMinSolve(
+        solver = PositivityMinSolve.from_constants(
             coefficients={"CZ": 10.0, "P": 1.0, "M": 1.0},
             epsilon=1e-6,
             deltas={unbound: 1e-6, bound: 1e-6},
@@ -364,7 +402,7 @@ class TestPositivityMinSolve:
         path1 = make_cz_path("IX")  # row = {CZ:IZ: 4.0}
         # Loose constraints would let the positivity objective drive the rates negative; the
         # non_negative flag pins them at the zero boundary instead.
-        solver = PositivityMinSolve(
+        solver = PositivityMinSolve.from_constants(
             coefficients={"CZ": 1.0},
             epsilon=10.0,
             deltas={path0: 10.0, path1: 10.0},
@@ -397,7 +435,7 @@ class TestPositivityMinSolve:
             ],
         )
 
-        solver = PositivityMinSolve(
+        solver = PositivityMinSolve.from_constants(
             coefficients={"CZ": 1.0},
             epsilon=1e-6,
             deltas={path0: 10.0, path1: 10.0},
@@ -414,6 +452,154 @@ class TestPositivityMinSolve:
         assert np.isclose(_get_rate_from_fit(result, "CZ", "ZI"), -np.log(0.9) / 4, atol=1e-4)
         assert np.isclose(_get_rate_from_fit(result, "CZ", "IZ"), -np.log(0.8) / 4, atol=1e-4)
 
+    def test_weight_matrix_omitting_a_row_weights_it_zero(
+        self, gate_set_cz, make_cz_path, make_aggregated_observable_data
+    ):
+        """A row absent from the weight matrix is weighted zero, dropping it from the L2 norm."""
+        model = PauliLindbladModel(
+            gate_set_cz, {"CZ": QubitSparsePauliList(["ZI", "IZ"]), **_PM_GENS}
+        )
+        path0 = make_cz_path("XI")  # row = {CZ:ZI: 4.0}
+        path1 = make_cz_path("IX")  # row = {CZ:IZ: 4.0}
+
+        # Weights cover path0 only, so path1's residual is excluded from the epsilon constraint and
+        # only its loose delta binds, leaving the positivity objective free to pull its rate down.
+        weights = IndexedMatrix()
+        weights.add_rows(row_indices=[path0], rows=[IndexedVector({path0: 1.0})])
+
+        solver = PositivityMinSolve.from_constants(
+            coefficients={"CZ": 1.0},
+            epsilon=1e-6,
+            deltas={path0: 1e-6, path1: 10.0},
+            weights=weights,
+        )
+
+        fit = Fit(model=model)
+        fit[AggregatedObservableData] = make_aggregated_observable_data(
+            [(path0, -1, 0.9), (path1, -1, 0.8)]
+        )
+        result = solver.run(fit)
+
+        assert np.isclose(_get_rate_from_fit(result, "CZ", "ZI"), -np.log(0.9) / 4, atol=1e-4)
+        assert _get_rate_from_fit(result, "CZ", "IZ") < -np.log(0.8) / 4 - 1e-3
+
+    @pytest.mark.parametrize(
+        ("name", "value"),
+        [("epsilon", 1.0), ("deltas", {}), ("weights", IndexedMatrix())],
+    )
+    def test_fixed_value_instead_of_policy_raises(self, name, value):
+        """A bound given as a fixed value is rejected at construction, not at solve time."""
+        with pytest.raises(TypeError, match=f"'{name}' argument must be a callable policy"):
+            PositivityMinSolve(coefficients={"CZ": 1.0}, **{name: value})
+
+    def test_deltas_missing_a_row_raises(
+        self, gate_set_cz, make_cz_path, make_aggregated_observable_data
+    ):
+        """Deltas that omit a row of the linear system are rejected rather than left unbounded."""
+        model = PauliLindbladModel(
+            gate_set_cz, {"CZ": QubitSparsePauliList(["ZI", "IZ"]), **_PM_GENS}
+        )
+        path0 = make_cz_path("XI")
+        path1 = make_cz_path("IX")
+        solver = PositivityMinSolve.from_constants(coefficients={"CZ": 1.0}, deltas={path0: 1.0})
+
+        fit = Fit(model=model)
+        fit[AggregatedObservableData] = make_aggregated_observable_data(
+            [(path0, -1, 0.9), (path1, -1, 0.8)]
+        )
+
+        with pytest.raises(ValueError, match="did not produce a value for 1 row"):
+            solver.run(fit)
+
+    def test_infeasible_constraints_raise_with_the_solver_status(
+        self, gate_set_cz, make_cz_path, make_aggregated_observable_data
+    ):
+        """An infeasible problem reports the cvxpy status rather than a missing solution."""
+        model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
+        # Both paths anticommute only "ZI", so both rows are {CZ:ZI: 4.0}: two inconsistent
+        # measurements of one quantity, which zero tolerances cannot both be met.
+        path0 = make_cz_path("XI")
+        path1 = make_cz_path("XX")
+        solver = PositivityMinSolve.from_constants(
+            coefficients={"CZ": 1.0}, deltas={path0: 0.0, path1: 0.0}
+        )
+
+        fit = Fit(model=model)
+        fit[AggregatedObservableData] = make_aggregated_observable_data(
+            [(path0, -1, 0.9), (path1, -1, 0.5)]
+        )
+
+        with pytest.raises(RuntimeError, match="did not produce a solution"):
+            solver.run(fit)
+
+    def test_deltas_with_unknown_label_raises(
+        self, gate_set_cz, make_cz_path, make_aggregated_observable_data
+    ):
+        """Deltas keyed by a path that is not a row of the linear system are rejected."""
+        model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
+        path = make_cz_path("XI")
+        absent = make_cz_path("IX")
+        solver = PositivityMinSolve.from_constants(
+            coefficients={"CZ": 1.0}, deltas={path: 1.0, absent: 1.0}
+        )
+
+        fit = Fit(model=model)
+        fit[AggregatedObservableData] = make_aggregated_observable_data([(path, -1, 0.9)])
+
+        with pytest.raises(ValueError, match="'deltas' policy produced 1 label"):
+            solver.run(fit)
+
+    def test_weights_with_unknown_label_raises(
+        self, gate_set_cz, make_cz_path, make_aggregated_observable_data
+    ):
+        """A weight matrix indexed by a path that is not a row of the linear system is rejected."""
+        model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
+        path = make_cz_path("XI")
+        absent = make_cz_path("IX")
+
+        weights = IndexedMatrix()
+        weights.add_rows(row_indices=[absent], rows=[IndexedVector({absent: 1.0})])
+
+        solver = PositivityMinSolve.from_constants(
+            coefficients={"CZ": 1.0}, epsilon=1.0, deltas={path: 1.0}, weights=weights
+        )
+
+        fit = Fit(model=model)
+        fit[AggregatedObservableData] = make_aggregated_observable_data([(path, -1, 0.9)])
+
+        with pytest.raises(ValueError, match="'weights rows' policy produced 1 label"):
+            solver.run(fit)
+
+    def test_policy_reads_arbitrary_row_diagnostic(
+        self, gate_set_cz, make_cz_path, make_aggregated_observable_data
+    ):
+        """A policy can bound rows using any real-valued observable metadata key, not just the ones
+        the built-in policies know about."""
+        model = PauliLindbladModel(
+            gate_set_cz, {"CZ": QubitSparsePauliList(["ZI", "IZ"]), **_PM_GENS}
+        )
+        path0 = make_cz_path("XI")  # row = {CZ:ZI: 4.0}
+        path1 = make_cz_path("IX")  # row = {CZ:IZ: 4.0}
+
+        seen = {}
+
+        def deltas(system):
+            seen["slack"] = dict(zip(system.row_labels, system.row_diagnostics["slack"]))
+            return seen["slack"]
+
+        solver = PositivityMinSolve(coefficients={"CZ": 1.0}, deltas=deltas)
+        fit = Fit(model=model)
+        fit[AggregatedObservableData] = make_aggregated_observable_data(
+            [(path0, -1, 0.9, 0.01, {"slack": 1e-8}), (path1, -1, 0.9, 0.01, {"slack": 0.5})]
+        )
+        result = solver.run(fit)
+
+        assert seen["slack"] == {path0: 1e-8, path1: 0.5}
+        # The tightly bounded row is pinned to its least-squares value, while the loosely bounded
+        # one is pulled toward zero by the positivity objective.
+        assert np.isclose(_get_rate_from_fit(result, "CZ", "ZI"), -np.log(0.9) / 4, atol=1e-5)
+        assert _get_rate_from_fit(result, "CZ", "IZ") < -np.log(0.9) / 4 - 1e-3
+
     def test_metadata_contains_problem(
         self, gate_set_cz, make_cz_path, make_aggregated_observable_data
     ):
@@ -422,7 +608,7 @@ class TestPositivityMinSolve:
 
         model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
         path = make_cz_path("XI")
-        solver = PositivityMinSolve(
+        solver = PositivityMinSolve.from_constants(
             coefficients={"CZ": 1.0},
             epsilon=10.0,
             deltas={path: 10.0},
@@ -439,7 +625,7 @@ class TestPositivityMinSolve:
         """PositivityMinSolve returns zero covariance."""
         model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
         path = make_cz_path("XI")
-        solver = PositivityMinSolve(
+        solver = PositivityMinSolve.from_constants(
             coefficients={"CZ": 1.0},
             epsilon=10.0,
             deltas={path: 10.0},
@@ -461,7 +647,7 @@ class TestPositivityMinSolve:
             gate_set_cz, {"CZ": QubitSparsePauliList(["ZI", "IZ"]), **_PM_GENS}
         )
         path = make_cz_path("XX")  # one row onto two generators: {CZ:ZI: 4.0, CZ:IZ: 4.0}
-        solver = PositivityMinSolve(
+        solver = PositivityMinSolve.from_constants(
             coefficients={"CZ": 1.0},
             epsilon=1e-6,
             deltas={path: 1e-6},
@@ -478,3 +664,210 @@ class TestPositivityMinSolve:
         # The minimum of max(0,a) + max(0,b) subject to a + b = c > 0 is exactly c.
         pos_sum = max(0, x0) + max(0, x1)
         assert np.isclose(pos_sum, -np.log(0.8) / 4, atol=1e-4)
+
+
+@pytest.mark.skipif(not HAS_CVXPY, reason="cvxpy is required for PositivityMinSolve")
+class TestDataScaledDeltas:
+    """Tests for the PositivityMinSolve.from_data_scaled_deltas constructor."""
+
+    def _single_generator_model(self, gate_set_cz):
+        return PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
+
+    def _solve_single(self, gate_set_cz, make_aggregated_observable_data, entry, **kwargs):
+        """Solve a one-path system and return the fitted CZ:ZI rate."""
+        model = self._single_generator_model(gate_set_cz)
+        solver = PositivityMinSolve.from_data_scaled_deltas({"CZ": 1.0}, **kwargs)
+        fit = Fit(model=model)
+        fit[AggregatedObservableData] = make_aggregated_observable_data([entry])
+        return _get_rate_from_fit(solver.run(fit), "CZ", "ZI")
+
+    def _solve_two_rows(self, gate_set_cz, make_aggregated_observable_data, entries, solver):
+        """Solve a two-path system on independent generators and return the fitted CZ:ZI rate."""
+        model = PauliLindbladModel(
+            gate_set_cz, {"CZ": QubitSparsePauliList(["ZI", "IZ"]), **_PM_GENS}
+        )
+        fit = Fit(model=model)
+        fit[AggregatedObservableData] = make_aggregated_observable_data(entries)
+        return _get_rate_from_fit(solver.run(fit), "CZ", "ZI")
+
+    def test_low_variance_pins_ls_solution(
+        self, gate_set_cz, make_cz_path, make_aggregated_observable_data
+    ):
+        """A low-variance row gets a tight delta, pinning the solution near the LS solution."""
+        f_true = 0.8
+        path = make_cz_path("XI")  # row = {CZ:ZI: 4.0}
+        rate = self._solve_single(
+            gate_set_cz,
+            make_aggregated_observable_data,
+            (path, -1, f_true, 1e-8, {"reduced_chi_squared": 1.0}),
+        )
+        assert np.isclose(rate, -np.log(f_true) / 4, atol=1e-4)
+
+    def test_high_variance_relaxes_toward_positivity(
+        self, gate_set_cz, make_cz_path, make_aggregated_observable_data
+    ):
+        """A high-variance row gets a loose delta, letting the positivity objective pull it down."""
+        f_true = 0.8
+        path = make_cz_path("XI")
+        ls_rate = -np.log(f_true) / 4
+
+        tight = self._solve_single(
+            gate_set_cz,
+            make_aggregated_observable_data,
+            (path, -1, f_true, 1e-8, {"reduced_chi_squared": 1.0}),
+        )
+        loose = self._solve_single(
+            gate_set_cz,
+            make_aggregated_observable_data,
+            (path, -1, f_true, 0.05, {"reduced_chi_squared": 1.0}),
+        )
+
+        assert np.isclose(tight, ls_rate, atol=1e-4)
+        # The objective minimizes max(0, x), so a looser delta lets the rate drop below the LS
+        # value.
+        assert loose < tight - 1e-3
+
+    def test_poor_fit_loosens_via_chi_squared(
+        self, gate_set_cz, make_cz_path, make_aggregated_observable_data
+    ):
+        """A larger reduced chi-squared inflates the delta, giving the positivity objective room."""
+        f_true = 0.8
+        path = make_cz_path("XI")
+
+        good_fit = self._solve_single(
+            gate_set_cz,
+            make_aggregated_observable_data,
+            (path, -1, f_true, 0.01, {"reduced_chi_squared": 1.0}),
+        )
+        poor_fit = self._solve_single(
+            gate_set_cz,
+            make_aggregated_observable_data,
+            (path, -1, f_true, 0.01, {"reduced_chi_squared": 100.0}),
+        )
+
+        # sqrt(100) = 10x inflation on the same statistical sigma loosens the row.
+        assert poor_fit < good_fit - 1e-3
+
+    def test_nan_chi_squared_gives_no_inflation(
+        self, gate_set_cz, make_cz_path, make_aggregated_observable_data
+    ):
+        """An undefined (nan) reduced chi-squared behaves like a well-fit row (no inflation)."""
+        f_true = 0.8
+        path = make_cz_path("XI")
+
+        nan_rate = self._solve_single(
+            gate_set_cz,
+            make_aggregated_observable_data,
+            (path, -1, f_true, 0.02, {"reduced_chi_squared": float("nan")}),
+        )
+        unit_rate = self._solve_single(
+            gate_set_cz,
+            make_aggregated_observable_data,
+            (path, -1, f_true, 0.02, {"reduced_chi_squared": 1.0}),
+        )
+        assert np.isclose(nan_rate, unit_rate, atol=1e-6)
+
+    def test_works_without_metadata(
+        self, gate_set_cz, make_cz_path, make_aggregated_observable_data
+    ):
+        """Rows without any metadata (e.g. averaged rows) get no inflation and still solve."""
+        f_true = 0.8
+        path = make_cz_path("XI")
+        rate = self._solve_single(
+            gate_set_cz, make_aggregated_observable_data, (path, -1, f_true, 1e-8)
+        )
+        assert np.isclose(rate, -np.log(f_true) / 4, atol=1e-4)
+
+    def test_scale_loosens_every_row(
+        self, gate_set_cz, make_cz_path, make_aggregated_observable_data
+    ):
+        """A larger scale multiplies the tolerance, giving the positivity objective more room."""
+        f_true = 0.8
+        path = make_cz_path("XI")
+        entry = (path, -1, f_true, 0.01, {"reduced_chi_squared": 1.0})
+
+        tight = self._solve_single(gate_set_cz, make_aggregated_observable_data, entry, scale=1.0)
+        loose = self._solve_single(gate_set_cz, make_aggregated_observable_data, entry, scale=10.0)
+
+        # delta = scale * sigma_b, so 10x the scale is 10x the slack below the LS solution.
+        ls_rate = -np.log(f_true) / 4
+        assert loose < tight - 1e-3
+        assert np.isclose(ls_rate - loose, 10 * (ls_rate - tight), atol=1e-4)
+
+    def test_degenerate_row_does_not_loosen_a_well_measured_row(
+        self, gate_set_cz, make_cz_path, make_aggregated_observable_data
+    ):
+        """A row with a huge uncertainty leaves a well-measured row's tolerance untouched."""
+        f_true = 0.9
+        path0 = make_cz_path("XI")  # row = {CZ:ZI: 4.0}, well measured
+        path1 = make_cz_path("IX")  # row = {CZ:IZ: 4.0}, uncertainty blown up
+
+        alone = self._solve_two_rows(
+            gate_set_cz,
+            make_aggregated_observable_data,
+            [
+                (path0, -1, f_true, 0.001, {"reduced_chi_squared": 1.0}),
+                (path1, -1, f_true, 0.001, {"reduced_chi_squared": 1.0}),
+            ],
+            PositivityMinSolve.from_data_scaled_deltas({"CZ": 1.0}),
+        )
+        with_degenerate = self._solve_two_rows(
+            gate_set_cz,
+            make_aggregated_observable_data,
+            [
+                (path0, -1, f_true, 0.001, {"reduced_chi_squared": 1.0}),
+                (path1, -1, f_true, 3e7, {"reduced_chi_squared": 1.0}),
+            ],
+            PositivityMinSolve.from_data_scaled_deltas({"CZ": 1.0}),
+        )
+
+        # Each row constrains its own generator, so the well-measured row sits its own tolerance
+        # below the LS solution -- delta = sigma_b = 0.001 / f_true, spread over a coefficient of 4
+        # -- either way: the neighbour's uncertainty cannot widen it.
+        expected = -np.log(f_true) / 4 - (0.001 / f_true) / 4
+        assert np.isclose(alone, expected, atol=1e-5)
+        assert np.isclose(with_degenerate, alone, atol=1e-5)
+
+    def test_zero_variance_row_gets_the_median_tolerance(
+        self, gate_set_cz, make_cz_path, make_aggregated_observable_data
+    ):
+        """A zero-variance row is bounded by the median of the rows with a usable uncertainty."""
+        f_true = 0.8
+        path0 = make_cz_path("XI")  # row = {CZ:ZI: 4.0}, zero variance
+        path1 = make_cz_path("IX")  # row = {CZ:IZ: 4.0}, the only usable uncertainty
+
+        entries = [
+            (path0, -1, f_true, 0.0, {"reduced_chi_squared": 1.0}),
+            (path1, -1, f_true, 0.05, {"reduced_chi_squared": 1.0}),
+        ]
+        imputed = self._solve_two_rows(
+            gate_set_cz,
+            make_aggregated_observable_data,
+            entries,
+            PositivityMinSolve.from_data_scaled_deltas({"CZ": 1.0}),
+        )
+        # The only usable row's uncertainty is sigma_b = 0.05 / f_true, so that is the median, and
+        # the zero-variance row must behave exactly as if it had been supplied directly rather than
+        # as a hard equality at delta = 0.
+        median = 0.05 / f_true
+        explicit = self._solve_two_rows(
+            gate_set_cz,
+            make_aggregated_observable_data,
+            entries,
+            PositivityMinSolve.from_constants({"CZ": 1.0}, deltas={path0: median, path1: median}),
+        )
+
+        assert np.isclose(imputed, explicit, atol=1e-6)
+        assert imputed < -np.log(f_true) / 4 - 1e-4
+
+    def test_no_usable_uncertainty_raises(
+        self, gate_set_cz, make_cz_path, make_aggregated_observable_data
+    ):
+        """With no positive, finite uncertainty anywhere there is nothing to scale tolerances by."""
+        path = make_cz_path("XI")
+        with pytest.raises(ValueError, match="positive, finite uncertainty"):
+            self._solve_single(
+                gate_set_cz,
+                make_aggregated_observable_data,
+                (path, -1, 0.8, 0.0, {"reduced_chi_squared": 1.0}),
+            )

@@ -171,8 +171,7 @@ def make_aggregated_observable_data():
             dtype=float,
         )
         metas = [next((x for x in e[3:] if isinstance(x, dict)), None) for e in entries]
-        # ``from_arrays`` uses ``metadata or ...``, so only pass an array when something is present.
-        metadata = np.array(metas, dtype=object) if any(m is not None for m in metas) else None
+        metadata = np.array(metas, dtype=object)
         n = len(entries)
         return AggregatedObservableData.from_arrays(
             unbound_paths=unbound_paths,
