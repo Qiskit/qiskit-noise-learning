@@ -11,6 +11,7 @@
 # that they have been altered from the originals.
 
 import numbers
+import warnings
 from abc import abstractmethod
 from collections.abc import Callable, Hashable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
@@ -89,6 +90,11 @@ class LinearSystemData(Generic[RowIndex, ColumnIndex]):
         the fidelity model's parameter labels, and :attr:`row_diagnostics` holds every real-valued
         per-observable metadata entry under the name the producing stage used — for instance
         ``"reduced_chi_squared"`` from :class:`~.CurveFitObservables`.
+
+        Warns:
+            UserWarning: If any row's uncertainty is non-positive or non-finite, giving those rows'
+                positions in :attr:`row_labels`. Such a row carries no usable statistical weight,
+                and how it is treated is up to the solver.
         """
         dataset = fit[AggregatedObservableData].dataset
         fidelity_model = fit.model
@@ -167,6 +173,22 @@ class LinearSystemData(Generic[RowIndex, ColumnIndex]):
                         if key not in row_diagnostics:
                             row_diagnostics[key] = np.full(n_rows, np.nan, dtype=float)
                         row_diagnostics[key][array_idx] = float(value)
+
+        # Warn once, here at the single point where data enters the solvers, so that every solver
+        # and every constraint policy sees the same notion of an unusable row and none of them has
+        # to report it. Report row positions rather than the labels themselves: a Path repr spans
+        # many lines, and positions index row_labels so the caller can still identify the rows.
+        unusable = np.flatnonzero(~np.isfinite(sigma_b) | (sigma_b <= 0))
+        if unusable.size:
+            shown = ", ".join(str(idx) for idx in unusable[:10])
+            if unusable.size > 10:
+                shown += f", and {unusable.size - 10} more"
+            warnings.warn(
+                f"{unusable.size} of {n_rows} row(s) of the linear system have a non-positive or "
+                "non-finite uncertainty, so they carry no usable statistical weight. Positions in "
+                f"LinearSystemData.row_labels: {shown}.",
+                stacklevel=2,
+            )
 
         all_time_lbs = np.array(time_lbs_list, dtype="datetime64[us]")
         all_time_ubs = np.array(time_ubs_list, dtype="datetime64[us]")
@@ -427,6 +449,8 @@ class PositivityMinSolve(ModelSolve):
             a policy. Use :meth:`from_constants` for fixed values.
         ValueError: At solve time, if the ``deltas`` or ``weights`` policy produces a label that is
             not a row of the linear system, or if ``deltas`` omits one.
+        RuntimeError: At solve time, if the convex solver does not return a solution, for instance
+            because the constraints are infeasible.
     """
 
     def __init__(
@@ -478,12 +502,11 @@ class PositivityMinSolve(ModelSolve):
         cls,
         coefficients: dict[str, float],
         scale: float = 1.0,
-        floor_frac: float = 0.1,
         non_negative: bool = False,
     ) -> "PositivityMinSolve":
         r"""Build with a delta-only policy based on statistical uncertainty of observables.
 
-        Each row's tolerance is set from that row's statistical uncertainty and its
+        Each row's tolerance is set from that row's own statistical uncertainty and its
         exponential-fit goodness-of-fit. For row :math:`i`, with statistical ``1``-sigma
         ``sigma_b`` and the reduced chi-squared ``chi2_red`` read from the
         ``"reduced_chi_squared"`` entry of :attr:`~.LinearSystemData.row_diagnostics`:
@@ -491,27 +514,34 @@ class PositivityMinSolve(ModelSolve):
         .. math::
 
             \mathrm{inflation}_i &= \max(1, \sqrt{\mathrm{chi2\_red}_i}) \\
-            s_i &= \mathrm{inflation}_i \cdot \sigma_{b, i} \\
-            \mathrm{floor} &= \mathrm{floor\_frac} \cdot \mathrm{median}_j(s_j) \\
-            \delta_i &= \mathrm{scale} \cdot \max(s_i, \mathrm{floor})
+            \delta_i &= \mathrm{scale} \cdot \mathrm{inflation}_i \cdot \sigma_{b, i}
 
         Setting ``delta_i`` proportional to ``sigma`` follows the Morozov discrepancy principle
         (allow about ``scale`` standard deviations of slack). Because ``curve_fit`` reports
         ``sigma_b`` with ``absolute_sigma=True``, it is blind to model mismatch; the
         ``sqrt(chi2_red)`` factor loosens rows whose exponential fit is poor, and the ``max(1, .)``
-        clamp means mismatch can only loosen a row, never tighten it below the statistical floor.
-        Rows with an undefined ``chi2_red`` (``nan``, e.g. averaged rows), and every row when the
-        system carries no ``"reduced_chi_squared"`` diagnostic at all, get no inflation. The median
-        floor keeps a near-zero-``sigma`` row from forcing a hard equality and making the problem
-        ill-posed.
+        clamp means mismatch can only loosen a row, never tighten it below its statistical
+        uncertainty. Rows with an undefined ``chi2_red`` (``nan``, e.g. averaged rows), and every
+        row when the system carries no ``"reduced_chi_squared"`` diagnostic at all, get no
+        inflation. If the model cannot be fit within the resulting tolerances the solve reports an
+        infeasible problem, and ``scale`` is the knob that loosens every row at once.
+
+        A row whose uncertainty is non-positive or non-finite carries no statistical information to
+        scale by, so rather than being treated as an extremely precise row it is assigned the
+        median tolerance of the rows that do have a usable uncertainty. This keeps such a row in
+        the fit at a typical scale without letting it constrain the solution as a near-equality,
+        and no row's tolerance ever depends on another row's uncertainty except through this
+        substitution.
 
         Args:
             coefficients: Per-gate coefficients for the objective function, as a mapping from gate
                 name to float.
             scale: Multiplier on the per-row tolerance, in units of (inflated) standard deviations.
-            floor_frac: Fraction of the median inflated uncertainty used as a floor on every row's
-                tolerance.
             non_negative: Whether to enforce ``x >= 0``.
+
+        Raises:
+            ValueError: At solve time, if no row of the linear system has a positive, finite
+                uncertainty, leaving nothing to derive tolerances from.
         """
 
         def deltas(system: LinearSystemData) -> dict[Hashable, float]:
@@ -521,8 +551,15 @@ class PositivityMinSolve(ModelSolve):
             else:
                 inflation = np.where(np.isfinite(chi2_red), np.sqrt(np.maximum(chi2_red, 1.0)), 1.0)
             effective = inflation * system.sigma_b
-            floor = floor_frac * np.median(effective)
-            values = scale * np.maximum(effective, floor)
+
+            usable = np.isfinite(effective) & (effective > 0)
+            if not usable.any():
+                raise ValueError(
+                    f"None of the {len(effective)} rows of the linear system has a positive, "
+                    "finite uncertainty, so no residual tolerances can be derived from the data. "
+                    "Supply fixed tolerances with PositivityMinSolve.from_constants instead."
+                )
+            values = scale * np.where(usable, effective, np.median(effective[usable]))
             return dict(zip(system.row_labels, values))
 
         return cls(coefficients, deltas=deltas, non_negative=non_negative)
@@ -601,6 +638,21 @@ class PositivityMinSolve(ModelSolve):
 
         problem = cp.Problem(objective, constraints)
         problem.solve()
+
+        # cvxpy reports failure through the status rather than by raising, and leaves the variable
+        # unpopulated, so catch it here instead of letting a None propagate into the residuals.
+        if problem.status not in cp.settings.SOLUTION_PRESENT or x.value is None:
+            raise RuntimeError(
+                f"The convex solve did not produce a solution (cvxpy status '{problem.status}'). "
+                "An infeasible status usually means the residual bounds are too tight for the "
+                "data; consider loosening 'deltas' or 'epsilon'."
+            )
+        if problem.status == cp.OPTIMAL_INACCURATE:
+            warnings.warn(
+                "The convex solve converged only to reduced accuracy (cvxpy status "
+                f"'{problem.status}'); the returned rates may be unreliable.",
+                stacklevel=2,
+            )
 
         metadata = {"problem": problem}
         if epsilon is not None:
