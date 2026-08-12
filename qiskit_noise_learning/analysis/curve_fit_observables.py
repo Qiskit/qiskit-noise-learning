@@ -28,6 +28,14 @@ class CurveFitObservables(AnalysisStage):
     This stage will curve fit data for any unbound paths in ``fit.paths``. If ``fit.paths is None``,
     any path in the data with multiple fragment depths will be curve fit. In both cases, any
     remaining paths will be averaged.
+
+    Each curve-fit row carries the following per-row metadata, which the averaged rows do not have:
+
+    * ``"spam_fidelity"``, ``"spam_fidelity_std"``: the fitted prefactor :math:`a` and its
+      ``1``-sigma uncertainty.
+    * ``"chi_squared"``: the raw chi-squared of the fit.
+    * ``"reduced_chi_squared"``: the raw chi-squared divided by the degrees of freedom, that is
+      the number of fragment depths minus the two fit parameters, or ``nan`` if there are none.
     """
 
     @property

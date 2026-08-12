@@ -15,7 +15,7 @@ import warnings
 from abc import abstractmethod
 from collections.abc import Callable, Hashable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
-from typing import Generic, TypeVar
+from typing import Generic, Self, TypeVar
 
 import numpy as np
 import scipy.optimize as opt
@@ -99,7 +99,7 @@ class LinearSystemData(Generic[RowIndex, ColumnIndex]):
         dataset = fit[AggregatedObservableData].dataset
         fidelity_model = fit.model
 
-        # Index the as "(unbound_path, fragment_depth) -> row position", where -1 denotes unbound
+        # Index the rows as "(unbound_path, fragment_depth) -> row position", -1 denotes unbound
         index_by_key: dict[tuple[Path, int], int] = {}
         for idx, key in enumerate(
             zip(dataset["unbound_path"].data, dataset["fragment_depth"].data)
@@ -482,7 +482,7 @@ class PositivityMinSolve(ModelSolve):
         deltas: Mapping[Path, float] | None = None,
         weights: IndexedMatrix | None = None,
         non_negative: bool = False,
-    ) -> "PositivityMinSolve":
+    ) -> Self:
         """Construct from fixed constant bounds instead of data-driven policies.
 
         Each supplied constant is wrapped in a policy that ignores the data and returns it. See
@@ -503,7 +503,7 @@ class PositivityMinSolve(ModelSolve):
         coefficients: dict[str, float],
         scale: float = 1.0,
         non_negative: bool = False,
-    ) -> "PositivityMinSolve":
+    ) -> Self:
         r"""Build with a delta-only policy based on statistical uncertainty of observables.
 
         Each row's tolerance is set from that row's own statistical uncertainty and its

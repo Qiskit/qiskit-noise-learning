@@ -116,8 +116,8 @@ class TestCurveFitObservables:
         ds = result.aggregated_observable_data.dataset
         mask = (ds["unbound_path"].data == pp) & (ds["fragment_depth"].data == -1)
         meta = ds["metadata"].data[mask][0]
-        # dof = M - 2 = 5 - 2 = 3 fit parameters (a, f).
-        assert np.isclose(meta["reduced_chi_squared"], meta["chi_squared"] / 3)
+        # dof = M - 2 = 5 - 2 = 3, for the two fit parameters (a, f).
+        assert np.isclose(meta["reduced_chi_squared"], meta["chi_squared"] / 3, atol=1e-12)
 
     def test_reduced_chi_squared_nan_without_dof(self, make_cz_path, make_observable_data):
         """Reduced chi-squared is nan when there are no degrees of freedom (2 depths)."""

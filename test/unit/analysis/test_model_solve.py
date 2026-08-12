@@ -174,10 +174,10 @@ def test_metadata_contains_residual(gate_set_cz, make_cz_path, make_aggregated_o
 
 
 @pytest.mark.parametrize("bad_std", [0.0, float("nan"), float("inf")])
-def test_unusable_uncertainty_warns_naming_the_row(
+def test_unusable_uncertainty_warns_with_the_row_position(
     bad_std, gate_set_cz, make_cz_path, make_aggregated_observable_data
 ):
-    """A row whose uncertainty carries no statistical weight is reported, and the row is named."""
+    """A row carrying no statistical weight is reported, by its position in the row labels."""
     model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI", "IZ"]), **_PM_GENS})
     path0 = make_cz_path("XI")
     path1 = make_cz_path("IX")
@@ -187,7 +187,8 @@ def test_unusable_uncertainty_warns_naming_the_row(
         [(path0, -1, 0.9, bad_std), (path1, -1, 0.8, 0.01)]
     )
 
-    with pytest.warns(UserWarning, match="1 of 2 row"):
+    # ``path0`` is the first entry, so it is row 0 of the system.
+    with pytest.warns(UserWarning, match=r"1 of 2 row.*row_labels: 0\."):
         NNLSSolve().run(fit)
 
 
@@ -672,14 +673,21 @@ class TestDataScaledDeltas:
     def _single_generator_model(self, gate_set_cz):
         return PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
 
-    def _solve_single(
-        self, gate_set_cz, make_cz_path, make_aggregated_observable_data, entry, **kwargs
-    ):
+    def _solve_single(self, gate_set_cz, make_aggregated_observable_data, entry, **kwargs):
         """Solve a one-path system and return the fitted CZ:ZI rate."""
         model = self._single_generator_model(gate_set_cz)
         solver = PositivityMinSolve.from_data_scaled_deltas({"CZ": 1.0}, **kwargs)
         fit = Fit(model=model)
         fit[AggregatedObservableData] = make_aggregated_observable_data([entry])
+        return _get_rate_from_fit(solver.run(fit), "CZ", "ZI")
+
+    def _solve_two_rows(self, gate_set_cz, make_aggregated_observable_data, entries, solver):
+        """Solve a two-path system on independent generators and return the fitted CZ:ZI rate."""
+        model = PauliLindbladModel(
+            gate_set_cz, {"CZ": QubitSparsePauliList(["ZI", "IZ"]), **_PM_GENS}
+        )
+        fit = Fit(model=model)
+        fit[AggregatedObservableData] = make_aggregated_observable_data(entries)
         return _get_rate_from_fit(solver.run(fit), "CZ", "ZI")
 
     def test_low_variance_pins_ls_solution(
@@ -690,7 +698,6 @@ class TestDataScaledDeltas:
         path = make_cz_path("XI")  # row = {CZ:ZI: 4.0}
         rate = self._solve_single(
             gate_set_cz,
-            make_cz_path,
             make_aggregated_observable_data,
             (path, -1, f_true, 1e-8, {"reduced_chi_squared": 1.0}),
         )
@@ -706,13 +713,11 @@ class TestDataScaledDeltas:
 
         tight = self._solve_single(
             gate_set_cz,
-            make_cz_path,
             make_aggregated_observable_data,
             (path, -1, f_true, 1e-8, {"reduced_chi_squared": 1.0}),
         )
         loose = self._solve_single(
             gate_set_cz,
-            make_cz_path,
             make_aggregated_observable_data,
             (path, -1, f_true, 0.05, {"reduced_chi_squared": 1.0}),
         )
@@ -731,13 +736,11 @@ class TestDataScaledDeltas:
 
         good_fit = self._solve_single(
             gate_set_cz,
-            make_cz_path,
             make_aggregated_observable_data,
             (path, -1, f_true, 0.01, {"reduced_chi_squared": 1.0}),
         )
         poor_fit = self._solve_single(
             gate_set_cz,
-            make_cz_path,
             make_aggregated_observable_data,
             (path, -1, f_true, 0.01, {"reduced_chi_squared": 100.0}),
         )
@@ -754,13 +757,11 @@ class TestDataScaledDeltas:
 
         nan_rate = self._solve_single(
             gate_set_cz,
-            make_cz_path,
             make_aggregated_observable_data,
             (path, -1, f_true, 0.02, {"reduced_chi_squared": float("nan")}),
         )
         unit_rate = self._solve_single(
             gate_set_cz,
-            make_cz_path,
             make_aggregated_observable_data,
             (path, -1, f_true, 0.02, {"reduced_chi_squared": 1.0}),
         )
@@ -773,21 +774,9 @@ class TestDataScaledDeltas:
         f_true = 0.8
         path = make_cz_path("XI")
         rate = self._solve_single(
-            gate_set_cz, make_cz_path, make_aggregated_observable_data, (path, -1, f_true, 1e-8)
+            gate_set_cz, make_aggregated_observable_data, (path, -1, f_true, 1e-8)
         )
         assert np.isclose(rate, -np.log(f_true) / 4, atol=1e-4)
-
-    def _solve_two_rows(
-        self, gate_set_cz, make_cz_path, make_aggregated_observable_data, entries, solver
-    ):
-        """Solve a two-path system on independent generators and return both fitted rates."""
-        model = PauliLindbladModel(
-            gate_set_cz, {"CZ": QubitSparsePauliList(["ZI", "IZ"]), **_PM_GENS}
-        )
-        fit = Fit(model=model)
-        fit[AggregatedObservableData] = make_aggregated_observable_data(entries)
-        result = solver.run(fit)
-        return _get_rate_from_fit(result, "CZ", "ZI"), _get_rate_from_fit(result, "CZ", "IZ")
 
     def test_scale_loosens_every_row(
         self, gate_set_cz, make_cz_path, make_aggregated_observable_data
@@ -797,12 +786,8 @@ class TestDataScaledDeltas:
         path = make_cz_path("XI")
         entry = (path, -1, f_true, 0.01, {"reduced_chi_squared": 1.0})
 
-        tight = self._solve_single(
-            gate_set_cz, make_cz_path, make_aggregated_observable_data, entry, scale=1.0
-        )
-        loose = self._solve_single(
-            gate_set_cz, make_cz_path, make_aggregated_observable_data, entry, scale=10.0
-        )
+        tight = self._solve_single(gate_set_cz, make_aggregated_observable_data, entry, scale=1.0)
+        loose = self._solve_single(gate_set_cz, make_aggregated_observable_data, entry, scale=10.0)
 
         # delta = scale * sigma_b, so 10x the scale is 10x the slack below the LS solution.
         ls_rate = -np.log(f_true) / 4
@@ -817,9 +802,8 @@ class TestDataScaledDeltas:
         path0 = make_cz_path("XI")  # row = {CZ:ZI: 4.0}, well measured
         path1 = make_cz_path("IX")  # row = {CZ:IZ: 4.0}, uncertainty blown up
 
-        alone, _ = self._solve_two_rows(
+        alone = self._solve_two_rows(
             gate_set_cz,
-            make_cz_path,
             make_aggregated_observable_data,
             [
                 (path0, -1, f_true, 0.001, {"reduced_chi_squared": 1.0}),
@@ -827,9 +811,8 @@ class TestDataScaledDeltas:
             ],
             PositivityMinSolve.from_data_scaled_deltas({"CZ": 1.0}),
         )
-        with_degenerate, _ = self._solve_two_rows(
+        with_degenerate = self._solve_two_rows(
             gate_set_cz,
-            make_cz_path,
             make_aggregated_observable_data,
             [
                 (path0, -1, f_true, 0.001, {"reduced_chi_squared": 1.0}),
@@ -857,9 +840,8 @@ class TestDataScaledDeltas:
             (path0, -1, f_true, 0.0, {"reduced_chi_squared": 1.0}),
             (path1, -1, f_true, 0.05, {"reduced_chi_squared": 1.0}),
         ]
-        imputed, _ = self._solve_two_rows(
+        imputed = self._solve_two_rows(
             gate_set_cz,
-            make_cz_path,
             make_aggregated_observable_data,
             entries,
             PositivityMinSolve.from_data_scaled_deltas({"CZ": 1.0}),
@@ -868,9 +850,8 @@ class TestDataScaledDeltas:
         # the zero-variance row must behave exactly as if it had been supplied directly rather than
         # as a hard equality at delta = 0.
         median = 0.05 / f_true
-        explicit, _ = self._solve_two_rows(
+        explicit = self._solve_two_rows(
             gate_set_cz,
-            make_cz_path,
             make_aggregated_observable_data,
             entries,
             PositivityMinSolve.from_constants({"CZ": 1.0}, deltas={path0: median, path1: median}),
@@ -887,7 +868,6 @@ class TestDataScaledDeltas:
         with pytest.raises(ValueError, match="positive, finite uncertainty"):
             self._solve_single(
                 gate_set_cz,
-                make_cz_path,
                 make_aggregated_observable_data,
                 (path, -1, 0.8, 0.0, {"reduced_chi_squared": 1.0}),
             )
