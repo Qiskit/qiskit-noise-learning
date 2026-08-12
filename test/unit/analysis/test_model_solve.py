@@ -447,6 +447,15 @@ class TestPositivityMinSolve:
         assert np.isclose(_get_rate_from_fit(result, "CZ", "ZI"), -np.log(0.9) / 4, atol=1e-4)
         assert _get_rate_from_fit(result, "CZ", "IZ") < -np.log(0.8) / 4 - 1e-3
 
+    @pytest.mark.parametrize(
+        ("name", "value"),
+        [("epsilon", 1.0), ("deltas", {}), ("weights", IndexedMatrix())],
+    )
+    def test_fixed_value_instead_of_policy_raises(self, name, value):
+        """A bound given as a fixed value is rejected at construction, not at solve time."""
+        with pytest.raises(TypeError, match=f"'{name}' argument must be a callable policy"):
+            PositivityMinSolve(coefficients={"CZ": 1.0}, **{name: value})
+
     def test_deltas_missing_a_row_raises(
         self, gate_set_cz, make_cz_path, make_aggregated_observable_data
     ):
@@ -602,7 +611,7 @@ class TestPositivityMinSolve:
 
 @pytest.mark.skipif(not HAS_CVXPY, reason="cvxpy is required for PositivityMinSolve")
 class TestDataScaledDeltas:
-    """Tests for the PositivityMinSolve.data_scaled_deltas constructor."""
+    """Tests for the PositivityMinSolve.from_data_scaled_deltas constructor."""
 
     def _single_generator_model(self, gate_set_cz):
         return PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
@@ -612,7 +621,7 @@ class TestDataScaledDeltas:
     ):
         """Solve a one-path system and return the fitted CZ:ZI rate."""
         model = self._single_generator_model(gate_set_cz)
-        solver = PositivityMinSolve.data_scaled_deltas({"CZ": 1.0}, **kwargs)
+        solver = PositivityMinSolve.from_data_scaled_deltas({"CZ": 1.0}, **kwargs)
         fit = Fit(model=model)
         fit[AggregatedObservableData] = make_aggregated_observable_data([entry])
         return _get_rate_from_fit(solver.run(fit), "CZ", "ZI")
@@ -724,7 +733,7 @@ class TestDataScaledDeltas:
         path0 = make_cz_path("XI")  # row = {CZ:ZI: 4.0}, zero variance
         path1 = make_cz_path("IX")  # row = {CZ:IZ: 4.0}, sets the median
 
-        solver = PositivityMinSolve.data_scaled_deltas({"CZ": 1.0})
+        solver = PositivityMinSolve.from_data_scaled_deltas({"CZ": 1.0})
         fit = Fit(model=model)
         fit[AggregatedObservableData] = make_aggregated_observable_data(
             [

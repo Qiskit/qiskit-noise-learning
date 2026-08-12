@@ -314,12 +314,30 @@ class LSQLinearSolve(ModelSolve):
 
 
 # A constraint policy computes a constraint value from the solve-time linear system, so a bound can
-# depend on how trustworthy each row's data is. The built-in ``data_scaled_deltas`` is one such
-# delta policy; users may supply their own. Fixed literals are wrapped into constant policies by
-# ``PositivityMinSolve.from_constants``.
+# depend on how trustworthy each row's data is. The policy built by
+# ``PositivityMinSolve.from_data_scaled_deltas`` is one such delta policy; users may supply their
+# own. Fixed literals are wrapped into constant policies by ``PositivityMinSolve.from_constants``.
 EpsilonPolicy = Callable[[LinearSystemData], float]
 DeltaPolicy = Callable[[LinearSystemData], Mapping[Hashable, float]]
 WeightsPolicy = Callable[[LinearSystemData], IndexedMatrix]
+
+
+def _validate_policy(policy: object, name: str):
+    """Check that a constraint bound was supplied as a policy rather than as a fixed value.
+
+    Args:
+        policy: The policy to check. ``None`` passes, meaning the constraint is not applied.
+        name: Name of the constructor argument, used in the error message.
+
+    Raises:
+        TypeError: If ``policy`` is neither ``None`` nor callable.
+    """
+    if policy is not None and not callable(policy):
+        raise TypeError(
+            f"The '{name}' argument must be a callable policy accepting a LinearSystemData, but "
+            f"got {type(policy).__name__}. To specify a fixed bound, use "
+            "PositivityMinSolve.from_constants instead."
+        )
 
 
 def _validate_policy_labels(
@@ -405,6 +423,8 @@ class PositivityMinSolve(ModelSolve):
         non_negative: Whether to enforce ``x >= 0``.
 
     Raises:
+        TypeError: If ``epsilon``, ``deltas`` or ``weights`` is given as a fixed value rather than
+            a policy. Use :meth:`from_constants` for fixed values.
         ValueError: At solve time, if the ``deltas`` or ``weights`` policy produces a label that is
             not a row of the linear system, or if ``deltas`` omits one.
     """
@@ -417,6 +437,10 @@ class PositivityMinSolve(ModelSolve):
         weights: WeightsPolicy | None = None,
         non_negative: bool = False,
     ):
+        _validate_policy(epsilon, "epsilon")
+        _validate_policy(deltas, "deltas")
+        _validate_policy(weights, "weights")
+
         if epsilon is None and deltas is None:
             raise ValueError("At least one of 'epsilon' or 'deltas' must be provided.")
 
@@ -450,7 +474,7 @@ class PositivityMinSolve(ModelSolve):
         )
 
     @classmethod
-    def data_scaled_deltas(
+    def from_data_scaled_deltas(
         cls,
         coefficients: dict[str, float],
         scale: float = 1.0,
