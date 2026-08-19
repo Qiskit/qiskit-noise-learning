@@ -12,9 +12,9 @@
 
 """EvenDepthPaths stage."""
 
+from collections import defaultdict
 from collections.abc import Iterator
 
-import numpy as np
 from qiskit.quantum_info import QubitSparsePauli, QubitSparsePauliList
 
 from qiskit_noise_learning.gate_sets import ModelGate
@@ -100,32 +100,43 @@ def _even_depth_paths(
     output_paulis = output_paulis or input_paulis
     ident = QubitSparsePauli.identity(num_qubits=input_paulis.num_qubits)
 
+    # An input and output Pauli are paired iff they share physical support and the input's output
+    # transition meets the output's input transition. Bucket the output fidelities by that join key
+    # (computed once each) so the inputs can be matched by lookup rather than an inner scan.
+    output_buckets = defaultdict(list)
+    for output_pauli in output_paulis:
+        output_fidelity = FidelityIndex.from_gate(gate, pauli=output_pauli)
+        meas_fidelity = FidelityIndex.from_gate(
+            meas_gate,
+            pauli=ident,
+            in_z_idxs=frozenset(output_fidelity.transition[1].indices),
+        )
+        key = (
+            tuple(output_pauli.indices),
+            tuple(output_fidelity.transition[0].indices),
+        )
+        output_buckets[key].append((output_fidelity, meas_fidelity))
+
     for input_pauli in input_paulis:
         input_fidelity = FidelityIndex.from_transition(
             gate=gate, in_pauli=input_pauli, out_pauli=gate.clifford_propagate(input_pauli)
         )
-        for output_pauli in output_paulis:
-            if not np.array_equal(input_pauli.indices, output_pauli.indices):
-                continue
-            output_fidelity = FidelityIndex.from_gate(gate, pauli=output_pauli)
+        key = (
+            tuple(input_pauli.indices),
+            tuple(input_fidelity.transition[1].indices),
+        )
+        matches = output_buckets.get(key)
+        if not matches:
+            continue
 
-            if np.array_equal(
-                input_fidelity.transition[1].indices, output_fidelity.transition[0].indices
-            ):
-                yield Path(
-                    start_fragment=[
-                        FidelityIndex.from_gate(
-                            prep_gate,
-                            pauli=ident,
-                            out_z_idxs=frozenset(input_fidelity.transition[0].indices),
-                        )
-                    ],
-                    repeatable_fragment=[input_fidelity, output_fidelity],
-                    end_fragment=[
-                        FidelityIndex.from_gate(
-                            meas_gate,
-                            pauli=ident,
-                            in_z_idxs=frozenset(output_fidelity.transition[1].indices),
-                        )
-                    ],
-                )
+        start_fidelity = FidelityIndex.from_gate(
+            prep_gate,
+            pauli=ident,
+            out_z_idxs=frozenset(input_fidelity.transition[0].indices),
+        )
+        for output_fidelity, meas_fidelity in matches:
+            yield Path(
+                start_fragment=[start_fidelity],
+                repeatable_fragment=[input_fidelity, output_fidelity],
+                end_fragment=[meas_fidelity],
+            )
