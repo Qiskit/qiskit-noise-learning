@@ -121,11 +121,7 @@ def _conflict_matrix(sequences: Sequence[InstructionSequence]) -> np.ndarray:
 
 
 def _structure_key(sequence: InstructionSequence) -> tuple:
-    """A hashable key identifying the mergeable structure of a sequence.
-
-    Two sequences can only merge if they share this key: same fragment depth and, at every
-    position, the same instruction kind (and gate name, for gate applications).
-    """
+    """A hashable key identifying the mergeable structure of a sequence."""
 
     def tokens(fragment: Sequence) -> tuple:
         return tuple(
