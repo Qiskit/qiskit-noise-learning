@@ -118,8 +118,8 @@ def _even_depth_paths(
         output_buckets[key].append((output_fidelity, meas_fidelity))
 
     for input_pauli in input_paulis:
-        input_fidelity = FidelityIndex.from_transition(
-            gate=gate, in_pauli=input_pauli, out_pauli=gate.clifford_propagate(input_pauli)
+        input_fidelity = FidelityIndex.from_gate(
+            gate=gate, pauli=gate.clifford_propagate(input_pauli)
         )
         key = (
             tuple(input_pauli.indices),
