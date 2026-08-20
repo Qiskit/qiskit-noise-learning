@@ -24,9 +24,9 @@ ColumnIndex = TypeVar("ColumnIndex", bound=Hashable)
 OtherColumnIndex = TypeVar("OtherColumnIndex", bound=Hashable)
 
 # Rows processed per block in linearly_independent_rows. Does not impact method outputs.
-# The value 128 is chosen emprically: It is near optimal for a typical example with ~100 qubits,
-# and only drifts significantly from optimality for very small (which are already fast) or much
-# larger problem sizes, when the matrix size exceeds CPU caches.
+# The value 128 is chosen empirically: it is near optimal for a typical example with ~100
+# qubits, and only drifts significantly from optimality for very small problems (which are
+# already fast) or much larger problem sizes in which CPU cache size become an issue.
 _ROW_REDUCTION_BLOCK_SIZE = 128
 
 
