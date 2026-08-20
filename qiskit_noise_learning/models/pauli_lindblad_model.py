@@ -19,7 +19,12 @@ from itertools import chain, product
 from typing import Literal, Self
 
 import numpy as np
-from qiskit.quantum_info import PauliLindbladMap, QubitSparsePauli, QubitSparsePauliList
+from qiskit.quantum_info import (
+    PauliLindbladMap,
+    PauliList,
+    QubitSparsePauli,
+    QubitSparsePauliList,
+)
 from qiskit.transpiler import CouplingMap
 
 from qiskit_noise_learning.data import ModelData
@@ -159,11 +164,29 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
             the generator indices appearing in those rows.
         """
         output_indices = list(output_indices)
+
+        generator_lookup = {}
+        for gate_name in {index.gate_name for index in output_indices}:
+            if gate_name not in self.generators:
+                raise ValueError(f"Gate with name {gate_name} not in gate set.")
+            generators = self.generators[gate_name]
+            generator_indices = [
+                GeneratorIndex(gate_name=gate_name, generator=generator) for generator in generators
+            ]
+            generator_paulis = generators.to_pauli_list() if len(generators) else None
+            generator_lookup[gate_name] = (generator_indices, generator_paulis)
+
         return IndexedMatrix.from_rows(
-            output_indices, [self._row(fidelity_index) for fidelity_index in output_indices]
+            output_indices,
+            [self._row(index, *generator_lookup[index.gate_name]) for index in output_indices],
         )
 
-    def _row(self, fidelity_index: FidelityIndex) -> IndexedVector[GeneratorIndex]:
+    def _row(
+        self,
+        fidelity_index: FidelityIndex,
+        generator_indices: list[GeneratorIndex],
+        generator_paulis: PauliList | None,
+    ) -> IndexedVector[GeneratorIndex]:
         """The row of the log-fidelity parameterization matrix for a fidelity index.
 
         Returns an :class:`~.IndexedVector` whose labels correspond to the generators of the gate
@@ -174,27 +197,24 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
 
         Args:
             fidelity_index: The fidelity index labelling the requested row.
-
-        Raises:
-            ValueError: If the gate is not in the model.
+            generator_indices: The generator index objects for the fidelity index's gate, in order.
+            generator_paulis: The gate's generators as a :class:`~qiskit.quantum_info.PauliList`, or
+                ``None`` if the gate has no generators.
         """
-        gate_name = fidelity_index.gate_name
-        if gate_name not in self.generators:
-            raise ValueError(f"Gate with name {fidelity_index.gate_name} not in gate set.")
+        if generator_paulis is None:
+            return IndexedVector[GeneratorIndex]()
 
         # retrieve the relevant Pauli
-        pauli = (
+        pauli: QubitSparsePauli = (
             fidelity_index.transition[0]
-            if self.noise_site[gate_name] == "before"
+            if self.noise_site[fidelity_index.gate_name] == "before"
             else fidelity_index.transition[1]
         )
+        anti_commuting = pauli.to_pauli().anticommutes(generator_paulis)
 
-        anti_commuting = []
-        for generator in self.generators[gate_name]:
-            if not pauli.commutes(generator):
-                anti_commuting.append(GeneratorIndex(gate_name=gate_name, generator=generator))
-
-        return IndexedVector[GeneratorIndex]({index: 2.0 for index in anti_commuting})
+        return IndexedVector[GeneratorIndex](
+            {generator_indices[i]: 2.0 for i in np.nonzero(anti_commuting)[0]}
+        )
 
     @staticmethod
     def k_partition_local(
