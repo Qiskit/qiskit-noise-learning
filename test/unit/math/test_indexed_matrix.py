@@ -257,6 +257,33 @@ def test_linearly_independent_rows():
     )
 
 
+def test_linearly_independent_rows_multiple_blocks():
+    """Exercise the block-wise row reduction across more than one block."""
+    n_cols = 158
+    eye = np.eye(n_cols)
+
+    rows = [eye[i] for i in range(130)]  # independent, spans the first block boundary at 128
+    rows.append(eye[0])  # row 130: duplicate of a first-block row
+    rows.append(eye[128])  # row 131: duplicate of a row accepted earlier in the second block
+    rows.extend(eye[i] for i in range(130, n_cols))  # remaining independent rows, to full rank
+    data = np.array(rows)
+
+    kept = [i for i in range(len(rows)) if i not in (130, 131)]
+
+    matrix = IndexedMatrix(
+        row_index_map={k: k for k in range(len(rows))},
+        column_index_map={k: k for k in range(n_cols)},
+        data=data,
+    )
+    expected = IndexedMatrix(
+        row_index_map={idx: pos for pos, idx in enumerate(kept)},
+        column_index_map={k: k for k in range(n_cols)},
+        data=data[kept],
+    )
+
+    assert matrix.linearly_independent_rows() == expected
+
+
 def test_copy():
     indexed_matrix = IndexedMatrix.from_index_lists(
         row_indices=[1, 4, 2], column_indices=[1, 4, 6], data=np.eye(3, dtype=float)
