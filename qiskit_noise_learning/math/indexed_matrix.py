@@ -265,8 +265,6 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
 
             block_rank = rank
             for offset in range(block.shape[0]):
-                if rank == max_rank:
-                    break
                 row = block[offset]
                 if rank > block_rank:
                     row = row - basis[:, block_rank:rank] @ (basis[:, block_rank:rank].T @ row)
@@ -275,6 +273,8 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
                     basis[:, rank] = row / norm
                     rank += 1
                     selected_indices.append(start + offset)
+                    if rank == max_rank:
+                        break
 
         if len(selected_indices) == 0:
             return IndexedMatrix[RowIndex, ColumnIndex]()
