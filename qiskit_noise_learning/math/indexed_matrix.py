@@ -23,6 +23,12 @@ RowIndex = TypeVar("RowIndex", bound=Hashable)
 ColumnIndex = TypeVar("ColumnIndex", bound=Hashable)
 OtherColumnIndex = TypeVar("OtherColumnIndex", bound=Hashable)
 
+# Rows processed per block in linearly_independent_rows. Does not impact method outputs.
+# The value 128 is chosen emprically: It is near optimal for a typical example with ~100 qubits,
+# and only drifts significantly from optimality for very small (which are already fast) or much
+# larger problem sizes, when the matrix size exceeds CPU caches.
+_ROW_REDUCTION_BLOCK_SIZE = 128
+
 
 class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
     """A matrix with float entries and arbitrary row and column index data.
@@ -246,12 +252,11 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
         basis = np.empty((n_cols, min(n_rows, n_cols)), dtype=float)
         rank = 0
 
-        block_size = 128
         max_rank = min(n_rows, n_cols)
-        for start in range(0, n_rows, block_size):
+        for start in range(0, n_rows, _ROW_REDUCTION_BLOCK_SIZE):
             if rank == max_rank:
                 break
-            block = self._data[start : start + block_size].astype(float)
+            block = self._data[start : start + _ROW_REDUCTION_BLOCK_SIZE].astype(float)
 
             # Orthogonalize the block against the accepted basis in bulk, then resolve
             # dependencies within the block sequentially.
