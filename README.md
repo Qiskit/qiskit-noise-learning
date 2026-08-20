@@ -12,16 +12,17 @@ A Python toolkit for randomization-based quantum noise characterization.
 
 ## Installation
 
-You can install `qiskit-noise-learning` via pip from PyPI:
+You can install `qiskit-noise-learning` via pip from the GitHub repository (`main` branch):
 
 ```bash
-pip install qiskit-noise-learning
+pip install "git+https://github.com/Qiskit/qiskit-noise-learning@main"
+
 ```
 
 For visualization support, include the visualization dependencies:
 
 ```bash
-pip install "qiskit-noise-learning[vis]"
+pip install "qiskit-noise-learning[vis] @ git+https://github.com/Qiskit/qiskit-noise-learning@main"
 ```
 
 See the [contribution guidelines](CONTRIBUTING.md) for developer dependencies and editable
