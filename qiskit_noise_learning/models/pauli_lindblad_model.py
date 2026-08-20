@@ -210,7 +210,7 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
             if self.noise_site[fidelity_index.gate_name] == "before"
             else fidelity_index.transition[1]
         )
-        anti_commuting = pauli.to_pauli().anticommutes(generator_paulis)
+        anti_commuting = np.atleast_1d(pauli.to_pauli().anticommutes(generator_paulis))
 
         return IndexedVector[GeneratorIndex](
             {generator_indices[i]: 2.0 for i in np.nonzero(anti_commuting)[0]}
