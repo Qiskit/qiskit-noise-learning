@@ -246,14 +246,30 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
         basis = np.empty((n_cols, min(n_rows, n_cols)), dtype=float)
         rank = 0
 
-        for idx in range(n_rows):
-            row = self._data[idx]
-            residual = row - basis[:, :rank] @ (basis[:, :rank].T @ row)
-            norm = np.linalg.norm(residual)
-            if norm > tol:
-                basis[:, rank] = residual / norm
-                rank += 1
-                selected_indices.append(idx)
+        block_size = 128
+        max_rank = min(n_rows, n_cols)
+        for start in range(0, n_rows, block_size):
+            if rank == max_rank:
+                break
+            block = self._data[start : start + block_size].astype(float)
+
+            # Orthogonalize the block against the accepted basis in bulk, then resolve
+            # dependencies within the block sequentially.
+            if rank:
+                block -= (block @ basis[:, :rank]) @ basis[:, :rank].T
+
+            block_rank = rank
+            for offset in range(block.shape[0]):
+                if rank == max_rank:
+                    break
+                row = block[offset]
+                if rank > block_rank:
+                    row = row - basis[:, block_rank:rank] @ (basis[:, block_rank:rank].T @ row)
+                norm = np.linalg.norm(row)
+                if norm > tol:
+                    basis[:, rank] = row / norm
+                    rank += 1
+                    selected_indices.append(start + offset)
 
         if len(selected_indices) == 0:
             return IndexedMatrix[RowIndex, ColumnIndex]()
