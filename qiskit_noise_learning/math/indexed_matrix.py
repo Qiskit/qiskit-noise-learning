@@ -23,6 +23,12 @@ RowIndex = TypeVar("RowIndex", bound=Hashable)
 ColumnIndex = TypeVar("ColumnIndex", bound=Hashable)
 OtherColumnIndex = TypeVar("OtherColumnIndex", bound=Hashable)
 
+# Rows processed per block in linearly_independent_rows. Does not impact method outputs.
+# The value 128 is chosen empirically: it is near optimal for a typical example with ~100
+# qubits, and only drifts significantly from optimality for very small problems (which are
+# already fast) or much larger problem sizes in which CPU cache size become an issue.
+_ROW_REDUCTION_BLOCK_SIZE = 128
+
 
 class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
     """A matrix with float entries and arbitrary row and column index data.
@@ -246,14 +252,29 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
         basis = np.empty((n_cols, min(n_rows, n_cols)), dtype=float)
         rank = 0
 
-        for idx in range(n_rows):
-            row = self._data[idx]
-            residual = row - basis[:, :rank] @ (basis[:, :rank].T @ row)
-            norm = np.linalg.norm(residual)
-            if norm > tol:
-                basis[:, rank] = residual / norm
-                rank += 1
-                selected_indices.append(idx)
+        max_rank = min(n_rows, n_cols)
+        for start in range(0, n_rows, _ROW_REDUCTION_BLOCK_SIZE):
+            if rank == max_rank:
+                break
+            block = self._data[start : start + _ROW_REDUCTION_BLOCK_SIZE].astype(float)
+
+            # Orthogonalize the block against the accepted basis in bulk, then resolve
+            # dependencies within the block sequentially.
+            if rank:
+                block -= (block @ basis[:, :rank]) @ basis[:, :rank].T
+
+            block_rank = rank
+            for offset in range(block.shape[0]):
+                row = block[offset]
+                if rank > block_rank:
+                    row = row - basis[:, block_rank:rank] @ (basis[:, block_rank:rank].T @ row)
+                norm = np.linalg.norm(row)
+                if norm > tol:
+                    basis[:, rank] = row / norm
+                    rank += 1
+                    selected_indices.append(start + offset)
+                    if rank == max_rank:
+                        break
 
         if len(selected_indices) == 0:
             return IndexedMatrix[RowIndex, ColumnIndex]()
