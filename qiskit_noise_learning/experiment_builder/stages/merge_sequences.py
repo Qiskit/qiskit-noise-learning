@@ -87,17 +87,16 @@ def _minimize_instruction_sequences(
 
 
 def _conflict_matrix(sequences: Sequence[InstructionSequence]) -> np.ndarray:
-    """Return the boolean adjacency matrix where ``True`` marks a non-mergeable pair.
+    """Return the boolean conflicts matrix where ``True`` marks a non-mergeable pair.
 
-    This is equivalent to filling the matrix with pairwise
+    Equivalent to filling the matrix with pairwise
     :meth:`~.InstructionSequence.is_mergeable_with`, but computed in bulk: only sequences that share
     the same structure (fragment depth and per-position instruction layout) can merge, and within
     such a group merging reduces to per-qubit consistency of the ``PartialPauliPermutation``\\s
-    (gate applications always merge). Cross-group and unfilled entries stay non-mergeable.
+    (gate applications always merge).
     """
     num_sequences = len(sequences)
-    adjacency = np.ones((num_sequences, num_sequences), dtype=np.bool_)
-    np.fill_diagonal(adjacency, False)
+    conflicts = ~np.eye(num_sequences, dtype=np.bool_)
 
     groups: dict[tuple, list[int]] = defaultdict(list)
     for idx, sequence in enumerate(sequences):
@@ -111,16 +110,14 @@ def _conflict_matrix(sequences: Sequence[InstructionSequence]) -> np.ndarray:
         permutations = np.stack([_permutation_indices(sequences[i]) for i in indices])
         mergeable = np.ones((len(indices), len(indices)), dtype=np.bool_)
         for column in permutations.T:
-            # a column where every sequence agrees imposes no constraint (self-consistency)
+            # a column where every sequence agrees imposes no constraint
             if (column == column[0]).all():
                 continue
             mergeable &= consistency[np.ix_(column, column)]
 
-        block = ~mergeable
-        np.fill_diagonal(block, False)
-        adjacency[np.ix_(indices, indices)] = block
+        conflicts[np.ix_(indices, indices)] = ~mergeable
 
-    return adjacency
+    return conflicts
 
 
 def _structure_key(sequence: InstructionSequence) -> tuple:
