@@ -243,26 +243,20 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
         """
         n_rows, n_cols = self._data.shape
         selected_indices = []
-        basis = np.empty((n_cols, 0), dtype=float)
+        basis = np.empty((n_cols, min(n_rows, n_cols)), dtype=float)
+        rank = 0
 
-        # identify first accepted row
-        for idx, row in enumerate(self._data):
-            norm = np.linalg.norm(row)
+        for idx in range(n_rows):
+            row = self._data[idx]
+            residual = row - basis[:, :rank] @ (basis[:, :rank].T @ row)
+            norm = np.linalg.norm(residual)
             if norm > tol:
+                basis[:, rank] = residual / norm
+                rank += 1
                 selected_indices.append(idx)
-                basis = np.column_stack([basis, row / norm])
-                break
 
         if len(selected_indices) == 0:
             return IndexedMatrix[RowIndex, ColumnIndex]()
-
-        for idx in range(selected_indices[0] + 1, n_rows):
-            row = self._data[idx]
-            residual = row - basis @ (basis.T @ row)
-            norm = np.linalg.norm(residual)
-            if norm > tol:
-                selected_indices.append(idx)
-                basis = np.column_stack([basis, residual / norm])
 
         new_row_index_map = {}
         for row_index, array_idx in self._row_index_map.items():
