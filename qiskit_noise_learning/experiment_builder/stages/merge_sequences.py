@@ -14,12 +14,19 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Sequence
+from itertools import chain
 
 import numpy as np
 from rustworkx import PyGraph, graph_greedy_color
 
 from qiskit_noise_learning.sequences import InstructionSequence
+from qiskit_noise_learning.sequences.apply_gate import ApplyGate
+from qiskit_noise_learning.sequences.partial_pauli_permutation import (
+    PartialPauliPermutation,
+    consistency_matrix,
+)
 
 from ..experiment import Experiment
 from ..experiment_builder_stage import ExperimentBuilderStage
@@ -65,13 +72,7 @@ def _minimize_instruction_sequences(
     Returns:
         A minimal list of instruction sequences and a dictionary from original index to color.
     """
-    adjacency_mat = np.ones((len(sequences), len(sequences)), dtype=np.bool_)
-    np.fill_diagonal(adjacency_mat, np.False_)
-    for i in range(len(sequences)):
-        for j in range(i + 1, len(sequences)):
-            is_not_mergeable = not sequences[i].is_mergeable_with(sequences[j])
-            adjacency_mat[(i, j)] = is_not_mergeable
-            adjacency_mat[(j, i)] = is_not_mergeable
+    adjacency_mat = _conflict_matrix(sequences)
 
     colors = graph_greedy_color(PyGraph.from_adjacency_matrix(adjacency_mat.astype(np.float64)))
 
@@ -83,3 +84,72 @@ def _minimize_instruction_sequences(
         minimized_sequences[color] = this_sequence.merge(sequences[idx])
 
     return [v for _, v in sorted(minimized_sequences.items())], colors
+
+
+def _conflict_matrix(sequences: Sequence[InstructionSequence]) -> np.ndarray:
+    """Return the boolean adjacency matrix where ``True`` marks a non-mergeable pair.
+
+    This is equivalent to filling the matrix with pairwise
+    :meth:`~.InstructionSequence.is_mergeable_with`, but computed in bulk: only sequences that share
+    the same structure (fragment depth and per-position instruction layout) can merge, and within
+    such a group merging reduces to per-qubit consistency of the ``PartialPauliPermutation``\\s
+    (gate applications always merge). Cross-group and unfilled entries stay non-mergeable.
+    """
+    num_sequences = len(sequences)
+    adjacency = np.ones((num_sequences, num_sequences), dtype=np.bool_)
+    np.fill_diagonal(adjacency, False)
+
+    groups: dict[tuple, list[int]] = defaultdict(list)
+    for idx, sequence in enumerate(sequences):
+        groups[_structure_key(sequence)].append(idx)
+
+    consistency = consistency_matrix()
+    for indices in groups.values():
+        if len(indices) < 2:
+            continue
+
+        permutations = np.stack([_permutation_indices(sequences[i]) for i in indices])
+        mergeable = np.ones((len(indices), len(indices)), dtype=np.bool_)
+        for column in permutations.T:
+            # a column where every sequence agrees imposes no constraint (self-consistency)
+            if (column == column[0]).all():
+                continue
+            mergeable &= consistency[np.ix_(column, column)]
+
+        block = ~mergeable
+        np.fill_diagonal(block, False)
+        adjacency[np.ix_(indices, indices)] = block
+
+    return adjacency
+
+
+def _structure_key(sequence: InstructionSequence) -> tuple:
+    """A hashable key identifying the mergeable structure of a sequence.
+
+    Two sequences can only merge if they share this key: same fragment depth and, at every
+    position, the same instruction kind (and gate name, for gate applications).
+    """
+
+    def tokens(fragment: Sequence) -> tuple:
+        return tuple(
+            instr.gate_name if isinstance(instr, ApplyGate) else None for instr in fragment
+        )
+
+    return (
+        sequence.fragment_depth,
+        tokens(sequence.start_fragment),
+        tokens(sequence.repeatable_fragment),
+        tokens(sequence.end_fragment),
+    )
+
+
+def _permutation_indices(sequence: InstructionSequence) -> np.ndarray:
+    """The concatenated per-qubit permutation indices of a sequence's partial permutations."""
+    columns = [
+        instr.partial_permutation_indices
+        for instr in chain(
+            sequence.start_fragment, sequence.repeatable_fragment, sequence.end_fragment
+        )
+        if isinstance(instr, PartialPauliPermutation)
+    ]
+    return np.concatenate(columns) if columns else np.zeros(0, dtype=np.int8)
