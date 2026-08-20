@@ -10,11 +10,13 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
+import numpy as np
 import pytest
 from qiskit.quantum_info import QubitSparsePauli
 
 from qiskit_noise_learning.experiment_builder.experiment import Experiment
 from qiskit_noise_learning.experiment_builder.stages import MergeInstructionSequences
+from qiskit_noise_learning.experiment_builder.stages.merge_sequences import _conflict_matrix
 from qiskit_noise_learning.sequences import FidelityIndex, Path
 
 
@@ -159,3 +161,20 @@ class TestMergeInstructionSequences:
 
         assert len(result.instruction_sequences) == 1
         assert result.relations == {(0, 0)}
+
+    def test_conflict_matrix_matches_pairwise_is_mergeable_with(self, gate_set_cz, make_cz_path):
+        """The vectorized conflict matrix equals brute-force pairwise ``is_mergeable_with``."""
+        # sequences that share a structure (unbound) plus a second group at a different fragment
+        # depth, giving both within-group mergeability and cross-group conflicts to check.
+        labels = ["IX", "XI", "XX", "IY", "YI", "ZZ"]
+        seqs = [make_cz_path(label).to_instruction_sequence() for label in labels]
+        seqs += [make_cz_path(label).to_instruction_sequence().bind_at(2) for label in labels]
+
+        expected = np.ones((len(seqs), len(seqs)), dtype=bool)
+        np.fill_diagonal(expected, False)
+        for i in range(len(seqs)):
+            for j in range(i + 1, len(seqs)):
+                not_mergeable = not seqs[i].is_mergeable_with(seqs[j])
+                expected[i, j] = expected[j, i] = not_mergeable
+
+        np.testing.assert_array_equal(_conflict_matrix(seqs), expected)
