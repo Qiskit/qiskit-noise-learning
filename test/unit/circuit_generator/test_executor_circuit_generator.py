@@ -325,10 +325,10 @@ def test_generate_samplex_item_raises():
     seq1 = unbound_seq1.bind_at(3)
     seq2 = unbound_seq1.bind_at(4)
 
-    with pytest.raises(ValueError, match="require the same structure"):
+    with pytest.raises(ValueError, match="require the same gates"):
         circuit_generator.generate_samplex_item([seq0, seq1], num_randomizations=50)
 
-    with pytest.raises(ValueError, match="require the same structure"):
+    with pytest.raises(ValueError, match="require the same gates"):
         circuit_generator.generate_samplex_item([seq1, seq2], num_randomizations=50)
 
     perm = PartialPauliPermutation.from_sets([{("X", "Y")}])
