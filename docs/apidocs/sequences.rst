@@ -19,3 +19,12 @@ Classes
    LogPathSpace
    PartialPauliPermutation
    Path
+
+Functions
+---------
+
+.. autosummary::
+   :toctree: generated
+   :nosignatures:
+
+   partition_instruction_sequences
