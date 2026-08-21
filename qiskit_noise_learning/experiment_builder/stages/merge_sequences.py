@@ -16,35 +16,33 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-import numpy as np
-from rustworkx import PyGraph, graph_greedy_color
-
-from qiskit_noise_learning.sequences import InstructionSequence
+from qiskit_noise_learning.sequences import InstructionSequence, merge_groups
 
 from ..experiment import Experiment
 from ..experiment_builder_stage import ExperimentBuilderStage
 
 
 class MergeInstructionSequences(ExperimentBuilderStage):
-    """Merge instruction sequences into a minimal set via graph coloring.
+    """Merge instruction sequences into a smaller set.
 
-    Constructs a conflict graph where sequences that cannot be merged share an edge,
-    then colors the graph to find groups of mutually mergeable sequences. Each group
-    is merged into a single sequence.
+    The sequences that can be merged with each other are grouped together by
+    :func:`~.merge_groups`, and every group is merged into a single sequence.
     """
 
     required_fields = ("instruction_sequences", "randomization_multipliers", "relations")
 
     def _run(self, experiment: Experiment) -> Experiment:
-        new_sequences, colors = _minimize_instruction_sequences(experiment.instruction_sequences)
+        new_sequences, merged_indices = _minimize_instruction_sequences(
+            experiment.instruction_sequences
+        )
         new_relations = {
-            (path_idx, colors[inst_idx]) for path_idx, inst_idx in experiment.relations
+            (path_idx, merged_indices[inst_idx]) for path_idx, inst_idx in experiment.relations
         }
 
         old_multipliers = experiment.randomization_multipliers
         new_multipliers = [1] * len(new_sequences)
-        for old_idx, color in colors.items():
-            new_multipliers[color] = max(new_multipliers[color], old_multipliers[old_idx])
+        for old_idx, new_idx in merged_indices.items():
+            new_multipliers[new_idx] = max(new_multipliers[new_idx], old_multipliers[old_idx])
 
         return experiment.replace(
             validate=False,
@@ -57,29 +55,23 @@ class MergeInstructionSequences(ExperimentBuilderStage):
 def _minimize_instruction_sequences(
     sequences: Sequence[InstructionSequence],
 ) -> tuple[list[InstructionSequence], dict[int, int]]:
-    """Return a minimal list of instruction sequences by coloring mergeable sequences.
+    """Return a smaller list of instruction sequences by merging the mergeable ones together.
 
     Args:
         sequences: The sequences to merge.
 
     Returns:
-        A minimal list of instruction sequences and a dictionary from original index to color.
+        A reduced list of instruction sequences, and a dictionary from the index of each input
+        sequence to the index of the merged sequence it contributed to.
     """
-    adjacency_mat = np.ones((len(sequences), len(sequences)), dtype=np.bool_)
-    np.fill_diagonal(adjacency_mat, np.False_)
-    for i in range(len(sequences)):
-        for j in range(i + 1, len(sequences)):
-            is_not_mergeable = not sequences[i].is_mergeable_with(sequences[j])
-            adjacency_mat[(i, j)] = is_not_mergeable
-            adjacency_mat[(j, i)] = is_not_mergeable
+    minimized_sequences = []
+    merged_indices = {}
+    for group in merge_groups(sequences):
+        merged = sequences[group[0]]
+        for idx in group[1:]:
+            merged = merged.merge(sequences[idx])
 
-    colors = graph_greedy_color(PyGraph.from_adjacency_matrix(adjacency_mat.astype(np.float64)))
+        merged_indices.update(dict.fromkeys(group, len(minimized_sequences)))
+        minimized_sequences.append(merged)
 
-    minimized_sequences = {}
-    for idx, color in colors.items():
-        if (this_sequence := minimized_sequences.get(color)) is None:
-            minimized_sequences[color] = sequences[idx]
-            continue
-        minimized_sequences[color] = this_sequence.merge(sequences[idx])
-
-    return [v for _, v in sorted(minimized_sequences.items())], colors
+    return minimized_sequences, merged_indices

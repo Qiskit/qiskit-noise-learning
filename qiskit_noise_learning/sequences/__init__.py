@@ -18,3 +18,4 @@ from .instruction_sequence import InstructionSequence
 from .log_path_map import LogPathMap, LogPathSpace
 from .partial_pauli_permutation import PartialPauliPermutation
 from .path import Path
+from .utils import merge_groups

@@ -55,18 +55,18 @@ class InstructionSequence(BaseSequence[Instruction]):
             fragment_depth=self.fragment_depth,
         )
 
-    def has_same_structure_as(self, other: "InstructionSequence") -> bool:
-        """Return whether this instruction sequence shares the same circuit structure as another.
+    def has_same_gates_as(self, other: "InstructionSequence") -> bool:
+        """Return whether this instruction sequence has the same gate applications as another.
 
-        Here, sharing the same structure means that the fragment depths are the same, and all
-        fragments have the same gate applications in the same order, but possibly differing in
+        Here, having the same gates means that the fragment depths are the same, and all
+        fragments contain the same gate applications in the same order, but possibly differing in
         other instructions.
 
         Args:
             other: Another :class:`.InstructionSequence`.
 
         Returns:
-            Whether this instruction sequence shares the same structure as the other.
+            Whether this instruction sequence has the same gate applications as the other.
         """
         if self.fragment_depth != other.fragment_depth:
             return False

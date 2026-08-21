@@ -33,7 +33,7 @@ class _StructureKey:
         self.sequence = sequence
 
     def __eq__(self, other):
-        return self.sequence.has_same_structure_as(other.sequence)
+        return self.sequence.has_same_gates_as(other.sequence)
 
     def __hash__(self):
         # this hash has a lot of collisions. if it becomes a bottleneck, implement one with fewer
