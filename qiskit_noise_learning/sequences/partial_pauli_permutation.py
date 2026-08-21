@@ -52,6 +52,14 @@ set is a subgroup.
 """
 
 
+NUM_COMPLETE_PERMUTATIONS = len(COMPLETE_TO_C1_TABLEAU)
+"""The number of complete, i.e. fully specified, partial Pauli permutations.
+
+The complete permutations occupy the first positions of :func:`~.partial_permutation_sets`, so a
+permutation index is complete if and only if it is less than this value.
+"""
+
+
 @functools.lru_cache
 def partial_permutation_sets() -> tuple[frozenset[tuple[str, str]]]:
     """Return all possible single-qubit partial pauli permutations.
