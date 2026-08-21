@@ -27,4 +27,4 @@ Functions
    :toctree: generated
    :nosignatures:
 
-   partition_instruction_sequences
+   merge_groups

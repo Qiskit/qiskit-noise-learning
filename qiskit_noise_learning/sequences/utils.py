@@ -19,7 +19,14 @@ import numpy as np
 
 from .apply_gate import ApplyGate
 from .instruction_sequence import InstructionSequence
-from .partial_pauli_permutation import PartialPauliPermutation, consistency_matrix
+from .partial_pauli_permutation import (
+    NUM_COMPLETE_PERMUTATIONS,
+    PartialPauliPermutation,
+    consistency_matrix,
+)
+
+_POPCOUNT = np.array([bin(value).count("1") for value in range(256)], dtype=np.uint8)
+"""The number of set bits in each possible value of a ``uint8``."""
 
 
 def _merge_candidate_data(sequence: InstructionSequence) -> tuple[Hashable, np.ndarray]:
@@ -67,50 +74,96 @@ def _merge_candidate_data(sequence: InstructionSequence) -> tuple[Hashable, np.n
     return tuple(key), np.concatenate(indices) if indices else np.zeros(0, dtype=np.int8)
 
 
-def partition_instruction_sequences(
-    sequences: Sequence[InstructionSequence],
-) -> list[tuple[list[int], np.ndarray]]:
-    r"""Partition instruction sequences such that elements of disjoint groups are not mergeable.
-
-    The returned groups partition the positions of ``sequences``: every position appears in exactly
-    one group, and any two sequences drawn from *different* groups are guaranteed to be
-    non-mergeable. Each group also carries the pairwise mergeability of its own members.
-
-    A group is returned as a pair ``(indices, mergeable)``, where ``indices`` are the positions in
-    ``sequences`` that belong to the group, and ``mergeable`` is a boolean array of shape
-    ``(len(indices),) * 2`` whose ``[i, j]`` entry is whether ``sequences[indices[i]]`` is mergeable
-    with ``sequences[indices[j]]``.
-
-    Args:
-        sequences: The instruction sequences to partition.
+def _completion_masks() -> np.ndarray:
+    """Return a bitmask of the complete permutations each partial permutation is consistent with.
 
     Returns:
-        The groups of the partition, each as a pair of indices and their mergeability array.
+        A 1d ``uint8`` array whose ``[idx]`` entry has bit ``c`` set if and only if the partial
+        permutation ``idx`` is consistent with the complete permutation ``c``.
+    """
+    consistency = consistency_matrix()[:NUM_COMPLETE_PERMUTATIONS]
+    bits = (1 << np.arange(NUM_COMPLETE_PERMUTATIONS, dtype=np.uint8))[:, None]
+    return (consistency * bits).sum(axis=0).astype(np.uint8)
+
+
+def _group_by_witness(masks: np.ndarray) -> list[list[int]]:
+    """Greedily group rows that admit a common complete permutation in every column.
+
+    Args:
+        masks: A ``uint8`` array whose ``[i, j]`` entry is a bitmask of the complete permutations
+            that row ``i`` is consistent with in column ``j``.
+
+    Returns:
+        The groups of row indices.
+    """
+    # seeding each group with the least constrained row available yields substantially fewer groups
+    # than taking the rows in order
+    freedom = _POPCOUNT[masks].sum(axis=1)
+    remaining = np.argsort(-freedom, kind="stable")
+
+    covered = np.zeros(len(masks), dtype=np.bool_)
+    groups = []
+    while len(remaining):
+        group = [int(remaining[0])]
+        admissible = masks[remaining[0]].copy()
+        candidates = remaining[1:]
+        while len(candidates):
+            # a row may join only if every column retains a permutation common to the whole group,
+            # and since ``admissible`` only ever shrinks, the rejected rows can never return
+            candidates = candidates[(admissible & masks[candidates]).all(axis=1)]
+            if not len(candidates):
+                break
+
+            admissible &= masks[candidates[0]]
+            group.append(int(candidates[0]))
+            candidates = candidates[1:]
+
+        covered[group] = True
+        remaining = remaining[~covered[remaining]]
+        groups.append(group)
+
+    return groups
+
+
+def merge_groups(sequences: Sequence[InstructionSequence]) -> list[list[int]]:
+    r"""Group the positions of instruction sequences that can be merged with each other.
+
+    The returned groups partition the positions of ``sequences``: every position appears in exactly
+    one group, and the sequences within a group can all be merged together, in any order, into a
+    single sequence via :meth:`~.InstructionSequence.merge`.
+
+    Sequences are first split by the structure that merging cannot change, such as their gate
+    applications and fragment depths, since sequences differing in it are never mergeable. Within
+    each of those sets, a group is grown by tracking which complete Pauli permutations remain
+    available on every qubit: a sequence may join a group only if some complete permutation is
+    consistent with the whole group, which makes the merge of the entire group well defined.
+
+    The grouping is greedy, so it is not guaranteed to return the fewest possible groups.
+
+    Args:
+        sequences: The instruction sequences to group.
+
+    Returns:
+        The groups of positions of mergeable sequences.
 
     Raises:
         TypeError: If any sequence contains an instruction that is neither a gate application nor a
             partial Pauli permutation.
     """
-    groups: dict[Hashable, list[int]] = defaultdict(list)
+    candidates: dict[Hashable, list[int]] = defaultdict(list)
     permutation_indices = []
     for idx, sequence in enumerate(sequences):
         key, indices = _merge_candidate_data(sequence)
-        groups[key].append(idx)
+        candidates[key].append(idx)
         permutation_indices.append(indices)
 
-    consistency = consistency_matrix()
+    masks = _completion_masks()
 
-    partition = []
-    for group_indices in groups.values():
-        columns = np.stack([permutation_indices[idx] for idx in group_indices])
+    groups = []
+    for candidate_indices in candidates.values():
+        columns = np.stack([permutation_indices[idx] for idx in candidate_indices])
+        groups.extend(
+            [candidate_indices[row] for row in rows] for rows in _group_by_witness(masks[columns])
+        )
 
-        mergeable = np.ones((len(group_indices),) * 2, dtype=np.bool_)
-        for column in columns.T:
-            # a column where every sequence agrees imposes no constraint
-            if (column == column[0]).all():
-                continue
-            mergeable &= consistency[np.ix_(column, column)]
-
-        partition.append((group_indices, mergeable))
-
-    return partition
+    return groups

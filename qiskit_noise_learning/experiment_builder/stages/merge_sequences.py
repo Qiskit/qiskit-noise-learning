@@ -14,13 +14,9 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Sequence
 
-import numpy as np
-from rustworkx import PyGraph, graph_greedy_color
-
-from qiskit_noise_learning.sequences import InstructionSequence, partition_instruction_sequences
+from qiskit_noise_learning.sequences import InstructionSequence, merge_groups
 
 from ..experiment import Experiment
 from ..experiment_builder_stage import ExperimentBuilderStage
@@ -29,9 +25,8 @@ from ..experiment_builder_stage import ExperimentBuilderStage
 class MergeInstructionSequences(ExperimentBuilderStage):
     """Merge instruction sequences into a smaller set.
 
-    This stage uses a combination of strategies: partitioning the instruction sequences such that
-    elements of disjoint sets are never mergeable, and then using graph colouring to determine a
-    merging strategy within each partition.
+    The sequences that can be merged with each other are grouped together by
+    :func:`~.merge_groups`, and every group is merged into a single sequence.
     """
 
     required_fields = ("instruction_sequences", "randomization_multipliers", "relations")
@@ -60,36 +55,23 @@ class MergeInstructionSequences(ExperimentBuilderStage):
 def _minimize_instruction_sequences(
     sequences: Sequence[InstructionSequence],
 ) -> tuple[list[InstructionSequence], dict[int, int]]:
-    """Return a minimal list of instruction sequences by coloring mergeable sequences.
-
-    The sequences are first partitioned into groups whose members can only ever merge within their
-    own group, and each group is colored on its own. Since every pair of sequences drawn from two
-    different groups conflicts, this yields the same number of merged sequences as coloring the
-    conflict graph of all sequences at once, but colors several small graphs instead of one large
-    one.
+    """Return a smaller list of instruction sequences by merging the mergeable ones together.
 
     Args:
         sequences: The sequences to merge.
 
     Returns:
-        A minimal list of instruction sequences, and a dictionary from the index of each input
+        A reduced list of instruction sequences, and a dictionary from the index of each input
         sequence to the index of the merged sequence it contributed to.
     """
     minimized_sequences = []
     merged_indices = {}
-    for group_indices, mergeable in partition_instruction_sequences(sequences):
-        colors = graph_greedy_color(PyGraph.from_adjacency_matrix((~mergeable).astype(np.float64)))
+    for group in merge_groups(sequences):
+        merged = sequences[group[0]]
+        for idx in group[1:]:
+            merged = merged.merge(sequences[idx])
 
-        indices_by_color: dict[int, list[int]] = defaultdict(list)
-        for node, color in colors.items():
-            indices_by_color[color].append(group_indices[node])
-
-        for indices in indices_by_color.values():
-            merged = sequences[indices[0]]
-            for idx in indices[1:]:
-                merged = merged.merge(sequences[idx])
-
-            merged_indices.update(dict.fromkeys(indices, len(minimized_sequences)))
-            minimized_sequences.append(merged)
+        merged_indices.update(dict.fromkeys(group, len(minimized_sequences)))
+        minimized_sequences.append(merged)
 
     return minimized_sequences, merged_indices

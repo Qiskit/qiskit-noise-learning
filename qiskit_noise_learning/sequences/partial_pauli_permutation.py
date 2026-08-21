@@ -70,10 +70,10 @@ def partial_permutation_sets() -> tuple[frozenset[tuple[str, str]]]:
 
     The ordering given here is fixed, enabling ``PartialPauliPermutation`` to internally store a
     list of indices into this list. Furthermore, some functionality depends on the specifics of the
-    ordering. For example, the three-element/complete permutations are the first 6 elements of the
-    list, and as such checking for completeness can be done by checking if the index is < 6. The
-    ordering of the 6 fully specified permutations are based on the ordering of the blocks in
-    ``COMPLETE_TO_C1_TABLEAU``.
+    ordering. For example, the three-element/complete permutations are the first
+    ``NUM_COMPLETE_PERMUTATIONS`` elements of the list, and as such checking for completeness can be
+    done by checking if the index is less than that value. The ordering of the fully specified
+    permutations are based on the ordering of the blocks in ``COMPLETE_TO_C1_TABLEAU``.
 
     Note that the list returned by this function contains only the empty, single element, or three
     element partial permutations. The two element partial permutations are omitted as they are
@@ -157,23 +157,24 @@ def consistency_matrix() -> np.ndarray[tuple[16, 16], np.dtype[bool]]:
     consistency_matrix = np.array(
         [[False] * num_partial_permutations()] * num_partial_permutations(), dtype=bool
     )
+    num_complete = NUM_COMPLETE_PERMUTATIONS
     # all full permutations are inconsistent with eachother
-    consistency_matrix[:6, :6] = np.eye(6) > 0
+    consistency_matrix[:num_complete, :num_complete] = np.eye(num_complete) > 0
     # the empty permutation is consistent with everything
     consistency_matrix[-1] = np.array([True] * num_partial_permutations())
     consistency_matrix[:, -1] = np.array([True] * num_partial_permutations())
 
     # fill out the rest of these matrices, looping through single-entry partial permutations
-    for idx0 in range(6, num_partial_permutations() - 1):
+    for idx0 in range(num_complete, num_partial_permutations() - 1):
         current_perm = partial_permutation_sets()[idx0]
         # first loop over complete permutations
-        for idx1 in range(6):
+        for idx1 in range(num_complete):
             if current_perm.issubset(partial_permutation_sets()[idx1]):
                 consistency_matrix[idx0, idx1] = True
                 consistency_matrix[idx1, idx0] = True
 
         (current_entry,) = current_perm
-        for idx1 in range(6, num_partial_permutations() - 1):
+        for idx1 in range(num_complete, num_partial_permutations() - 1):
             (compare_entry,) = partial_permutation_sets()[idx1]
 
             # if unequal input and unequal output, can merge
@@ -200,13 +201,16 @@ def merge_matrix() -> np.ndarray[tuple[16, 16], np.dtype[np.int8]]:
     merge_matrix = -1 * np.ones(
         (num_partial_permutations(), num_partial_permutations()), dtype=np.int8
     )
+    num_complete = NUM_COMPLETE_PERMUTATIONS
     # merging full permutations with eachother are invalid unless merging a permutation with itself
-    merge_matrix[:6, :6] = np.diag(np.arange(1, 7, dtype=np.int8)) - np.ones((6, 6), dtype=np.int8)
+    merge_matrix[:num_complete, :num_complete] = np.diag(
+        np.arange(1, num_complete + 1, dtype=np.int8)
+    ) - np.ones((num_complete, num_complete), dtype=np.int8)
     # merging with the empty permutation is the identity
     merge_matrix[-1] = np.arange(num_partial_permutations(), dtype=np.int8)
     merge_matrix[:, -1] = np.arange(num_partial_permutations(), dtype=np.int8)
 
-    for idx0 in range(6, num_partial_permutations() - 1):
+    for idx0 in range(num_complete, num_partial_permutations() - 1):
         # first loop over complete
         for idx1 in range(0, num_partial_permutations() - 1):
             if consistency_matrix()[idx0, idx1]:
@@ -288,7 +292,7 @@ def completion_vector() -> np.ndarray[np.dtype[np.int8]]:
     is mapped to the identity.
     """
     permutation_sets = partial_permutation_sets()
-    complete_permutation_sets = permutation_sets[:6]
+    complete_permutation_sets = permutation_sets[:NUM_COMPLETE_PERMUTATIONS]
     completion_vector = -1 * np.ones(len(permutation_sets), dtype=np.int8)
     for idx, permutation_set in enumerate(permutation_sets):
         # if completion of inverse is already specified, set the completion to the inverse of that
@@ -321,8 +325,8 @@ def clifford_1q_representations() -> tuple[np.ndarray[int], np.ndarray[int]]:
 
     cliffords = [Clifford(x) for x in COMPLETE_TO_C1_TABLEAU]
 
-    paulis = np.empty((6, 3), dtype=np.uint8)
-    signs = np.ones((6, 3), dtype=np.int8)
+    paulis = np.empty((NUM_COMPLETE_PERMUTATIONS, 3), dtype=np.uint8)
+    signs = np.ones((NUM_COMPLETE_PERMUTATIONS, 3), dtype=np.int8)
 
     for clifford_idx, clifford in enumerate(cliffords):
         for pauli_idx, pauli in enumerate(pauli_strings):
@@ -342,8 +346,8 @@ def clifford_1q_inverse_representations() -> tuple[np.ndarray[int], np.ndarray[i
 
     cliffords = [Clifford(x) for x in COMPLETE_TO_C1_TABLEAU]
 
-    paulis = np.empty((6, 3), dtype=np.uint8)
-    signs = np.ones((6, 3), dtype=np.int8)
+    paulis = np.empty((NUM_COMPLETE_PERMUTATIONS, 3), dtype=np.uint8)
+    signs = np.ones((NUM_COMPLETE_PERMUTATIONS, 3), dtype=np.int8)
 
     for clifford_idx, clifford in enumerate(cliffords):
         for pauli_idx, pauli in enumerate(pauli_strings):
@@ -407,7 +411,7 @@ class PartialPauliPermutation(Instruction):
     @property
     def is_complete(self) -> bool:
         """Whether self represents a complete specification of single-qubit Pauli permutations."""
-        return (self.partial_permutation_indices < 6).all()
+        return (self.partial_permutation_indices < NUM_COMPLETE_PERMUTATIONS).all()
 
     @property
     def num_qubits(self) -> int:

@@ -10,6 +10,8 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
+from itertools import combinations, islice, permutations
+
 import numpy as np
 import pytest
 
@@ -17,7 +19,7 @@ from qiskit_noise_learning.sequences import (
     ApplyGate,
     InstructionSequence,
     PartialPauliPermutation,
-    partition_instruction_sequences,
+    merge_groups,
 )
 
 
@@ -72,42 +74,40 @@ def _assorted_sequences():
     return sequences
 
 
-def test_partition_covers_every_position_once():
+def _assert_group_merges(group, sequences):
+    """Assert that a group of positions merges into a single sequence, in any order.
+
+    Only a bounded number of orders is tried, which exhausts them for the small groups used here.
+    """
+    for i, j in combinations(group, 2):
+        assert sequences[i].is_mergeable_with(sequences[j]), f"{i} and {j} are not mergeable"
+
+    for order in islice(permutations(group), 24):
+        merged = sequences[order[0]]
+        for idx in order[1:]:
+            assert merged.is_mergeable_with(sequences[idx]), f"order {order} fails at {idx}"
+            merged = merged.merge(sequences[idx])
+
+
+def test_merge_groups_cover_every_position_once():
     """Test that the returned groups cover every position of the input exactly once."""
     sequences = _assorted_sequences()
 
-    partition = partition_instruction_sequences(sequences)
+    groups = merge_groups(sequences)
 
-    covered = [idx for indices, _ in partition for idx in indices]
+    covered = [idx for group in groups for idx in group]
     assert sorted(covered) == list(range(len(sequences)))
 
 
-def test_partition_matches_pairwise_is_mergeable_with():
-    """Test that the partition and its mergeability arrays agree with pairwise mergeability.
-
-    Sequences in different groups must never be mergeable, and within a group the mergeability
-    array must reproduce ``is_mergeable_with`` for every pair.
-    """
+def test_merge_groups_are_mergeable():
+    """Test that the sequences within each group merge into a single sequence, in any order."""
     sequences = _assorted_sequences()
 
-    partition = partition_instruction_sequences(sequences)
-
-    for group_idx, (indices, mergeable) in enumerate(partition):
-        assert mergeable.shape == (len(indices),) * 2
-
-        # within a group, the array reproduces pairwise mergeability
-        for i, idx0 in enumerate(indices):
-            for j, idx1 in enumerate(indices):
-                assert bool(mergeable[i, j]) == sequences[idx0].is_mergeable_with(sequences[idx1])
-
-        # across groups, no pair is ever mergeable
-        for other_indices, _ in partition[group_idx + 1 :]:
-            for idx0 in indices:
-                for idx1 in other_indices:
-                    assert not sequences[idx0].is_mergeable_with(sequences[idx1])
+    for group in merge_groups(sequences):
+        _assert_group_merges(group, sequences)
 
 
-def test_partition_keeps_mergeable_candidates_together():
+def test_merge_groups_keeps_mergeable_candidates_together():
     """Test that sequences differing only in mergeable permutations land in a single group."""
     sequences = [
         _sequence([("P",)] * 3, 1, [[6, 15]] * 3),
@@ -115,12 +115,45 @@ def test_partition_keeps_mergeable_candidates_together():
         _sequence([("P",)] * 3, 1, [[6, 7]] * 3),
     ]
 
-    partition = partition_instruction_sequences(sequences)
+    groups = merge_groups(sequences)
 
-    assert len(partition) == 1
-    indices, mergeable = partition[0]
-    assert sorted(indices) == [0, 1, 2]
-    assert mergeable.all()
+    assert len(groups) == 1
+    assert sorted(groups[0]) == [0, 1, 2]
+
+
+def test_merge_groups_separates_inconsistent_permutations():
+    """Test that sequences ruled out only by their permutation values are placed in separate groups.
+
+    The two sequences share every gate application and fragment depth, so nothing but the
+    inconsistency of two distinct complete permutations keeps them apart.
+    """
+    sequences = [
+        _sequence([("P",)] * 3, 1, [[0, 0]] * 3),
+        _sequence([("P",)] * 3, 1, [[1, 1]] * 3),
+    ]
+
+    assert not sequences[0].is_mergeable_with(sequences[1])
+    assert len(merge_groups(sequences)) == 2
+
+
+def test_merge_groups_does_not_merge_a_mergeable_pair_into_a_conflicting_group():
+    """Test that mutual, not just pairwise, mergeability decides a group.
+
+    The three single mappings ``Y -> Y``, ``Z -> Z``, and ``Z -> X`` are pairwise mergeable except
+    for the last two, which disagree on the image of ``Z``. No group can hold all three, so one
+    mergeable pair must be split across two groups.
+    """
+    sequences = [_sequence([("P",)] * 3, 1, [[value]] * 3) for value in (14, 6, 7)]
+
+    assert sequences[0].is_mergeable_with(sequences[1])
+    assert sequences[0].is_mergeable_with(sequences[2])
+    assert not sequences[1].is_mergeable_with(sequences[2])
+
+    groups = merge_groups(sequences)
+
+    assert len(groups) == 2
+    for group in groups:
+        _assert_group_merges(group, sequences)
 
 
 @pytest.mark.parametrize(
@@ -132,28 +165,47 @@ def test_partition_keeps_mergeable_candidates_together():
         ("qubit count", _sequence([("P",)] * 3, 1, [[0, 0, 0]] * 3)),
     ],
 )
-def test_partition_splits_on_differences_that_rule_out_merging(difference, other):
+def test_merge_groups_splits_on_differences_that_rule_out_merging(difference, other):
     """Test that a difference ruling out any merge places sequences in separate groups."""
     sequence = _sequence([("P",)] * 3, 1, [[0, 0]] * 3)
 
-    partition = partition_instruction_sequences([sequence, other])
+    groups = merge_groups([sequence, other])
 
     assert not sequence.is_mergeable_with(
         other
     ), f"expected differing {difference} to block merging"
-    assert len(partition) == 2
+    assert len(groups) == 2
 
 
-def test_partition_of_no_sequences():
-    """Test that partitioning no sequences gives no groups."""
-    assert partition_instruction_sequences([]) == []
+def test_merge_groups_of_sequences_without_permutations():
+    """Test that sequences holding no partial permutations merge on their gates alone."""
+    sequences = [
+        InstructionSequence(
+            start_fragment=[ApplyGate("P")],
+            repeatable_fragment=[ApplyGate("L")],
+            end_fragment=[ApplyGate("M")],
+            fragment_depth=1,
+        )
+    ] * 2
+
+    assert merge_groups(sequences) == [[0, 1]]
 
 
-def test_partition_raises_on_unsupported_instruction():
+def test_merge_groups_of_one_sequence():
+    """Test that a lone sequence gives a single group holding it."""
+    assert merge_groups([_sequence([("P",)] * 3, 1, [[0, 0]] * 3)]) == [[0]]
+
+
+def test_merge_groups_of_no_sequences():
+    """Test that grouping no sequences gives no groups."""
+    assert merge_groups([]) == []
+
+
+def test_merge_groups_raises_on_unsupported_instruction():
     """Test that an instruction that is neither a gate nor a partial permutation is rejected."""
 
     class UnsupportedInstruction:
-        """A stand-in for an instruction type the partitioning does not know about."""
+        """A stand-in for an instruction type the grouping does not know about."""
 
     sequence = InstructionSequence(
         start_fragment=[UnsupportedInstruction()],
@@ -163,4 +215,4 @@ def test_partition_raises_on_unsupported_instruction():
     )
 
     with pytest.raises(TypeError, match="UnsupportedInstruction"):
-        partition_instruction_sequences([sequence])
+        merge_groups([sequence])
