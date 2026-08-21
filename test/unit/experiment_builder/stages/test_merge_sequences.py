@@ -10,13 +10,11 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-import numpy as np
 import pytest
 from qiskit.quantum_info import QubitSparsePauli
 
 from qiskit_noise_learning.experiment_builder.experiment import Experiment
 from qiskit_noise_learning.experiment_builder.stages import MergeInstructionSequences
-from qiskit_noise_learning.experiment_builder.stages.merge_sequences import _conflict_matrix
 from qiskit_noise_learning.sequences import FidelityIndex, Path
 
 
@@ -162,19 +160,32 @@ class TestMergeInstructionSequences:
         assert len(result.instruction_sequences) == 1
         assert result.relations == {(0, 0)}
 
-    def test_conflict_matrix_matches_pairwise_is_mergeable_with(self, gate_set_cz, make_cz_path):
-        """The vectorized conflict matrix equals brute-force pairwise ``is_mergeable_with``."""
-        # sequences that share a structure (unbound) plus a second group at a different fragment
-        # depth, giving both within-group mergeability and cross-group conflicts to check.
-        labels = ["IX", "XI", "XX", "IY", "YI", "ZZ"]
-        seqs = [make_cz_path(label).to_instruction_sequence() for label in labels]
-        seqs += [make_cz_path(label).to_instruction_sequence().bind_at(2) for label in labels]
+    def test_groups_that_cannot_merge_are_minimized_independently(self, gate_set_cz, make_cz_path):
+        """Sequences merge fully within each group of non-mergeable groups, and not across them."""
+        # the same three mutually mergeable paths at two different fragment depths: everything
+        # merges within a depth, and nothing merges across depths
+        unbound_paths = [make_cz_path(label) for label in ["IX", "XI", "XX"]]
+        paths = unbound_paths + [path.bind_at(2) for path in unbound_paths]
+        exp = Experiment(
+            fidelity_model=gate_set_cz,
+            paths=paths,
+            instruction_sequences=[path.to_instruction_sequence() for path in paths],
+            relations={(idx, idx) for idx in range(len(paths))},
+            randomization_multipliers=[1, 1, 5, 3, 1, 1],
+        )
+        result = MergeInstructionSequences().run(exp)
 
-        expected = np.ones((len(seqs), len(seqs)), dtype=bool)
-        np.fill_diagonal(expected, False)
-        for i in range(len(seqs)):
-            for j in range(i + 1, len(seqs)):
-                not_mergeable = not seqs[i].is_mergeable_with(seqs[j])
-                expected[i, j] = expected[j, i] = not_mergeable
+        assert len(result.instruction_sequences) == 2
 
-        np.testing.assert_array_equal(_conflict_matrix(seqs), expected)
+        sequence_of_path = dict(result.relations)
+        assert len(sequence_of_path) == len(paths)
+        assert sequence_of_path[0] == sequence_of_path[1] == sequence_of_path[2]
+        assert sequence_of_path[3] == sequence_of_path[4] == sequence_of_path[5]
+        assert sequence_of_path[0] != sequence_of_path[3]
+
+        # every path is still traversed by the sequence it was merged into, and each merged
+        # sequence carries the largest multiplier of its group
+        for path_idx, sequence_idx in sequence_of_path.items():
+            assert paths[path_idx].is_traversed_by(result.instruction_sequences[sequence_idx])
+        assert result.randomization_multipliers[sequence_of_path[0]] == 5
+        assert result.randomization_multipliers[sequence_of_path[3]] == 3

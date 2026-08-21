@@ -16,42 +16,38 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Sequence
-from itertools import chain
 
 import numpy as np
 from rustworkx import PyGraph, graph_greedy_color
 
-from qiskit_noise_learning.sequences import InstructionSequence
-from qiskit_noise_learning.sequences.apply_gate import ApplyGate
-from qiskit_noise_learning.sequences.partial_pauli_permutation import (
-    PartialPauliPermutation,
-    consistency_matrix,
-)
+from qiskit_noise_learning.sequences import InstructionSequence, partition_instruction_sequences
 
 from ..experiment import Experiment
 from ..experiment_builder_stage import ExperimentBuilderStage
 
 
 class MergeInstructionSequences(ExperimentBuilderStage):
-    """Merge instruction sequences into a minimal set via graph coloring.
+    """Merge instruction sequences into a smaller set.
 
-    Constructs a conflict graph where sequences that cannot be merged share an edge,
-    then colors the graph to find groups of mutually mergeable sequences. Each group
-    is merged into a single sequence.
+    This stage uses a combination of strategies: partitioning the instruction sequences such that
+    elements of disjoint sets are never mergeable, and then using graph colouring to determine a
+    merging strategy within each partition.
     """
 
     required_fields = ("instruction_sequences", "randomization_multipliers", "relations")
 
     def _run(self, experiment: Experiment) -> Experiment:
-        new_sequences, colors = _minimize_instruction_sequences(experiment.instruction_sequences)
+        new_sequences, merged_indices = _minimize_instruction_sequences(
+            experiment.instruction_sequences
+        )
         new_relations = {
-            (path_idx, colors[inst_idx]) for path_idx, inst_idx in experiment.relations
+            (path_idx, merged_indices[inst_idx]) for path_idx, inst_idx in experiment.relations
         }
 
         old_multipliers = experiment.randomization_multipliers
         new_multipliers = [1] * len(new_sequences)
-        for old_idx, color in colors.items():
-            new_multipliers[color] = max(new_multipliers[color], old_multipliers[old_idx])
+        for old_idx, new_idx in merged_indices.items():
+            new_multipliers[new_idx] = max(new_multipliers[new_idx], old_multipliers[old_idx])
 
         return experiment.replace(
             validate=False,
@@ -66,83 +62,34 @@ def _minimize_instruction_sequences(
 ) -> tuple[list[InstructionSequence], dict[int, int]]:
     """Return a minimal list of instruction sequences by coloring mergeable sequences.
 
+    The sequences are first partitioned into groups whose members can only ever merge within their
+    own group, and each group is colored on its own. Since every pair of sequences drawn from two
+    different groups conflicts, this yields the same number of merged sequences as coloring the
+    conflict graph of all sequences at once, but colors several small graphs instead of one large
+    one.
+
     Args:
         sequences: The sequences to merge.
 
     Returns:
-        A minimal list of instruction sequences and a dictionary from original index to color.
+        A minimal list of instruction sequences, and a dictionary from the index of each input
+        sequence to the index of the merged sequence it contributed to.
     """
-    adjacency_mat = _conflict_matrix(sequences)
+    minimized_sequences = []
+    merged_indices = {}
+    for group_indices, mergeable in partition_instruction_sequences(sequences):
+        colors = graph_greedy_color(PyGraph.from_adjacency_matrix((~mergeable).astype(np.float64)))
 
-    colors = graph_greedy_color(PyGraph.from_adjacency_matrix(adjacency_mat.astype(np.float64)))
+        indices_by_color: dict[int, list[int]] = defaultdict(list)
+        for node, color in colors.items():
+            indices_by_color[color].append(group_indices[node])
 
-    minimized_sequences = {}
-    for idx, color in colors.items():
-        if (this_sequence := minimized_sequences.get(color)) is None:
-            minimized_sequences[color] = sequences[idx]
-            continue
-        minimized_sequences[color] = this_sequence.merge(sequences[idx])
+        for indices in indices_by_color.values():
+            merged = sequences[indices[0]]
+            for idx in indices[1:]:
+                merged = merged.merge(sequences[idx])
 
-    return [v for _, v in sorted(minimized_sequences.items())], colors
+            merged_indices.update(dict.fromkeys(indices, len(minimized_sequences)))
+            minimized_sequences.append(merged)
 
-
-def _conflict_matrix(sequences: Sequence[InstructionSequence]) -> np.ndarray:
-    """Return the boolean conflicts matrix where ``True`` marks a non-mergeable pair.
-
-    Equivalent to filling the matrix with pairwise
-    :meth:`~.InstructionSequence.is_mergeable_with`, but computed in bulk: only sequences that share
-    the same structure (fragment depth and per-position instruction layout) can merge, and within
-    such a group merging reduces to per-qubit consistency of the ``PartialPauliPermutation``\\s
-    (gate applications always merge).
-    """
-    num_sequences = len(sequences)
-    conflicts = ~np.eye(num_sequences, dtype=np.bool_)
-
-    groups: dict[tuple, list[int]] = defaultdict(list)
-    for idx, sequence in enumerate(sequences):
-        groups[_structure_key(sequence)].append(idx)
-
-    consistency = consistency_matrix()
-    for indices in groups.values():
-        if len(indices) < 2:
-            continue
-
-        permutations = np.stack([_permutation_indices(sequences[i]) for i in indices])
-        mergeable = np.ones((len(indices), len(indices)), dtype=np.bool_)
-        for column in permutations.T:
-            # a column where every sequence agrees imposes no constraint
-            if (column == column[0]).all():
-                continue
-            mergeable &= consistency[np.ix_(column, column)]
-
-        conflicts[np.ix_(indices, indices)] = ~mergeable
-
-    return conflicts
-
-
-def _structure_key(sequence: InstructionSequence) -> tuple:
-    """A hashable key identifying the mergeable structure of a sequence."""
-
-    def tokens(fragment: Sequence) -> tuple:
-        return tuple(
-            instr.gate_name if isinstance(instr, ApplyGate) else None for instr in fragment
-        )
-
-    return (
-        sequence.fragment_depth,
-        tokens(sequence.start_fragment),
-        tokens(sequence.repeatable_fragment),
-        tokens(sequence.end_fragment),
-    )
-
-
-def _permutation_indices(sequence: InstructionSequence) -> np.ndarray:
-    """The concatenated per-qubit permutation indices of a sequence's partial permutations."""
-    columns = [
-        instr.partial_permutation_indices
-        for instr in chain(
-            sequence.start_fragment, sequence.repeatable_fragment, sequence.end_fragment
-        )
-        if isinstance(instr, PartialPauliPermutation)
-    ]
-    return np.concatenate(columns) if columns else np.zeros(0, dtype=np.int8)
+    return minimized_sequences, merged_indices
