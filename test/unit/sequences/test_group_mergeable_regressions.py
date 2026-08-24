@@ -306,7 +306,7 @@ _INSTANCES = {
         fff6
         """,
     ),
-    "p2k2-full#0": (
+    "full": (
         2,
         """
         6fff6fff
