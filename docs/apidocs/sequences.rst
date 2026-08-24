@@ -27,4 +27,4 @@ Functions
    :toctree: generated
    :nosignatures:
 
-   merge_groups
+   group_mergeable_instruction_sequences

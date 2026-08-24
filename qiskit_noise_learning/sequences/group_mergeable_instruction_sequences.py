@@ -10,7 +10,27 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Utilities for working with sequences."""
+"""Function for partitioning a set of instruction sequences into mergeable subsets.
+
+The public facing function is :func:`group_mergeable_instruction_sequences`; implementation details
+are described here.
+
+Two instruction sequences with the same instruction structure (same gate applications and
+location of partial pauli permutations), are mergeable exactly when, for each partial permutation
+on every qubit, there exists a shared completion. While instruction sequences have a public
+interface for pairwise checks of mergeability, this module optimizes performing these checks across
+a collection.
+
+The general strategy is to track "shared completions" across a set of instruction sequences as a
+bit-packed bit string. There are 6 complete permutations, and therefore the set of completions is
+represented as 6 bits, packed into a single ``uint8``. ``_completion_masks`` tabulates this, indexed
+by partial permutation index. This representation has the following properties:
+
+* the completions shared by a group are the columnwise bitwise AND of its rows;
+* the group is mergeable exactly when that AND is nonzero in every column;
+* ``_POPCOUNT`` turns a mask back into a count, so summing it along a row measures how constrained
+  a sequence, or a group, is.
+"""
 
 from collections import defaultdict
 from collections.abc import Hashable, Sequence
@@ -32,10 +52,10 @@ _POPCOUNT = np.array([bin(value).count("1") for value in range(256)], dtype=np.u
 InstructionSequenceOrder = Literal[
     "most-constrained-first", "least-constrained-first", "qubitwise-lexicographic", "input"
 ]
-"""The order in which instruction sequences are offered to the groups by :func:`merge_groups`."""
+"""The order in which :func:`group_mergeable_instruction_sequences` considers the sequences."""
 
 MergingStrategy = Literal["first", "most-constrained", "least-impacted"]
-"""Which of the groups a sequence can join :func:`merge_groups` merges it into."""
+"""Which of the groups a sequence can join :func:`group_mergeable_instruction_sequences` picks."""
 
 
 def _merge_candidate_data(sequence: InstructionSequence) -> tuple[Hashable, np.ndarray]:
@@ -99,9 +119,9 @@ def _row_order(masks: np.ndarray, order: InstructionSequenceOrder) -> np.ndarray
     """Return the order in which rows are offered to the groups.
 
     Args:
-        masks: A ``uint8`` array whose ``[i, j]`` entry is a bitmask of the complete permutations
-            that row ``i`` is consistent with in column ``j``.
-        order: The ordering to apply, as documented in ``merge_groups``.
+        masks: A ``uint8`` array whose ``[i, j]`` entry is a bitmask of the completions
+            available to row ``i`` in column ``j``.
+        order: The ordering to apply, as documented in ``group_mergeable_instruction_sequences``.
 
     Returns:
         The row indices, in the order they are to be visited.
@@ -113,7 +133,7 @@ def _row_order(masks: np.ndarray, order: InstructionSequenceOrder) -> np.ndarray
         # lexsort needs at least one key, and with no columns the rows are interchangeable anyway
         return np.lexsort(masks.T[::-1]) if masks.shape[1] else np.arange(len(masks))
 
-    # the total number of complete permutations each row admits, negated to sort descending; ties
+    # the total number of completions each row has available, negated to sort descending; ties
     # are broken by row index so that every ordering is a deterministic function of the masks
     num_admissible = _POPCOUNT[masks].sum(axis=1)
     if order == "least-constrained-first":
@@ -121,30 +141,30 @@ def _row_order(masks: np.ndarray, order: InstructionSequenceOrder) -> np.ndarray
     return np.argsort(num_admissible, kind="stable")
 
 
-def _group_by_witness(
+def _group_by_shared_completion(
     masks: np.ndarray, order: np.ndarray, strategy: MergingStrategy
 ) -> list[list[int]]:
-    """Greedily group rows that admit a common complete permutation in every column.
+    """Greedily group rows sharing a completion in every column.
 
     Rows are visited in ``order`` and each is placed in one of the groups built so far, or opens a
     new group if it fits in none of them.
 
     Args:
-        masks: A ``uint8`` array whose ``[i, j]`` entry is a bitmask of the complete permutations
-            that row ``i`` is consistent with in column ``j``.
+        masks: A ``uint8`` array whose ``[i, j]`` entry is a bitmask of the completions
+            available to row ``i`` in column ``j``.
         order: The order in which to visit the rows, as returned by ``_row_order``.
         strategy: How to choose among the groups a row can join, as documented in
-            ``merge_groups``.
+            ``group_mergeable_instruction_sequences``.
 
     Returns:
         The groups of row indices.
     """
-    # the bitmask of complete permutations still admissible in each column, one row per group
+    # the bitmask of completions still available in each column, one row per group
     admissible_completions = np.zeros((0, masks.shape[1]), dtype=np.uint8)
     groups: list[list[int]] = []
     for row_idx in order:
         row = masks[row_idx]
-        # a row may join a group only if every column retains a complete permutation common to both
+        # a row may join a group only if every column retains a completion common to both
         joined = admissible_completions & row
         feasible = np.flatnonzero(joined.all(axis=1))
 
@@ -168,7 +188,7 @@ def _group_by_witness(
     return groups
 
 
-def merge_groups(
+def group_mergeable_instruction_sequences(
     sequences: Sequence[InstructionSequence],
     instruction_sequence_order: InstructionSequenceOrder = "most-constrained-first",
     merging_strategy: MergingStrategy = "least-impacted",
@@ -194,12 +214,10 @@ def merge_groups(
 
     * ``"most-constrained-first"``: ordered from most-constrained to least-constrained.
     * ``"least-constrained-first"``: ordered from least-constrained to most-constrained.
-    * ``"qubitwise-lexicographic"``: ordered lexicographically by the bit string indicating which
-      complete permutations implement each partial permutation. E.g. a bit string ``001010``
-      indicates that the complete permutations at indices ``2`` and ``4`` are valid completions.
-      This is a technical condition based on the specific ordering used in
-      ``COMPLETE_TO_C1_TABLEAU``, but it is one of many possible choices for a linear ordering of
-      the instruction sequences based on similarity of completions.
+    * ``"qubitwise-lexicographic"``: ordered so that sequences agreeing on the Pauli mappings they
+      specify, qubit by qubit from the first onwards, are considered consecutively. Which of two
+      differing sequences comes first follows a fixed but arbitrary convention, making this one of
+      many possible orderings that place sequences specifying similar mappings near each other.
     * ``"input"``: the order in which they were given.
 
     ``merging_strategy`` selects which of the groups a sequence can join it is merged into:
@@ -207,8 +225,8 @@ def merge_groups(
     * ``"first"``: the group created earliest.
     * ``"most-constrained"``: the group that already admits the fewest complete permutations, which
       leaves the more flexible groups intact for later sequences.
-    * ``"least-impacted"``: the group for which the instruction sequence will reduce the number of
-      completions the least.
+    * ``"least-impacted"``: the group whose admissible complete permutations the instruction
+      sequence rules out the fewest of.
 
     Args:
         sequences: The instruction sequences to group.
@@ -250,7 +268,7 @@ def merge_groups(
         order = _row_order(columns, instruction_sequence_order)
         groups.extend(
             [candidate_indices[row] for row in rows]
-            for rows in _group_by_witness(columns, order, merging_strategy)
+            for rows in _group_by_shared_completion(columns, order, merging_strategy)
         )
 
     return groups

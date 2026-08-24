@@ -19,7 +19,7 @@ from qiskit_noise_learning.sequences import (
     ApplyGate,
     InstructionSequence,
     PartialPauliPermutation,
-    merge_groups,
+    group_mergeable_instruction_sequences,
 )
 
 
@@ -89,25 +89,25 @@ def _assert_group_merges(group, sequences):
             merged = merged.merge(sequences[idx])
 
 
-def test_merge_groups_cover_every_position_once():
+def test_group_mergeable_covers_every_position_once():
     """Test that the returned groups cover every position of the input exactly once."""
     sequences = _assorted_sequences()
 
-    groups = merge_groups(sequences)
+    groups = group_mergeable_instruction_sequences(sequences)
 
     covered = [idx for group in groups for idx in group]
     assert sorted(covered) == list(range(len(sequences)))
 
 
-def test_merge_groups_are_mergeable():
+def test_group_mergeable_groups_are_mergeable():
     """Test that the sequences within each group merge into a single sequence, in any order."""
     sequences = _assorted_sequences()
 
-    for group in merge_groups(sequences):
+    for group in group_mergeable_instruction_sequences(sequences):
         _assert_group_merges(group, sequences)
 
 
-def test_merge_groups_keeps_mergeable_candidates_together():
+def test_group_mergeable_keeps_mergeable_candidates_together():
     """Test that sequences differing only in mergeable permutations land in a single group."""
     sequences = [
         _sequence([("P",)] * 3, 1, [[6, 15]] * 3),
@@ -115,13 +115,13 @@ def test_merge_groups_keeps_mergeable_candidates_together():
         _sequence([("P",)] * 3, 1, [[6, 7]] * 3),
     ]
 
-    groups = merge_groups(sequences)
+    groups = group_mergeable_instruction_sequences(sequences)
 
     assert len(groups) == 1
     assert sorted(groups[0]) == [0, 1, 2]
 
 
-def test_merge_groups_separates_inconsistent_permutations():
+def test_group_mergeable_separates_inconsistent_permutations():
     """Test that sequences ruled out only by their permutation values are placed in separate groups.
 
     The two sequences share every gate application and fragment depth, so nothing but the
@@ -133,10 +133,10 @@ def test_merge_groups_separates_inconsistent_permutations():
     ]
 
     assert not sequences[0].is_mergeable_with(sequences[1])
-    assert len(merge_groups(sequences)) == 2
+    assert len(group_mergeable_instruction_sequences(sequences)) == 2
 
 
-def test_merge_groups_does_not_merge_a_mergeable_pair_into_a_conflicting_group():
+def test_group_mergeable_does_not_merge_a_mergeable_pair_into_a_conflicting_group():
     """Test that mutual, not just pairwise, mergeability decides a group.
 
     The three single mappings ``Y -> Y``, ``Z -> Z``, and ``Z -> X`` are pairwise mergeable except
@@ -149,7 +149,7 @@ def test_merge_groups_does_not_merge_a_mergeable_pair_into_a_conflicting_group()
     assert sequences[0].is_mergeable_with(sequences[2])
     assert not sequences[1].is_mergeable_with(sequences[2])
 
-    groups = merge_groups(sequences)
+    groups = group_mergeable_instruction_sequences(sequences)
 
     assert len(groups) == 2
     for group in groups:
@@ -165,11 +165,11 @@ def test_merge_groups_does_not_merge_a_mergeable_pair_into_a_conflicting_group()
         ("qubit count", _sequence([("P",)] * 3, 1, [[0, 0, 0]] * 3)),
     ],
 )
-def test_merge_groups_splits_on_differences_that_rule_out_merging(difference, other):
+def test_group_mergeable_splits_on_differences_that_rule_out_merging(difference, other):
     """Test that a difference ruling out any merge places sequences in separate groups."""
     sequence = _sequence([("P",)] * 3, 1, [[0, 0]] * 3)
 
-    groups = merge_groups([sequence, other])
+    groups = group_mergeable_instruction_sequences([sequence, other])
 
     assert not sequence.is_mergeable_with(
         other
@@ -177,7 +177,7 @@ def test_merge_groups_splits_on_differences_that_rule_out_merging(difference, ot
     assert len(groups) == 2
 
 
-def test_merge_groups_of_sequences_without_permutations():
+def test_group_mergeable_of_sequences_without_permutations():
     """Test that sequences holding no partial permutations merge on their gates alone."""
     sequences = [
         InstructionSequence(
@@ -188,20 +188,22 @@ def test_merge_groups_of_sequences_without_permutations():
         )
     ] * 2
 
-    assert merge_groups(sequences) == [[0, 1]]
+    assert group_mergeable_instruction_sequences(sequences) == [[0, 1]]
 
 
-def test_merge_groups_of_one_sequence():
+def test_group_mergeable_of_one_sequence():
     """Test that a lone sequence gives a single group holding it."""
-    assert merge_groups([_sequence([("P",)] * 3, 1, [[0, 0]] * 3)]) == [[0]]
+    sequence = _sequence([("P",)] * 3, 1, [[0, 0]] * 3)
+
+    assert group_mergeable_instruction_sequences([sequence]) == [[0]]
 
 
-def test_merge_groups_of_no_sequences():
+def test_group_mergeable_of_no_sequences():
     """Test that grouping no sequences gives no groups."""
-    assert merge_groups([]) == []
+    assert group_mergeable_instruction_sequences([]) == []
 
 
-def test_merge_groups_raises_on_unsupported_instruction():
+def test_group_mergeable_raises_on_unsupported_instruction():
     """Test that an instruction that is neither a gate nor a partial permutation is rejected."""
 
     class UnsupportedInstruction:
@@ -215,4 +217,4 @@ def test_merge_groups_raises_on_unsupported_instruction():
     )
 
     with pytest.raises(TypeError, match="UnsupportedInstruction"):
-        merge_groups([sequence])
+        group_mergeable_instruction_sequences([sequence])

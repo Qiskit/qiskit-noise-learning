@@ -14,8 +14,8 @@
 
 from .apply_gate import ApplyGate
 from .fidelity_index import FidelityIndex
+from .group_mergeable_instruction_sequences import group_mergeable_instruction_sequences
 from .instruction_sequence import InstructionSequence
 from .log_path_map import LogPathMap, LogPathSpace
 from .partial_pauli_permutation import PartialPauliPermutation
 from .path import Path
-from .utils import merge_groups

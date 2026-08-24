@@ -16,7 +16,10 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from qiskit_noise_learning.sequences import InstructionSequence, merge_groups
+from qiskit_noise_learning.sequences import (
+    InstructionSequence,
+    group_mergeable_instruction_sequences,
+)
 
 from ..experiment import Experiment
 from ..experiment_builder_stage import ExperimentBuilderStage
@@ -26,7 +29,8 @@ class MergeInstructionSequences(ExperimentBuilderStage):
     """Merge instruction sequences into a smaller set.
 
     The sequences that can be merged with each other are grouped together by
-    :func:`~.merge_groups`, and every group is merged into a single sequence.
+    :func:`~.group_mergeable_instruction_sequences`, and every group is merged into a single
+    sequence.
     """
 
     required_fields = ("instruction_sequences", "randomization_multipliers", "relations")
@@ -66,7 +70,7 @@ def _minimize_instruction_sequences(
     """
     minimized_sequences = []
     merged_indices = {}
-    for group in merge_groups(sequences):
+    for group in group_mergeable_instruction_sequences(sequences):
         merged = sequences[group[0]]
         for idx in group[1:]:
             merged = merged.merge(sequences[idx])
