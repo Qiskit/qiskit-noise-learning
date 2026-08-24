@@ -15,22 +15,24 @@
 Checks number of groups for several known examples.
 """
 
+from itertools import product
 from typing import get_args
 
 import pytest
 
 from qiskit_noise_learning.sequences import (
     ApplyGate,
-    GroupingStrategy,
     InstructionSequence,
     PartialPauliPermutation,
     group_mergeable_instruction_sequences,
 )
+from qiskit_noise_learning.sequences.group_mergeable_instruction_sequences import (
+    InstructionSequenceOrder,
+    MergingStrategy,
+)
 
 _ALL_GROUPING_STRATEGIES = list(
-    (order, merging_strategy)
-    for order in get_args(get_args(GroupingStrategy)[0])
-    for merging_strategy in get_args(get_args(GroupingStrategy)[1])
+    product(get_args(InstructionSequenceOrder), get_args(MergingStrategy))
 )
 """Every pairing of a documented instruction sequence order with a documented merging strategy."""
 

@@ -17,10 +17,12 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from qiskit_noise_learning.sequences import (
-    DEFAULT_GROUPING_STRATEGIES,
-    GroupingStrategy,
     InstructionSequence,
     group_mergeable_instruction_sequences,
+)
+from qiskit_noise_learning.sequences.group_mergeable_instruction_sequences import (
+    DEFAULT_GROUPING_STRATEGIES,
+    GroupingStrategy,
 )
 
 from ..experiment import Experiment

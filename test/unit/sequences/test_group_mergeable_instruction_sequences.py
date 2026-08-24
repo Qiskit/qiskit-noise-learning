@@ -17,15 +17,20 @@ from typing import get_args
 import pytest
 
 from qiskit_noise_learning.sequences import (
-    DEFAULT_GROUPING_STRATEGIES,
     ApplyGate,
-    GroupingStrategy,
     InstructionSequence,
     PartialPauliPermutation,
     group_mergeable_instruction_sequences,
 )
+from qiskit_noise_learning.sequences.group_mergeable_instruction_sequences import (
+    DEFAULT_GROUPING_STRATEGIES,
+    InstructionSequenceOrder,
+    MergingStrategy,
+)
 
-_ALL_GROUPING_STRATEGIES = list(product(*(get_args(entry) for entry in get_args(GroupingStrategy))))
+_ALL_GROUPING_STRATEGIES = list(
+    product(get_args(InstructionSequenceOrder), get_args(MergingStrategy))
+)
 """Every pairing of a documented instruction sequence order with a documented merging strategy."""
 
 _IDENTITY = {("X", "X"), ("Y", "Y"), ("Z", "Z")}
