@@ -14,6 +14,7 @@
 
 from collections import defaultdict
 from collections.abc import Hashable, Sequence
+from typing import Literal, get_args
 
 import numpy as np
 
@@ -28,15 +29,23 @@ from .partial_pauli_permutation import (
 _POPCOUNT = np.array([bin(value).count("1") for value in range(256)], dtype=np.uint8)
 """The number of set bits in each possible value of a ``uint8``."""
 
+InstructionSequenceOrder = Literal[
+    "most-constrained-first", "least-constrained-first", "qubitwise-lexicographic", "input"
+]
+"""The order in which instruction sequences are offered to the groups by :func:`merge_groups`."""
+
+MergingStrategy = Literal["first", "most-constrained", "least-impacted"]
+"""Which of the groups a sequence can join :func:`merge_groups` merges it into."""
+
 
 def _merge_candidate_data(sequence: InstructionSequence) -> tuple[Hashable, np.ndarray]:
-    """Return a key and a concatenation of the sequences permutation indices.
+    """Return a key and a concatenation of the sequence's partial permutation indices.
 
     The returned key comes with the following guarantees:
     - If the keys for two instruction sequences are different, then they are not mergeable.
-    - If the keys for two instruction sequences are equal, the concatenation of the permutation
-      indices has the same length, and whether or not they are mergeable is determined completely by
-      the consistency of the permutation indices.
+    - If the keys for two instruction sequences are equal, the concatenation of the partial
+      permutation indices has the same length, and whether or not they are mergeable is determined
+      completely by the consistency of those partial permutation indices.
 
     Args:
         sequence: The sequence to summarize.
@@ -86,62 +95,125 @@ def _completion_masks() -> np.ndarray:
     return (consistency * bits).sum(axis=0).astype(np.uint8)
 
 
-def _group_by_witness(masks: np.ndarray) -> list[list[int]]:
-    """Greedily group rows that admit a common complete permutation in every column.
+def _row_order(masks: np.ndarray, order: InstructionSequenceOrder) -> np.ndarray:
+    """Return the order in which rows are offered to the groups.
 
     Args:
         masks: A ``uint8`` array whose ``[i, j]`` entry is a bitmask of the complete permutations
             that row ``i`` is consistent with in column ``j``.
+        order: The ordering to apply, as documented in ``merge_groups``.
+
+    Returns:
+        The row indices, in the order they are to be visited.
+    """
+    if order == "input":
+        return np.arange(len(masks))
+
+    if order == "qubitwise-lexicographic":
+        # lexsort needs at least one key, and with no columns the rows are interchangeable anyway
+        return np.lexsort(masks.T[::-1]) if masks.shape[1] else np.arange(len(masks))
+
+    # the total number of complete permutations each row admits, negated to sort descending; ties
+    # are broken by row index so that every ordering is a deterministic function of the masks
+    num_admissible = _POPCOUNT[masks].sum(axis=1)
+    if order == "least-constrained-first":
+        num_admissible = -num_admissible
+    return np.argsort(num_admissible, kind="stable")
+
+
+def _group_by_witness(
+    masks: np.ndarray, order: np.ndarray, strategy: MergingStrategy
+) -> list[list[int]]:
+    """Greedily group rows that admit a common complete permutation in every column.
+
+    Rows are visited in ``order`` and each is placed in one of the groups built so far, or opens a
+    new group if it fits in none of them.
+
+    Args:
+        masks: A ``uint8`` array whose ``[i, j]`` entry is a bitmask of the complete permutations
+            that row ``i`` is consistent with in column ``j``.
+        order: The order in which to visit the rows, as returned by ``_row_order``.
+        strategy: How to choose among the groups a row can join, as documented in
+            ``merge_groups``.
 
     Returns:
         The groups of row indices.
     """
-    # seeding each group with the least constrained row available yields substantially fewer groups
-    # than taking the rows in order
-    freedom = _POPCOUNT[masks].sum(axis=1)
-    remaining = np.argsort(-freedom, kind="stable")
+    # the bitmask of complete permutations still admissible in each column, one row per group
+    admissible_completions = np.zeros((0, masks.shape[1]), dtype=np.uint8)
+    groups: list[list[int]] = []
+    for row_idx in order:
+        row = masks[row_idx]
+        # a row may join a group only if every column retains a complete permutation common to both
+        joined = admissible_completions & row
+        feasible = np.flatnonzero(joined.all(axis=1))
 
-    covered = np.zeros(len(masks), dtype=np.bool_)
-    groups = []
-    while len(remaining):
-        group = [int(remaining[0])]
-        admissible = masks[remaining[0]].copy()
-        candidates = remaining[1:]
-        while len(candidates):
-            # a row may join only if every column retains a permutation common to the whole group,
-            # and since ``admissible`` only ever shrinks, the rejected rows can never return
-            candidates = candidates[(admissible & masks[candidates]).all(axis=1)]
-            if not len(candidates):
-                break
+        if not len(feasible):
+            admissible_completions = np.vstack([admissible_completions, row])
+            groups.append([int(row_idx)])
+            continue
 
-            admissible &= masks[candidates[0]]
-            group.append(int(candidates[0]))
-            candidates = candidates[1:]
+        if strategy == "first":
+            pick = feasible[0]
+        else:
+            before = _POPCOUNT[admissible_completions[feasible]].sum(axis=1, dtype=np.int32)
+            key = before
+            if strategy == "least-impacted":
+                key = before - _POPCOUNT[joined[feasible]].sum(axis=1, dtype=np.int32)
+            pick = feasible[np.argmin(key)]
 
-        covered[group] = True
-        remaining = remaining[~covered[remaining]]
-        groups.append(group)
+        admissible_completions[pick] &= row
+        groups[pick].append(int(row_idx))
 
     return groups
 
 
-def merge_groups(sequences: Sequence[InstructionSequence]) -> list[list[int]]:
+def merge_groups(
+    sequences: Sequence[InstructionSequence],
+    instruction_sequence_order: InstructionSequenceOrder = "most-constrained-first",
+    merging_strategy: MergingStrategy = "least-impacted",
+) -> list[list[int]]:
     r"""Group the positions of instruction sequences that can be merged with each other.
 
     The returned groups partition the positions of ``sequences``: every position appears in exactly
     one group, and the sequences within a group can all be merged together, in any order, into a
     single sequence via :meth:`~.InstructionSequence.merge`.
 
-    Sequences are first split by the structure that merging cannot change, such as their gate
-    applications and fragment depths, since sequences differing in it are never mergeable. Within
-    each of those sets, a group is grown by tracking which complete Pauli permutations remain
-    available on every qubit: a sequence may join a group only if some complete permutation is
-    consistent with the whole group, which makes the merge of the entire group well defined.
+    In terms of strategy, the list of sequences is first partitioned into sets such that members
+    from disjoint sets cannot be merged. This is done based on the fragment structure: if
+    corresponding fragments in two instruction sequences do not have the same sequence of gate
+    applications and partial permutations, then they cannot be merged.
 
-    The grouping is greedy, so it is not guaranteed to return the fewest possible groups.
+    Each set is then further partitioned into the returned groups via a family of greedy algorithms.
+    The instruction sequences are ordered according to ``instruction_sequence_order``, and the
+    algorithm iterates over them, merging them into the group according to the strategy in
+    ``merging_strategy``.
+
+    A sequence is called more constrained if it specifies more Pauli mappings.
+    ``instruction_sequence_order`` accepts:
+
+    * ``"most-constrained-first"``: ordered from most-constrained to least-constrained.
+    * ``"least-constrained-first"``: ordered from least-constrained to most-constrained.
+    * ``"qubitwise-lexicographic"``: ordered lexicographically by the bit string indicating which
+      complete permutations implement each partial permutation. E.g. a bit string ``001010``
+      indicates that the complete permutations at indices ``2`` and ``4`` are valid completions.
+      This is a technical condition based on the specific ordering used in
+      ``COMPLETE_TO_C1_TABLEAU``, but it is one of many possible choices for a linear ordering of
+      the instruction sequences based on similarity of completions.
+    * ``"input"``: the order in which they were given.
+
+    ``merging_strategy`` selects which of the groups a sequence can join it is merged into:
+
+    * ``"first"``: the group created earliest.
+    * ``"most-constrained"``: the group that already admits the fewest complete permutations, which
+      leaves the more flexible groups intact for later sequences.
+    * ``"least-impacted"``: the group for which the instruction sequence will reduce the number of
+      completions the least.
 
     Args:
         sequences: The instruction sequences to group.
+        instruction_sequence_order: The order in which to consider the sequences.
+        merging_strategy: How to choose among the groups a sequence can join.
 
     Returns:
         The groups of positions of mergeable sequences.
@@ -149,7 +221,20 @@ def merge_groups(sequences: Sequence[InstructionSequence]) -> list[list[int]]:
     Raises:
         TypeError: If any sequence contains an instruction that is neither a gate application nor a
             partial Pauli permutation.
+        ValueError: If ``instruction_sequence_order`` or ``merging_strategy`` is not one of the
+            documented values.
     """
+    if instruction_sequence_order not in get_args(InstructionSequenceOrder):
+        raise ValueError(
+            f"Unknown instruction_sequence_order {instruction_sequence_order!r}: expected one of "
+            f"{', '.join(map(repr, get_args(InstructionSequenceOrder)))}."
+        )
+    if merging_strategy not in get_args(MergingStrategy):
+        raise ValueError(
+            f"Unknown merging_strategy {merging_strategy!r}: expected one of "
+            f"{', '.join(map(repr, get_args(MergingStrategy)))}."
+        )
+
     candidates: dict[Hashable, list[int]] = defaultdict(list)
     permutation_indices = []
     for idx, sequence in enumerate(sequences):
@@ -161,9 +246,11 @@ def merge_groups(sequences: Sequence[InstructionSequence]) -> list[list[int]]:
 
     groups = []
     for candidate_indices in candidates.values():
-        columns = np.stack([permutation_indices[idx] for idx in candidate_indices])
+        columns = masks[np.stack([permutation_indices[idx] for idx in candidate_indices])]
+        order = _row_order(columns, instruction_sequence_order)
         groups.extend(
-            [candidate_indices[row] for row in rows] for rows in _group_by_witness(masks[columns])
+            [candidate_indices[row] for row in rows]
+            for rows in _group_by_witness(columns, order, merging_strategy)
         )
 
     return groups
