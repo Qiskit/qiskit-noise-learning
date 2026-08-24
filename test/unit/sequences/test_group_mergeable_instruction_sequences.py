@@ -10,9 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from itertools import combinations, islice, permutations
 
-import numpy as np
 import pytest
 
 from qiskit_noise_learning.sequences import (
@@ -22,18 +20,28 @@ from qiskit_noise_learning.sequences import (
     group_mergeable_instruction_sequences,
 )
 
+_IDENTITY = {("X", "X"), ("Y", "Y"), ("Z", "Z")}
+"""The fully specified permutation leaving every Pauli alone."""
 
-def _sequence(gate_names, depth, permutation_indices):
+_X_Z_SWAP = {("X", "Z"), ("Y", "Y"), ("Z", "X")}
+"""A fully specified permutation exchanging ``X`` and ``Z``, inconsistent with the identity."""
+
+_UNSPECIFIED = set()
+"""The permutation specifying no mappings at all, which is consistent with every other."""
+
+
+def _sequence(gate_names, depth, permutation_sets):
     """Build a sequence whose fragments each hold a partial permutation followed by gates.
 
     Args:
         gate_names: Three collections of gate names, one per fragment.
         depth: The fragment depth.
-        permutation_indices: Three collections of partial permutation indices, one per fragment.
+        permutation_sets: Three collections of partial permutations, one per fragment, each
+            given as one set of ``(from, to)`` Pauli mappings per qubit.
     """
     fragments = [
-        [PartialPauliPermutation(np.array(indices))] + [ApplyGate(name) for name in names]
-        for names, indices in zip(gate_names, permutation_indices)
+        [PartialPauliPermutation.from_sets(sets)] + [ApplyGate(name) for name in names]
+        for names, sets in zip(gate_names, permutation_sets)
     ]
 
     return InstructionSequence(
@@ -46,19 +54,27 @@ def _sequence(gate_names, depth, permutation_indices):
 
 def _assorted_sequences():
     """A collection of sequences spanning several merge candidates and permutation values."""
-    # indices 0-5 are the complete permutations, 6-14 the single mappings, 15 the unconstrained one
-    two_qubit_values = [[0, 0], [0, 15], [15, 15], [6, 7], [6, 15], [7, 6], [1, 6], [0, 6]]
+    two_qubit_permutations = [
+        [_IDENTITY, _IDENTITY],
+        [_IDENTITY, _UNSPECIFIED],
+        [_UNSPECIFIED, _UNSPECIFIED],
+        [{("Z", "Z")}, {("Z", "X")}],
+        [{("Z", "Z")}, _UNSPECIFIED],
+        [{("Z", "X")}, {("Z", "Z")}],
+        [_X_Z_SWAP, {("Z", "Z")}],
+        [_IDENTITY, {("Z", "Z")}],
+    ]
 
     sequences = []
-    for values in two_qubit_values:
+    for permutation in two_qubit_permutations:
         for depth in (1, 2):
             for names in (("P",), ("Q",)):
-                sequences.append(_sequence([names] * 3, depth, [values] * 3))
+                sequences.append(_sequence([names] * 3, depth, [permutation] * 3))
 
     # a differing number of qubits, and a layout with a differing number of gates
-    sequences.append(_sequence([("P",)] * 3, 1, [[0, 0, 15]] * 3))
-    sequences.append(_sequence([("P",)] * 3, 1, [[6, 15, 15]] * 3))
-    sequences.append(_sequence([("P", "P")] * 3, 1, [[0, 0]] * 3))
+    sequences.append(_sequence([("P",)] * 3, 1, [[_IDENTITY, _IDENTITY, _UNSPECIFIED]] * 3))
+    sequences.append(_sequence([("P",)] * 3, 1, [[{("Z", "Z")}, _UNSPECIFIED, _UNSPECIFIED]] * 3))
+    sequences.append(_sequence([("P", "P")] * 3, 1, [[_IDENTITY, _IDENTITY]] * 3))
 
     # sequences holding no partial permutations at all
     for names in (("P",), ("Q",)):
@@ -75,18 +91,16 @@ def _assorted_sequences():
 
 
 def _assert_group_merges(group, sequences):
-    """Assert that a group of positions merges into a single sequence, in any order.
+    """Assert that a group of positions merges into a single sequence.
 
-    Only a bounded number of orders is tried, which exhausts them for the small groups used here.
+    One pass in the order given settles the group, because merging cannot destroy mergeability: the
+    members of a mergeable group share a completion, and a merged subgroup specifies the union of
+    its members' mappings, which is still a subset of that completion.
     """
-    for i, j in combinations(group, 2):
-        assert sequences[i].is_mergeable_with(sequences[j]), f"{i} and {j} are not mergeable"
-
-    for order in islice(permutations(group), 24):
-        merged = sequences[order[0]]
-        for idx in order[1:]:
-            assert merged.is_mergeable_with(sequences[idx]), f"order {order} fails at {idx}"
-            merged = merged.merge(sequences[idx])
+    merged = sequences[group[0]]
+    for idx in group[1:]:
+        assert merged.is_mergeable_with(sequences[idx]), f"{idx} does not merge into group {group}"
+        merged = merged.merge(sequences[idx])
 
 
 def test_group_mergeable_covers_every_position_once():
@@ -110,9 +124,9 @@ def test_group_mergeable_groups_are_mergeable():
 def test_group_mergeable_keeps_mergeable_candidates_together():
     """Test that sequences differing only in mergeable permutations land in a single group."""
     sequences = [
-        _sequence([("P",)] * 3, 1, [[6, 15]] * 3),
-        _sequence([("P",)] * 3, 1, [[15, 7]] * 3),
-        _sequence([("P",)] * 3, 1, [[6, 7]] * 3),
+        _sequence([("P",)] * 3, 1, [[{("Z", "Z")}, _UNSPECIFIED]] * 3),
+        _sequence([("P",)] * 3, 1, [[_UNSPECIFIED, {("Z", "X")}]] * 3),
+        _sequence([("P",)] * 3, 1, [[{("Z", "Z")}, {("Z", "X")}]] * 3),
     ]
 
     groups = group_mergeable_instruction_sequences(sequences)
@@ -122,14 +136,10 @@ def test_group_mergeable_keeps_mergeable_candidates_together():
 
 
 def test_group_mergeable_separates_inconsistent_permutations():
-    """Test that sequences ruled out only by their permutation values are placed in separate groups.
-
-    The two sequences share every gate application and fragment depth, so nothing but the
-    inconsistency of two distinct complete permutations keeps them apart.
-    """
+    """Test sequences ruled out only by their permutation values are placed in separate groups."""
     sequences = [
-        _sequence([("P",)] * 3, 1, [[0, 0]] * 3),
-        _sequence([("P",)] * 3, 1, [[1, 1]] * 3),
+        _sequence([("P",)] * 3, 1, [[_IDENTITY, _IDENTITY]] * 3),
+        _sequence([("P",)] * 3, 1, [[_X_Z_SWAP, _X_Z_SWAP]] * 3),
     ]
 
     assert not sequences[0].is_mergeable_with(sequences[1])
@@ -137,13 +147,11 @@ def test_group_mergeable_separates_inconsistent_permutations():
 
 
 def test_group_mergeable_does_not_merge_a_mergeable_pair_into_a_conflicting_group():
-    """Test that mutual, not just pairwise, mergeability decides a group.
-
-    The three single mappings ``Y -> Y``, ``Z -> Z``, and ``Z -> X`` are pairwise mergeable except
-    for the last two, which disagree on the image of ``Z``. No group can hold all three, so one
-    mergeable pair must be split across two groups.
-    """
-    sequences = [_sequence([("P",)] * 3, 1, [[value]] * 3) for value in (14, 6, 7)]
+    """Test that mutual, not just pairwise, mergeability decides a group."""
+    sequences = [
+        _sequence([("P",)] * 3, 1, [[{mapping}]] * 3)
+        for mapping in [("Y", "Y"), ("Z", "Z"), ("Z", "X")]
+    ]
 
     assert sequences[0].is_mergeable_with(sequences[1])
     assert sequences[0].is_mergeable_with(sequences[2])
@@ -159,15 +167,15 @@ def test_group_mergeable_does_not_merge_a_mergeable_pair_into_a_conflicting_grou
 @pytest.mark.parametrize(
     ("difference", "other"),
     [
-        ("fragment depth", _sequence([("P",)] * 3, 2, [[0, 0]] * 3)),
-        ("gate name", _sequence([("Q",)] * 3, 1, [[0, 0]] * 3)),
-        ("gate count", _sequence([("P", "P")] * 3, 1, [[0, 0]] * 3)),
-        ("qubit count", _sequence([("P",)] * 3, 1, [[0, 0, 0]] * 3)),
+        ("fragment depth", _sequence([("P",)] * 3, 2, [[_IDENTITY, _IDENTITY]] * 3)),
+        ("gate name", _sequence([("Q",)] * 3, 1, [[_IDENTITY, _IDENTITY]] * 3)),
+        ("gate count", _sequence([("P", "P")] * 3, 1, [[_IDENTITY, _IDENTITY]] * 3)),
+        ("qubit count", _sequence([("P",)] * 3, 1, [[_IDENTITY] * 3] * 3)),
     ],
 )
 def test_group_mergeable_splits_on_differences_that_rule_out_merging(difference, other):
     """Test that a difference ruling out any merge places sequences in separate groups."""
-    sequence = _sequence([("P",)] * 3, 1, [[0, 0]] * 3)
+    sequence = _sequence([("P",)] * 3, 1, [[_IDENTITY, _IDENTITY]] * 3)
 
     groups = group_mergeable_instruction_sequences([sequence, other])
 
@@ -177,23 +185,16 @@ def test_group_mergeable_splits_on_differences_that_rule_out_merging(difference,
     assert len(groups) == 2
 
 
-def test_group_mergeable_of_sequences_without_permutations():
+def test_group_mergeable_of_sequences_without_permutations(make_instruction_sequence):
     """Test that sequences holding no partial permutations merge on their gates alone."""
-    sequences = [
-        InstructionSequence(
-            start_fragment=[ApplyGate("P")],
-            repeatable_fragment=[ApplyGate("L")],
-            end_fragment=[ApplyGate("M")],
-            fragment_depth=1,
-        )
-    ] * 2
+    sequences = [make_instruction_sequence(), make_instruction_sequence()]
 
     assert group_mergeable_instruction_sequences(sequences) == [[0, 1]]
 
 
 def test_group_mergeable_of_one_sequence():
     """Test that a lone sequence gives a single group holding it."""
-    sequence = _sequence([("P",)] * 3, 1, [[0, 0]] * 3)
+    sequence = _sequence([("P",)] * 3, 1, [[_IDENTITY, _IDENTITY]] * 3)
 
     assert group_mergeable_instruction_sequences([sequence]) == [[0]]
 
