@@ -17,6 +17,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from qiskit_noise_learning.sequences import (
+    DEFAULT_GROUPING_STRATEGIES,
+    GroupingStrategy,
     InstructionSequence,
     group_mergeable_instruction_sequences,
 )
@@ -31,13 +33,22 @@ class MergeInstructionSequences(ExperimentBuilderStage):
     The sequences that can be merged with each other are grouped together by
     :func:`~.group_mergeable_instruction_sequences`, and every group is merged into a single
     sequence.
+
+    Args:
+        grouping_strategies: The grouping strategies to take the fewest groups found by any of, as
+            documented in :func:`~.group_mergeable_instruction_sequences`.
     """
 
     required_fields = ("instruction_sequences", "randomization_multipliers", "relations")
 
+    def __init__(
+        self, grouping_strategies: Sequence[GroupingStrategy] = DEFAULT_GROUPING_STRATEGIES
+    ):
+        self._grouping_strategies = grouping_strategies
+
     def _run(self, experiment: Experiment) -> Experiment:
         new_sequences, merged_indices = _minimize_instruction_sequences(
-            experiment.instruction_sequences
+            experiment.instruction_sequences, self._grouping_strategies
         )
         new_relations = {
             (path_idx, merged_indices[inst_idx]) for path_idx, inst_idx in experiment.relations
@@ -58,11 +69,13 @@ class MergeInstructionSequences(ExperimentBuilderStage):
 
 def _minimize_instruction_sequences(
     sequences: Sequence[InstructionSequence],
+    grouping_strategies: Sequence[GroupingStrategy],
 ) -> tuple[list[InstructionSequence], dict[int, int]]:
     """Return a smaller list of instruction sequences by merging the mergeable ones together.
 
     Args:
         sequences: The sequences to merge.
+        grouping_strategies: The grouping strategies to take the fewest groups found by any of.
 
     Returns:
         A reduced list of instruction sequences, and a dictionary from the index of each input
@@ -70,7 +83,7 @@ def _minimize_instruction_sequences(
     """
     minimized_sequences = []
     merged_indices = {}
-    for group in group_mergeable_instruction_sequences(sequences):
+    for group in group_mergeable_instruction_sequences(sequences, grouping_strategies):
         merged = sequences[group[0]]
         for idx in group[1:]:
             merged = merged.merge(sequences[idx])

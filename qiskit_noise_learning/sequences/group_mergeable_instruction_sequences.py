@@ -57,6 +57,16 @@ InstructionSequenceOrder = Literal[
 MergingStrategy = Literal["first", "most-constrained", "least-impacted"]
 """Which of the groups a sequence can join :func:`group_mergeable_instruction_sequences` picks."""
 
+GroupingStrategy = tuple[InstructionSequenceOrder, MergingStrategy]
+"""An instruction sequence order paired with a merging strategy, specifying a full strategy."""
+
+DEFAULT_GROUPING_STRATEGIES: tuple[GroupingStrategy, ...] = (
+    ("most-constrained-first", "least-impacted"),
+    ("least-constrained-first", "first"),
+    ("qubitwise-lexicographic", "most-constrained"),
+)
+"""Default startegies for :func:`group_mergeable_instruction_sequences`, empirically determined."""
+
 
 def _merge_candidate_data(sequence: InstructionSequence) -> tuple[Hashable, np.ndarray]:
     """Return a key and a concatenation of the sequence's partial permutation indices.
@@ -141,6 +151,41 @@ def _row_order(masks: np.ndarray, order: InstructionSequenceOrder) -> np.ndarray
     return np.argsort(num_admissible, kind="stable")
 
 
+def _validate_grouping_strategies(grouping_strategies: Sequence[GroupingStrategy]) -> None:
+    """Check that each grouping strategy pairs a known order with a known merging strategy.
+
+    Args:
+        grouping_strategies: The grouping strategies to check.
+
+    Raises:
+        ValueError: If no grouping strategies are given, or if any of them is not a pairing of a
+            documented instruction sequence order with a documented merging strategy.
+    """
+    if not grouping_strategies:
+        raise ValueError("At least one grouping strategy is required, but none were given.")
+
+    for grouping_strategy in grouping_strategies:
+        if len(grouping_strategy) != 2:
+            raise ValueError(
+                f"Invalid grouping strategy {grouping_strategy!r}: expected an instruction "
+                f"sequence order paired with a merging strategy."
+            )
+
+        order, merging_strategy = grouping_strategy
+        if order not in get_args(InstructionSequenceOrder):
+            raise ValueError(
+                f"Unknown instruction sequence order {order!r} in grouping strategy "
+                f"{grouping_strategy!r}: expected one of "
+                f"{', '.join(map(repr, get_args(InstructionSequenceOrder)))}."
+            )
+        if merging_strategy not in get_args(MergingStrategy):
+            raise ValueError(
+                f"Unknown merging strategy {merging_strategy!r} in grouping strategy "
+                f"{grouping_strategy!r}: expected one of "
+                f"{', '.join(map(repr, get_args(MergingStrategy)))}."
+            )
+
+
 def _group_by_shared_completion(
     masks: np.ndarray, order: np.ndarray, strategy: MergingStrategy
 ) -> list[list[int]]:
@@ -190,8 +235,7 @@ def _group_by_shared_completion(
 
 def group_mergeable_instruction_sequences(
     sequences: Sequence[InstructionSequence],
-    instruction_sequence_order: InstructionSequenceOrder = "most-constrained-first",
-    merging_strategy: MergingStrategy = "least-impacted",
+    grouping_strategies: Sequence[GroupingStrategy] = DEFAULT_GROUPING_STRATEGIES,
 ) -> list[list[int]]:
     r"""Group the positions of instruction sequences that can be merged with each other.
 
@@ -205,12 +249,15 @@ def group_mergeable_instruction_sequences(
     applications and partial permutations, then they cannot be merged.
 
     Each set is then further partitioned into the returned groups via a family of greedy algorithms.
-    The instruction sequences are ordered according to ``instruction_sequence_order``, and the
-    algorithm iterates over them, merging them into the group according to the strategy in
-    ``merging_strategy``.
+    A single member of this family is specified by a grouping strategy, which pairs an order to
+    visit the instruction sequences in with a strategy for choosing which group to merge each one
+    into. Every grouping strategy in ``grouping_strategies`` is applied to every set, and the fewest
+    groups found for a set are the ones returned for it, ties going to the earlier strategy. Because
+    the sets are treated independently, supplying an additional grouping strategy can only decrease
+    the total number of groups returned.
 
-    A sequence is called more constrained if it specifies more Pauli mappings.
-    ``instruction_sequence_order`` accepts:
+    A sequence is called more constrained if it specifies more Pauli mappings. The first entry of a
+    grouping strategy, the order to visit the instruction sequences in, is one of:
 
     * ``"most-constrained-first"``: ordered from most-constrained to least-constrained.
     * ``"least-constrained-first"``: ordered from least-constrained to most-constrained.
@@ -220,7 +267,7 @@ def group_mergeable_instruction_sequences(
       many possible orderings that place sequences specifying similar mappings near each other.
     * ``"input"``: the order in which they were given.
 
-    ``merging_strategy`` selects which of the groups a sequence can join it is merged into:
+    The second entry selects which of the groups a sequence can join it is merged into:
 
     * ``"first"``: the group created earliest.
     * ``"most-constrained"``: the group that already admits the fewest complete permutations, which
@@ -230,8 +277,7 @@ def group_mergeable_instruction_sequences(
 
     Args:
         sequences: The instruction sequences to group.
-        instruction_sequence_order: The order in which to consider the sequences.
-        merging_strategy: How to choose among the groups a sequence can join.
+        grouping_strategies: The grouping strategies to take the fewest groups found by any of.
 
     Returns:
         The groups of positions of mergeable sequences.
@@ -239,19 +285,10 @@ def group_mergeable_instruction_sequences(
     Raises:
         TypeError: If any sequence contains an instruction that is neither a gate application nor a
             partial Pauli permutation.
-        ValueError: If ``instruction_sequence_order`` or ``merging_strategy`` is not one of the
-            documented values.
+        ValueError: If ``grouping_strategies`` is empty, or if any of its entries is not a pairing
+            of a documented instruction sequence order with a documented merging strategy.
     """
-    if instruction_sequence_order not in get_args(InstructionSequenceOrder):
-        raise ValueError(
-            f"Unknown instruction_sequence_order {instruction_sequence_order!r}: expected one of "
-            f"{', '.join(map(repr, get_args(InstructionSequenceOrder)))}."
-        )
-    if merging_strategy not in get_args(MergingStrategy):
-        raise ValueError(
-            f"Unknown merging_strategy {merging_strategy!r}: expected one of "
-            f"{', '.join(map(repr, get_args(MergingStrategy)))}."
-        )
+    _validate_grouping_strategies(grouping_strategies)
 
     candidates: dict[Hashable, list[int]] = defaultdict(list)
     permutation_indices = []
@@ -265,10 +302,14 @@ def group_mergeable_instruction_sequences(
     groups = []
     for candidate_indices in candidates.values():
         columns = masks[np.stack([permutation_indices[idx] for idx in candidate_indices])]
-        order = _row_order(columns, instruction_sequence_order)
-        groups.extend(
-            [candidate_indices[row] for row in rows]
-            for rows in _group_by_shared_completion(columns, order, merging_strategy)
+        # every strategy is applied to each set of merge candidates separately
+        fewest = min(
+            (
+                _group_by_shared_completion(columns, _row_order(columns, order), merging_strategy)
+                for order, merging_strategy in grouping_strategies
+            ),
+            key=len,
         )
+        groups.extend([candidate_indices[row] for row in rows] for rows in fewest)
 
     return groups

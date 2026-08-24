@@ -11,14 +11,22 @@
 # that they have been altered from the originals.
 
 
+from itertools import product
+from typing import get_args
+
 import pytest
 
 from qiskit_noise_learning.sequences import (
+    DEFAULT_GROUPING_STRATEGIES,
     ApplyGate,
+    GroupingStrategy,
     InstructionSequence,
     PartialPauliPermutation,
     group_mergeable_instruction_sequences,
 )
+
+_ALL_GROUPING_STRATEGIES = list(product(*(get_args(entry) for entry in get_args(GroupingStrategy))))
+"""Every pairing of a documented instruction sequence order with a documented merging strategy."""
 
 _IDENTITY = {("X", "X"), ("Y", "Y"), ("Z", "Z")}
 """The fully specified permutation leaving every Pauli alone."""
@@ -119,6 +127,49 @@ def test_group_mergeable_groups_are_mergeable():
 
     for group in group_mergeable_instruction_sequences(sequences):
         _assert_group_merges(group, sequences)
+
+
+@pytest.mark.parametrize("grouping_strategy", _ALL_GROUPING_STRATEGIES)
+def test_group_mergeable_with_a_single_grouping_strategy(grouping_strategy):
+    """Test that each documented grouping strategy alone partitions into mergeable groups."""
+    sequences = _assorted_sequences()
+
+    groups = group_mergeable_instruction_sequences(sequences, [grouping_strategy])
+
+    assert sorted(idx for group in groups for idx in group) == list(range(len(sequences)))
+    for group in groups:
+        _assert_group_merges(group, sequences)
+
+
+def test_group_mergeable_takes_the_fewest_groups_of_its_strategies():
+    """Test that several strategies give no more groups than the best of them does alone."""
+    sequences = _assorted_sequences()
+
+    combined = group_mergeable_instruction_sequences(sequences, _ALL_GROUPING_STRATEGIES)
+
+    for grouping_strategy in _ALL_GROUPING_STRATEGIES:
+        alone = group_mergeable_instruction_sequences(sequences, [grouping_strategy])
+        assert len(combined) <= len(alone)
+
+
+def test_group_mergeable_default_strategies_are_a_documented_pairing():
+    """Test that every default grouping strategy is one of the documented pairings."""
+    assert set(DEFAULT_GROUPING_STRATEGIES) <= set(_ALL_GROUPING_STRATEGIES)
+
+
+@pytest.mark.parametrize(
+    ("grouping_strategies", "message"),
+    [
+        ([], "At least one grouping strategy is required"),
+        ([("nonsense", "first")], "Unknown instruction sequence order 'nonsense'"),
+        ([("input", "nonsense")], "Unknown merging strategy 'nonsense'"),
+        ([("input", "first", "surplus")], "Invalid grouping strategy"),
+    ],
+)
+def test_group_mergeable_raises_on_invalid_grouping_strategies(grouping_strategies, message):
+    """Test that grouping strategies that are not documented pairings are rejected."""
+    with pytest.raises(ValueError, match=message):
+        group_mergeable_instruction_sequences([], grouping_strategies)
 
 
 def test_group_mergeable_keeps_mergeable_candidates_together():
