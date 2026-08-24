@@ -65,7 +65,7 @@ DEFAULT_GROUPING_STRATEGIES: tuple[GroupingStrategy, ...] = (
     ("least-constrained-first", "first"),
     ("qubitwise-lexicographic", "most-constrained"),
 )
-"""Default startegies for :func:`group_mergeable_instruction_sequences`, empirically determined."""
+"""Default strategies for :func:`group_mergeable_instruction_sequences`, empirically determined."""
 
 
 def _merge_candidate_data(sequence: InstructionSequence) -> tuple[Hashable, np.ndarray]:
