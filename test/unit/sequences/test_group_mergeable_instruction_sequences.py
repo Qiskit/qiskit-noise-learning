@@ -114,7 +114,7 @@ def test_group_mergeable_covers_every_position_once():
 
 
 def test_group_mergeable_groups_are_mergeable():
-    """Test that the sequences within each group merge into a single sequence, in any order."""
+    """Test that the sequences within each group merge into a single sequence."""
     sequences = _assorted_sequences()
 
     for group in group_mergeable_instruction_sequences(sequences):
@@ -133,17 +133,6 @@ def test_group_mergeable_keeps_mergeable_candidates_together():
 
     assert len(groups) == 1
     assert sorted(groups[0]) == [0, 1, 2]
-
-
-def test_group_mergeable_separates_inconsistent_permutations():
-    """Test sequences ruled out only by their permutation values are placed in separate groups."""
-    sequences = [
-        _sequence([("P",)] * 3, 1, [[_IDENTITY, _IDENTITY]] * 3),
-        _sequence([("P",)] * 3, 1, [[_X_Z_SWAP, _X_Z_SWAP]] * 3),
-    ]
-
-    assert not sequences[0].is_mergeable_with(sequences[1])
-    assert len(group_mergeable_instruction_sequences(sequences)) == 2
 
 
 def test_group_mergeable_does_not_merge_a_mergeable_pair_into_a_conflicting_group():
@@ -167,6 +156,7 @@ def test_group_mergeable_does_not_merge_a_mergeable_pair_into_a_conflicting_grou
 @pytest.mark.parametrize(
     ("difference", "other"),
     [
+        ("permutation values", _sequence([("P",)] * 3, 1, [[_X_Z_SWAP, _X_Z_SWAP]] * 3)),
         ("fragment depth", _sequence([("P",)] * 3, 2, [[_IDENTITY, _IDENTITY]] * 3)),
         ("gate name", _sequence([("Q",)] * 3, 1, [[_IDENTITY, _IDENTITY]] * 3)),
         ("gate count", _sequence([("P", "P")] * 3, 1, [[_IDENTITY, _IDENTITY]] * 3)),
@@ -177,12 +167,8 @@ def test_group_mergeable_splits_on_differences_that_rule_out_merging(difference,
     """Test that a difference ruling out any merge places sequences in separate groups."""
     sequence = _sequence([("P",)] * 3, 1, [[_IDENTITY, _IDENTITY]] * 3)
 
-    groups = group_mergeable_instruction_sequences([sequence, other])
-
-    assert not sequence.is_mergeable_with(
-        other
-    ), f"expected differing {difference} to block merging"
-    assert len(groups) == 2
+    assert not sequence.is_mergeable_with(other), f"differing {difference} must block merging"
+    assert len(group_mergeable_instruction_sequences([sequence, other])) == 2
 
 
 def test_group_mergeable_of_sequences_without_permutations(make_instruction_sequence):
