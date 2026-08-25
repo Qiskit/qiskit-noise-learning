@@ -98,6 +98,7 @@ class InstructionSequence(BaseSequence[Instruction]):
         """A hashable summary of the instruction structure of this sequence.
 
         This key comes with the following guarantees:
+
         * If two instruction sequences have different keys, they are not mergeable.
         * If two instruction sequences have the same key, they have the same fragment depth, and
           their fragments contain the same sequence of instruction types on the same qubits.

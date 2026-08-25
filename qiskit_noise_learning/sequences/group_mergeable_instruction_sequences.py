@@ -38,6 +38,7 @@ from typing import Literal, NamedTuple, get_args
 
 import numpy as np
 
+from .apply_gate import ApplyGate
 from .instruction_sequence import InstructionSequence
 from .partial_pauli_permutation import (
     NUM_COMPLETE_PERMUTATIONS,
@@ -78,6 +79,32 @@ DEFAULT_GROUPING_STRATEGIES: tuple[GroupingStrategy, ...] = (
     GroupingStrategy("qubitwise-lexicographic", "most-constrained"),
 )
 """Default strategies for :func:`group_mergeable_instruction_sequences`, empirically determined."""
+
+
+def _validate_instruction_types(sequence: InstructionSequence) -> None:
+    """Validate that a sequence contains only instructions this grouping algorithm understands.
+
+    The algorithm assumes that sequences sharing a structure key are mergeable exactly when their
+    partial Pauli permutations are consistent. That holds for gate applications, whose mergeability
+    is decided entirely by their structure tokens, but an arbitrary instruction type may be
+    unmergeable with another one carrying the same token, which would put it in the same group
+    without its mergeability ever being consulted.
+
+    Args:
+        sequence: The sequence to validate.
+
+    Raises:
+        TypeError: If the sequence contains an instruction that is neither a gate application nor a
+            partial Pauli permutation.
+    """
+    for fragment in (sequence.start_fragment, sequence.repeatable_fragment, sequence.end_fragment):
+        for instr in fragment:
+            if not isinstance(instr, ApplyGate | PartialPauliPermutation):
+                raise TypeError(
+                    f"Cannot group instruction sequences containing {type(instr).__name__} "
+                    "instructions: only gate applications and partial Pauli permutations are "
+                    "supported."
+                )
 
 
 def _permutation_indices(sequence: InstructionSequence) -> np.ndarray:
@@ -284,6 +311,7 @@ def group_mergeable_instruction_sequences(
     candidates: dict[Hashable, list[int]] = defaultdict(list)
     permutation_indices = []
     for idx, sequence in enumerate(sequences):
+        _validate_instruction_types(sequence)
         candidates[sequence.structure_key].append(idx)
         permutation_indices.append(_permutation_indices(sequence))
 
