@@ -291,6 +291,8 @@ def group_mergeable_instruction_sequences(
 
     groups = []
     for candidate_indices in candidates.values():
+        # the stack requires equal-length rows, which holds because the structure key records the
+        # number of qubits of each partial permutation
         columns = masks[np.stack([permutation_indices[idx] for idx in candidate_indices])]
         # every strategy is applied to each set of merge candidates separately
         fewest = min(
