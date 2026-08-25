@@ -394,19 +394,19 @@ def test_keys_are_hashable(variants):
     assert len({(v.gate_key, v.structure_key) for v in variants.values()}) == len(variants) - 1
 
 
-def test_structure_key_raises_on_unsupported_instruction():
-    """Test that an instruction that is neither a gate nor a partial permutation is rejected."""
+def test_structure_key_raises_on_non_instruction():
+    """Test that an object that is not an instruction at all is rejected."""
 
-    class UnsupportedInstruction:
-        """A stand-in for an instruction type the keys do not know about."""
+    class NotAnInstruction:
+        """A stand-in for an object that carries no structure token."""
 
-    sequence = _sequence([ApplyGate("P"), UnsupportedInstruction()])
+    sequence = _sequence([ApplyGate("P"), NotAnInstruction()])
 
-    with pytest.raises(TypeError, match="UnsupportedInstruction"):
+    with pytest.raises(TypeError, match="NotAnInstruction"):
         _ = sequence.structure_key
 
-    # gate_key ignores instructions it does not recognize
-    assert sequence.gate_key == (None, ("P",), ("L0", "L1"), ("M",))
+    # gate_key sees only the gate applications, so it ignores the object entirely
+    assert sequence.gate_key == _sequence([ApplyGate("P")]).gate_key
 
 
 def test_bind_at():

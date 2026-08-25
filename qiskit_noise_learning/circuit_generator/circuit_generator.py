@@ -12,7 +12,7 @@
 
 import abc
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Hashable, Sequence
 from typing import Generic, TypeVar
 
 from qiskit_noise_learning.analysis.fit import Fit
@@ -55,9 +55,9 @@ class CircuitGenerator(abc.ABC, Generic[TaskT, DataMapperT, ResultT]):
             sequences: The instruction sequences to partition.
 
         Returns:
-            The groups of positions of sequences with the same gates.
+            The groups of positions of sequences that can share a generation output.
         """
-        groups: dict[tuple, list[int]] = defaultdict(list)
+        groups: dict[Hashable, list[int]] = defaultdict(list)
         for idx, sequence in enumerate(sequences):
             groups[sequence.gate_key].append(idx)
         return list(groups.values())

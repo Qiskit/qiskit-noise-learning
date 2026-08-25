@@ -12,6 +12,7 @@
 
 """ApplyGate"""
 
+from collections.abc import Hashable
 from typing import Self
 
 from .instruction import Instruction
@@ -36,6 +37,10 @@ class ApplyGate(Instruction):
     def is_complete(self) -> bool:
         """Apply gate instructions are always complete."""
         return True
+
+    @property
+    def structure_token(self) -> Hashable:
+        return ("gate", self._gate_name)
 
     def complete(self) -> Self:
         """Returns self."""

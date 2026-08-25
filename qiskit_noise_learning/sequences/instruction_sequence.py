@@ -12,12 +12,12 @@
 
 """InstructionSequence"""
 
+from collections.abc import Hashable
 from typing import Self
 
 from .apply_gate import ApplyGate
 from .base_sequence import BaseSequence
 from .instruction import Instruction
-from .partial_pauli_permutation import PartialPauliPermutation
 
 
 def _gate_tokens(fragment: list[Instruction]) -> tuple:
@@ -26,30 +26,25 @@ def _gate_tokens(fragment: list[Instruction]) -> tuple:
 
 
 def _structure_tokens(fragment: list[Instruction]) -> tuple:
-    """Return a token summarizing each instruction of a fragment, in order.
+    """Return the structure token of each instruction of a fragment, in order.
 
     Args:
         fragment: The fragment to summarize.
 
     Returns:
-        One token per instruction, naming the gate applied or the number of qubits permuted.
+        One structure token per instruction.
 
     Raises:
-        TypeError: If the fragment contains an instruction that is neither a gate application nor a
-            partial Pauli permutation.
+        TypeError: If the fragment contains an object that is not an instruction.
     """
     tokens = []
     for instr in fragment:
-        if isinstance(instr, ApplyGate):
-            tokens.append(("gate", instr.gate_name))
-        elif isinstance(instr, PartialPauliPermutation):
-            tokens.append(("permutation", instr.num_qubits))
-        else:
+        if not isinstance(instr, Instruction):
             raise TypeError(
                 "Cannot summarize the structure of instruction sequences containing "
-                f"{type(instr).__name__} instructions: only gate applications and partial "
-                "Pauli permutations are supported."
+                f"{type(instr).__name__} objects, which are not instructions."
             )
+        tokens.append(instr.structure_token)
     return tuple(tokens)
 
 
@@ -83,13 +78,13 @@ class InstructionSequence(BaseSequence[Instruction]):
         )
 
     @property
-    def gate_key(self) -> tuple:
+    def gate_key(self) -> Hashable:
         """A hashable summary of the gate applications in this instruction sequence.
 
-        The key consists of the fragment depth together with the name of each gate applied in each
-        fragment, in order, ignoring every other instruction. Two instruction sequences therefore
-        have equal gate keys exactly when they apply the same gates at the same fragment depth,
-        however else they differ.
+        Two instruction sequences have equal gate keys exactly when they have the same fragment
+        depth and each of their fragments applies the same gates in the same order, however else
+        they differ; every instruction that is not a gate application is ignored. The value itself
+        is opaque, with only equality and hashability guaranteed.
         """
         return (
             self.fragment_depth,
@@ -99,18 +94,16 @@ class InstructionSequence(BaseSequence[Instruction]):
         )
 
     @property
-    def structure_key(self) -> tuple:
-        """A hashable summary of the instruction structure of this instruction sequence.
+    def structure_key(self) -> Hashable:
+        """A hashable summary of the instruction structure of this sequence.
 
-        This key refines :attr:`gate_key` by also recording the position and number of qubits of
-        every partial Pauli permutation. Instruction sequences with different structure keys are
-        never mergeable, so :meth:`is_mergeable_with` need only be considered among sequences
-        sharing one. Equal structure keys further imply that the sequences specify Pauli mappings
-        on the same numbers of qubits, in the same order.
+        This key comes with the following guarantees:
+        * If two instruction sequences have different keys, they are not mergeable.
+        * If two instruction sequences have the same key, they have the same fragment depth, and
+          their fragments contain the same sequence of instruction types on the same qubits.
 
         Raises:
-            TypeError: If this instruction sequence contains an instruction that is neither a gate
-                application nor a partial Pauli permutation.
+            TypeError: If this instruction sequence contains an object that is not an instruction.
         """
         return (
             self.fragment_depth,

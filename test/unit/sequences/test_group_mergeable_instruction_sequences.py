@@ -335,18 +335,18 @@ def test_group_mergeable_of_no_sequences():
     assert group_mergeable_instruction_sequences([]) == []
 
 
-def test_group_mergeable_raises_on_unsupported_instruction():
-    """Test that an instruction that is neither a gate nor a partial permutation is rejected."""
+def test_group_mergeable_raises_on_non_instruction():
+    """Test that an object that is not an instruction at all is rejected."""
 
-    class UnsupportedInstruction:
-        """A stand-in for an instruction type the grouping does not know about."""
+    class NotAnInstruction:
+        """A stand-in for an object that carries no structure token."""
 
     sequence = InstructionSequence(
-        start_fragment=[UnsupportedInstruction()],
+        start_fragment=[NotAnInstruction()],
         repeatable_fragment=[ApplyGate("L")],
         end_fragment=[ApplyGate("M")],
         fragment_depth=1,
     )
 
-    with pytest.raises(TypeError, match="UnsupportedInstruction"):
+    with pytest.raises(TypeError, match="NotAnInstruction"):
         group_mergeable_instruction_sequences([sequence])

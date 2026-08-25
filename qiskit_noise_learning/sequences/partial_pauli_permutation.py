@@ -14,6 +14,7 @@
 """PartialPauliPermutation"""
 
 import functools
+from collections.abc import Hashable
 from itertools import combinations, product
 from types import MappingProxyType
 from typing import Self, overload
@@ -421,6 +422,10 @@ class PartialPauliPermutation(Instruction):
     def partial_permutation_indices(self) -> NDArray[np.int8]:
         """Raw numerical format of the partial permutation."""
         return self._partial_permutation_indices
+
+    @property
+    def structure_token(self) -> Hashable:
+        return ("permutation", self.num_qubits)
 
     def complete(self) -> Self:
         """Return a new partial Permutation that is complete and consistent with self.

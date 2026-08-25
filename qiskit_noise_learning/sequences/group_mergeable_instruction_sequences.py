@@ -33,7 +33,7 @@ by partial permutation index. This representation has the following properties:
 """
 
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Hashable, Sequence
 from typing import Literal, NamedTuple, get_args
 
 import numpy as np
@@ -281,7 +281,7 @@ def group_mergeable_instruction_sequences(
         grouping_strategies = DEFAULT_GROUPING_STRATEGIES
     _validate_grouping_strategies(grouping_strategies)
 
-    candidates: dict[tuple, list[int]] = defaultdict(list)
+    candidates: dict[Hashable, list[int]] = defaultdict(list)
     permutation_indices = []
     for idx, sequence in enumerate(sequences):
         candidates[sequence.structure_key].append(idx)
