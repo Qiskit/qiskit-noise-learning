@@ -64,6 +64,38 @@ class TestMergeInstructionSequences:
         for path in paths:
             assert path.is_traversed_by(result.instruction_sequences[0])
 
+    def test_given_grouping_strategies_are_used(self, gate_set_cz, make_cz_path):
+        """A single explicitly given grouping strategy still merges a mutually mergeable set."""
+        paths = [make_cz_path(label) for label in ["IX", "XI", "XX"]]
+        exp = Experiment(
+            fidelity_model=gate_set_cz,
+            paths=paths,
+            instruction_sequences=[path.to_instruction_sequence() for path in paths],
+            relations={(0, 0), (1, 1), (2, 2)},
+            randomization_multipliers=[1, 1, 1],
+        )
+        stage = MergeInstructionSequences(grouping_strategies=[("input", "first")])
+
+        result = stage.run(exp)
+
+        assert len(result.instruction_sequences) == 1
+        assert result.relations == {(0, 0), (1, 0), (2, 0)}
+
+    def test_invalid_grouping_strategy_raises(self, gate_set_cz, make_cz_path):
+        """An unusable grouping strategy is reported rather than silently ignored."""
+        path = make_cz_path("IX")
+        exp = Experiment(
+            fidelity_model=gate_set_cz,
+            paths=[path],
+            instruction_sequences=[path.to_instruction_sequence()],
+            relations={(0, 0)},
+            randomization_multipliers=[1],
+        )
+        stage = MergeInstructionSequences(grouping_strategies=[("input", "nonsense")])
+
+        with pytest.raises(ValueError, match="Unknown merging strategy 'nonsense'"):
+            stage.run(exp)
+
     def test_incompatible_sequences_not_merged(self, gate_set_1q):
         """Sequences with different gate structures cannot be merged."""
         path1 = Path(
@@ -159,3 +191,33 @@ class TestMergeInstructionSequences:
 
         assert len(result.instruction_sequences) == 1
         assert result.relations == {(0, 0)}
+
+    def test_groups_that_cannot_merge_are_minimized_independently(self, gate_set_cz, make_cz_path):
+        """Sequences merge fully within each group of non-mergeable groups, and not across them."""
+        # the same three mutually mergeable paths at two different fragment depths: everything
+        # merges within a depth, and nothing merges across depths
+        unbound_paths = [make_cz_path(label) for label in ["IX", "XI", "XX"]]
+        paths = unbound_paths + [path.bind_at(2) for path in unbound_paths]
+        exp = Experiment(
+            fidelity_model=gate_set_cz,
+            paths=paths,
+            instruction_sequences=[path.to_instruction_sequence() for path in paths],
+            relations={(idx, idx) for idx in range(len(paths))},
+            randomization_multipliers=[1, 1, 5, 3, 1, 1],
+        )
+        result = MergeInstructionSequences().run(exp)
+
+        assert len(result.instruction_sequences) == 2
+
+        sequence_of_path = dict(result.relations)
+        assert len(sequence_of_path) == len(paths)
+        assert sequence_of_path[0] == sequence_of_path[1] == sequence_of_path[2]
+        assert sequence_of_path[3] == sequence_of_path[4] == sequence_of_path[5]
+        assert sequence_of_path[0] != sequence_of_path[3]
+
+        # every path is still traversed by the sequence it was merged into, and each merged
+        # sequence carries the largest multiplier of its group
+        for path_idx, sequence_idx in sequence_of_path.items():
+            assert paths[path_idx].is_traversed_by(result.instruction_sequences[sequence_idx])
+        assert result.randomization_multipliers[sequence_of_path[0]] == 5
+        assert result.randomization_multipliers[sequence_of_path[3]] == 3

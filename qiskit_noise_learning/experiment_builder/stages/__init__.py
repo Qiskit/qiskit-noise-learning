@@ -15,7 +15,7 @@
 from .bind_fragment_depths import BindFragmentDepths
 from .complete_sequences import CompleteSequences
 from .identify_relations import IdentifyRelations
-from .merge_sequences import MergeInstructionSequences
+from .merge_instruction_sequences import MergeInstructionSequences
 from .path_generators import (
     AddPaths,
     Depth1Paths,

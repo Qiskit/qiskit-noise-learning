@@ -307,9 +307,9 @@ class ExecutorCircuitGenerator(
                 samplex_arguments[f"local_cliffords.{ref}"] = this_arg
 
         for idx, following_sequence in enumerate(instruction_sequences[1:]):
-            if not first_sequence.has_same_structure_as(following_sequence):
+            if not first_sequence.has_same_gates_as(following_sequence):
                 raise ValueError(
-                    "Instruction sequences require the same structure to be generated together."
+                    "Instruction sequences require the same gates to be generated together."
                 )
 
             current_permutation = PartialPauliPermutation([0] * self.gate_set.num_qubits)

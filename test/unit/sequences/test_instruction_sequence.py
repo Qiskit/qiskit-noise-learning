@@ -303,8 +303,8 @@ def test_complete_preserves_depth():
     assert seq.complete().fragment_depth == 7
 
 
-def test_has_same_structure_as():
-    """Test has_same_structure_as for InstructionSequence."""
+def test_has_same_gates_as():
+    """Test has_same_gates_as for InstructionSequence."""
 
     seq0 = InstructionSequence(
         start_fragment=[
@@ -336,7 +336,7 @@ def test_has_same_structure_as():
             ApplyGate("M"),
         ],
     )
-    assert seq0.has_same_structure_as(seq1)
+    assert seq0.has_same_gates_as(seq1)
 
     # different gate label in repeatable_fragment
     seq2 = InstructionSequence(
@@ -353,7 +353,7 @@ def test_has_same_structure_as():
             ApplyGate("M"),
         ],
     )
-    assert not seq0.has_same_structure_as(seq2)
+    assert not seq0.has_same_gates_as(seq2)
 
     # different gate label in start_fragment
     seq3 = InstructionSequence(
@@ -370,7 +370,7 @@ def test_has_same_structure_as():
             ApplyGate("M"),
         ],
     )
-    assert not seq0.has_same_structure_as(seq3)
+    assert not seq0.has_same_gates_as(seq3)
 
     # different number of gates in repeatable_fragment
     seq4 = InstructionSequence(
@@ -384,11 +384,11 @@ def test_has_same_structure_as():
             ApplyGate("M"),
         ],
     )
-    assert not seq0.has_same_structure_as(seq4)
+    assert not seq0.has_same_gates_as(seq4)
 
 
-def test_has_same_structure_as_depth():
-    """Test that has_same_structure_as requires matching fragment_depths."""
+def test_has_same_gates_as_depth():
+    """Test that has_same_gates_as requires matching fragment_depths."""
 
     seq0 = InstructionSequence(
         start_fragment=[ApplyGate("P")],
@@ -402,7 +402,7 @@ def test_has_same_structure_as_depth():
         end_fragment=[ApplyGate("M")],
         fragment_depth=4,
     )
-    assert not seq0.has_same_structure_as(seq1)
+    assert not seq0.has_same_gates_as(seq1)
 
     seq2 = InstructionSequence(
         start_fragment=[ApplyGate("P")],
@@ -410,7 +410,7 @@ def test_has_same_structure_as_depth():
         end_fragment=[ApplyGate("M")],
         fragment_depth=3,
     )
-    assert seq0.has_same_structure_as(seq2)
+    assert seq0.has_same_gates_as(seq2)
 
 
 def test_bind_at():
