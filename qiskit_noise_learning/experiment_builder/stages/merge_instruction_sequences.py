@@ -20,10 +20,7 @@ from qiskit_noise_learning.sequences import (
     InstructionSequence,
     group_mergeable_instruction_sequences,
 )
-from qiskit_noise_learning.sequences.group_mergeable_instruction_sequences import (
-    DEFAULT_GROUPING_STRATEGIES,
-    GroupingStrategy,
-)
+from qiskit_noise_learning.sequences.group_mergeable_instruction_sequences import GroupingStrategy
 
 from ..experiment import Experiment
 from ..experiment_builder_stage import ExperimentBuilderStage
@@ -38,15 +35,16 @@ class MergeInstructionSequences(ExperimentBuilderStage):
 
     Args:
         grouping_strategies: The grouping strategies to take the fewest groups found by any of, as
-            documented in :func:`~.group_mergeable_instruction_sequences`.
+            documented in :func:`~.group_mergeable_instruction_sequences`. If ``None``, an
+            empirically determined default set of strategies is used.
     """
 
     required_fields = ("instruction_sequences", "randomization_multipliers", "relations")
 
-    def __init__(
-        self, grouping_strategies: Sequence[GroupingStrategy] = DEFAULT_GROUPING_STRATEGIES
-    ):
-        self._grouping_strategies = grouping_strategies
+    def __init__(self, grouping_strategies: Sequence[GroupingStrategy] | None = None):
+        self._grouping_strategies = (
+            None if grouping_strategies is None else tuple(grouping_strategies)
+        )
 
     def _run(self, experiment: Experiment) -> Experiment:
         new_sequences, merged_indices = _minimize_instruction_sequences(
@@ -71,13 +69,14 @@ class MergeInstructionSequences(ExperimentBuilderStage):
 
 def _minimize_instruction_sequences(
     sequences: Sequence[InstructionSequence],
-    grouping_strategies: Sequence[GroupingStrategy],
+    grouping_strategies: Sequence[GroupingStrategy] | None,
 ) -> tuple[list[InstructionSequence], dict[int, int]]:
     """Return a smaller list of instruction sequences by merging the mergeable ones together.
 
     Args:
         sequences: The sequences to merge.
-        grouping_strategies: The grouping strategies to take the fewest groups found by any of.
+        grouping_strategies: The grouping strategies to take the fewest groups found by any of, or
+            ``None`` to use the default set.
 
     Returns:
         A reduced list of instruction sequences, and a dictionary from the index of each input

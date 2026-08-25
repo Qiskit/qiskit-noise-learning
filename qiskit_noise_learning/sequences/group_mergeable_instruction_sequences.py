@@ -34,7 +34,7 @@ by partial permutation index. This representation has the following properties:
 
 from collections import defaultdict
 from collections.abc import Hashable, Sequence
-from typing import Literal, get_args
+from typing import Literal, NamedTuple, get_args
 
 import numpy as np
 
@@ -57,13 +57,26 @@ InstructionSequenceOrder = Literal[
 MergingStrategy = Literal["first", "most-constrained", "least-impacted"]
 """Which of the groups a sequence can join :func:`group_mergeable_instruction_sequences` picks."""
 
-GroupingStrategy = tuple[InstructionSequenceOrder, MergingStrategy]
-"""An instruction sequence order paired with a merging strategy, specifying a full strategy."""
+
+class GroupingStrategy(NamedTuple):
+    """An instruction sequence order paired with a merging strategy, specifying a full strategy.
+
+    Plain two-tuples are accepted anywhere an instance of this class is, so
+    ``("input", "first")`` and ``GroupingStrategy("input", "first")`` are interchangeable.
+
+    Args:
+        order: The order in which the instruction sequences are considered.
+        merging_strategy: Which of the groups a sequence can join it is merged into.
+    """
+
+    order: InstructionSequenceOrder
+    merging_strategy: MergingStrategy
+
 
 DEFAULT_GROUPING_STRATEGIES: tuple[GroupingStrategy, ...] = (
-    ("most-constrained-first", "least-impacted"),
-    ("least-constrained-first", "first"),
-    ("qubitwise-lexicographic", "most-constrained"),
+    GroupingStrategy("most-constrained-first", "least-impacted"),
+    GroupingStrategy("least-constrained-first", "first"),
+    GroupingStrategy("qubitwise-lexicographic", "most-constrained"),
 )
 """Default strategies for :func:`group_mergeable_instruction_sequences`, empirically determined."""
 
@@ -235,7 +248,7 @@ def _group_by_shared_completion(
 
 def group_mergeable_instruction_sequences(
     sequences: Sequence[InstructionSequence],
-    grouping_strategies: Sequence[GroupingStrategy] = DEFAULT_GROUPING_STRATEGIES,
+    grouping_strategies: Sequence[GroupingStrategy] | None = None,
 ) -> list[list[int]]:
     r"""Group the positions of instruction sequences that can be merged with each other.
 
@@ -277,7 +290,8 @@ def group_mergeable_instruction_sequences(
 
     Args:
         sequences: The instruction sequences to group.
-        grouping_strategies: The grouping strategies to take the fewest groups found by any of.
+        grouping_strategies: The grouping strategies to take the fewest groups found by any of. If
+            ``None``, an empirically determined default set of strategies is used.
 
     Returns:
         The groups of positions of mergeable sequences.
@@ -288,6 +302,8 @@ def group_mergeable_instruction_sequences(
         ValueError: If ``grouping_strategies`` is empty, or if any of its entries is not a pairing
             of a documented instruction sequence order with a documented merging strategy.
     """
+    if grouping_strategies is None:
+        grouping_strategies = DEFAULT_GROUPING_STRATEGIES
     _validate_grouping_strategies(grouping_strategies)
 
     candidates: dict[Hashable, list[int]] = defaultdict(list)
