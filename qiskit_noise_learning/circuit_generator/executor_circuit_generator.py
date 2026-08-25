@@ -303,7 +303,7 @@ class ExecutorCircuitGenerator(
                 samplex_arguments[f"local_cliffords.{ref}"] = this_arg
 
         for idx, following_sequence in enumerate(instruction_sequences[1:]):
-            if not first_sequence.has_same_gates_as(following_sequence):
+            if first_sequence.gate_key != following_sequence.gate_key:
                 raise ValueError(
                     "Instruction sequences require the same gates to be generated together."
                 )

@@ -354,14 +354,12 @@ def variants():
 
 
 def test_gate_key(variants):
-    """Test that gate_key, and has_same_gates_as with it, see nothing but the gate applications."""
+    """Test that gate_key sees nothing but the gate applications."""
 
     reference = variants["reference"]
 
     for name, variant in variants.items():
-        same_gates = name not in _DIFFERENT_GATES
-        assert (reference.gate_key == variant.gate_key) is same_gates, name
-        assert reference.has_same_gates_as(variant) is same_gates, name
+        assert (reference.gate_key == variant.gate_key) is (name not in _DIFFERENT_GATES), name
 
 
 def test_structure_key(variants):
@@ -376,18 +374,16 @@ def test_structure_key(variants):
 
 
 def test_keys_depend_on_depth(variants):
-    """Test that both keys, and has_same_gates_as with them, distinguish fragment depths."""
+    """Test that both keys distinguish sequences differing only in fragment depth."""
 
     reference = variants["reference"]
     at_three, at_four = reference.bind_at(3), reference.bind_at(4)
 
     assert at_three.gate_key == reference.bind_at(3).gate_key
     assert at_three.structure_key == reference.bind_at(3).structure_key
-    assert at_three.has_same_gates_as(reference.bind_at(3))
 
     assert at_three.gate_key != at_four.gate_key
     assert at_three.structure_key != at_four.structure_key
-    assert not at_three.has_same_gates_as(at_four)
 
 
 def test_keys_are_hashable(variants):

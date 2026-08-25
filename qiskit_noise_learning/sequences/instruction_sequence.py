@@ -87,8 +87,9 @@ class InstructionSequence(BaseSequence[Instruction]):
         """A hashable summary of the gate applications in this instruction sequence.
 
         The key consists of the fragment depth together with the name of each gate applied in each
-        fragment, in order, ignoring every other instruction. Two instruction sequences have equal
-        gate keys exactly when :meth:`has_same_gates_as` holds between them.
+        fragment, in order, ignoring every other instruction. Two instruction sequences therefore
+        have equal gate keys exactly when they apply the same gates at the same fragment depth,
+        however else they differ.
         """
         return (
             self.fragment_depth,
@@ -117,21 +118,6 @@ class InstructionSequence(BaseSequence[Instruction]):
             _structure_tokens(self.repeatable_fragment),
             _structure_tokens(self.end_fragment),
         )
-
-    def has_same_gates_as(self, other: "InstructionSequence") -> bool:
-        """Return whether this instruction sequence has the same gate applications as another.
-
-        Here, having the same gates means that the fragment depths are the same, and all
-        fragments contain the same gate applications in the same order, but possibly differing in
-        other instructions.
-
-        Args:
-            other: Another :class:`.InstructionSequence`.
-
-        Returns:
-            Whether this instruction sequence has the same gate applications as the other.
-        """
-        return self.gate_key == other.gate_key
 
     def is_mergeable_with(self, other: Self) -> bool:
         r"""Check if this instruction sequence is mergeable with another instruction sequence.
