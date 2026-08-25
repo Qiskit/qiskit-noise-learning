@@ -205,12 +205,8 @@ class ExecutorCircuitGenerator(
         item_sequence_indices = []
         creg_names = []
         measurement_maps = []
-        for partition in self.partition(instruction_sequences):
-            current_sequences = []
-            current_indices = []
-            for seq_idx, seq in partition:
-                current_indices.append(seq_idx)
-                current_sequences.append(seq)
+        for current_indices in self.partition(instruction_sequences):
+            current_sequences = [instruction_sequences[idx] for idx in current_indices]
             samplex_item, current_creg_names, current_meas_map = self.generate_samplex_item(
                 current_sequences, num_randomizations=num_randomizations
             )
@@ -307,7 +303,7 @@ class ExecutorCircuitGenerator(
                 samplex_arguments[f"local_cliffords.{ref}"] = this_arg
 
         for idx, following_sequence in enumerate(instruction_sequences[1:]):
-            if not first_sequence.has_same_gates_as(following_sequence):
+            if first_sequence.gate_key != following_sequence.gate_key:
                 raise ValueError(
                     "Instruction sequences require the same gates to be generated together."
                 )

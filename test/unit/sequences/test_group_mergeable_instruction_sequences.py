@@ -27,6 +27,7 @@ from qiskit_noise_learning.sequences.group_mergeable_instruction_sequences impor
     InstructionSequenceOrder,
     MergingStrategy,
 )
+from qiskit_noise_learning.sequences.instruction import Instruction
 
 _ALL_GROUPING_STRATEGIES = list(
     product(get_args(InstructionSequenceOrder), get_args(MergingStrategy))
@@ -335,18 +336,62 @@ def test_group_mergeable_of_no_sequences():
     assert group_mergeable_instruction_sequences([]) == []
 
 
-def test_group_mergeable_raises_on_unsupported_instruction():
-    """Test that an instruction that is neither a gate nor a partial permutation is rejected."""
+def test_group_mergeable_raises_on_non_instruction():
+    """Test that an object that is not an instruction at all is rejected."""
 
-    class UnsupportedInstruction:
-        """A stand-in for an instruction type the grouping does not know about."""
+    class NotAnInstruction:
+        """A stand-in for an object that carries no structure token."""
 
     sequence = InstructionSequence(
-        start_fragment=[UnsupportedInstruction()],
+        start_fragment=[NotAnInstruction()],
         repeatable_fragment=[ApplyGate("L")],
         end_fragment=[ApplyGate("M")],
         fragment_depth=1,
     )
 
-    with pytest.raises(TypeError, match="UnsupportedInstruction"):
+    with pytest.raises(TypeError, match="NotAnInstruction"):
         group_mergeable_instruction_sequences([sequence])
+
+
+def test_group_mergeable_raises_on_unsupported_instruction_type():
+    """Test that an instruction type the algorithm cannot reason about is rejected.
+
+    Two instructions of such a type can carry the same structure token while being unmergeable, so
+    grouping them by structure key alone would put them in a group that cannot be merged.
+    """
+
+    class UnsupportedInstruction(Instruction):
+        """An instruction that is never mergeable, despite a constant structure token."""
+
+        @property
+        def is_complete(self):
+            return True
+
+        @property
+        def structure_token(self):
+            return ("unsupported",)
+
+        def complete(self):
+            return self
+
+        def is_mergeable_with(self, other):
+            return False
+
+        def merge(self, other):
+            raise ValueError("Cannot merge UnsupportedInstruction instructions.")
+
+        def __eq__(self, other):
+            return self is other
+
+    sequences = [
+        InstructionSequence(
+            start_fragment=[UnsupportedInstruction()],
+            repeatable_fragment=[ApplyGate("L")],
+            end_fragment=[ApplyGate("M")],
+            fragment_depth=1,
+        )
+        for _ in range(2)
+    ]
+
+    with pytest.raises(TypeError, match="UnsupportedInstruction"):
+        group_mergeable_instruction_sequences(sequences)

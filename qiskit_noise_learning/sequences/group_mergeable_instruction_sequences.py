@@ -81,50 +81,54 @@ DEFAULT_GROUPING_STRATEGIES: tuple[GroupingStrategy, ...] = (
 """Default strategies for :func:`group_mergeable_instruction_sequences`, empirically determined."""
 
 
-def _merge_candidate_data(sequence: InstructionSequence) -> tuple[Hashable, np.ndarray]:
-    """Return a key and a concatenation of the sequence's partial permutation indices.
+def _validate_instruction_types(sequence: InstructionSequence) -> None:
+    """Validate that a sequence contains only instructions this grouping algorithm understands.
 
-    The returned key comes with the following guarantees:
-
-    * If the keys for two instruction sequences are different, then they are not mergeable.
-    * If the keys for two instruction sequences are equal, the concatenation of the partial
-      permutation indices has the same length, and whether or not they are mergeable is determined
-      completely by the consistency of those partial permutation indices.
+    The algorithm assumes that sequences sharing a structure key are mergeable exactly when their
+    partial Pauli permutations are consistent. That holds for gate applications, whose mergeability
+    is decided entirely by their structure tokens, but an arbitrary instruction type may be
+    unmergeable with another one carrying the same token, which would put it in the same group
+    without its mergeability ever being consulted.
 
     Args:
-        sequence: The sequence to summarize.
-
-    Returns:
-        The merge candidate key, and the concatenated per-qubit indices of the sequence's partial
-        permutations, which is empty if the sequence contains none.
+        sequence: The sequence to validate.
 
     Raises:
         TypeError: If the sequence contains an instruction that is neither a gate application nor a
             partial Pauli permutation.
     """
-    key = [sequence.fragment_depth]
-    indices = []
-    for fragment in (
-        sequence.start_fragment,
-        sequence.repeatable_fragment,
-        sequence.end_fragment,
-    ):
-        tokens = []
+    for fragment in (sequence.start_fragment, sequence.repeatable_fragment, sequence.end_fragment):
         for instr in fragment:
-            if isinstance(instr, ApplyGate):
-                tokens.append(("gate", instr.gate_name))
-            elif isinstance(instr, PartialPauliPermutation):
-                tokens.append(("permutation", instr.num_qubits))
-                indices.append(instr.partial_permutation_indices)
-            else:
+            if not isinstance(instr, ApplyGate | PartialPauliPermutation):
                 raise TypeError(
-                    "Cannot partition instruction sequences containing "
-                    f"{type(instr).__name__} instructions: only gate applications and partial "
-                    "Pauli permutations are supported."
+                    f"Cannot group instruction sequences containing {type(instr).__name__} "
+                    "instructions: only gate applications and partial Pauli permutations are "
+                    "supported."
                 )
-        key.append(tuple(tokens))
 
-    return tuple(key), np.concatenate(indices) if indices else np.zeros(0, dtype=np.int8)
+
+def _permutation_indices(sequence: InstructionSequence) -> np.ndarray:
+    """Return a concatenation of the per-qubit indices of a sequence's partial permutations.
+
+    Args:
+        sequence: The sequence to collect indices from.
+
+    Returns:
+        The concatenated per-qubit indices of the sequence's partial permutations, which is empty if
+        the sequence contains none.
+    """
+    indices = [
+        instr.partial_permutation_indices
+        for fragment in (
+            sequence.start_fragment,
+            sequence.repeatable_fragment,
+            sequence.end_fragment,
+        )
+        for instr in fragment
+        if isinstance(instr, PartialPauliPermutation)
+    ]
+
+    return np.concatenate(indices) if indices else np.zeros(0, dtype=np.int8)
 
 
 def _completion_masks() -> np.ndarray:
@@ -257,18 +261,15 @@ def group_mergeable_instruction_sequences(
     one group, and the sequences within a group can all be merged together, in any order, into a
     single sequence via :meth:`~.InstructionSequence.merge`.
 
-    In terms of strategy, the list of sequences is first partitioned into sets such that members
-    from disjoint sets cannot be merged. This is done based on the fragment structure: if
-    corresponding fragments in two instruction sequences do not have the same sequence of gate
-    applications and partial permutations, then they cannot be merged.
-
-    Each set is then further partitioned into the returned groups via a family of greedy algorithms.
-    A single member of this family is specified by a grouping strategy, which pairs an order to
-    visit the instruction sequences in with a strategy for choosing which group to merge each one
-    into. Every grouping strategy in ``grouping_strategies`` is applied to every set, and the fewest
-    groups found for a set are the ones returned for it, ties going to the earlier strategy. Because
-    the sets are treated independently, supplying an additional grouping strategy can only decrease
-    the total number of groups returned.
+    In terms of strategy, the list of sequences is first partitioned into sets according to
+    :attr:`~.InstructionSequence.structure_key`. Each set is then further partitioned into the
+    returned groups via a family of greedy algorithms. A single member of this family is specified
+    by a grouping strategy, which pairs an order to visit the instruction sequences in with a
+    strategy for choosing which group to merge each one into. Every grouping strategy in
+    ``grouping_strategies`` is applied to every set, and the fewest groups found for a set are the
+    ones returned for it, ties going to the earlier strategy. Because the sets are treated
+    independently, supplying an additional grouping strategy can only decrease the total number of
+    groups returned.
 
     A sequence is called more constrained if it specifies more Pauli mappings. The first entry of a
     grouping strategy, the order to visit the instruction sequences in, is one of:
@@ -310,14 +311,16 @@ def group_mergeable_instruction_sequences(
     candidates: dict[Hashable, list[int]] = defaultdict(list)
     permutation_indices = []
     for idx, sequence in enumerate(sequences):
-        key, indices = _merge_candidate_data(sequence)
-        candidates[key].append(idx)
-        permutation_indices.append(indices)
+        _validate_instruction_types(sequence)
+        candidates[sequence.structure_key].append(idx)
+        permutation_indices.append(_permutation_indices(sequence))
 
     masks = _completion_masks()
 
     groups = []
     for candidate_indices in candidates.values():
+        # the stack requires equal-length rows, which holds because the structure key records the
+        # number of qubits of each partial permutation
         columns = masks[np.stack([permutation_indices[idx] for idx in candidate_indices])]
         # every strategy is applied to each set of merge candidates separately
         fewest = min(

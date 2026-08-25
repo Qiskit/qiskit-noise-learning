@@ -12,7 +12,7 @@
 
 """InstructionSequence"""
 
-from collections.abc import Iterator
+from collections.abc import Hashable
 from typing import Self
 
 from .apply_gate import ApplyGate
@@ -20,10 +20,49 @@ from .base_sequence import BaseSequence
 from .instruction import Instruction
 
 
-def _filter_to_gates(fragment: list[Instruction]) -> Iterator[ApplyGate]:
-    for instruction in fragment:
-        if isinstance(instruction, ApplyGate):
-            yield instruction
+def _gate_tokens(fragment: list[Instruction]) -> tuple[str, ...]:
+    """Return the name of each gate applied in a fragment, in order.
+
+    Args:
+        fragment: The fragment to summarize.
+
+    Returns:
+        One gate name per gate application, every other instruction being ignored.
+    """
+    return tuple(instr.gate_name for instr in fragment if isinstance(instr, ApplyGate))
+
+
+def _validate_instructions(fragment: list[Instruction]) -> None:
+    """Validate that every element of a fragment is an instruction.
+
+    Args:
+        fragment: The fragment to validate.
+
+    Raises:
+        TypeError: If the fragment contains an object that is not an instruction.
+    """
+    for instr in fragment:
+        if not isinstance(instr, Instruction):
+            raise TypeError(
+                "Cannot summarize the structure of instruction sequences containing "
+                f"{type(instr).__name__} objects, which are not instructions."
+            )
+
+
+def _structure_tokens(fragment: list[Instruction]) -> tuple[Hashable, ...]:
+    """Return the structure token of each instruction of a fragment, in order.
+
+    Args:
+        fragment: The fragment to summarize.
+
+    Returns:
+        One structure token per instruction.
+
+    Raises:
+        TypeError: If the fragment contains an object that is not an instruction.
+    """
+    _validate_instructions(fragment)
+    return tuple(instr.structure_token for instr in fragment)
 
 
 class InstructionSequence(BaseSequence[Instruction]):
@@ -55,40 +94,40 @@ class InstructionSequence(BaseSequence[Instruction]):
             fragment_depth=self.fragment_depth,
         )
 
-    def has_same_gates_as(self, other: "InstructionSequence") -> bool:
-        """Return whether this instruction sequence has the same gate applications as another.
+    @property
+    def gate_key(self) -> Hashable:
+        """A hashable summary of the gate applications in this instruction sequence.
 
-        Here, having the same gates means that the fragment depths are the same, and all
-        fragments contain the same gate applications in the same order, but possibly differing in
-        other instructions.
-
-        Args:
-            other: Another :class:`.InstructionSequence`.
-
-        Returns:
-            Whether this instruction sequence has the same gate applications as the other.
+        Two instruction sequences have equal gate keys exactly when they have the same fragment
+        depth and each of their fragments applies the same gates in the same order, however else
+        they differ; every instruction that is not a gate application is ignored. The value itself
+        is opaque, with only equality and hashability guaranteed.
         """
-        if self.fragment_depth != other.fragment_depth:
-            return False
-
-        self_gates = (
-            list(_filter_to_gates(self.start_fragment)),
-            list(_filter_to_gates(self.repeatable_fragment)),
-            list(_filter_to_gates(self.end_fragment)),
-        )
-        other_gates = (
-            list(_filter_to_gates(other.start_fragment)),
-            list(_filter_to_gates(other.repeatable_fragment)),
-            list(_filter_to_gates(other.end_fragment)),
+        return (
+            self.fragment_depth,
+            _gate_tokens(self.start_fragment),
+            _gate_tokens(self.repeatable_fragment),
+            _gate_tokens(self.end_fragment),
         )
 
-        return all(
-            len(self_fragment) == len(other_fragment)
-            and all(
-                gate0.is_mergeable_with(gate1)
-                for gate0, gate1 in zip(self_fragment, other_fragment)
-            )
-            for self_fragment, other_fragment in zip(self_gates, other_gates)
+    @property
+    def structure_key(self) -> Hashable:
+        """A hashable summary of the instruction structure of this sequence.
+
+        This key comes with the following guarantees:
+
+        * If two instruction sequences have different keys, they are not mergeable.
+        * If two instruction sequences have the same key, they have the same fragment depth, and
+          their fragments contain the same sequence of instruction types on the same qubits.
+
+        Raises:
+            TypeError: If this instruction sequence contains an object that is not an instruction.
+        """
+        return (
+            self.fragment_depth,
+            _structure_tokens(self.start_fragment),
+            _structure_tokens(self.repeatable_fragment),
+            _structure_tokens(self.end_fragment),
         )
 
     def is_mergeable_with(self, other: Self) -> bool:

@@ -12,7 +12,7 @@
 
 import abc
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Hashable, Sequence
 from typing import Generic, TypeVar
 
 from qiskit_noise_learning.analysis.fit import Fit
@@ -24,20 +24,6 @@ from ..sequences import InstructionSequence
 TaskT = TypeVar("TaskT")
 ResultT = TypeVar("ResultT")
 DataMapperT = TypeVar("DataMapperT")
-
-
-class _StructureKey:
-    __slots__ = ("sequence",)
-
-    def __init__(self, sequence: InstructionSequence):
-        self.sequence = sequence
-
-    def __eq__(self, other):
-        return self.sequence.has_same_gates_as(other.sequence)
-
-    def __hash__(self):
-        # this hash has a lot of collisions. if it becomes a bottleneck, implement one with fewer
-        return hash(self.sequence.fragment_depth)
 
 
 class CircuitGenerator(abc.ABC, Generic[TaskT, DataMapperT, ResultT]):
@@ -62,9 +48,16 @@ class CircuitGenerator(abc.ABC, Generic[TaskT, DataMapperT, ResultT]):
         """Generate a new experimental task from the provided experiment."""
 
     @classmethod
-    def partition(cls, sequences: Sequence[InstructionSequence]) -> list[list[InstructionSequence]]:
-        """Partition instruction sequences into groups that can share a common generation output."""
-        groups: dict[_StructureKey, list[InstructionSequence]] = defaultdict(list)
-        for idx, key in enumerate(map(_StructureKey, sequences)):
-            groups[key].append((idx, key.sequence))
+    def partition(cls, sequences: Sequence[InstructionSequence]) -> list[list[int]]:
+        """Partition the positions of instruction sequences that can share a generation output.
+
+        Args:
+            sequences: The instruction sequences to partition.
+
+        Returns:
+            The groups of positions of sequences that can share a generation output.
+        """
+        groups: dict[Hashable, list[int]] = defaultdict(list)
+        for idx, sequence in enumerate(sequences):
+            groups[sequence.gate_key].append(idx)
         return list(groups.values())

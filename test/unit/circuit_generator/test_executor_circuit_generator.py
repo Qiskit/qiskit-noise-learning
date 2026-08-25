@@ -338,6 +338,34 @@ def test_generate_samplex_item_raises():
         circuit_generator.generate_samplex_item([seq3], num_randomizations=50)
 
 
+def test_partition():
+    """Test `ExecutorCircuitGenerator.partition()` groups the positions of same-gates sequences."""
+    perm = PartialPauliPermutation.from_sets([{("X", "Y")}])
+
+    # the same gates, but the permutation follows the gate in one and precedes it in the other
+    seq0 = InstructionSequence(
+        [ApplyGate("P"), perm], [ApplyGate("L0")], [ApplyGate("M")], fragment_depth=3
+    )
+    seq1 = InstructionSequence(
+        [perm, ApplyGate("P")], [ApplyGate("L0")], [ApplyGate("M")], fragment_depth=3
+    )
+    # a different gate in the repeatable fragment
+    seq2 = InstructionSequence(
+        [ApplyGate("P")], [ApplyGate("L1")], [ApplyGate("M")], fragment_depth=3
+    )
+    # the same gates as seq2, at a different fragment depth
+    seq3 = InstructionSequence(
+        [ApplyGate("P")], [ApplyGate("L1")], [ApplyGate("M")], fragment_depth=4
+    )
+
+    # seq1 is placed out of order to check that positions, not adjacency, decide the groups
+    sequences = [seq0, seq2, seq1, seq3]
+    partition = ExecutorCircuitGenerator.partition(sequences)
+
+    assert sorted(idx for group in partition for idx in group) == list(range(len(sequences)))
+    assert sorted(partition) == [[0, 2], [1], [3]]
+
+
 @pytest.mark.parametrize("gateset", [gateset_full(), gateset_subset()])
 def test_generate_samplex_items(gateset):
     """Test `ExecutorCircuitGenerator.generate_samplex_items()` works as expected."""

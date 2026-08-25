@@ -12,17 +12,28 @@
 
 """Instruction"""
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
+from collections.abc import Hashable
 from typing import Self
 
 
-class Instruction:
+class Instruction(ABC):
     """Abstract base class for instructions in instruction sequences."""
 
     @property
     @abstractmethod
     def is_complete(self) -> bool:
         """Whether or not this instruction is completely specified."""
+
+    @property
+    @abstractmethod
+    def structure_token(self) -> Hashable:
+        """A hashable summary of this instruction that constrains mergeability.
+
+        This token serves as a cheap check of non-mergeability: instructions with unequal structure
+        tokens are never mergeable. The token must therefore distinguish instruction types from one
+        another.
+        """
 
     @abstractmethod
     def complete(self) -> Self:

@@ -18,6 +18,49 @@ from qiskit_noise_learning.sequences import (
     PartialPauliPermutation,
 )
 
+_PERMUTATION = PartialPauliPermutation.from_sets([{("X", "Y")}])
+"""A one-qubit partial permutation."""
+
+_OTHER_PERMUTATION = PartialPauliPermutation.from_sets([{("Y", "Z")}])
+"""A one-qubit partial permutation specifying a different mapping than ``_PERMUTATION``."""
+
+_WIDE_PERMUTATION = PartialPauliPermutation.from_sets([{("X", "Y")}, {("Y", "Z")}])
+"""A two-qubit partial permutation."""
+
+_REPEATABLE_FRAGMENT = (ApplyGate("L0"), ApplyGate("L1"))
+"""The repeatable fragment of every variant that does not vary it."""
+
+
+def _sequence(start_fragment, repeatable_fragment=_REPEATABLE_FRAGMENT):
+    """Build an unbound sequence with a fixed end fragment, varying only what is passed."""
+    return InstructionSequence(
+        start_fragment=start_fragment,
+        repeatable_fragment=repeatable_fragment,
+        end_fragment=[_OTHER_PERMUTATION, ApplyGate("M")],
+    )
+
+
+@pytest.fixture
+def variants():
+    """A reference sequence together with variants of it, keyed by how each one differs from it."""
+    return {
+        "reference": _sequence([ApplyGate("P"), _PERMUTATION]),
+        # the permutation sits in the same place but specifies a different Pauli mapping
+        "different_permutation": _sequence([ApplyGate("P"), _OTHER_PERMUTATION]),
+        # the permutation precedes the gate rather than following it
+        "moved_permutation": _sequence([_PERMUTATION, ApplyGate("P")]),
+        # the permutation covers two qubits rather than one
+        "wider_permutation": _sequence([ApplyGate("P"), _WIDE_PERMUTATION]),
+        # a different gate label in the repeatable fragment
+        "different_repeatable_gate": _sequence(
+            [ApplyGate("P"), _PERMUTATION], [ApplyGate("L0"), ApplyGate("L0")]
+        ),
+        # a different gate label in the start fragment
+        "different_start_gate": _sequence([ApplyGate("L0"), _PERMUTATION]),
+        # fewer gates in the repeatable fragment
+        "fewer_repeatable_gates": _sequence([ApplyGate("P"), _PERMUTATION], [ApplyGate("L0")]),
+    }
+
 
 def test_construction():
     """Test construction and attributes."""
@@ -303,114 +346,86 @@ def test_complete_preserves_depth():
     assert seq.complete().fragment_depth == 7
 
 
-def test_has_same_gates_as():
-    """Test has_same_gates_as for InstructionSequence."""
+@pytest.mark.parametrize(
+    ("variant", "same_gate_key"),
+    [
+        ("reference", True),
+        ("different_permutation", True),
+        ("moved_permutation", True),
+        ("wider_permutation", True),
+        ("different_repeatable_gate", False),
+        ("different_start_gate", False),
+        ("fewer_repeatable_gates", False),
+    ],
+)
+def test_gate_key(variants, variant, same_gate_key):
+    """Test that gate_key sees nothing but the gate applications."""
 
-    seq0 = InstructionSequence(
-        start_fragment=[
-            ApplyGate("P"),
-            PartialPauliPermutation.from_sets([{("X", "Y")}]),
-        ],
-        repeatable_fragment=[
-            ApplyGate("L0"),
-            ApplyGate("L1"),
-        ],
-        end_fragment=[
-            PartialPauliPermutation.from_sets([{("Y", "Z")}]),
-            ApplyGate("M"),
-        ],
+    reference = variants["reference"]
+
+    assert (reference.gate_key == variants[variant].gate_key) is same_gate_key
+
+
+@pytest.mark.parametrize(
+    ("variant", "same_structure_key"),
+    [
+        ("reference", True),
+        # which mapping a permutation specifies is invisible to the key
+        ("different_permutation", True),
+        # where a permutation sits and how many qubits it covers are not
+        ("moved_permutation", False),
+        ("wider_permutation", False),
+        ("different_repeatable_gate", False),
+        ("different_start_gate", False),
+        ("fewer_repeatable_gates", False),
+    ],
+)
+def test_structure_key(variants, variant, same_structure_key):
+    """Test that structure_key refines gate_key by the placement and width of the permutations."""
+
+    reference = variants["reference"]
+
+    assert (reference.structure_key == variants[variant].structure_key) is same_structure_key
+
+
+def test_keys_depend_on_depth(variants):
+    """Test that both keys distinguish sequences differing only in fragment depth."""
+
+    reference = variants["reference"]
+    at_three, also_at_three, at_four = (
+        reference.bind_at(3),
+        reference.bind_at(3),
+        reference.bind_at(4),
     )
 
-    # same structure with different PartialPauliPermutations
-    seq1 = InstructionSequence(
-        start_fragment=[
-            ApplyGate("P"),
-            PartialPauliPermutation.from_sets([{("Z", "X")}]),
-        ],
-        repeatable_fragment=[
-            ApplyGate("L0"),
-            ApplyGate("L1"),
-        ],
-        end_fragment=[
-            PartialPauliPermutation.from_sets([{("X", "Y")}]),
-            ApplyGate("M"),
-        ],
-    )
-    assert seq0.has_same_gates_as(seq1)
+    assert at_three.gate_key == also_at_three.gate_key
+    assert at_three.structure_key == also_at_three.structure_key
 
-    # different gate label in repeatable_fragment
-    seq2 = InstructionSequence(
-        start_fragment=[
-            ApplyGate("P"),
-            PartialPauliPermutation.from_sets([{("X", "Y")}]),
-        ],
-        repeatable_fragment=[
-            ApplyGate("L0"),
-            ApplyGate("L0"),
-        ],
-        end_fragment=[
-            PartialPauliPermutation.from_sets([{("Y", "Z")}]),
-            ApplyGate("M"),
-        ],
-    )
-    assert not seq0.has_same_gates_as(seq2)
-
-    # different gate label in start_fragment
-    seq3 = InstructionSequence(
-        start_fragment=[
-            ApplyGate("L0"),
-            PartialPauliPermutation.from_sets([{("X", "Y")}]),
-        ],
-        repeatable_fragment=[
-            ApplyGate("L0"),
-            ApplyGate("L1"),
-        ],
-        end_fragment=[
-            PartialPauliPermutation.from_sets([{("Y", "Z")}]),
-            ApplyGate("M"),
-        ],
-    )
-    assert not seq0.has_same_gates_as(seq3)
-
-    # different number of gates in repeatable_fragment
-    seq4 = InstructionSequence(
-        start_fragment=[
-            ApplyGate("P"),
-            PartialPauliPermutation.from_sets([{("X", "Y")}]),
-        ],
-        repeatable_fragment=[ApplyGate("L0")],
-        end_fragment=[
-            PartialPauliPermutation.from_sets([{("Y", "Z")}]),
-            ApplyGate("M"),
-        ],
-    )
-    assert not seq0.has_same_gates_as(seq4)
+    assert at_three.gate_key != at_four.gate_key
+    assert at_three.structure_key != at_four.structure_key
 
 
-def test_has_same_gates_as_depth():
-    """Test that has_same_gates_as requires matching fragment_depths."""
+def test_keys_are_hashable(variants):
+    """Test that both keys can be used as dictionary keys."""
 
-    seq0 = InstructionSequence(
-        start_fragment=[ApplyGate("P")],
-        repeatable_fragment=[ApplyGate("L0")],
-        end_fragment=[ApplyGate("M")],
-        fragment_depth=3,
-    )
-    seq1 = InstructionSequence(
-        start_fragment=[ApplyGate("P")],
-        repeatable_fragment=[ApplyGate("L0")],
-        end_fragment=[ApplyGate("M")],
-        fragment_depth=4,
-    )
-    assert not seq0.has_same_gates_as(seq1)
+    # every variant carries a distinct pair of keys except different_permutation, which shares both
+    # of the reference's
+    assert len({(v.gate_key, v.structure_key) for v in variants.values()}) == len(variants) - 1
 
-    seq2 = InstructionSequence(
-        start_fragment=[ApplyGate("P")],
-        repeatable_fragment=[ApplyGate("L0")],
-        end_fragment=[ApplyGate("M")],
-        fragment_depth=3,
-    )
-    assert seq0.has_same_gates_as(seq2)
+
+def test_structure_key_raises_on_non_instruction():
+    """Test that an object that is not an instruction at all is rejected."""
+
+    class NotAnInstruction:
+        """A stand-in for an object that carries no structure token."""
+
+    sequence = _sequence([ApplyGate("P"), NotAnInstruction()])
+
+    with pytest.raises(TypeError, match="NotAnInstruction"):
+        _ = sequence.structure_key
+
+    # gate_key sees only the gate applications, so it ignores the object entirely
+    assert sequence.gate_key == _sequence([ApplyGate("P")]).gate_key
 
 
 def test_bind_at():
