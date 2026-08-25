@@ -103,6 +103,26 @@ def _assorted_sequences():
     return sequences
 
 
+def _indexed_sequences(rows):
+    """Build one sequence per row from raw partial permutation indices.
+
+    Args:
+        rows: One list of partial permutation indices per sequence, indexing the fixed ordering of
+            ``partial_permutation_sets()``. An index below ``NUM_COMPLETE_PERMUTATIONS`` is a
+            complete permutation, admitting a single completion; the others specify a single Pauli
+            mapping, admitting two, except the last, which specifies nothing and admits all six.
+    """
+    return [
+        InstructionSequence(
+            start_fragment=[PartialPauliPermutation(row)],
+            repeatable_fragment=[ApplyGate("L")],
+            end_fragment=[],
+            fragment_depth=1,
+        )
+        for row in rows
+    ]
+
+
 def _assert_group_merges(group, sequences):
     """Assert that a group of positions merges into a single sequence.
 
@@ -155,6 +175,75 @@ def test_group_mergeable_takes_the_fewest_groups_of_its_strategies():
     for grouping_strategy in _ALL_GROUPING_STRATEGIES:
         alone = group_mergeable_instruction_sequences(sequences, [grouping_strategy])
         assert len(combined) <= len(alone)
+
+
+def test_group_mergeable_distinguishes_the_constrainedness_orders():
+    """Test that the two constrainedness orders group a witness instance differently.
+
+    The complete permutations at indices 3 and 5 admit one completion each and are mutually
+    inconsistent, so each opens a group of its own. Visiting them first lets each of the two single
+    mappings join one of them; visiting them last pairs the two single mappings into a group whose
+    only completion is a third permutation, which neither complete permutation can then join.
+    """
+    sequences = _indexed_sequences([[3], [5], [12], [11]])
+
+    counts = {
+        order: len(group_mergeable_instruction_sequences(sequences, [(order, "first")]))
+        for order in ("most-constrained-first", "least-constrained-first")
+    }
+
+    assert counts == {"most-constrained-first": 2, "least-constrained-first": 3}
+
+
+def test_group_mergeable_distinguishes_the_merging_strategies():
+    """Test that the two constrainedness-based merging strategies differ on a witness instance.
+
+    Both pick the group admitting the fewest completions, but ``"least-impacted"`` scores a group by
+    how many completions the sequence would rule out rather than by how many it already admits. On
+    this instance that leaves a group flexible enough for a later sequence to join.
+    """
+    sequences = _indexed_sequences([[4, 6], [4, 4], [15, 14], [11, 14], [15, 11]])
+
+    counts = {
+        merging_strategy: len(
+            group_mergeable_instruction_sequences(
+                sequences, [("most-constrained-first", merging_strategy)]
+            )
+        )
+        for merging_strategy in ("least-impacted", "most-constrained")
+    }
+
+    assert counts == {"least-impacted": 3, "most-constrained": 4}
+
+
+def test_group_mergeable_first_merging_strategy_picks_the_earliest_group():
+    """Test that ``"first"`` merges into the group created earliest among the feasible ones.
+
+    The last sequence here can join either of the first two groups, and the two choices give the
+    same number of groups, so only the membership distinguishes them: ``"first"`` must place it with
+    the sequence at position 0, whereas ``"most-constrained"`` places it with the one at position 1.
+    """
+    sequences = _indexed_sequences([[13], [3], [14], [8]])
+
+    groups = group_mergeable_instruction_sequences(sequences, [("input", "first")])
+
+    assert groups == [[0, 3], [1], [2]]
+
+
+def test_group_mergeable_qubitwise_lexicographic_order_differs_from_the_input_order():
+    """Test that visiting sequences in qubitwise-lexicographic order is not the input order.
+
+    Sorting by the completions each sequence admits places sequences specifying similar mappings
+    next to each other, which groups this instance more tightly than the order it was given in.
+    """
+    sequences = _indexed_sequences([[11], [7], [6], [9]])
+
+    counts = {
+        order: len(group_mergeable_instruction_sequences(sequences, [(order, "first")]))
+        for order in ("qubitwise-lexicographic", "input")
+    }
+
+    assert counts == {"qubitwise-lexicographic": 2, "input": 3}
 
 
 def test_group_mergeable_default_strategies_are_a_documented_pairing():
