@@ -350,9 +350,13 @@ def test_partition():
         [perm, ApplyGate("P")], [ApplyGate("L0")], [ApplyGate("M")], fragment_depth=3
     )
     # a different gate in the repeatable fragment
-    seq2 = InstructionSequence([ApplyGate("P")], [ApplyGate("L1")], [ApplyGate("M")], 3)
+    seq2 = InstructionSequence(
+        [ApplyGate("P")], [ApplyGate("L1")], [ApplyGate("M")], fragment_depth=3
+    )
     # the same gates as seq2, at a different fragment depth
-    seq3 = InstructionSequence([ApplyGate("P")], [ApplyGate("L1")], [ApplyGate("M")], 4)
+    seq3 = InstructionSequence(
+        [ApplyGate("P")], [ApplyGate("L1")], [ApplyGate("M")], fragment_depth=4
+    )
 
     # seq1 is placed out of order to check that positions, not adjacency, decide the groups
     sequences = [seq0, seq2, seq1, seq3]

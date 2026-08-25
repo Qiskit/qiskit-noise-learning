@@ -30,7 +30,7 @@ class Instruction(ABC):
     def structure_token(self) -> Hashable:
         """A hashable summary of this instruction that constrains mergeability.
 
-        This token serves as a cheap check of non-mergeability: Instructions with unequal structure
+        This token serves as a cheap check of non-mergeability: instructions with unequal structure
         tokens are never mergeable. The token must therefore distinguish instruction types from one
         another.
         """

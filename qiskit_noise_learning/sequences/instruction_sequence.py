@@ -20,12 +20,36 @@ from .base_sequence import BaseSequence
 from .instruction import Instruction
 
 
-def _gate_tokens(fragment: list[Instruction]) -> tuple:
-    """Return the name of each gate applied in a fragment, in order, ignoring other instructions."""
+def _gate_tokens(fragment: list[Instruction]) -> tuple[str, ...]:
+    """Return the name of each gate applied in a fragment, in order.
+
+    Args:
+        fragment: The fragment to summarize.
+
+    Returns:
+        One gate name per gate application, every other instruction being ignored.
+    """
     return tuple(instr.gate_name for instr in fragment if isinstance(instr, ApplyGate))
 
 
-def _structure_tokens(fragment: list[Instruction]) -> tuple:
+def _validate_instructions(fragment: list[Instruction]) -> None:
+    """Validate that every element of a fragment is an instruction.
+
+    Args:
+        fragment: The fragment to validate.
+
+    Raises:
+        TypeError: If the fragment contains an object that is not an instruction.
+    """
+    for instr in fragment:
+        if not isinstance(instr, Instruction):
+            raise TypeError(
+                "Cannot summarize the structure of instruction sequences containing "
+                f"{type(instr).__name__} objects, which are not instructions."
+            )
+
+
+def _structure_tokens(fragment: list[Instruction]) -> tuple[Hashable, ...]:
     """Return the structure token of each instruction of a fragment, in order.
 
     Args:
@@ -37,15 +61,8 @@ def _structure_tokens(fragment: list[Instruction]) -> tuple:
     Raises:
         TypeError: If the fragment contains an object that is not an instruction.
     """
-    tokens = []
-    for instr in fragment:
-        if not isinstance(instr, Instruction):
-            raise TypeError(
-                "Cannot summarize the structure of instruction sequences containing "
-                f"{type(instr).__name__} objects, which are not instructions."
-            )
-        tokens.append(instr.structure_token)
-    return tuple(tokens)
+    _validate_instructions(fragment)
+    return tuple(instr.structure_token for instr in fragment)
 
 
 class InstructionSequence(BaseSequence[Instruction]):
