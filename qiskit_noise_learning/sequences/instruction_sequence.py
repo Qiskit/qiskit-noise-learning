@@ -12,18 +12,45 @@
 
 """InstructionSequence"""
 
-from collections.abc import Iterator
 from typing import Self
 
 from .apply_gate import ApplyGate
 from .base_sequence import BaseSequence
 from .instruction import Instruction
+from .partial_pauli_permutation import PartialPauliPermutation
 
 
-def _filter_to_gates(fragment: list[Instruction]) -> Iterator[ApplyGate]:
-    for instruction in fragment:
-        if isinstance(instruction, ApplyGate):
-            yield instruction
+def _gate_tokens(fragment: list[Instruction]) -> tuple:
+    """Return the name of each gate applied in a fragment, in order, ignoring other instructions."""
+    return tuple(instr.gate_name for instr in fragment if isinstance(instr, ApplyGate))
+
+
+def _structure_tokens(fragment: list[Instruction]) -> tuple:
+    """Return a token summarizing each instruction of a fragment, in order.
+
+    Args:
+        fragment: The fragment to summarize.
+
+    Returns:
+        One token per instruction, naming the gate applied or the number of qubits permuted.
+
+    Raises:
+        TypeError: If the fragment contains an instruction that is neither a gate application nor a
+            partial Pauli permutation.
+    """
+    tokens = []
+    for instr in fragment:
+        if isinstance(instr, ApplyGate):
+            tokens.append(("gate", instr.gate_name))
+        elif isinstance(instr, PartialPauliPermutation):
+            tokens.append(("permutation", instr.num_qubits))
+        else:
+            raise TypeError(
+                "Cannot summarize the structure of instruction sequences containing "
+                f"{type(instr).__name__} instructions: only gate applications and partial "
+                "Pauli permutations are supported."
+            )
+    return tuple(tokens)
 
 
 class InstructionSequence(BaseSequence[Instruction]):
@@ -55,6 +82,42 @@ class InstructionSequence(BaseSequence[Instruction]):
             fragment_depth=self.fragment_depth,
         )
 
+    @property
+    def gate_key(self) -> tuple:
+        """A hashable summary of the gate applications in this instruction sequence.
+
+        The key consists of the fragment depth together with the name of each gate applied in each
+        fragment, in order, ignoring every other instruction. Two instruction sequences have equal
+        gate keys exactly when :meth:`has_same_gates_as` holds between them.
+        """
+        return (
+            self.fragment_depth,
+            _gate_tokens(self.start_fragment),
+            _gate_tokens(self.repeatable_fragment),
+            _gate_tokens(self.end_fragment),
+        )
+
+    @property
+    def structure_key(self) -> tuple:
+        """A hashable summary of the instruction structure of this instruction sequence.
+
+        This key refines :attr:`gate_key` by also recording the position and number of qubits of
+        every partial Pauli permutation. Instruction sequences with different structure keys are
+        never mergeable, so :meth:`is_mergeable_with` need only be considered among sequences
+        sharing one. Equal structure keys further imply that the sequences specify Pauli mappings
+        on the same numbers of qubits, in the same order.
+
+        Raises:
+            TypeError: If this instruction sequence contains an instruction that is neither a gate
+                application nor a partial Pauli permutation.
+        """
+        return (
+            self.fragment_depth,
+            _structure_tokens(self.start_fragment),
+            _structure_tokens(self.repeatable_fragment),
+            _structure_tokens(self.end_fragment),
+        )
+
     def has_same_gates_as(self, other: "InstructionSequence") -> bool:
         """Return whether this instruction sequence has the same gate applications as another.
 
@@ -68,28 +131,7 @@ class InstructionSequence(BaseSequence[Instruction]):
         Returns:
             Whether this instruction sequence has the same gate applications as the other.
         """
-        if self.fragment_depth != other.fragment_depth:
-            return False
-
-        self_gates = (
-            list(_filter_to_gates(self.start_fragment)),
-            list(_filter_to_gates(self.repeatable_fragment)),
-            list(_filter_to_gates(self.end_fragment)),
-        )
-        other_gates = (
-            list(_filter_to_gates(other.start_fragment)),
-            list(_filter_to_gates(other.repeatable_fragment)),
-            list(_filter_to_gates(other.end_fragment)),
-        )
-
-        return all(
-            len(self_fragment) == len(other_fragment)
-            and all(
-                gate0.is_mergeable_with(gate1)
-                for gate0, gate1 in zip(self_fragment, other_fragment)
-            )
-            for self_fragment, other_fragment in zip(self_gates, other_gates)
-        )
+        return self.gate_key == other.gate_key
 
     def is_mergeable_with(self, other: Self) -> bool:
         r"""Check if this instruction sequence is mergeable with another instruction sequence.
