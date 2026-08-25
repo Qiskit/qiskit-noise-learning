@@ -85,8 +85,9 @@ def _merge_candidate_data(sequence: InstructionSequence) -> tuple[Hashable, np.n
     """Return a key and a concatenation of the sequence's partial permutation indices.
 
     The returned key comes with the following guarantees:
-    - If the keys for two instruction sequences are different, then they are not mergeable.
-    - If the keys for two instruction sequences are equal, the concatenation of the partial
+
+    * If the keys for two instruction sequences are different, then they are not mergeable.
+    * If the keys for two instruction sequences are equal, the concatenation of the partial
       permutation indices has the same length, and whether or not they are mergeable is determined
       completely by the consistency of those partial permutation indices.
 
@@ -117,9 +118,9 @@ def _merge_candidate_data(sequence: InstructionSequence) -> tuple[Hashable, np.n
                 indices.append(instr.partial_permutation_indices)
             else:
                 raise TypeError(
-                    f"Cannot partition instruction sequences containing "
+                    "Cannot partition instruction sequences containing "
                     f"{type(instr).__name__} instructions: only gate applications and partial "
-                    f"Pauli permutations are supported."
+                    "Pauli permutations are supported."
                 )
         key.append(tuple(tokens))
 
@@ -157,8 +158,9 @@ def _row_order(masks: np.ndarray, order: InstructionSequenceOrder) -> np.ndarray
         return np.lexsort(masks.T[::-1]) if masks.shape[1] else np.arange(len(masks))
 
     # the total number of completions each row has available, negated to sort descending; ties
-    # are broken by row index so that every ordering is a deterministic function of the masks
-    num_admissible = _POPCOUNT[masks].sum(axis=1)
+    # are broken by row index so that every ordering is a deterministic function of the masks.
+    # the sum is taken as a signed type, since negating an unsigned one wraps instead.
+    num_admissible = _POPCOUNT[masks].sum(axis=1, dtype=np.int32)
     if order == "least-constrained-first":
         num_admissible = -num_admissible
     return np.argsort(num_admissible, kind="stable")
@@ -181,7 +183,7 @@ def _validate_grouping_strategies(grouping_strategies: Sequence[GroupingStrategy
         if len(grouping_strategy) != 2:
             raise ValueError(
                 f"Invalid grouping strategy {grouping_strategy!r}: expected an instruction "
-                f"sequence order paired with a merging strategy."
+                "sequence order paired with a merging strategy."
             )
 
         order, merging_strategy = grouping_strategy
@@ -200,7 +202,7 @@ def _validate_grouping_strategies(grouping_strategies: Sequence[GroupingStrategy
 
 
 def _group_by_shared_completion(
-    masks: np.ndarray, order: np.ndarray, strategy: MergingStrategy
+    masks: np.ndarray, order: np.ndarray, merging_strategy: MergingStrategy
 ) -> list[list[int]]:
     """Greedily group rows sharing a completion in every column.
 
@@ -211,7 +213,7 @@ def _group_by_shared_completion(
         masks: A ``uint8`` array whose ``[i, j]`` entry is a bitmask of the completions
             available to row ``i`` in column ``j``.
         order: The order in which to visit the rows, as returned by ``_row_order``.
-        strategy: How to choose among the groups a row can join, as documented in
+        merging_strategy: How to choose among the groups a row can join, as documented in
             ``group_mergeable_instruction_sequences``.
 
     Returns:
@@ -231,13 +233,12 @@ def _group_by_shared_completion(
             groups.append([int(row_idx)])
             continue
 
-        if strategy == "first":
+        if merging_strategy == "first":
             pick = feasible[0]
         else:
-            before = _POPCOUNT[admissible_completions[feasible]].sum(axis=1, dtype=np.int32)
-            key = before
-            if strategy == "least-impacted":
-                key = before - _POPCOUNT[joined[feasible]].sum(axis=1, dtype=np.int32)
+            key = _POPCOUNT[admissible_completions[feasible]].sum(axis=1, dtype=np.int32)
+            if merging_strategy == "least-impacted":
+                key -= _POPCOUNT[joined[feasible]].sum(axis=1, dtype=np.int32)
             pick = feasible[np.argmin(key)]
 
         admissible_completions[pick] &= row

@@ -12,8 +12,6 @@
 
 """MergeInstructionSequences stage."""
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 
 from qiskit_noise_learning.sequences import (
