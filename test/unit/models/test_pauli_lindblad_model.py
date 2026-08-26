@@ -268,6 +268,7 @@ def test_rows_unknown_gate_raises(gate_set_cz, generators_cz):
         # two generators, only one of which anticommutes
         (["ZI", "ZZ"], ["ZZ"]),
     ],
+    ids=["one-anticommuting", "one-commuting", "no-generators", "two-mixed"],
 )
 def test_rows_few_generators(gate_set_cz, generators_cz, cz_generators, expected_labels):
     """Rows are correct when a gate has zero, one, or two generators."""

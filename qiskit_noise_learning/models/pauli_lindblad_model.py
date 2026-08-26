@@ -163,8 +163,8 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
         """
         output_indices = list(output_indices)
 
-        generator_lookup = {}
-        for gate_name in {index.gate_name for index in output_indices}:
+        generator_lookup: dict[str, tuple[list[GeneratorIndex], QubitSparsePauliList | None]] = {}
+        for gate_name in dict.fromkeys(index.gate_name for index in output_indices):
             if gate_name not in self.generators:
                 raise ValueError(f"Gate with name {gate_name} not in gate set.")
             generators = self.generators[gate_name]
@@ -173,7 +173,7 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
             ]
             generator_lookup[gate_name] = (
                 generator_indices,
-                generators if len(generators) else None,
+                generators if len(generators) > 0 else None,
             )
 
         return IndexedMatrix.from_rows(
