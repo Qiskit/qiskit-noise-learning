@@ -256,6 +256,48 @@ def test_rows_unknown_gate_raises(gate_set_cz, generators_cz):
         pauli_lindblad_model.rows([fidelity])
 
 
+@pytest.mark.parametrize(
+    ("cz_generators", "expected_labels"),
+    [
+        # a single generator that anticommutes with the transition Pauli ZX
+        (["ZZ"], ["ZZ"]),
+        # a single generator that commutes with ZX, giving an empty row
+        (["ZI"], []),
+        # a gate carrying no generators at all
+        ([], []),
+        # two generators, only one of which anticommutes
+        (["ZI", "ZZ"], ["ZZ"]),
+    ],
+    ids=["one-anticommuting", "one-commuting", "no-generators", "two-mixed"],
+)
+def test_rows_few_generators(gate_set_cz, generators_cz, cz_generators, expected_labels):
+    """Rows are correct when a gate has zero, one, or two generators."""
+    generators = dict(generators_cz)
+    generators["CZ"] = (
+        QubitSparsePauliList(cz_generators)
+        if cz_generators
+        else QubitSparsePauliList.empty(gate_set_cz.num_qubits)
+    )
+    pauli_lindblad_model = PauliLindbladModel(gate_set=gate_set_cz, generators=generators)
+
+    fidelity = FidelityIndex.from_gate(
+        gate=gate_set_cz["CZ"],
+        pauli=QubitSparsePauli("IX"),
+        in_z_idxs=frozenset(),
+        out_z_idxs=frozenset(),
+    )
+    rows = pauli_lindblad_model.rows([fidelity])
+
+    if not expected_labels:
+        # rows with no non-zero entries are dropped from the matrix entirely
+        assert fidelity not in rows.row_index_map
+    else:
+        expected = IndexedVector(
+            {GeneratorIndex("CZ", pauli): 2.0 for pauli in QubitSparsePauliList(expected_labels)}
+        )
+        assert rows[fidelity] == expected
+
+
 def test_k_partition_local(two_q_pauli_str, gate_set_cz):
     pauli_lindblad_model = PauliLindbladModel.k_partition_local(gate_set=gate_set_cz, k=2)
 

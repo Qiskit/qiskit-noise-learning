@@ -20,7 +20,7 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=2",
-    "qiskit>=2.2.0",
+    "qiskit>=2.5.0",
     "qiskit-aer",
     "qiskit-ibm-runtime>=0.48",
     "rustworkx>=0.15",
