@@ -72,6 +72,22 @@ reproduces the real workload.
 `grid256` is the practical ceiling on a 36 GiB machine: 10 minutes, 10 GiB resident, and a **40.7 GiB
 peak memory footprint**. It does not swap, but it has no headroom.
 
+### Reproducing the measurements below
+
+`run_bench.py` measures end-to-end time and memory — the table above. Everything in §2 and §3 that
+goes *inside* the build (operand sparsity, the block structure, the block-size sweep, the Clifford
+propagation floor, dense-vs-sparse products) was measured by the six scripts in
+**`benchmarks/probes/`**, one question per script. `benchmarks/probes/README.md` maps each probe to
+the specific numbers it produced here, and records the two caveats worth knowing before trusting a
+re-run. Run them from the repository root with the environment the package is installed into:
+
+```bash
+.venv/bin/python benchmarks/probes/structure.py hex32
+```
+
+All hardware figures are an Apple M3 Pro, 12 cores, 36 GiB, whose clean double-precision dgemm peak
+measures **345 GFLOP/s**.
+
 ---
 
 ## 2. What is actually bottlenecking the time
