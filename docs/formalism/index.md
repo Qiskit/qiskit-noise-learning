@@ -2,7 +2,7 @@
 
 Given the task of learning Pauli noise for a set of Clifford gates, a common analysis technique is
 to track how individual Pauli operators are transformed through a sequence of gate applications
-(under the assumption that the gates are Clifford, and the noise is a Pauli channel, a single Pauli
+(under the assumption that the gates are Clifford and the noise is a Pauli channel, a single Pauli
 will always be mapped to another Pauli up to a scalar that is a function of the noise). Obviously,
 the evolution of *any* state under such a sequence can be captured by a linear combination of such
 trajectories, but under the assumption that we always prepare the state in a Pauli eigenstate, and
@@ -27,9 +27,9 @@ The following is a review of some core mathematical concepts from the literature
 meant to consolidate notation, and to serve as a conceptual documentation reference for the rest of
 the package.
 
-## 1. Background
+## Background
 
-### 1.1 Notation
+### Notation
 
 For $K \in \mathbb{N}$, let $[K] = \{0, 1, \dots, K - 1\}$. For a finite set $S \subset \mathbb{N}$
 of qubit indices, let $\P^S$ denote the set of *unphased* Pauli operators acting on those qubits.
@@ -50,19 +50,18 @@ in which we use this notation, it is not actually necessary to choose a specific
 convention. For a classical bit string $m$, we use the shorthand
 $\opket{m} = \opket{\ket{m}\bra{m}}$.
 
-### 1.2 Quantum instruments
+### Quantum instruments
 
-A quantum operation producing classical bits $m \in \Z_2^M$ (e.g. the result of measurement) is
-generally modelled as a linear map of the form:
+A quantum operation producing classical bits $m \in \Z_2^M$ (for example, the result of measurement) is
+generally modeled as a linear map of the form:
 
 $$ \rho \mapsto \sum_{m \in \Z_2^M} \E_m(\rho) \otimes \ket{m}\bra{m}, $$
 
-where the set $\{\E_m: m \in \Z_2^M\}$ are completely positive, and $\sum_m \E_m$ is trace
-preserving. A set of completely positive maps $\{\E_m\}$ satisfying these properties is called a
+where the set $\{\E_m: m \in \Z_2^M\}$ are completely positive, and $\sum_m \E_m$ is trace-preserving. A set of completely positive maps $\{\E_m\}$ satisfying these properties is called a
 *quantum instrument*. A unitary gate is a special case of an instrument with only one element that
 is a unitary operation.
 
-## 2. Noisy Clifford-MCM-reset gates
+## Noisy Clifford-MCM-reset gates
 
 The formalism utilized in this package assumes every gate in the gate set to be characterized
 consists of the following sequence of operations on $K$ qubits:
@@ -85,9 +84,9 @@ $$ \U_m = \sum_{a,b \in \Z_2^M} \Lambda_{a,b} \otimes \opket{m + a}\opbra{m + b}
 
 where each $\Lambda_{a,b}$ is a sub-normalized Pauli channel on the unmeasured qubits $N = [K]
 \setminus M$. It is implied by this being a quantum instrument that $\sum_{a,b} \Lambda_{a,b}$ is
-also trace preserving. Some notes:
+also trace-preserving. Some notes:
 
-- The initial untwirled noise is modelled to include both "quantum" and "classical" errors: i.e.
+- The initial untwirled noise is modeled to include both "quantum" and "classical" errors:
   erroneous operations on the quantum registers, as well as mistakes in the measurement value
   reporting.
 - The noise map $\Lambda_{a,b}$ is *independent* of the measurement outcome $m$.
@@ -96,13 +95,13 @@ In words, a single term in the above sum represents observing a measurement outc
 when the measured state was $\ket{m + b}$ (a misclassification if $b \neq 0$), and when
 the output state on the measurement register is $\ket{m + a}$ (the "wrong" state when $a \neq 0$).
 The map $\Lambda_{a,b}$ simultaneously encodes the action on the unmeasured qubits (conditioned on
-the measurement behaviour) and the *probability* of the specific measurement behaviour (through the
+the measurement behavior) and the *probability* of the specific measurement behavior (through the
 normalization).
 
 Note that we are not concerned here with the specifics of the twirling strategy: that such a
 strategy exists to put the channel into the above form is enough. Note that "finer" twirling
 strategies exist which can further restrict the form of the Pauli channels
-{cite}`berg_techniques_2024`, however we take the above form as the most general mathematical
+{cite}`berg_techniques_2024`; however, we take the above form as the most general mathematical
 representation under consideration.
 
 In Lemma 1 of {cite}`zhang_generalized_2025`, it is shown that $\E_m = \U_mG$ can be rewritten
@@ -114,7 +113,7 @@ $$ \E_m = \frac{1}{2^{2|M| + |N|}}\sum_{x, y \in \Z_2^M, Q \in \P^N} (-1)^{m \cd
 for some real numbers $\lambda_{x,y}^Q$, which are called the *fidelities* of the instrument.
 
 Adding reset to this picture is relatively straightforward. A noisy reset operation on qubits
-$R \subset [K]$ can be modelled according to the decomposition:
+$R \subset [K]$ can be modeled according to the decomposition:
 
 $$ \frac{1}{2^{|R|}}\sum_{r \in \Z_2^{R}} \lambda_r \opket{Z^r}\opbra{I_R}. $$ (reset_form)
 
@@ -141,7 +140,7 @@ $R = \emptyset$, this yields $4^K$. Note that this may initially seem surprising
 learning, measurement and reset are typically considered to have the same number of fidelities:
 $2^K$. However, here the all-measurement gate in this context is understood not as a *terminal*
 measurement, but as an MCM, and as such fidelities corresponding to non-identity *outputs* of the
-measurement are also included (i.e. $y \neq 0$ in Equation {eq}`clifford_mcm_reset_form`).
+measurement are also included (such as $y \neq 0$ in Equation {eq}`clifford_mcm_reset_form`).
 
 Finally, it is important to note that any twirling strategy yielding the form in Equation
 {eq}`clifford_mcm_form` in the non-reset case still applies equally well to the non-trivial reset
@@ -151,7 +150,7 @@ reset, implementing the strategy seemingly requires inserting operations *within
 the measurement and reset. However, given the nature of reset, any such operations have no effect,
 and can simply be skipped while still yielding the same desired structure.
 
-## 3. Path formalism
+## Path formalism
 
 As described in the introduction, all learning algorithms for Pauli-type noise on Clifford gates are
 based around tracking how individual Paulis evolve through a circuit, picking up noise fidelity
@@ -162,11 +161,11 @@ being assumed.
 
 In {cite}`chen_efficient_2026`, in the context of unitary gate sets, this is formalized into the
 *Pattern Transfer Graph* (PTG): a directed graph describing all possible experiments consisting of
-elements of the gate set and layers of single qubit Clifford gates (assumed to be perfect, or
+elements of the gate set and layers of single-qubit Clifford gates (assumed to be perfect, or
 "free", operations). This was generalized in {cite}`zhang_generalized_2025` to include gate sets
 with mid-circuit measurements. In both cases, each experiment is described by tracking a single
 Pauli operator through the circuit, under the assumption of a particular observable being computed
-at each measurement site. Here we do not directly review the graph or path constructions, however we
+at each measurement site. Here we do not directly review the graph or path constructions; however, we
 present the required facts for justifying them within our own notation and with resets included.
 
 While the tracking of a single Pauli operator through the circuit may be intuitive in the unitary
