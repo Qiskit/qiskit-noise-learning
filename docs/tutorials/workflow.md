@@ -10,9 +10,9 @@ kernelspec:
   name: python3
 ---
 
-# Building a learning experiment
+# Build a learning experiment
 
-In this tutorial we will build a standard learning experiment from scratch, and use it to learn a
+This guide demonstrates how to build a standard learning experiment from scratch, and use it to learn a
 model from simulated noisy data.
 
 1. Define a gate set on a ring of qubits
@@ -26,7 +26,7 @@ model from simulated noisy data.
 :::{admonition} Running on real hardware
 :class: note
 
-The circuits below are simulated locally, so this tutorial needs no IBM Quantum credentials. Three
+The circuits below are simulated locally, so this walkthrough needs no IBM Quantum&reg; credentials. Three
 changes take it to a real device, each flagged again where it applies:
 
 * **Step 1**: replace {class}`~qiskit_ibm_runtime.fake_provider.FakeMarrakesh` with a real backend.
@@ -37,8 +37,8 @@ changes take it to a real device, each flagged again where it applies:
 ## 1. Define a gate set on a ring of qubits
 
 Build a {class}`~.QiskitGateSet` from a backend {class}`~qiskit.transpiler.Target` and a subset of
-its qubits — here a twelve-qubit ring of
-{class}`~qiskit_ibm_runtime.fake_provider.FakeMarrakesh` — then add one gate to it: a layer of six
+its qubits &mdash; here a twelve-qubit ring of
+{class}`~qiskit_ibm_runtime.fake_provider.FakeMarrakesh` &mdash; then add one gate to it: a layer of six
 `CZ` gates covering that ring. By default the gate set is initialized with a preparation gate `P`
 and a measurement gate `M`.
 
@@ -82,7 +82,7 @@ gate_set.draw()
 
 Decide which Pauli-Lindblad generators the noise is allowed to have with a
 {class}`~.PauliLindbladModel`. Build that generator set from the gate set's connectivity with
-{meth}`~.PauliLindbladModel.k_local` — here every 2-local Pauli on connected qubit pairs of the
+{meth}`~.PauliLindbladModel.k_local` &mdash; here every 2-local Pauli on connected qubit pairs of the
 unitary gate, and single-qubit Paulis for preparation and measurement.
 
 ```{code-cell} python
@@ -146,8 +146,8 @@ print(f"Design matrix rank: {experiment.design_matrix.rank}")
 ## 4. Generate circuits
 
 Compile the experiment with an {class}`~.ExecutorCircuitGenerator`, generating a
-{class}`~qiskit_ibm_runtime.quantum_program.QuantumProgram` — one parameterized template circuit
-per fragment depth — together with a data mapper that records how to interpret results.
+{class}`~qiskit_ibm_runtime.quantum_program.QuantumProgram` &mdash; one parameterized template circuit
+per fragment depth &mdash; together with a data mapper that records how to interpret results.
 
 ```{code-cell} python
 from qiskit_noise_learning.circuit_generator import ExecutorCircuitGenerator
@@ -167,9 +167,9 @@ quantum_program.items[0].circuit.draw("mpl", idle_wires=False, fold=False)
 ## 5. Set up local simulation
 
 An {class}`~.AerExecutor` runs a program on a local Aer simulator, injecting Pauli-Lindblad
-noise at the barriers samplomatic places around each twirled gate.
+noise at the barriers Samplomatic places around each twirled gate.
 
-Unlike the hand-picked noise of the {class}`~.NoiseLearner` tutorial, give *every one* of the
+Unlike the hand-picked noise of the {class}`~.NoiseLearner` guide, give *every one* of the
 model's 168 generators an independent random rate. The model's generators are already exactly the
 Paulis to put in a {class}`~qiskit.quantum_info.PauliLindbladMap`, so pair each one with a rate and
 build the map per gate directly:
@@ -226,7 +226,7 @@ Skip this step entirely.
 ## 6. Run the program
 
 Run the program, then pair the returned bitstrings with the data mapper using
-{meth}`~.ExecutorCircuitGenerator.collect`, which produces a {class}`~.Fit` — the container the
+{meth}`~.ExecutorCircuitGenerator.collect`, which produces a {class}`~.Fit` &mdash; the container the
 analysis stages read from and write to.
 
 ```{code-cell} python
@@ -246,13 +246,13 @@ executor = Executor(mode=backend)
 
 ## 7. Analyze the data
 
-Build an analysis pipeline around non-negative least squares fitting of the model.
+Build an analysis pipeline around nonnegative least squares fitting of the model.
 
 ```{code-cell} python
 from qiskit_noise_learning.analysis import (
     ComputeObservables,  # computes observables from raw data
     CurveFitObservables,  # performs exponential fitting
-    NNLSSolve,  # solves model with non-negative least squares
+    NNLSSolve,  # solves model with nonnegative least squares
 )
 
 analyzer = ComputeObservables() + CurveFitObservables() + NNLSSolve()
