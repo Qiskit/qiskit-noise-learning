@@ -77,7 +77,7 @@ feature of many quantum computing modalities, and enables simplified representat
 
 As outlined in {cite}`beale_randomized_2023,zhang_generalized_2025` for the no-reset case, if a
 specific twirling strategy is applied to a noisy instance of such a gate, then the action of the
-resulting operation can be modelled mathematically as a *uniform Pauli instrument*. That is, within
+resulting operation can be modeled mathematically as a *uniform Pauli instrument*. That is, within
 the quantum instrument notation, $\E_m = \U_mG$, where $G$ is the Clifford unitary, and:
 
 $$ \U_m = \sum_{a,b \in \Z_2^M} \Lambda_{a,b} \otimes \opket{m + a}\opbra{m + b}, $$
