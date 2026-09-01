@@ -23,7 +23,7 @@ unitary gate.
 :::{admonition} Running on real hardware
 :class: note
 
-The circuits below are simulated locally, so this tutorial needs no IBM Quantum&reg; credentials. Two
+The circuits below are simulated locally, so this walkthrough needs no IBM Quantum&reg; credentials. Two
 changes take it to a real device, each flagged again where it applies:
 
 * **Step 1**: replace {class}`~qiskit_ibm_runtime.fake_provider.FakeMarrakesh` with a real backend.
