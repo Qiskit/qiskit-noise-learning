@@ -82,6 +82,10 @@ class QiskitGate(Gate):
         annotations: Sequence[Annotation] | None = None,
         latex_str: str | None = None,
     ):
+        qubit_idxs = list(qubit_idxs)
+        if circuit.num_qubits != len(qubit_idxs):
+            raise ValueError("`qubit_idxs` must have a length equal to `circuit.num_qubits`.")
+
         clbit_meas_idxs = [None] * circuit.num_clbits
         other_preps = []
         qubit_map = dict(zip(circuit.qubits, qubit_idxs))
@@ -96,8 +100,6 @@ class QiskitGate(Gate):
                     )
                 clbit_meas_idxs[clbit_idx] = qubit_map[instr.qubits[0]]
 
-        if circuit.num_qubits != len(qubit_idxs):
-            raise ValueError("`qubit_idxs` must have a length equal to `circuit.num_qubits`.")
         if any(idx is None for idx in clbit_meas_idxs):
             raise ValueError("Every classical bit of `circuit` must be measured into exactly once.")
         if len(set(clbit_meas_idxs)) != len(clbit_meas_idxs):

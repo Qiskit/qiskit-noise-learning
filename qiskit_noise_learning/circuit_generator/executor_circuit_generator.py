@@ -344,14 +344,17 @@ class ExecutorCircuitGenerator(
                             qubit_idxs[creg.index(clbit)] = qubit_idx
                             break
 
-            for key, val in clbit_qubit_idxs.items():
+            for name in creg_names:
+                val = clbit_qubit_idxs.get(name)
+                if val is None or (
+                    isinstance(val, list) and any(qubit_idx is None for qubit_idx in val)
+                ):
+                    raise ValueError(
+                        f"Every classical bit of the register '{name}' added by the pass "
+                        "manager must be measured into exactly once."
+                    )
                 if isinstance(val, list):
-                    if any(qubit_idx is None for qubit_idx in val):
-                        raise ValueError(
-                            f"Every classical bit of the register '{key}' added by the pass "
-                            "manager must be measured into exactly once."
-                        )
-                    clbit_qubit_idxs[key] = np.array(val, dtype=int)
+                    clbit_qubit_idxs[name] = np.array(val, dtype=int)
 
         return (
             SamplexItem(

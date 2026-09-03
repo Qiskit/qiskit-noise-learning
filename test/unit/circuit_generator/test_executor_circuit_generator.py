@@ -881,3 +881,28 @@ def test_generate_with_pass_manager_raises():
     cg = ExecutorCircuitGenerator(gateset, pass_manager=PassManager([AddIdleBitPass()]))
     with pytest.raises(ValueError, match="must be measured into exactly once"):
         cg.generate_samplex_items([seq], num_randomizations=2)
+
+
+def test_generate_with_pass_manager_unmeasured_creg_raises():
+    """Test that a creg added by the pass manager with no measurements at all raises, rather than
+    surfacing later as a missing entry when the data is collected."""
+    from qiskit.circuit import ClassicalRegister
+    from qiskit.transpiler import PassManager, TransformationPass
+
+    class AddUnmeasuredCregPass(TransformationPass):
+        def run(self, dag):
+            dag.add_creg(ClassicalRegister(1, "extra"))
+            return dag
+
+    gateset = QiskitGateSet(2)
+    with gateset.build_new_gate() as builder:
+        builder.circuit.cz(0, 1)
+        builder.circuit.noop(range(2))
+
+    seq = InstructionSequence(
+        [ApplyGate("P")], [ApplyGate("L0")], [ApplyGate("M")], fragment_depth=1
+    )
+
+    cg = ExecutorCircuitGenerator(gateset, pass_manager=PassManager([AddUnmeasuredCregPass()]))
+    with pytest.raises(ValueError, match="register 'extra' .* measured into exactly once"):
+        cg.generate_samplex_items([seq], num_randomizations=2)

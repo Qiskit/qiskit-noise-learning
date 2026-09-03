@@ -86,6 +86,14 @@ def test_constructor_raises():
     with pytest.raises(ValueError, match="`qubit_idxs` .* `circuit.num_qubits`"):
         QiskitGate("L0", QuantumCircuit(2), [0])
 
+    # the length mismatch is caught before the measurements are inspected, so that a qubit with
+    # no entry in the qubit index map does not raise something else first
+    measuring_circuit = QuantumCircuit(2, 2)
+    measuring_circuit.measure(0, 0)
+    measuring_circuit.measure(1, 1)
+    with pytest.raises(ValueError, match="`qubit_idxs` .* `circuit.num_qubits`"):
+        QiskitGate("M", measuring_circuit, [0])
+
     with pytest.raises(ValueError, match="`prep_idxs` must be a subset of `qubit_idxs`"):
         QiskitGate("L0", QuantumCircuit(2), [0, 1], [1, 2])
 
