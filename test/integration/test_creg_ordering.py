@@ -19,7 +19,7 @@ from qiskit_noise_learning.gate_sets import QiskitGateSet
 from qiskit_noise_learning.sequences import ApplyGate, FidelityIndex, InstructionSequence
 
 
-def test_creg_order(self):
+def test_creg_order():
     # qubit_subset is NOT ascending -> the auto-built "M" gate has qubit_idxs == (1, 0)
     gate_set = QiskitGateSet(2, qubit_subset=[1, 0])
     with gate_set.build_new_gate() as builder:
