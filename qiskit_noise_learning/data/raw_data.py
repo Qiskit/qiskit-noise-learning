@@ -52,7 +52,9 @@ class RawData(LeveledData):
     - Attrs:
 
         - ``creg_names``: Ordered list of classical register names.
-        - ``measurement_map``: Dictionary mapping creg names to arrays of measured qubit indices.
+        - ``measurement_map``: Dictionary mapping creg names to arrays of measured qubit indices,
+          where entry ``j`` is the physical qubit index measured into classical bit ``j`` of the
+          register.
         - ``creg_bit_boundaries``: Dictionary mapping creg names to ``(start_idx, end_idx)`` tuples
           indicating the slice of the ``"bit"`` dimension for that register.
 
@@ -90,7 +92,8 @@ class RawData(LeveledData):
         Args:
             creg_names: Ordered list of classical register names.
             measurement_map: Dictionary mapping creg names to arrays of measured physical qubit
-                indices.
+                indices, where entry ``j`` is the physical qubit index measured into classical bit
+                ``j`` of the register.
             instruction_sequences: The list of instruction sequences used to generate the
                 experiments.
             data: A list of outcome data for each instruction sequence for all classical registers.

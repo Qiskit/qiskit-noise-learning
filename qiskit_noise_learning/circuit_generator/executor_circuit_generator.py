@@ -238,7 +238,8 @@ class ExecutorCircuitGenerator(
         Returns:
             A samplex item where the order of the arguments correspond to the order of
             ``instruction_sequences``, an ordered list of creg names, and a dictionary mapping
-            creg names to the ordered list of qubit indices they measure.
+            creg names to the physical qubit index measured into each of their classical bits, in
+            classical bit order.
 
         Raises:
             ValueError: If ``instruction_sequences`` is empty.
@@ -282,7 +283,7 @@ class ExecutorCircuitGenerator(
 
                 if num_meas := len(gate.meas_idxs):
                     creg_names.append(next(creg_iter))
-                    measurement_map[creg_names[-1]] = np.array(sorted(gate.meas_idxs), dtype=int)
+                    measurement_map[creg_names[-1]] = np.array(gate.clbit_meas_idxs, dtype=int)
 
                     creg = ClassicalRegister(num_meas, creg_names[-1])
                     boxed_circuit.add_register(creg)
@@ -338,12 +339,18 @@ class ExecutorCircuitGenerator(
                     clbit = instruction.clbits[0]
                     for creg in template.cregs:
                         if creg.name not in original_creg_names and clbit in creg:
-                            measurement_map.setdefault(creg.name, []).append(qubit_idx)
+                            qubit_idxs = measurement_map.setdefault(creg.name, [None] * len(creg))
+                            qubit_idxs[creg.index(clbit)] = qubit_idx
                             break
 
             for key, val in measurement_map.items():
                 if isinstance(val, list):
-                    measurement_map[key] = np.array(sorted(val), dtype=int)
+                    if any(qubit_idx is None for qubit_idx in val):
+                        raise ValueError(
+                            f"Every classical bit of the register '{key}' added by the pass "
+                            "manager must be measured into exactly once."
+                        )
+                    measurement_map[key] = np.array(val, dtype=int)
 
         return (
             SamplexItem(

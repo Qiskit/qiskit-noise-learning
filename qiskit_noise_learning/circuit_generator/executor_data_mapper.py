@@ -30,8 +30,8 @@ class ExecutorDataMapper:
             indices. Position in the list corresponds to the configuration index within the result
             item.
         creg_names: The name of classical registers in each program item.
-        measurement_maps: For each program item, a dictionary from creg names to an ordered array
-            of measured qubit indices.
+        measurement_maps: For each program item, a dictionary from creg names to the physical
+            qubit index measured into each of their classical bits, in classical bit order.
         instruction_sequences: The instruction sequences associated with the data.
         num_randomizations: The number of randomizations used per experiment.
         fidelity_model: The fidelity model used in the experiment.
@@ -76,7 +76,7 @@ class ExecutorDataMapper:
 
     @property
     def measurement_maps(self) -> list[dict[str, np.ndarray[int]]]:
-        """A per-program-item map from creg name to an ordered array of measured qubit indices."""
+        """A per-program-item map from creg name to measured qubit indices."""
         return self._measurement_maps
 
     @property
