@@ -57,7 +57,8 @@ class FidelityIndex:
         input_pauli: The input Pauli of the transition.
         output_pauli: The output Pauli of the transition.
         sign_flip: Whether the transition involves a sign flip.
-        meas_idxs: The measurement qubit indices for the gate.
+        clbit_meas_idxs: The physical qubit index measured into each classical bit of the gate, in
+            classical bit order, as given by :attr:`~.Gate.clbit_meas_idxs`.
     """
 
     def __init__(
@@ -69,7 +70,7 @@ class FidelityIndex:
         input_pauli: QubitSparsePauli,
         output_pauli: QubitSparsePauli,
         sign_flip: bool,
-        meas_idxs: frozenset[int],
+        clbit_meas_idxs: tuple[int, ...],
     ):
         self._gate_name = gate_name
         self._pauli = pauli
@@ -78,7 +79,8 @@ class FidelityIndex:
         self._input_pauli = input_pauli
         self._output_pauli = output_pauli
         self._sign_flip = sign_flip
-        self._meas_idxs = meas_idxs
+        self._clbit_meas_idxs = tuple(clbit_meas_idxs)
+        self._meas_idxs = frozenset(self._clbit_meas_idxs)
 
     @classmethod
     def from_gate(
@@ -117,7 +119,7 @@ class FidelityIndex:
             input_pauli=input_pauli,
             output_pauli=output_pauli,
             sign_flip=sign_flip,
-            meas_idxs=gate.meas_idxs,
+            clbit_meas_idxs=gate.clbit_meas_idxs,
         )
 
     @classmethod
@@ -224,7 +226,7 @@ class FidelityIndex:
             input_pauli=input_pauli,
             output_pauli=output_pauli,
             sign_flip=sign_flip,
-            meas_idxs=gate.meas_idxs,
+            clbit_meas_idxs=gate.clbit_meas_idxs,
         )
 
     @property
@@ -248,6 +250,11 @@ class FidelityIndex:
         return self._out_z_idxs
 
     @property
+    def clbit_meas_idxs(self) -> tuple[int, ...]:
+        """The physical qubit index measured into each classical bit of the gate."""
+        return self._clbit_meas_idxs
+
+    @property
     def sign_flip(self) -> bool:
         """Whether the transition associated with this fidelity involves a sign flip."""
         return self._sign_flip
@@ -259,17 +266,16 @@ class FidelityIndex:
 
     @property
     def mask(self) -> np.ndarray[np.bool_]:
-        """The mask for marginalizing measurement outcomes."""
-        sorted_meas_idxs = sorted(self._meas_idxs)
-        mask = np.zeros(len(self._meas_idxs), dtype=np.bool_)
-        mask[
-            [
-                idx
-                for idx, meas_idx in enumerate(sorted_meas_idxs)
-                if meas_idx in self.observable_idxs
-            ]
-        ] = True
-        return mask
+        """The mask for marginalizing measurement outcomes.
+
+        This is a mask on the classical bits of the gate, in the classical bit order given by
+        :attr:`clbit_meas_idxs`, which is the order in which the measurement outcomes are reported.
+        """
+        # equality and hashing ignore clbit_meas_idxs, so two equal instances must agree on it for
+        # this mask to be well defined. They do: the ordering is a function of the gate, and
+        # gate_name -- which equality does compare -- identifies one gate within a gate set.
+        observable_idxs = set(self.observable_idxs)
+        return np.array([idx in observable_idxs for idx in self._clbit_meas_idxs], dtype=np.bool_)
 
     @property
     def observable_idxs(self) -> list[int]:
