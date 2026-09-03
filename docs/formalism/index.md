@@ -29,7 +29,7 @@ the package.
 
 ## 1. Background
 
-### 1 .1 Notation
+### 1.1 Notation
 
 For $K \in \mathbb{N}$, let $[K] = \{0, 1, \dots, K - 1\}$. For a finite set $S \subset \mathbb{N}$
 of qubit indices, let $\P^S$ denote the set of *unphased* Pauli operators acting on those qubits.
