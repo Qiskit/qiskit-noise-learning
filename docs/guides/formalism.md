@@ -14,12 +14,12 @@ their orthogonality, and the final expectation value "selects" only one of the P
 decomposition before measurement.
 
 This type of reasoning appears in many parallel research tracks in noise learning, including in the
-Pauli gate-set learning literature [\[3\]](#references), [\[4\]](#references), the ACES
-literature [\[6\]](#references), and the cycle benchmarking literature
-[\[5\]](#references). This reasoning was further generalized in
-[\[7\]](#references) to include Clifford-MCM gates (a Clifford gate followed by a
+Pauli gate-set learning literature [[3]](#references), [[4]](#references), the ACES
+literature [[6]](#references), and the cycle benchmarking literature
+[[5]](#references). This reasoning was further generalized in
+[[7]](#references) to include Clifford-MCM gates (a Clifford gate followed by a
 projective mid-circuit measurement). This package most closely follows
-[\[4\]](#references), [\[7\]](#references). While not explicitly named, we adopt the
+[[4]](#references), [[7]](#references). While not explicitly named, we adopt the
 *Pattern Transfer Graph* (PTG) formalism for describing how Pauli operators evolve through learning
 circuits, providing a direct data representation of *paths* through the graph.
 
@@ -75,7 +75,7 @@ state preparation, and any combination of the above. Note that we assume measure
 always along the $Z$-axis for each qubit. While this is not strictly required, it is a common
 feature of many quantum computing modalities, and enables simplified representations and analysis.
 
-As outlined in [\[1\]](#references), [\[7\]](#references) for the no-reset case, if a
+As outlined in [[1]](#references), [[7]](#references) for the no-reset case, if a
 specific twirling strategy is applied to a noisy instance of such a gate, then the action of the
 resulting operation can be modeled mathematically as a *uniform Pauli instrument*. That is, within
 the quantum instrument notation, $\E_m = \U_mG$, where $G$ is the Clifford unitary, and:
@@ -101,10 +101,10 @@ normalization).
 Note that we are not concerned here with the specifics of the twirling strategy: that such a
 strategy exists to put the channel into the above form is enough. Note that "finer" twirling
 strategies exist which can further restrict the form of the Pauli channels
-[\[2\]](#references); however, we take the above form as the most general mathematical
+[[2]](#references); however, we take the above form as the most general mathematical
 representation under consideration.
 
-In Lemma 1 of [\[7\]](#references), it is shown that $\E_m = \U_mG$ can be rewritten
+In Lemma 1 of [[7]](#references), it is shown that $\E_m = \U_mG$ can be rewritten
 as:
 
 $$ \E_m = \frac{1}{2^{2|M| + |N|}}\sum_{x, y \in \Z_2^M, Q \in \P^N} (-1)^{m \cdot (x + y)}
@@ -159,10 +159,10 @@ related simply to products of the underlying fidelities of the individual gates,
 model parameters can be inferred by *inverting* whatever sparse parameter-to-fidelity mapping is
 being assumed.
 
-In [\[4\]](#references), in the context of unitary gate sets, this is formalized into the
+In [[4]](#references), in the context of unitary gate sets, this is formalized into the
 *Pattern Transfer Graph* (PTG): a directed graph describing all possible experiments consisting of
 elements of the gate set and layers of single-qubit Clifford gates (assumed to be perfect, or
-"free", operations). This was generalized in [\[7\]](#references) to include gate sets
+"free", operations). This was generalized in [[7]](#references) to include gate sets
 with mid-circuit measurements. In both cases, each experiment is described by tracking a single
 Pauli operator through the circuit, under the assumption of a particular observable being computed
 at each measurement site. Here we do not directly review the graph or path constructions; however, we
@@ -171,7 +171,7 @@ present the required facts for justifying them within our own notation and with 
 While the tracking of a single Pauli operator through the circuit may be intuitive in the unitary
 gate set case, it does not so obviously hold in the more general Clifford-MCM-reset case, due to the
 non-deterministic nature of measurement. The following proposition recovers this picture even in the
-more general case [\[7\]](#references):
+more general case [[7]](#references):
 
 ```{prf:proposition}
 :label: prop-mcm-evolution
@@ -220,7 +220,7 @@ $\lambda^Q_{x,y} \opbra{G^\dagger(Q \otimes I_{N \cap R} \otimes Z^x)}$, yieldin
 result.
 ```
 
-See [\[7\]](#references) for development beyond this point: the definition of the PTG,
+See [[7]](#references) for development beyond this point: the definition of the PTG,
 paths through the PTG, and the proof that any properly-defined path corresponds to an experiment.
 
 ## References
