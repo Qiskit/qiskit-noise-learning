@@ -46,8 +46,9 @@ class QiskitGate(Gate):
     """Represents a single gate in a :class:`~.QiskitGateSet`.
 
     It is assumed that the gate consists of a sequence of unitary operations, followed by
-    measurements, with no qubit being measured more than once, and finally preparations or resets.
-    This is not currently validated.
+    measurements, and finally preparations or resets. The ordering of the operations is not
+    currently validated, but every classical bit of ``circuit`` must be measured into exactly
+    once, since it is those measurements that define :attr:`~.Gate.clbit_meas_idxs`.
 
     In many ways, this class is similar to a :class:`~qiskit.circuit.CircuitInstruction` containing
     a :class:`~qiskit.circuit.BoxOp` in that it represents the action on some subset of qubits, and
@@ -80,23 +81,30 @@ class QiskitGate(Gate):
         annotations: Sequence[Annotation] | None = None,
         latex_str: str | None = None,
     ):
-        meas_idxs = []
+        clbit_meas_idxs = [None] * circuit.num_clbits
         other_preps = []
         qubit_map = dict(zip(circuit.qubits, qubit_idxs))
         for instr in circuit:
             if _is_prep(instr):
                 other_preps.extend(map(qubit_map.get, instr.qubits))
             elif _is_meas(instr):
-                meas_idxs.extend(map(qubit_map.get, instr.qubits))
+                clbit_idx = circuit.find_bit(instr.clbits[0]).index
+                if clbit_meas_idxs[clbit_idx] is not None:
+                    raise ValueError(
+                        f"Classical bit {clbit_idx} of `circuit` is measured into more than once."
+                    )
+                clbit_meas_idxs[clbit_idx] = qubit_map[instr.qubits[0]]
 
         if circuit.num_qubits != len(qubit_idxs):
             raise ValueError("`qubit_idxs` must have a length equal to `circuit.num_qubits`.")
+        if any(idx is None for idx in clbit_meas_idxs):
+            raise ValueError("Every classical bit of `circuit` must be measured into exactly once.")
 
         super().__init__(
             name=name,
             qubit_idxs=qubit_idxs,
             prep_idxs=chain(prep_idxs, other_preps),
-            meas_idxs=meas_idxs,
+            clbit_meas_idxs=clbit_meas_idxs,
             latex_str=latex_str,
         )
         self._qubit_map = qubit_map
@@ -189,7 +197,7 @@ class QiskitGate(Gate):
             self.name,
             unitary_part,
             qubit_idxs=self.qubit_idxs,
-            meas_idxs=self.meas_idxs,
+            clbit_meas_idxs=self.clbit_meas_idxs,
             prep_idxs=self.prep_idxs,
             latex_str=self._latex_str,
         )
@@ -266,8 +274,8 @@ class QiskitGate(Gate):
 
     def __repr__(self):
         qubits = int_sequence_to_str("qubits", self.qubit_idxs)
-        prep = f", {int_sequence_to_str('prep', self.sorted_prep_idxs)}" if self.prep_idxs else ""
-        meas = f", {int_sequence_to_str('meas', self.sorted_meas_idxs)}" if self.meas_idxs else ""
+        prep = f", {int_sequence_to_str('prep', sorted(self.prep_idxs))}" if self.prep_idxs else ""
+        meas = f", {int_sequence_to_str('meas', sorted(self.meas_idxs))}" if self.meas_idxs else ""
         return (
             f"QiskitGate(<name={self.name}, {qubits}, "
             f"ops={dict(self.circuit.count_ops())}{prep}{meas}>)"

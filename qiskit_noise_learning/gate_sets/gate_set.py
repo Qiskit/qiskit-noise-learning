@@ -181,8 +181,8 @@ class GateSet(Mapping[str, GateType], metaclass=ABCMeta):
                 gate.name,
                 str(gate.num_qubits),
                 ", ".join("_".join(map(str, idxs)) for idxs in sorted(gate.constituent_gate_idxs)),
-                ", ".join(str(q) for q in gate.sorted_prep_idxs),
-                ", ".join(str(q) for q in gate.sorted_meas_idxs),
+                ", ".join(str(q) for q in sorted(gate.prep_idxs)),
+                ", ".join(str(q) for q in sorted(gate.meas_idxs)),
                 ", ".join(str(q) for q in sorted(gate.idling_idxs)),
             ]
             row.extend(extra_fn(gate) for extra_fn in extra_fns)

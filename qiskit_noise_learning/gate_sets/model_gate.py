@@ -37,7 +37,8 @@ class ModelGate(Gate):
             the first applied Clifford and proceed temporally, and ``None`` is interpreted as the
             identity.
         qubit_idxs: The physical qubit indices.
-        meas_idxs: The physical qubit indices that this gate measures.
+        clbit_meas_idxs: The physical qubit index measured into each classical bit of the
+            gate, in classical bit order.
         prep_idxs: The physical qubit indices that this gate prepares, or resets.
         latex_str: An optional LaTeX string for rendering this gate.
 
@@ -52,7 +53,7 @@ class ModelGate(Gate):
         name: str,
         cliffords: Iterable[tuple[tuple[int, ...], Clifford]] | None = None,
         qubit_idxs: Iterable[int] | None = None,
-        meas_idxs: Iterable[int] = (),
+        clbit_meas_idxs: Iterable[int] = (),
         prep_idxs: Iterable[int] = (),
         latex_str: str | None = None,
     ):
@@ -78,7 +79,7 @@ class ModelGate(Gate):
             name=name,
             qubit_idxs=qubit_idxs,
             prep_idxs=prep_idxs,
-            meas_idxs=meas_idxs,
+            clbit_meas_idxs=clbit_meas_idxs,
             latex_str=latex_str,
         )
 
