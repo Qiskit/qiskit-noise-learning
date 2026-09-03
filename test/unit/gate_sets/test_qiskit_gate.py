@@ -144,14 +144,14 @@ def test_model_gate():
     qc.add_register(ClassicalRegister(2))
     qc.measure([0, 1], [0, 1])
     gate = QiskitGate("L0", qc, qubit_idxs=[3, 9, 8, 2])
-    expected_model_gate = ModelGate("L0", clifford, clbit_meas_idxs=[3, 9])
+    expected_model_gate = ModelGate("L0", clifford, meas_idxs=[3, 9])
     assert gate.model_gate.clifford == expected_model_gate.clifford
     assert gate.model_gate.meas_idxs == expected_model_gate.meas_idxs
 
     # add resets
     qc.reset(3)
     gate = QiskitGate("L0", qc, qubit_idxs=[3, 9, 8, 2])
-    expected_model_gate = ModelGate("L0", clifford, clbit_meas_idxs=[3, 9], prep_idxs=[2])
+    expected_model_gate = ModelGate("L0", clifford, meas_idxs=[3, 9], prep_idxs=[2])
     assert gate.model_gate.clifford == expected_model_gate.clifford
     assert gate.model_gate.meas_idxs == expected_model_gate.meas_idxs
     assert gate.model_gate.prep_idxs == expected_model_gate.prep_idxs
@@ -165,7 +165,7 @@ def test_model_gate():
     qc.cx(1, 2)
     qc.reset(2)
     gate = QiskitGate("L0", qc, qubit_idxs=[3, 9, 8, 2])
-    expected_model_gate = ModelGate("L0", clifford, clbit_meas_idxs=[3], prep_idxs=[2, 8])
+    expected_model_gate = ModelGate("L0", clifford, meas_idxs=[3], prep_idxs=[2, 8])
     assert gate.model_gate.clifford == expected_model_gate.clifford
     assert gate.model_gate.meas_idxs == expected_model_gate.meas_idxs
     assert gate.model_gate.prep_idxs == expected_model_gate.prep_idxs
@@ -232,7 +232,11 @@ def test_clbit_meas_idxs():
 
     assert gate.clbit_meas_idxs == (4, 5, 3)
     assert gate.meas_idxs == frozenset([3, 4, 5])
-    assert gate.model_gate.clbit_meas_idxs == (4, 5, 3)
+
+    # the classical bit ordering is confined to QiskitGate; the model gate only knows which
+    # qubits are measured
+    assert gate.model_gate.meas_idxs == frozenset([3, 4, 5])
+    assert not hasattr(gate.model_gate, "clbit_meas_idxs")
 
 
 def test_clbit_meas_idxs_raises():
@@ -247,7 +251,7 @@ def test_clbit_meas_idxs_raises():
         qc.measure(0, 0)
         QiskitGate("L0", qc, qubit_idxs=[0, 1])
 
-    with pytest.raises(ValueError, match="must not contain repeated entries"):
+    with pytest.raises(ValueError, match="may be measured into more than one clbit"):
         qc = QuantumCircuit(2, 2)
         qc.measure(0, 0)
         qc.measure(0, 1)

@@ -47,8 +47,9 @@ class QiskitGate(Gate):
 
     It is assumed that the gate consists of a sequence of unitary operations, followed by
     measurements, and finally preparations or resets. The ordering of the operations is not
-    currently validated, but every classical bit of ``circuit`` must be measured into exactly
-    once, since it is those measurements that define :attr:`~.Gate.clbit_meas_idxs`.
+    currently validated, but every classical bit of ``circuit`` must be measured into exactly once,
+    and no qubit may be measured more than once, since it is those measurements that define
+    :attr:`clbit_meas_idxs`.
 
     In many ways, this class is similar to a :class:`~qiskit.circuit.CircuitInstruction` containing
     a :class:`~qiskit.circuit.BoxOp` in that it represents the action on some subset of qubits, and
@@ -99,14 +100,17 @@ class QiskitGate(Gate):
             raise ValueError("`qubit_idxs` must have a length equal to `circuit.num_qubits`.")
         if any(idx is None for idx in clbit_meas_idxs):
             raise ValueError("Every classical bit of `circuit` must be measured into exactly once.")
+        if len(set(clbit_meas_idxs)) != len(clbit_meas_idxs):
+            raise ValueError("No qubit of `circuit` may be measured into more than one clbit.")
 
         super().__init__(
             name=name,
             qubit_idxs=qubit_idxs,
             prep_idxs=chain(prep_idxs, other_preps),
-            clbit_meas_idxs=clbit_meas_idxs,
+            meas_idxs=clbit_meas_idxs,
             latex_str=latex_str,
         )
+        self._clbit_meas_idxs = tuple(clbit_meas_idxs)
         self._qubit_map = qubit_map
         self._circuit = circuit
         self._annotations = [Twirl()] if annotations is None else list(annotations)
@@ -128,6 +132,15 @@ class QiskitGate(Gate):
 
         """
         return self._circuit
+
+    @property
+    def clbit_meas_idxs(self) -> tuple[int, ...]:
+        """The physical qubit index measured into each classical bit of :attr:`circuit`.
+
+        Entry ``j`` is the physical qubit whose measurement outcome is stored in classical bit
+        ``j``, which is the order in which a backend reports outcomes.
+        """
+        return self._clbit_meas_idxs
 
     @property
     def annotations(self) -> list[Annotation]:
@@ -192,7 +205,7 @@ class QiskitGate(Gate):
             self.name,
             unitary_part,
             qubit_idxs=self.qubit_idxs,
-            clbit_meas_idxs=self.clbit_meas_idxs,
+            meas_idxs=self.meas_idxs,
             prep_idxs=self.prep_idxs,
             latex_str=self._latex_str,
         )

@@ -281,7 +281,7 @@ class ExecutorCircuitGenerator(
                     if isinstance(annotation, Tag):
                         annotations.append(annotation)
 
-                if num_meas := len(gate.meas_idxs):
+                if num_meas := len(gate.clbit_meas_idxs):
                     creg_names.append(next(creg_iter))
                     measurement_map[creg_names[-1]] = np.array(gate.clbit_meas_idxs, dtype=int)
 

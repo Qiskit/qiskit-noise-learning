@@ -182,11 +182,11 @@ class ComputeObservables(AnalysisStage):
 
         observable_idx = 0
         for unbound_path, datatree_mapping in unbound_path_to_data.items():
-            bit_mask = unbound_path.end_fragment[-1].mask
             for dt_key, fragment_depth_mapping in datatree_mapping.items():
                 raw_dataset = raw_data.datatree[dt_key].dataset
                 for fragment_depth, dataset_mapping in fragment_depth_mapping.items():
                     randomization_mask = np.array(dataset_mapping["array_indices"])
+                    bit_mask = observable_bit_mask(raw_data, dt_key, unbound_path, fragment_depth)
 
                     new_observables = compute_expectation_value(
                         bits=raw_dataset["data"].data[randomization_mask],
@@ -250,24 +250,67 @@ def compute_expectation_value(
     return signs * per_sample.mean(axis=-1)
 
 
-def observable_bit_mask(unbound_path: Path, fragment_depth: int) -> np.ndarray[bool]:
-    """Return the observable bit mask corresponding to the unbound path at the fragment depth."""
-    mask_array = np.array([], dtype=bool)
+def observable_bit_mask(
+    raw_data: RawData, dt_key: str, unbound_path: Path, fragment_depth: int
+) -> np.ndarray[np.bool_]:
+    """Return the mask on the ``"bit"`` dimension selecting a path's observable.
 
-    start_masks = [x.mask for x in unbound_path.start_fragment]
-    for mask_fragment in start_masks:
-        mask_array = np.append(mask_array, mask_fragment)
+    The ``"bit"`` dimension of a leaf dataset is every classical register concatenated in
+    ``creg_names`` order, and the executor circuit generator adds one register per measuring gate.
+    So the measuring fidelity indices of the path, taken in traversal order, correspond one-to-one
+    with the registers of the data. Each such index contributes the bits of its register that hold
+    one of its observable qubits, found from the ``measurement_map`` of the dataset rather than by
+    assuming the register measures in ascending qubit order.
 
-    repeatable_masks = [x.mask for x in unbound_path.repeatable_fragment]
-    repeatable_mask = np.array([], dtype=bool)
-    for mask_fragment in repeatable_masks:
-        repeatable_mask = np.append(repeatable_mask, mask_fragment)
-    mask_array = np.append(
-        mask_array, np.repeat(np.array([repeatable_mask]), fragment_depth, axis=0).flatten()
-    )
+    Args:
+        raw_data: The raw data the mask will be applied to.
+        dt_key: The key of the leaf dataset the mask will be applied to.
+        unbound_path: The unbound path whose observable is to be selected.
+        fragment_depth: The fragment depth of the data, which is how many times the repeatable
+            fragment is traversed.
 
-    end_masks = [x.mask for x in unbound_path.end_fragment]
-    for mask_fragment in end_masks:
-        mask_array = np.append(mask_array, mask_fragment)
+    Returns:
+        A boolean array over the full ``"bit"`` dimension of the dataset.
 
-    return mask_array
+    Raises:
+        ValueError: If the path measures more times than the dataset has classical registers, or
+            if a register does not measure the qubits that the corresponding fidelity index says
+            its gate measures.
+    """
+    attrs = raw_data.datatree[dt_key].dataset.attrs
+    creg_names = attrs["creg_names"]
+    boundaries = attrs["creg_bit_boundaries"]
+    measurement_map = attrs["measurement_map"]
+
+    num_bits = sum(len(measurement_map[creg]) for creg in creg_names)
+    mask = np.zeros(num_bits, dtype=np.bool_)
+
+    creg_idx = 0
+    for fidelity_index in chain(
+        unbound_path.start_fragment,
+        *(unbound_path.repeatable_fragment for _ in range(fragment_depth)),
+        unbound_path.end_fragment,
+    ):
+        if not fidelity_index.meas_idxs:
+            continue
+
+        if creg_idx >= len(creg_names):
+            raise ValueError(
+                f"The path measures more times than the dataset '{dt_key}' has classical "
+                f"registers ({len(creg_names)})."
+            )
+        creg = creg_names[creg_idx]
+        creg_idx += 1
+
+        creg_meas_idxs = {int(idx) for idx in measurement_map[creg]}
+        if creg_meas_idxs != fidelity_index.meas_idxs:
+            raise ValueError(
+                f"The register '{creg}' measures qubits {sorted(creg_meas_idxs)}, but the path "
+                f"expects the gate '{fidelity_index.gate_name}' to measure "
+                f"{sorted(fidelity_index.meas_idxs)}."
+            )
+
+        start, end = boundaries[creg]
+        mask[start:end] = np.isin(measurement_map[creg], fidelity_index.observable_idxs)
+
+    return mask

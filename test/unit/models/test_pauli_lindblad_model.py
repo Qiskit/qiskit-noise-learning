@@ -80,9 +80,9 @@ def test_construction_gate_set_errors():
     with pytest.raises(ValueError, match="both measured and prepared"):
         model_gate_set = ModelGateSet(2)
         model_gate_set.add_gate(
-            ModelGate("P", qubit_idxs=range(2), prep_idxs=range(2), clbit_meas_idxs=[0])
+            ModelGate("P", qubit_idxs=range(2), prep_idxs=range(2), meas_idxs=[0])
         )
-        model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), clbit_meas_idxs=range(2)))
+        model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), meas_idxs=range(2)))
         PauliLindbladModel(
             model_gate_set, {"P": QubitSparsePauliList(["IX"]), "M": QubitSparsePauliList(["XI"])}
         )
@@ -91,9 +91,7 @@ def test_construction_gate_set_errors():
         model_gate_set = ModelGateSet(2)
         model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(2), prep_idxs=range(2)))
         model_gate_set.add_gate(
-            ModelGate(
-                "M", cliffords=[((0, 1), CZGate())], qubit_idxs=range(2), clbit_meas_idxs=range(2)
-            )
+            ModelGate("M", cliffords=[((0, 1), CZGate())], qubit_idxs=range(2), meas_idxs=range(2))
         )
         PauliLindbladModel(
             model_gate_set, {"P": QubitSparsePauliList(["IX"]), "M": QubitSparsePauliList(["XI"])}
@@ -102,7 +100,7 @@ def test_construction_gate_set_errors():
     with pytest.raises(ValueError, match="does not measure all qubits"):
         model_gate_set = ModelGateSet(2)
         model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(2), prep_idxs=range(2)))
-        model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), clbit_meas_idxs=[0]))
+        model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), meas_idxs=[0]))
         PauliLindbladModel(
             model_gate_set, {"P": QubitSparsePauliList(["IX"]), "M": QubitSparsePauliList(["XI"])}
         )
@@ -112,7 +110,7 @@ def test_construction_gate_set_errors():
         model_gate_set.add_gate(
             ModelGate("P", cliffords=[((0, 1), CZGate())], qubit_idxs=range(2), prep_idxs=range(2))
         )
-        model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), clbit_meas_idxs=range(2)))
+        model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), meas_idxs=range(2)))
         PauliLindbladModel(
             model_gate_set, {"P": QubitSparsePauliList(["IX"]), "M": QubitSparsePauliList(["XI"])}
         )
@@ -120,7 +118,7 @@ def test_construction_gate_set_errors():
     with pytest.raises(ValueError, match="does not prepare all qubits"):
         model_gate_set = ModelGateSet(2)
         model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(2), prep_idxs=[0]))
-        model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), clbit_meas_idxs=range(2)))
+        model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), meas_idxs=range(2)))
         PauliLindbladModel(
             model_gate_set, {"P": QubitSparsePauliList(["IX"]), "M": QubitSparsePauliList(["XI"])}
         )
@@ -134,7 +132,7 @@ def test_construction_gate_set_errors():
 
     with pytest.raises(ValueError, match="does not contain a pure preparation"):
         model_gate_set = ModelGateSet(2)
-        model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), clbit_meas_idxs=range(2)))
+        model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), meas_idxs=range(2)))
         PauliLindbladModel(
             model_gate_set, {"P": QubitSparsePauliList(["IX"]), "M": QubitSparsePauliList(["XI"])}
         )
@@ -320,7 +318,7 @@ def test_k_partition_local(two_q_pauli_str, gate_set_cz):
         ModelGate("CZ", [((0, 1), Clifford(CZGate())), ((2, 3), Clifford(CZGate()))])
     )
     model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(4), prep_idxs=range(4)))
-    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(4), clbit_meas_idxs=range(4)))
+    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(4), meas_idxs=range(4)))
 
     pauli_lindblad_model = PauliLindbladModel.k_partition_local(gate_set=model_gate_set, k=1)
     expected_generators = {
@@ -342,7 +340,7 @@ def test_k_partition_local(two_q_pauli_str, gate_set_cz):
         ModelGate("CZ", [((0, 1), Clifford(CZGate())), ((2, 3), Clifford(CZGate()))])
     )
     model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(4), prep_idxs=range(4)))
-    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(4), clbit_meas_idxs=range(4)))
+    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(4), meas_idxs=range(4)))
 
     pauli_lindblad_model = PauliLindbladModel.k_partition_local(gate_set=model_gate_set, k=2)
     expected_generators = {
@@ -370,7 +368,7 @@ def test_k_partition_local(two_q_pauli_str, gate_set_cz):
     model_gate_set = ModelGateSet(3)
     model_gate_set.add_gate(ModelGate("CZ", [((0, 1), Clifford(CZGate()))], qubit_idxs=range(3)))
     model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(3), prep_idxs=range(3)))
-    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(3), clbit_meas_idxs=range(3)))
+    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(3), meas_idxs=range(3)))
 
     pauli_lindblad_model = PauliLindbladModel.k_partition_local(gate_set=model_gate_set, k=2)
     expected_generators = {
@@ -394,7 +392,7 @@ def test_k_partition_local(two_q_pauli_str, gate_set_cz):
     model_gate_set = ModelGateSet(3)
     model_gate_set.add_gate(ModelGate("CZ", [], qubit_idxs=range(3)))
     model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(3), prep_idxs=range(3)))
-    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(3), clbit_meas_idxs=range(3)))
+    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(3), meas_idxs=range(3)))
 
     pauli_lindblad_model = PauliLindbladModel.k_partition_local(gate_set=model_gate_set, k=3)
     expected_generators = {
@@ -421,7 +419,7 @@ def test_k_partition_local_default_coupling_map(two_q_pauli_str):
         ModelGate("CZ", [((0, 1), Clifford(CZGate())), ((2, 3), Clifford(CZGate()))])
     )
     model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(4), prep_idxs=range(4)))
-    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(4), clbit_meas_idxs=range(4)))
+    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(4), meas_idxs=range(4)))
 
     pauli_lindblad_model = PauliLindbladModel.k_partition_local(gate_set=model_gate_set, k=2)
     expected_generators = {
@@ -451,7 +449,7 @@ def test_k_partition_local_default_coupling_map(two_q_pauli_str):
         ModelGate("CZ", [((0, 1), Clifford(CZGate())), ((2, 3), Clifford(CZGate()))])
     )
     model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(4), prep_idxs=range(4)))
-    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(4), clbit_meas_idxs=range(4)))
+    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(4), meas_idxs=range(4)))
 
     pauli_lindblad_model = PauliLindbladModel.k_partition_local(gate_set=model_gate_set, k=2)
     expected_generators = {
@@ -527,7 +525,7 @@ def test_k_partition_local_per_gate_k(two_q_pauli_str):
         ModelGate("CZ", [((0, 1), Clifford(CZGate())), ((2, 3), Clifford(CZGate()))])
     )
     model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(4), prep_idxs=range(4)))
-    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(4), clbit_meas_idxs=range(4)))
+    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(4), meas_idxs=range(4)))
 
     # CZ gets k=2 (includes cross-partition terms), P and M get k=1 via default
     pauli_lindblad_model = PauliLindbladModel.k_partition_local(
@@ -587,7 +585,7 @@ def test_k_local(two_q_pauli_str, pauli_str, gate_set_cz):
         ModelGate("CZ", [((0, 1), Clifford(CZGate())), ((2, 3), Clifford(CZGate()))])
     )
     model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(4), prep_idxs=range(4)))
-    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(4), clbit_meas_idxs=range(4)))
+    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(4), meas_idxs=range(4)))
 
     pauli_lindblad_model = PauliLindbladModel.k_local(gate_set=model_gate_set, k=1)
     expected_generators = {
@@ -612,7 +610,7 @@ def test_k_local(two_q_pauli_str, pauli_str, gate_set_cz):
         ModelGate("CZ", [((0, 1), Clifford(CZGate())), ((2, 3), Clifford(CZGate()))])
     )
     model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(4), prep_idxs=range(4)))
-    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(4), clbit_meas_idxs=range(4)))
+    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(4), meas_idxs=range(4)))
 
     pauli_lindblad_model = PauliLindbladModel.k_local(gate_set=model_gate_set, k=2)
     expected_generators = {
@@ -647,7 +645,7 @@ def test_k_local(two_q_pauli_str, pauli_str, gate_set_cz):
     model_gate_set = ModelGateSet(3)
     model_gate_set.add_gate(ModelGate("CZ", [((0, 1), Clifford(CZGate()))], qubit_idxs=range(3)))
     model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(3), prep_idxs=range(3)))
-    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(3), clbit_meas_idxs=range(3)))
+    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(3), meas_idxs=range(3)))
 
     pauli_lindblad_model = PauliLindbladModel.k_local(gate_set=model_gate_set, k=2)
     expected_generators = {
@@ -674,7 +672,7 @@ def test_k_local(two_q_pauli_str, pauli_str, gate_set_cz):
     model_gate_set = ModelGateSet(3)
     model_gate_set.add_gate(ModelGate("CZ", [], qubit_idxs=range(3)))
     model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(3), prep_idxs=range(3)))
-    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(3), clbit_meas_idxs=range(3)))
+    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(3), meas_idxs=range(3)))
 
     pauli_lindblad_model = PauliLindbladModel.k_local(gate_set=model_gate_set, k=3)
     expected_generators = {

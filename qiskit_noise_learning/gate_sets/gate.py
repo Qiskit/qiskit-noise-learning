@@ -33,9 +33,7 @@ class Gate(ABC):
         name: The gate name.
         qubit_idxs: The physical qubit indices that the gate acts on.
         prep_idxs: The physical qubit indices that this gate prepares, or resets to the 0 state.
-        clbit_meas_idxs: The physical qubit index measured into each classical bit of the gate, in
-            classical bit order. That is, entry ``j`` is the physical qubit whose measurement
-            outcome is stored in classical bit ``j``.
+        meas_idxs: The physical qubit indices that this gate measures.
         latex_str: An optional LaTeX string for rendering this gate.
     """
 
@@ -44,7 +42,7 @@ class Gate(ABC):
         name: str,
         qubit_idxs: Iterable[int],
         prep_idxs: Iterable[int] = (),
-        clbit_meas_idxs: Iterable[int] = (),
+        meas_idxs: Iterable[int] = (),
         latex_str: str | None = None,
     ):
         self._name = name
@@ -52,15 +50,12 @@ class Gate(ABC):
         self._qubit_idxs = tuple(qubit_idxs)
 
         self._prep_idxs = frozenset(prep_idxs)
-        self._clbit_meas_idxs = tuple(clbit_meas_idxs)
-        self._meas_idxs = frozenset(self._clbit_meas_idxs)
+        self._meas_idxs = frozenset(meas_idxs)
 
         if not self._prep_idxs.issubset(self._qubit_idxs):
             raise ValueError("`prep_idxs` must be a subset of `qubit_idxs`.")
         if not self._meas_idxs.issubset(self._qubit_idxs):
-            raise ValueError("`clbit_meas_idxs` must be a subset of `qubit_idxs`.")
-        if len(self._meas_idxs) != len(self._clbit_meas_idxs):
-            raise ValueError("`clbit_meas_idxs` must not contain repeated entries.")
+            raise ValueError("`meas_idxs` must be a subset of `qubit_idxs`.")
 
     @property
     @abstractmethod
@@ -103,13 +98,8 @@ class Gate(ABC):
         return self._qubit_idxs
 
     @property
-    def clbit_meas_idxs(self) -> tuple[int, ...]:
-        """The physical qubit index measured into each classical bit of this gate."""
-        return self._clbit_meas_idxs
-
-    @property
     def meas_idxs(self) -> frozenset[int]:
-        """The unordered physical qubit indices that this gate measures."""
+        """The physical qubit indices that this gate measures."""
         return self._meas_idxs
 
     @property

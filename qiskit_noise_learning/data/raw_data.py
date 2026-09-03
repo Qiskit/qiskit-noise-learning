@@ -58,6 +58,11 @@ class RawData(LeveledData):
         - ``creg_bit_boundaries``: Dictionary mapping creg names to ``(start_idx, end_idx)`` tuples
           indicating the slice of the ``"bit"`` dimension for that register.
 
+    The ``"bit"`` dimension is every classical register concatenated in ``creg_names`` order, so
+    that ``creg_bit_boundaries`` partitions it, and bit ``j`` of a register holds the outcome for
+    physical qubit ``measurement_map[creg][j]``. Note that a register need not measure in ascending
+    qubit order, and that the same physical qubit may be measured by more than one register.
+
     Datasets are grouped by creg metadata: two datasets with the same ``creg_names`` and
     ``measurement_map`` are merged along the ``"randomization"`` dimension.
 

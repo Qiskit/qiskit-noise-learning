@@ -80,7 +80,7 @@ class TestSymmetrizeGenerators:
         gate_set = ModelGateSet(2)
         gate_set.add_gate(ModelGate("CZ", [((0, 1), Clifford(CZGate()))]))
         gate_set.add_gate(ModelGate("P", qubit_idxs=range(2), prep_idxs=range(2)))
-        gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), clbit_meas_idxs=range(2)))
+        gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), meas_idxs=range(2)))
 
         generators = {
             "CZ": QubitSparsePauliList(["ZI", "IZ"]),

@@ -30,7 +30,7 @@ def test_construction():
     ident = [((0,), Clifford(QuantumCircuit(1)))]
     prep = ModelGate("P", ident, qubit_idxs=range(2), prep_idxs=range(2))
     gate = ModelGate("L0", ident, qubit_idxs=range(2))
-    meas = ModelGate("M", ident, qubit_idxs=range(2), clbit_meas_idxs=range(2))
+    meas = ModelGate("M", ident, qubit_idxs=range(2), meas_idxs=range(2))
 
     start_fragment = [
         FidelityIndex.from_gate(prep, pauli=QubitSparsePauli("II"), out_z_idxs=frozenset(range(2)))
@@ -57,7 +57,7 @@ def test_construction_with_depth():
     ident = [((0, 1), Clifford(QuantumCircuit(2)))]
     prep = ModelGate("P", ident, qubit_idxs=range(2), prep_idxs=range(2))
     gate = ModelGate("L0", ident, qubit_idxs=range(2))
-    meas = ModelGate("M", ident, qubit_idxs=range(2), clbit_meas_idxs=range(2))
+    meas = ModelGate("M", ident, qubit_idxs=range(2), meas_idxs=range(2))
 
     start_fragment = [
         FidelityIndex.from_gate(prep, pauli=QubitSparsePauli("II"), out_z_idxs=frozenset(range(2)))
@@ -85,7 +85,7 @@ def test_iter():
     prep = ModelGate("S", ident, qubit_idxs=range(2), prep_idxs=range(2))
     gate0 = ModelGate("G0", ident, qubit_idxs=range(2))
     gate1 = ModelGate("G1", ident, qubit_idxs=range(2))
-    meas = ModelGate("M", ident, qubit_idxs=range(2), clbit_meas_idxs=range(2))
+    meas = ModelGate("M", ident, qubit_idxs=range(2), meas_idxs=range(2))
 
     start_fragment = [
         FidelityIndex.from_gate(prep, pauli=QubitSparsePauli("II"), out_z_idxs=frozenset(range(2)))
@@ -123,7 +123,7 @@ def test_getitem():
     prep1 = ModelGate("S1", ident, qubit_idxs=range(2), prep_idxs=range(2))
     gate0 = ModelGate("G0", ident, qubit_idxs=range(2))
     gate1 = ModelGate("G1", ident, qubit_idxs=range(2))
-    meas = ModelGate("M", ident, qubit_idxs=range(2), clbit_meas_idxs=range(2))
+    meas = ModelGate("M", ident, qubit_idxs=range(2), meas_idxs=range(2))
 
     start_fragment = [
         FidelityIndex.from_gate(
@@ -168,7 +168,7 @@ def test_getitem_out_of_bounds():
     ident = [((0, 1), Clifford(QuantumCircuit(2)))]
     prep = ModelGate("S", ident, qubit_idxs=range(2), prep_idxs=range(2))
     gate = ModelGate("G", ident, qubit_idxs=range(2))
-    meas = ModelGate("M", ident, qubit_idxs=range(2), clbit_meas_idxs=range(2))
+    meas = ModelGate("M", ident, qubit_idxs=range(2), meas_idxs=range(2))
 
     start_fragment = [
         FidelityIndex.from_gate(prep, pauli=QubitSparsePauli("II"), out_z_idxs=frozenset(range(2)))
@@ -220,9 +220,9 @@ def test_observable_idxs(gate_set_1q):
     # example with MCM
     qc = QuantumCircuit(1)
     qc.sx(0)
-    gate = ModelGate("L0", cliffords=[((1,), qc)], qubit_idxs=range(2), clbit_meas_idxs=[0])
+    gate = ModelGate("L0", cliffords=[((1,), qc)], qubit_idxs=range(2), meas_idxs=[0])
     prep = ModelGate("P", cliffords=[], qubit_idxs=range(2), prep_idxs=[0, 1])
-    meas = ModelGate("M", cliffords=[], qubit_idxs=range(2), clbit_meas_idxs=[0, 1])
+    meas = ModelGate("M", cliffords=[], qubit_idxs=range(2), meas_idxs=[0, 1])
     path = Path(
         start_fragment=[
             FidelityIndex.from_transition(prep, QubitSparsePauli("II"), QubitSparsePauli("ZZ"))
@@ -1141,7 +1141,7 @@ def test_fragment_sign_flips_errors(gate_set_1q):
 def test_hash():
     prep = ModelGate("P", [], qubit_idxs=range(2), prep_idxs=range(2))
     gate = ModelGate("L0", [], qubit_idxs=range(2))
-    meas = ModelGate("M", [], qubit_idxs=range(2), clbit_meas_idxs=range(2))
+    meas = ModelGate("M", [], qubit_idxs=range(2), meas_idxs=range(2))
 
     start_fragment = [
         FidelityIndex.from_gate(prep, pauli=QubitSparsePauli("II"), out_z_idxs=frozenset(range(2)))
@@ -1175,7 +1175,7 @@ def test_bind_at(gate_set_1q):
     ident = [((0,), Clifford(QuantumCircuit(1)))]
     prep = ModelGate("P", ident, qubit_idxs=range(1), prep_idxs=range(1))
     gate = ModelGate("L0", ident, qubit_idxs=range(1))
-    meas = ModelGate("M", ident, qubit_idxs=range(1), clbit_meas_idxs=range(1))
+    meas = ModelGate("M", ident, qubit_idxs=range(1), meas_idxs=range(1))
 
     start_fragment = [FidelityIndex.from_gate(prep, pauli=QubitSparsePauli("I"))]
     repeatable_fragment = [FidelityIndex.from_gate(gate, pauli=QubitSparsePauli("X"))]
