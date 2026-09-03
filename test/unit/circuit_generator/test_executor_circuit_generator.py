@@ -80,6 +80,16 @@ def make_result(items, chunk_timing=None):
     return _Result()
 
 
+def _creg_bit_qubits(circuit):
+    """The physical qubit measured into each classical bit of each creg of ``circuit``."""
+    bit_qubits = {reg.name: [None] * len(reg) for reg in circuit.cregs}
+    for instruction in circuit.data:
+        if instruction.operation.name == "measure":
+            reg, bit = circuit.find_bit(instruction.clbits[0]).registers[0]
+            bit_qubits[reg.name][bit] = circuit.find_bit(instruction.qubits[0]).index
+    return bit_qubits
+
+
 def gateset_full():
     gateset = QiskitGateSet(10)
 
@@ -336,6 +346,27 @@ def test_generate_samplex_item_raises():
 
     with pytest.raises(ValueError, match="incomplete Pauli"):
         circuit_generator.generate_samplex_item([seq3], num_randomizations=50)
+
+
+def test_measurement_map_matches_creg_bit_order():
+    """Test that the measurement map of `generate_samplex_item()` reports, for each creg bit, the
+    physical qubit that the generated circuit measures into that bit.
+    """
+    # qubit_subset is NOT ascending -> the auto-built "M" gate has qubit_idxs == (1, 0)
+    gateset = QiskitGateSet(2, qubit_subset=[1, 0])
+    with gateset.build_new_gate() as builder:
+        builder.circuit.cz(0, 1)
+
+    seq = InstructionSequence(
+        [ApplyGate("P")], [ApplyGate("L0")], [ApplyGate("M")], fragment_depth=2
+    )
+    item, _, measurement_map = ExecutorCircuitGenerator(gateset).generate_samplex_item(
+        [seq], num_randomizations=1
+    )
+
+    bit_qubits = _creg_bit_qubits(item.circuit)
+    for name, qubit_idxs in measurement_map.items():
+        np.testing.assert_array_equal(qubit_idxs, bit_qubits[name])
 
 
 def test_partition():
@@ -786,3 +817,65 @@ def test_generate_with_pass_manager_multi_qubit_creg():
     assert list(data_mapper.measurement_maps[0].keys()) == ["meas0", "extra"]
     np.testing.assert_array_equal(data_mapper.measurement_maps[0]["meas0"], [0, 1])
     np.testing.assert_array_equal(data_mapper.measurement_maps[0]["extra"], [0, 1])
+
+
+def test_generate_with_pass_manager_creg_bit_order():
+    """Test that the measurement map follows classical bit order, rather than ascending qubit order,
+    for a creg added by the pass manager."""
+    from qiskit.circuit import ClassicalRegister
+    from qiskit.circuit.library import Measure
+    from qiskit.transpiler import PassManager, TransformationPass
+
+    class AddCrossedMeasPass(TransformationPass):
+        def run(self, dag):
+            creg = ClassicalRegister(2, "extra")
+            dag.add_creg(creg)
+            # the bits of "extra" hold the qubits in descending order
+            dag.apply_operation_back(Measure(), qargs=[dag.qubits[1]], cargs=[creg[0]])
+            dag.apply_operation_back(Measure(), qargs=[dag.qubits[0]], cargs=[creg[1]])
+            return dag
+
+    gateset = QiskitGateSet(2)
+    with gateset.build_new_gate() as builder:
+        builder.circuit.cz(0, 1)
+        builder.circuit.noop(range(2))
+
+    seq = InstructionSequence(
+        [ApplyGate("P")], [ApplyGate("L0")], [ApplyGate("M")], fragment_depth=1
+    )
+
+    cg = ExecutorCircuitGenerator(gateset, pass_manager=PassManager([AddCrossedMeasPass()]))
+    samplex_items, data_mapper = cg.generate_samplex_items([seq], num_randomizations=2)
+
+    np.testing.assert_array_equal(data_mapper.measurement_maps[0]["extra"], [1, 0])
+    np.testing.assert_array_equal(
+        data_mapper.measurement_maps[0]["extra"],
+        _creg_bit_qubits(samplex_items[0].circuit)["extra"],
+    )
+
+
+def test_generate_with_pass_manager_raises():
+    """Test that a creg added by the pass manager with a bit that is never measured into raises."""
+    from qiskit.circuit import ClassicalRegister
+    from qiskit.circuit.library import Measure
+    from qiskit.transpiler import PassManager, TransformationPass
+
+    class AddIdleBitPass(TransformationPass):
+        def run(self, dag):
+            creg = ClassicalRegister(2, "extra")
+            dag.add_creg(creg)
+            dag.apply_operation_back(Measure(), qargs=[dag.qubits[0]], cargs=[creg[0]])
+            return dag
+
+    gateset = QiskitGateSet(2)
+    with gateset.build_new_gate() as builder:
+        builder.circuit.cz(0, 1)
+        builder.circuit.noop(range(2))
+
+    seq = InstructionSequence(
+        [ApplyGate("P")], [ApplyGate("L0")], [ApplyGate("M")], fragment_depth=1
+    )
+
+    cg = ExecutorCircuitGenerator(gateset, pass_manager=PassManager([AddIdleBitPass()]))
+    with pytest.raises(ValueError, match="must be measured into exactly once"):
+        cg.generate_samplex_items([seq], num_randomizations=2)
