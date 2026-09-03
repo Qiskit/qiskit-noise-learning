@@ -63,15 +63,15 @@ def test_constructor_raises():
 def test_equality():
     identity3 = [((0, 1, 2), Clifford(QuantumCircuit(3)))]
     gate1 = ModelGate("L0", identity3, [0, 1, 2])
-    gate2 = ModelGate("L0", identity3, [0, 1, 2], meas_idxs=[0])
+    gate2 = ModelGate("L0", identity3, [0, 1, 2], clbit_meas_idxs=[0])
     gate3 = ModelGate("L0", [((0, 1), Clifford(QuantumCircuit(2)))])
     c4 = QuantumCircuit(3)
     c4.cx(0, 1)
     c4 = [((0, 1, 2), Clifford(c4))]
     gate4 = ModelGate("L0", c4)
 
-    assert gate2 == ModelGate("L0", identity3, [0, 1, 2], meas_idxs=[0])
-    assert gate2 != ModelGate("L1", identity3, [0, 1, 2], meas_idxs=[0])
+    assert gate2 == ModelGate("L0", identity3, [0, 1, 2], clbit_meas_idxs=[0])
+    assert gate2 != ModelGate("L1", identity3, [0, 1, 2], clbit_meas_idxs=[0])
     assert gate4 == ModelGate("L0", c4, [0, 1, 2])
     assert gate1 != gate2
 

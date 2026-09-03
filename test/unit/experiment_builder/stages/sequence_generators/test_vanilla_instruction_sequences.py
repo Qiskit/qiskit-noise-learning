@@ -48,7 +48,7 @@ class TestVanillaInstructionSequences:
         meas = ModelGate(
             "M",
             [(tuple(range(num_qubits)), Clifford(QuantumCircuit(num_qubits)))],
-            meas_idxs=range(num_qubits),
+            clbit_meas_idxs=range(num_qubits),
         )
 
         gate_set = ModelGateSet(num_qubits)
@@ -83,7 +83,7 @@ class TestVanillaInstructionSequences:
         meas = ModelGate(
             "M",
             [(tuple(range(num_qubits)), Clifford(QuantumCircuit(num_qubits)))],
-            meas_idxs=range(num_qubits),
+            clbit_meas_idxs=range(num_qubits),
         )
 
         gate_set = ModelGateSet(num_qubits)

@@ -45,7 +45,7 @@ def gate_set_1q():
     model_gate_set = ModelGateSet(1)
     ident = Clifford(QuantumCircuit(1))
     model_gate_set.add_gate(ModelGate("P", [((0,), ident)], prep_idxs=range(1)))
-    model_gate_set.add_gate(ModelGate("M", [((0,), ident)], meas_idxs=range(1)))
+    model_gate_set.add_gate(ModelGate("M", [((0,), ident)], clbit_meas_idxs=range(1)))
     # Clifford maps X -> -Y, Y -> Z, Z -> -X
     model_gate_set.add_gate(
         ModelGate("L0", [((0,), Clifford([[True, True, True], [True, False, True]]))])
@@ -60,7 +60,7 @@ def gate_set_cz():
     model_gate_set = ModelGateSet(2)
     model_gate_set.add_gate(ModelGate("CZ", [((0, 1), Clifford(CZGate()))]))
     model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(2), prep_idxs=range(2)))
-    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), meas_idxs=range(2)))
+    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(2), clbit_meas_idxs=range(2)))
     return model_gate_set
 
 

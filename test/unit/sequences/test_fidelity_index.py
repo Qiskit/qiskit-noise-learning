@@ -30,7 +30,7 @@ def test_init():
         input_pauli=QubitSparsePauli("YZ"),
         output_pauli=QubitSparsePauli("XI"),
         sign_flip=True,
-        meas_idxs=frozenset([0]),
+        clbit_meas_idxs=(0,),
     )
 
     assert fidelity_index.gate_name == "L0"
@@ -47,7 +47,7 @@ def test_from_gate():
     """Test from_gate construction and attributes."""
 
     ident = Clifford(QuantumCircuit(2))
-    gate = ModelGate("L0", [((0, 1), ident)], qubit_idxs=range(2), meas_idxs=[0])
+    gate = ModelGate("L0", [((0, 1), ident)], qubit_idxs=range(2), clbit_meas_idxs=[0])
 
     fidelity_index = FidelityIndex.from_gate(
         gate=gate,
@@ -66,7 +66,7 @@ def test_from_gate_validation():
     """Test from_gate validation."""
 
     ident = Clifford(QuantumCircuit(2))
-    gate = ModelGate("L0", [((0, 1), ident)], qubit_idxs=range(2), meas_idxs=[0])
+    gate = ModelGate("L0", [((0, 1), ident)], qubit_idxs=range(2), clbit_meas_idxs=[0])
 
     with pytest.raises(ValueError, match="pauli.indices must lie"):
         FidelityIndex.from_gate(
@@ -97,7 +97,7 @@ def test_is_valid_for_gate():
     """is_valid_for_gate returns True for valid data and False for each invalid case."""
 
     ident = Clifford(QuantumCircuit(2))
-    gate = ModelGate("L0", [((0, 1), ident)], qubit_idxs=range(2), meas_idxs=[0])
+    gate = ModelGate("L0", [((0, 1), ident)], qubit_idxs=range(2), clbit_meas_idxs=[0])
 
     # valid: Pauli on the unmeasured qubit, Z on the measured qubit at the input
     assert FidelityIndex.is_valid_for_gate(
@@ -123,7 +123,7 @@ def test_observable_idxs_and_mask():
     """Test observable indices and mask properties."""
     qc = QuantumCircuit(1)
     qc.sx(0)
-    gate = ModelGate("L0", cliffords=[((1,), qc)], qubit_idxs=range(2), meas_idxs=[0])
+    gate = ModelGate("L0", cliffords=[((1,), qc)], qubit_idxs=range(2), clbit_meas_idxs=[0])
 
     # qubit 0 Z measured but not reset
     fid_idx = FidelityIndex.from_gate(gate, QubitSparsePauli("ZI"), in_z_idxs=frozenset([0]))
@@ -139,7 +139,7 @@ def test_observable_idxs_and_mask():
 
     # qubit 0 Z measured, qubit 1 reset to Z (out_z_idxs on reset-only qubits don't matter)
     gate = ModelGate(
-        "L0", cliffords=[((1,), qc)], qubit_idxs=range(2), meas_idxs=[0], prep_idxs=[1]
+        "L0", cliffords=[((1,), qc)], qubit_idxs=range(2), clbit_meas_idxs=[0], prep_idxs=[1]
     )
     fid_idx = FidelityIndex.from_gate(
         gate, QubitSparsePauli("II"), in_z_idxs=frozenset([0]), out_z_idxs=frozenset([1])
@@ -148,7 +148,7 @@ def test_observable_idxs_and_mask():
     assert np.array_equal(fid_idx.mask, np.array([True], np.bool_))
 
     gate = ModelGate(
-        "L0", cliffords=[((1,), qc)], qubit_idxs=range(2), meas_idxs=[0, 1], prep_idxs=[1]
+        "L0", cliffords=[((1,), qc)], qubit_idxs=range(2), clbit_meas_idxs=[0, 1], prep_idxs=[1]
     )
     fid_idx = FidelityIndex.from_gate(
         gate, QubitSparsePauli("II"), in_z_idxs=frozenset([0]), out_z_idxs=frozenset([1])
@@ -178,7 +178,7 @@ def test_transition():
     """Test transition property."""
     qc = QuantumCircuit(2)
     qc.sx(1)
-    gate = ModelGate("L0", [((0, 1), Clifford(qc))], qubit_idxs=range(2), meas_idxs=[0])
+    gate = ModelGate("L0", [((0, 1), Clifford(qc))], qubit_idxs=range(2), clbit_meas_idxs=[0])
 
     fidelity_index = FidelityIndex.from_gate(
         gate=gate,
@@ -198,7 +198,7 @@ def test_sign_flip():
 
     qc = QuantumCircuit(2)
     qc.sx(1)
-    gate = ModelGate("L0", cliffords=[(range(2), Clifford(qc))], meas_idxs=[0])
+    gate = ModelGate("L0", cliffords=[(range(2), Clifford(qc))], clbit_meas_idxs=[0])
 
     fidelity_index = FidelityIndex.from_gate(
         gate=gate,
@@ -215,7 +215,7 @@ def test_sign_flip():
 
     qc = QuantumCircuit(2)
     qc.x(1)
-    gate = ModelGate("L0", cliffords=[(range(2), Clifford(qc))], meas_idxs=[0])
+    gate = ModelGate("L0", cliffords=[(range(2), Clifford(qc))], clbit_meas_idxs=[0])
 
     fidelity_index = FidelityIndex.from_gate(
         gate=gate,
@@ -247,7 +247,7 @@ def test_from_transition():
     )
 
     # measurement
-    gate = ModelGate("M", [((0, 1), Clifford(QuantumCircuit(2)))], meas_idxs=range(2))
+    gate = ModelGate("M", [((0, 1), Clifford(QuantumCircuit(2)))], clbit_meas_idxs=range(2))
     fidelity_idx = FidelityIndex.from_transition(
         gate=gate, in_pauli=QubitSparsePauli("ZI"), out_pauli=QubitSparsePauli("IZ")
     )
@@ -295,7 +295,9 @@ def test_from_transition():
     )
 
     # measure and reset
-    gate = ModelGate("L0", [((0, 1, 2), Clifford(QuantumCircuit(3)))], meas_idxs=[1], prep_idxs=[2])
+    gate = ModelGate(
+        "L0", [((0, 1, 2), Clifford(QuantumCircuit(3)))], clbit_meas_idxs=[1], prep_idxs=[2]
+    )
     fidelity_idx = FidelityIndex.from_transition(
         gate=gate, in_pauli=QubitSparsePauli("IZZ"), out_pauli=QubitSparsePauli("ZZZ")
     )
@@ -307,7 +309,9 @@ def test_from_transition():
     )
 
     # measure and reset different configuration
-    gate = ModelGate("L0", [((0, 1, 2), Clifford(QuantumCircuit(3)))], meas_idxs=[1], prep_idxs=[2])
+    gate = ModelGate(
+        "L0", [((0, 1, 2), Clifford(QuantumCircuit(3)))], clbit_meas_idxs=[1], prep_idxs=[2]
+    )
     fidelity_idx = FidelityIndex.from_transition(
         gate=gate, in_pauli=QubitSparsePauli("IIZ"), out_pauli=QubitSparsePauli("ZIZ")
     )
@@ -346,7 +350,7 @@ def test_from_transition_errors():
     # in_pauli restricted to measured qubits has non-Z component
     with pytest.raises(ValueError, match="in_pauli mapped by Clifford and restricted to measured"):
         FidelityIndex.from_transition(
-            gate=ModelGate("P", [((0, 1), Clifford(QuantumCircuit(2)))], meas_idxs=range(2)),
+            gate=ModelGate("P", [((0, 1), Clifford(QuantumCircuit(2)))], clbit_meas_idxs=range(2)),
             in_pauli=QubitSparsePauli("IX"),
             out_pauli=QubitSparsePauli("II"),
         )
@@ -373,7 +377,7 @@ def test_from_transition_errors():
 
 
 def test_hash():
-    gate = ModelGate("L0", [], qubit_idxs=range(2), meas_idxs=[0])
+    gate = ModelGate("L0", [], qubit_idxs=range(2), clbit_meas_idxs=[0])
 
     fidelity_index = FidelityIndex.from_gate(
         gate=gate,

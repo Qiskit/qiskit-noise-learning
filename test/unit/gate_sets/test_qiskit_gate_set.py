@@ -273,14 +273,14 @@ def test_model_gate_set(target_4q):
     model_gs = gs.model_gate_set
 
     assert len(model_gs) == 2
-    assert model_gs["M"] == ModelGate("M", [], qubit_idxs=range(127), meas_idxs=range(127))
+    assert model_gs["M"] == ModelGate("M", [], qubit_idxs=range(127), clbit_meas_idxs=range(127))
     assert model_gs["P"] == ModelGate("P", [], qubit_idxs=range(127), prep_idxs=range(127))
     assert model_gs.coupling_map == CouplingMap.from_full(127)
 
     gs = QiskitGateSet(4, target=target_4q)
     model_gs = gs.model_gate_set
     assert len(model_gs) == 2
-    assert model_gs["M"] == ModelGate("M", [], qubit_idxs=range(4), meas_idxs=range(4))
+    assert model_gs["M"] == ModelGate("M", [], qubit_idxs=range(4), clbit_meas_idxs=range(4))
     assert model_gs["P"] == ModelGate("P", [], qubit_idxs=range(4), prep_idxs=range(4))
     assert model_gs.coupling_map == CouplingMap([(0, 1), (1, 2), (2, 3)])
 

@@ -13,7 +13,7 @@
 from itertools import product
 
 import pytest
-from qiskit.circuit import Annotation, QuantumCircuit
+from qiskit.circuit import Annotation, ClassicalRegister, QuantumCircuit
 from qiskit.quantum_info import Clifford
 from samplomatic import Tag
 
@@ -131,7 +131,7 @@ def test_equality_under_permutations():
 
 
 def test_model_gate():
-    qc = QuantumCircuit(4, 4)
+    qc = QuantumCircuit(4)
     qc.cx(0, 1)
     qc.cx(2, 3)
     qc.cx(1, 2)
@@ -141,22 +141,23 @@ def test_model_gate():
     assert gate.model_gate.clifford == ModelGate("L0", clifford).clifford
 
     # add measurements
-    qc.measure([0, 1], [1, 2])
+    qc.add_register(ClassicalRegister(2))
+    qc.measure([0, 1], [0, 1])
     gate = QiskitGate("L0", qc, qubit_idxs=[3, 9, 8, 2])
-    expected_model_gate = ModelGate("L0", clifford, meas_idxs=[3, 9])
+    expected_model_gate = ModelGate("L0", clifford, clbit_meas_idxs=[3, 9])
     assert gate.model_gate.clifford == expected_model_gate.clifford
     assert gate.model_gate.meas_idxs == expected_model_gate.meas_idxs
 
     # add resets
     qc.reset(3)
     gate = QiskitGate("L0", qc, qubit_idxs=[3, 9, 8, 2])
-    expected_model_gate = ModelGate("L0", clifford, meas_idxs=[3, 9], prep_idxs=[2])
+    expected_model_gate = ModelGate("L0", clifford, clbit_meas_idxs=[3, 9], prep_idxs=[2])
     assert gate.model_gate.clifford == expected_model_gate.clifford
     assert gate.model_gate.meas_idxs == expected_model_gate.meas_idxs
     assert gate.model_gate.prep_idxs == expected_model_gate.prep_idxs
 
     # intermixing operation types while still following ordering rules within the circuit
-    qc = QuantumCircuit(4, 4)
+    qc = QuantumCircuit(4, 1)
     qc.cx(0, 1)
     qc.measure(0, 0)
     qc.cx(2, 3)
@@ -164,7 +165,7 @@ def test_model_gate():
     qc.cx(1, 2)
     qc.reset(2)
     gate = QiskitGate("L0", qc, qubit_idxs=[3, 9, 8, 2])
-    expected_model_gate = ModelGate("L0", clifford, meas_idxs=[3], prep_idxs=[2, 8])
+    expected_model_gate = ModelGate("L0", clifford, clbit_meas_idxs=[3], prep_idxs=[2, 8])
     assert gate.model_gate.clifford == expected_model_gate.clifford
     assert gate.model_gate.meas_idxs == expected_model_gate.meas_idxs
     assert gate.model_gate.prep_idxs == expected_model_gate.prep_idxs
@@ -220,33 +221,60 @@ def test_latex_str():
     assert gate.model_gate.latex_str == r"\mathrm{CX}"
 
 
+def test_clbit_meas_idxs():
+    qc = QuantumCircuit(3, 3)
+
+    # an order matching neither the instruction order nor ascending physical qubit order
+    qc.measure(0, 1)
+    qc.measure(2, 0)
+    qc.measure(1, 2)
+    gate = QiskitGate("L0", qc, qubit_idxs=[5, 3, 4])
+
+    assert gate.clbit_meas_idxs == (4, 5, 3)
+    assert gate.meas_idxs == frozenset([3, 4, 5])
+    assert gate.model_gate.clbit_meas_idxs == (4, 5, 3)
+
+
+def test_clbit_meas_idxs_raises():
+    with pytest.raises(ValueError, match="Classical bit 0 of `circuit` is measured into more"):
+        qc = QuantumCircuit(2, 1)
+        qc.measure(0, 0)
+        qc.measure(1, 0)
+        QiskitGate("L0", qc, qubit_idxs=[0, 1])
+
+    with pytest.raises(ValueError, match="must be measured into exactly once"):
+        qc = QuantumCircuit(2, 2)
+        qc.measure(0, 0)
+        QiskitGate("L0", qc, qubit_idxs=[0, 1])
+
+    with pytest.raises(ValueError, match="must not contain repeated entries"):
+        qc = QuantumCircuit(2, 2)
+        qc.measure(0, 0)
+        qc.measure(0, 1)
+        QiskitGate("L0", qc, qubit_idxs=[0, 1])
+
+
 def test_model_gate_raises():
     with pytest.raises(ValueError, match="two resets occur"):
-        qc = QuantumCircuit(4, 4)
+        qc = QuantumCircuit(4)
         qc.reset(2)
         qc.reset(2)
-        QiskitGate("L0", circuit=qc, qubit_idxs=range(4)).model_gate
-
-    with pytest.raises(ValueError, match="two measurements occur"):
-        qc = QuantumCircuit(4, 4)
-        qc.measure(2, 0)
-        qc.measure(2, 0)
         QiskitGate("L0", circuit=qc, qubit_idxs=range(4)).model_gate
 
     with pytest.raises(ValueError, match="measurement occurs after reset"):
-        qc = QuantumCircuit(4, 4)
+        qc = QuantumCircuit(4, 1)
         qc.reset(2)
         qc.measure(2, 0)
         QiskitGate("L0", circuit=qc, qubit_idxs=range(4)).model_gate
 
     with pytest.raises(ValueError, match="non-reset instruction occurs after a measurement"):
-        qc = QuantumCircuit(4, 4)
+        qc = QuantumCircuit(4, 1)
         qc.measure(2, 0)
         qc.x(2)
         QiskitGate("L0", circuit=qc, qubit_idxs=range(4)).model_gate
 
     with pytest.raises(ValueError, match="instruction occurs after a reset"):
-        qc = QuantumCircuit(4, 4)
+        qc = QuantumCircuit(4)
         qc.reset(2)
         qc.x(2)
         QiskitGate("L0", circuit=qc, qubit_idxs=range(4)).model_gate
