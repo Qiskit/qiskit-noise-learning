@@ -10,9 +10,9 @@ kernelspec:
   name: python3
 ---
 
-# Learning the noise model of a gate with NoiseLearner
+# Learn the noise model of a gate with NoiseLearner
 
-In this tutorial we will walk through using {class}`~.NoiseLearner` to learn a noise model for a
+This guide demonstrates using {class}`~.NoiseLearner` to learn a noise model for a
 unitary gate.
 
 1. Define the gate
@@ -23,7 +23,7 @@ unitary gate.
 :::{admonition} Running on real hardware
 :class: note
 
-The circuits below are simulated locally, so this tutorial needs no IBM Quantum credentials. Two
+The circuits below are simulated locally, so this walkthrough needs no IBM Quantum&reg; credentials. Two
 changes take it to a real device, each flagged again where it applies:
 
 * **Step 1**: replace {class}`~qiskit_ibm_runtime.fake_provider.FakeMarrakesh` with a real backend.
@@ -33,9 +33,9 @@ changes take it to a real device, each flagged again where it applies:
 ## 1. Define the gate
 
 The gate whose noise we will learn is a {class}`~qiskit.circuit.BoxOp` holding a layer of six
-disjoint `CZ` gates, with two samplomatic annotations: `Twirl()` marks the box for Pauli twirling,
+disjoint `CZ` gates, with two Samplomatic annotations: `Twirl()` marks the box for Pauli twirling,
 and `InjectNoise("cz_gate")` names it. That name is the key under which the learned noise map is
-reported — and, because this tutorial simulates the gate, also the key under which noise is
+reported &mdash; and, because this guide simulates the gate, also the key under which noise is
 injected.
 
 ```{code-cell} python
@@ -66,7 +66,7 @@ backend = QiskitRuntimeService().backend("ibm_marrakesh")
 ## 2. Set up local simulation
 
 An {class}`~.AerExecutor` runs a program on a local Aer simulator, injecting Pauli-Lindblad
-noise at the barriers samplomatic places around each twirled gate.
+noise at the barriers Samplomatic places around each twirled gate.
 
 The Pauli indices inside each map are local to the gate, in ascending physical-qubit order:
 
@@ -162,7 +162,7 @@ result.fit.plot_qubit_pair_decays(
 
 Extract the learned noise from {meth}`~.NoiseLearnerResult.to_dict`: one
 {class}`~qiskit.quantum_info.PauliLindbladMap` per learned gate, keyed by the name from the
-`InjectNoise` annotation, and expressed in the backend's own qubit indexing rather than the gate's.
+`InjectNoise` annotation, and expressed in the backend's own qubit indexing rather than that of the gate.
 
 ```{code-cell} python
 learned = result.to_dict()["cz_gate"]
@@ -170,5 +170,5 @@ learned.num_terms
 ```
 
 By default {class}`~.NoiseLearner` fits a 2-local model, so the map carries a term for every Pauli
-supported on a connected pair of the gate's qubits — 144 of them, of which only 24 were given a
+supported on a connected pair of the gate's qubits &mdash; 144 of them, of which only 24 were given a
 nonzero rate in step 2.
