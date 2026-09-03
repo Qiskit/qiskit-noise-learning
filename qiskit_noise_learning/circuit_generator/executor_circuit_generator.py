@@ -101,7 +101,7 @@ class ExecutorCircuitGenerator(
 
         for item_idx, seq_indices in enumerate(data_mapper.item_sequence_indices):
             this_item = result[item_idx]
-            item_creg_names = data_mapper.item_creg_names[item_idx]
+            creg_names = data_mapper.item_creg_names[item_idx]
             clbit_qubit_idxs = data_mapper.item_clbit_qubit_idxs[item_idx]
 
             data = []
@@ -113,7 +113,7 @@ class ExecutorCircuitGenerator(
             for d_idx, seq_idx in enumerate(seq_indices):
                 this_data = []
                 these_flips = []
-                for creg in item_creg_names:
+                for creg in creg_names:
                     this_data.append(this_item[creg][d_idx])
                     flips = this_item.get(f"measurement_flips.{creg}")
                     if flips is None:
@@ -145,7 +145,7 @@ class ExecutorCircuitGenerator(
                 instruction_sequences.append(data_mapper.instruction_sequences[seq_idx])
 
             item_raw_data = RawData.from_arrays(
-                creg_names=item_creg_names,
+                creg_names=creg_names,
                 clbit_qubit_idxs=clbit_qubit_idxs,
                 instruction_sequences=instruction_sequences,
                 data=data,
@@ -204,7 +204,7 @@ class ExecutorCircuitGenerator(
         """
         samplex_items = []
         item_sequence_indices = []
-        creg_names = []
+        item_creg_names = []
         item_clbit_qubit_idxs = []
         for current_indices in self.partition(instruction_sequences):
             current_sequences = [instruction_sequences[idx] for idx in current_indices]
@@ -214,12 +214,12 @@ class ExecutorCircuitGenerator(
 
             samplex_items.append(samplex_item)
             item_sequence_indices.append(current_indices)
-            creg_names.append(current_creg_names)
+            item_creg_names.append(current_creg_names)
             item_clbit_qubit_idxs.append(current_clbit_qubit_idxs)
 
         return samplex_items, ExecutorDataMapper(
             item_sequence_indices=item_sequence_indices,
-            item_creg_names=creg_names,
+            item_creg_names=item_creg_names,
             item_clbit_qubit_idxs=item_clbit_qubit_idxs,
             instruction_sequences=instruction_sequences,
             num_randomizations=num_randomizations,

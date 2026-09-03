@@ -90,6 +90,19 @@ def _creg_bit_qubits(circuit):
     return bit_qubits
 
 
+def _cz_gateset_and_sequence():
+    """A two-qubit gate set holding a single CZ gate, and a prepare-CZ-measure sequence over it."""
+    gateset = QiskitGateSet(2)
+    with gateset.build_new_gate() as builder:
+        builder.circuit.cz(0, 1)
+        builder.circuit.noop(range(2))
+
+    seq = InstructionSequence(
+        [ApplyGate("P")], [ApplyGate("L0")], [ApplyGate("M")], fragment_depth=1
+    )
+    return gateset, seq
+
+
 def gateset_full():
     gateset = QiskitGateSet(10)
 
@@ -733,17 +746,7 @@ def test_generate_and_collect_with_pass_manager():
             dag.apply_operation_back(Measure(), qargs=[dag.qubits[0]], cargs=[creg[0]])
             return dag
 
-    gateset = QiskitGateSet(2)
-    with gateset.build_new_gate() as builder:
-        builder.circuit.cz(0, 1)
-        builder.circuit.noop(range(2))
-
-    seq = InstructionSequence(
-        [ApplyGate("P")],
-        [ApplyGate("L0")],
-        [ApplyGate("M")],
-        fragment_depth=1,
-    )
+    gateset, seq = _cz_gateset_and_sequence()
 
     num_randomizations = 2
     cg = ExecutorCircuitGenerator(gateset, pass_manager=PassManager([AddMeasPass()]))
@@ -797,17 +800,7 @@ def test_generate_with_pass_manager_multi_qubit_creg():
             dag.apply_operation_back(Measure(), qargs=[dag.qubits[1]], cargs=[creg[1]])
             return dag
 
-    gateset = QiskitGateSet(2)
-    with gateset.build_new_gate() as builder:
-        builder.circuit.cz(0, 1)
-        builder.circuit.noop(range(2))
-
-    seq = InstructionSequence(
-        [ApplyGate("P")],
-        [ApplyGate("L0")],
-        [ApplyGate("M")],
-        fragment_depth=1,
-    )
+    gateset, seq = _cz_gateset_and_sequence()
 
     num_randomizations = 2
     cg = ExecutorCircuitGenerator(gateset, pass_manager=PassManager([AddMultiMeasPass()]))
@@ -837,14 +830,7 @@ def test_generate_with_pass_manager_creg_bit_order():
             dag.apply_operation_back(Measure(), qargs=[dag.qubits[0]], cargs=[creg[1]])
             return dag
 
-    gateset = QiskitGateSet(2)
-    with gateset.build_new_gate() as builder:
-        builder.circuit.cz(0, 1)
-        builder.circuit.noop(range(2))
-
-    seq = InstructionSequence(
-        [ApplyGate("P")], [ApplyGate("L0")], [ApplyGate("M")], fragment_depth=1
-    )
+    gateset, seq = _cz_gateset_and_sequence()
 
     cg = ExecutorCircuitGenerator(gateset, pass_manager=PassManager([AddCrossedMeasPass()]))
     samplex_items, data_mapper = cg.generate_samplex_items([seq], num_randomizations=2)
@@ -869,14 +855,7 @@ def test_generate_with_pass_manager_raises():
             dag.apply_operation_back(Measure(), qargs=[dag.qubits[0]], cargs=[creg[0]])
             return dag
 
-    gateset = QiskitGateSet(2)
-    with gateset.build_new_gate() as builder:
-        builder.circuit.cz(0, 1)
-        builder.circuit.noop(range(2))
-
-    seq = InstructionSequence(
-        [ApplyGate("P")], [ApplyGate("L0")], [ApplyGate("M")], fragment_depth=1
-    )
+    gateset, seq = _cz_gateset_and_sequence()
 
     cg = ExecutorCircuitGenerator(gateset, pass_manager=PassManager([AddIdleBitPass()]))
     with pytest.raises(ValueError, match="must be measured into exactly once"):
@@ -894,14 +873,7 @@ def test_generate_with_pass_manager_unmeasured_creg_raises():
             dag.add_creg(ClassicalRegister(1, "extra"))
             return dag
 
-    gateset = QiskitGateSet(2)
-    with gateset.build_new_gate() as builder:
-        builder.circuit.cz(0, 1)
-        builder.circuit.noop(range(2))
-
-    seq = InstructionSequence(
-        [ApplyGate("P")], [ApplyGate("L0")], [ApplyGate("M")], fragment_depth=1
-    )
+    gateset, seq = _cz_gateset_and_sequence()
 
     cg = ExecutorCircuitGenerator(gateset, pass_manager=PassManager([AddUnmeasuredCregPass()]))
     with pytest.raises(ValueError, match="register 'extra' .* measured into exactly once"):

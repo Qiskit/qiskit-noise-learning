@@ -71,6 +71,13 @@ class QiskitGate(Gate):
             defaults to Pauli twirling. If no :class:`samplomatic.Tag` annotation is provided,
             then one is added automatically whose tag name is equal to ``name``.
         latex_str: An optional LaTeX string for this gate.
+
+    Raises:
+        ValueError: If ``qubit_idxs`` does not have a length equal to ``circuit.num_qubits``.
+        ValueError: If any classical bit of ``circuit`` is measured into more than once, or is
+            never measured into.
+        ValueError: If any qubit of ``circuit`` is measured into more than one classical bit.
+        ValueError: If ``annotations`` does not include a :class:`samplomatic.Twirl` annotation.
     """
 
     def __init__(
@@ -100,10 +107,17 @@ class QiskitGate(Gate):
                     )
                 clbit_meas_idxs[clbit_idx] = qubit_map[instr.qubits[0]]
 
-        if any(idx is None for idx in clbit_meas_idxs):
-            raise ValueError("Every classical bit of `circuit` must be measured into exactly once.")
+        if unmeasured := [idx for idx, q in enumerate(clbit_meas_idxs) if q is None]:
+            raise ValueError(
+                "Every classical bit of `circuit` must be measured into exactly once, but bits "
+                f"{unmeasured} are never measured into."
+            )
         if len(set(clbit_meas_idxs)) != len(clbit_meas_idxs):
-            raise ValueError("No qubit of `circuit` may be measured into more than one clbit.")
+            duplicated = sorted({q for q in clbit_meas_idxs if clbit_meas_idxs.count(q) > 1})
+            raise ValueError(
+                "No qubit of `circuit` may be measured into more than one clbit, but qubits "
+                f"{duplicated} are."
+            )
 
         super().__init__(
             name=name,

@@ -127,7 +127,7 @@ def _cz_path(gate_set_cz, meas_in_pauli):
     )
 
 
-def _dataset_with_map(make_instruction_sequence, creg_names, clbit_qubit_idxs):
+def _dataset_with_cregs(make_instruction_sequence, creg_names, clbit_qubit_idxs):
     """The single leaf dataset of a RawData with the given creg structure."""
     num_bits = sum(len(clbit_qubit_idxs[creg]) for creg in creg_names)
     raw_data = RawData.from_arrays(
@@ -150,13 +150,13 @@ class TestObservableBitMask:
         path = _cz_path(gate_set_cz, QubitSparsePauli.from_label("IZ"))
         assert path.end_fragment[-1].observable_idxs == [0]
 
-        ascending = _dataset_with_map(
+        ascending = _dataset_with_cregs(
             make_instruction_sequence, ["meas0"], {"meas0": np.array([0, 1])}
         )
         assert np.array_equal(observable_bit_mask(ascending, path, 1), np.array([True, False]))
 
         # the same path against data whose register measures the qubits in the opposite order
-        crossed = _dataset_with_map(
+        crossed = _dataset_with_cregs(
             make_instruction_sequence, ["meas0"], {"meas0": np.array([1, 0])}
         )
         assert np.array_equal(observable_bit_mask(crossed, path, 1), np.array([False, True]))
@@ -166,7 +166,7 @@ class TestObservableBitMask:
         path = _cz_path(gate_set_cz, QubitSparsePauli.from_label("ZZ"))
         assert path.end_fragment[-1].observable_idxs == [0, 1]
 
-        crossed = _dataset_with_map(
+        crossed = _dataset_with_cregs(
             make_instruction_sequence, ["meas0"], {"meas0": np.array([1, 0])}
         )
         assert np.array_equal(observable_bit_mask(crossed, path, 1), np.array([True, True]))
@@ -179,7 +179,7 @@ class TestObservableBitMask:
 
         # the path measures once, so it pairs with the first register only, even though the second
         # register also holds the observable qubit
-        dataset = _dataset_with_map(
+        dataset = _dataset_with_cregs(
             make_instruction_sequence,
             ["meas0", "meas0_ps"],
             {"meas0": np.array([1, 0]), "meas0_ps": np.array([1, 0])},
@@ -193,7 +193,7 @@ class TestObservableBitMask:
     def test_raises_on_register_mismatch(self, gate_set_cz, make_instruction_sequence):
         """Test that a register measuring other qubits than the path expects raises."""
         path = _cz_path(gate_set_cz, QubitSparsePauli.from_label("IZ"))
-        dataset = _dataset_with_map(
+        dataset = _dataset_with_cregs(
             make_instruction_sequence, ["meas0"], {"meas0": np.array([0, 2])}
         )
 
@@ -203,7 +203,7 @@ class TestObservableBitMask:
     def test_raises_on_too_few_registers(self, gate_set_cz, make_instruction_sequence):
         """Test that a path measuring more often than the data has registers raises."""
         path = _cz_path(gate_set_cz, QubitSparsePauli.from_label("IZ"))
-        dataset = _dataset_with_map(make_instruction_sequence, [], {})
+        dataset = _dataset_with_cregs(make_instruction_sequence, [], {})
 
         with pytest.raises(ValueError, match="measures more times than the dataset"):
             observable_bit_mask(dataset, path, 1)

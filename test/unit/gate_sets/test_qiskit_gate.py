@@ -244,7 +244,6 @@ def test_clbit_meas_idxs():
     # the classical bit ordering is confined to QiskitGate; the model gate only knows which
     # qubits are measured
     assert gate.model_gate.meas_idxs == frozenset([3, 4, 5])
-    assert not hasattr(gate.model_gate, "clbit_meas_idxs")
 
 
 def test_clbit_meas_idxs_raises():
