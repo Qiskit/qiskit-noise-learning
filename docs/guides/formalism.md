@@ -223,6 +223,7 @@ result.
 See [[7]](#references) for development beyond this point: the definition of the PTG,
 paths through the PTG, and the proof that any properly-defined path corresponds to an experiment.
 
+(references)=
 ## References
 
 [1] Stefanie J. Beale and Joel J. Wallman. Randomized compiling for subsystem measurements. 2023. URL: http://arxiv.org/abs/2304.06599, doi:10.48550/arXiv.2304.06599.
