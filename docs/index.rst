@@ -18,4 +18,5 @@ A Python toolkit for randomization-based quantum noise characterization.
 
    Guides <guides/index>
    Mathematical formalism <guides/formalism>
+   Install <install>
    API reference <apidocs/index>
