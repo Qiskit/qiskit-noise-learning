@@ -27,9 +27,9 @@ The following is a review of some core mathematical concepts from the literature
 meant to consolidate notation, and to serve as a conceptual documentation reference for the rest of
 the package.
 
-## Background
+## 1. Background
 
-### Notation
+### 1 .1 Notation
 
 For $K \in \mathbb{N}$, let $[K] = \{0, 1, \dots, K - 1\}$. For a finite set $S \subset \mathbb{N}$
 of qubit indices, let $\P^S$ denote the set of *unphased* Pauli operators acting on those qubits.
@@ -50,7 +50,7 @@ in which we use this notation, it is not actually necessary to choose a specific
 convention. For a classical bit string $m$, we use the shorthand
 $\opket{m} = \opket{\ket{m}\bra{m}}$.
 
-### Quantum instruments
+### 1.2 Quantum instruments
 
 A quantum operation producing classical bits $m \in \Z_2^M$ (for example, the result of measurement) is
 generally modeled as a linear map of the form:
@@ -61,7 +61,7 @@ where the set $\{\E_m: m \in \Z_2^M\}$ are completely positive, and $\sum_m \E_m
 *quantum instrument*. A unitary gate is a special case of an instrument with only one element that
 is a unitary operation.
 
-## Noisy Clifford-MCM-reset gates
+## 2. Noisy Clifford-MCM-reset gates
 
 The formalism utilized in this package assumes every gate in the gate set to be characterized
 consists of the following sequence of operations on $K$ qubits:
@@ -150,7 +150,7 @@ reset, implementing the strategy seemingly requires inserting operations *within
 the measurement and reset. However, given the nature of reset, any such operations have no effect,
 and can simply be skipped while still yielding the same desired structure.
 
-## Path formalism
+## 3. Path formalism
 
 As described in the introduction, all learning algorithms for Pauli-type noise on Clifford gates are
 based around tracking how individual Paulis evolve through a circuit, picking up noise fidelity
