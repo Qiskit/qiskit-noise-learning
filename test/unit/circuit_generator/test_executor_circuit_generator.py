@@ -133,13 +133,13 @@ def test_generate_samplex_item(gateset):
         [ApplyGate("M")],
         fragment_depth=5,
     )
-    samplex_item, creg_names, measurement_map = circuit_generator.generate_samplex_item(
+    samplex_item, creg_names, clbit_qubit_idxs = circuit_generator.generate_samplex_item(
         [seq0], num_randomizations=50
     )
 
     assert len(samplex_item.samplex_arguments) == 12
     assert creg_names == ["meas0"]
-    assert "meas0" in measurement_map
+    assert "meas0" in clbit_qubit_idxs
 
     expected = np.zeros((1, 1, 10), np.uint8)
     for value in samplex_item.samplex_arguments.values():
@@ -165,14 +165,14 @@ def test_generate_samplex_item(gateset):
         fragment_depth=5,
     )
 
-    other_samplex_item, other_creg_names, other_meas_map = circuit_generator.generate_samplex_item(
-        [seq0, seq1, seq2], num_randomizations=50
+    other_samplex_item, other_creg_names, other_clbit_qubit_idxs = (
+        circuit_generator.generate_samplex_item([seq0, seq1, seq2], num_randomizations=50)
     )
 
     assert samplex_item.samplex == other_samplex_item.samplex
     assert len(other_samplex_item.samplex_arguments) == 12
     assert other_creg_names == creg_names
-    assert other_meas_map.keys() == measurement_map.keys()
+    assert other_clbit_qubit_idxs.keys() == clbit_qubit_idxs.keys()
 
     expected = np.zeros((3, 1, 10), np.uint8)
     values = list(other_samplex_item.samplex_arguments.values())
@@ -217,17 +217,17 @@ def test_generate_samplex_item_permutation_composition(gateset):
         fragment_depth=5,
     )
 
-    samplex_item0, creg_names0, meas_map0 = circuit_generator.generate_samplex_item(
+    samplex_item0, creg_names0, clbit_qubit_idxs0 = circuit_generator.generate_samplex_item(
         [seq0], num_randomizations=50
     )
-    samplex_item1, creg_names1, meas_map1 = circuit_generator.generate_samplex_item(
+    samplex_item1, creg_names1, clbit_qubit_idxs1 = circuit_generator.generate_samplex_item(
         [seq1], num_randomizations=50
     )
 
     assert creg_names0 == creg_names1
-    assert meas_map0.keys() == meas_map1.keys()
-    for key in meas_map0:
-        np.testing.assert_array_equal(meas_map0[key], meas_map1[key])
+    assert clbit_qubit_idxs0.keys() == clbit_qubit_idxs1.keys()
+    for key in clbit_qubit_idxs0:
+        np.testing.assert_array_equal(clbit_qubit_idxs0[key], clbit_qubit_idxs1[key])
 
     # should have same structure but different values
     assert not all(
@@ -243,14 +243,14 @@ def test_generate_samplex_item_permutation_composition(gateset):
         [ApplyGate("M")],
         fragment_depth=5,
     )
-    samplex_item2, creg_names2, meas_map2 = circuit_generator.generate_samplex_item(
+    samplex_item2, creg_names2, clbit_qubit_idxs2 = circuit_generator.generate_samplex_item(
         [seq2], num_randomizations=50
     )
 
     assert creg_names2 == creg_names1
-    assert meas_map2.keys() == meas_map1.keys()
-    for key in meas_map2:
-        np.testing.assert_array_equal(meas_map2[key], meas_map1[key])
+    assert clbit_qubit_idxs2.keys() == clbit_qubit_idxs1.keys()
+    for key in clbit_qubit_idxs2:
+        np.testing.assert_array_equal(clbit_qubit_idxs2[key], clbit_qubit_idxs1[key])
 
     # should have same structure and same values
     assert all(
@@ -266,13 +266,13 @@ def test_generate_samplex_item_permutation_composition(gateset):
         [ApplyGate("M")],
         fragment_depth=5,
     )
-    samplex_item3, creg_names3, meas_map3 = circuit_generator.generate_samplex_item(
+    samplex_item3, creg_names3, clbit_qubit_idxs3 = circuit_generator.generate_samplex_item(
         [seq3], num_randomizations=50
     )
 
     assert creg_names3 == creg_names1
-    for key in meas_map3:
-        np.testing.assert_array_equal(meas_map3[key], meas_map1[key])
+    for key in clbit_qubit_idxs3:
+        np.testing.assert_array_equal(clbit_qubit_idxs3[key], clbit_qubit_idxs1[key])
 
     # should have same structure different values
     assert not all(
@@ -286,7 +286,7 @@ def test_generate_samplex_item_permutation_composition(gateset):
     seq4 = InstructionSequence(
         [ApplyGate("P"), perm0], [], [perm1, ApplyGate("M")], fragment_depth=5
     )
-    samplex_item4, creg_names4, meas_map4 = circuit_generator.generate_samplex_item(
+    samplex_item4, creg_names4, clbit_qubit_idxs4 = circuit_generator.generate_samplex_item(
         [seq4], num_randomizations=50
     )
 
@@ -296,13 +296,13 @@ def test_generate_samplex_item_permutation_composition(gateset):
         [perm1.compose(perm0), ApplyGate("M")],
         fragment_depth=5,
     )
-    samplex_item5, creg_names5, meas_map5 = circuit_generator.generate_samplex_item(
+    samplex_item5, creg_names5, clbit_qubit_idxs5 = circuit_generator.generate_samplex_item(
         [seq5], num_randomizations=50
     )
 
     assert creg_names5 == creg_names4
-    for key in meas_map5:
-        np.testing.assert_array_equal(meas_map5[key], meas_map4[key])
+    for key in clbit_qubit_idxs5:
+        np.testing.assert_array_equal(clbit_qubit_idxs5[key], clbit_qubit_idxs4[key])
 
     # should have same structure same values
     assert all(
@@ -348,8 +348,8 @@ def test_generate_samplex_item_raises():
         circuit_generator.generate_samplex_item([seq3], num_randomizations=50)
 
 
-def test_measurement_map_matches_creg_bit_order():
-    """Test that the measurement map of `generate_samplex_item()` reports, for each creg bit, the
+def test_clbit_qubit_idxs_matches_creg_bit_order():
+    """Test that `generate_samplex_item()` reports, for each creg bit, the
     physical qubit that the generated circuit measures into that bit.
     """
     # an explicitly crossed measurement gate: "M" has qubit_idxs == clbit_meas_idxs == (1, 0)
@@ -362,12 +362,12 @@ def test_measurement_map_matches_creg_bit_order():
     seq = InstructionSequence(
         [ApplyGate("P")], [ApplyGate("L0")], [ApplyGate("M")], fragment_depth=2
     )
-    item, _, measurement_map = ExecutorCircuitGenerator(gateset).generate_samplex_item(
+    item, _, clbit_qubit_idxs = ExecutorCircuitGenerator(gateset).generate_samplex_item(
         [seq], num_randomizations=1
     )
 
     bit_qubits = _creg_bit_qubits(item.circuit)
-    for name, qubit_idxs in measurement_map.items():
+    for name, qubit_idxs in clbit_qubit_idxs.items():
         np.testing.assert_array_equal(qubit_idxs, bit_qubits[name])
 
 
@@ -484,7 +484,7 @@ def test_collect_empty():
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[],
         creg_names=[],
-        measurement_maps=[],
+        item_clbit_qubit_idxs=[],
         instruction_sequences=[],
         num_randomizations=0,
     )
@@ -500,7 +500,7 @@ def test_collect_single_sequence_no_measurement_flips():
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0]],
         creg_names=[["meas0"]],
-        measurement_maps=[{"meas0": np.array([0, 1, 2])}],
+        item_clbit_qubit_idxs=[{"meas0": np.array([0, 1, 2])}],
         instruction_sequences=[InstructionSequence([], [], [], fragment_depth=0)],
         num_randomizations=1,
     )
@@ -525,7 +525,7 @@ def test_collect_single_sequence_with_measurement_flips():
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0]],
         creg_names=[["meas0"]],
-        measurement_maps=[{"meas0": np.array([0, 1, 2])}],
+        item_clbit_qubit_idxs=[{"meas0": np.array([0, 1, 2])}],
         instruction_sequences=[InstructionSequence([], [], [], fragment_depth=0)],
         num_randomizations=1,
     )
@@ -545,7 +545,7 @@ def test_collect_multiple_sequences_same_item():
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0, 1]],
         creg_names=[["meas0"]],
-        measurement_maps=[{"meas0": np.array([0, 1])}],
+        item_clbit_qubit_idxs=[{"meas0": np.array([0, 1])}],
         instruction_sequences=[
             InstructionSequence([], [], [], fragment_depth=0),
             InstructionSequence([], [], [], fragment_depth=1),
@@ -578,7 +578,7 @@ def test_collect_multiple_sequences_different_items():
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0], [1]],
         creg_names=[["meas0"], ["meas0"]],
-        measurement_maps=[{"meas0": np.array([0, 1])}, {"meas0": np.array([0, 1])}],
+        item_clbit_qubit_idxs=[{"meas0": np.array([0, 1])}, {"meas0": np.array([0, 1])}],
         instruction_sequences=[
             InstructionSequence([], [], [], fragment_depth=0),
             InstructionSequence([], [], [], fragment_depth=1),
@@ -618,7 +618,7 @@ def test_collect_multiple_cregs():
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0]],
         creg_names=[["meas0", "meas1"]],
-        measurement_maps=[{"meas0": np.array([0, 1]), "meas1": np.array([2, 3, 4])}],
+        item_clbit_qubit_idxs=[{"meas0": np.array([0, 1]), "meas1": np.array([2, 3, 4])}],
         instruction_sequences=[InstructionSequence([], [], [], fragment_depth=0)],
         num_randomizations=1,
     )
@@ -665,7 +665,7 @@ def test_collect_complex_mapping():
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0, 2], [1], [3]],
         creg_names=[["meas0"], ["meas0"], ["meas0", "meas1"]],
-        measurement_maps=[
+        item_clbit_qubit_idxs=[
             {"meas0": np.array([0, 1])},
             {"meas0": np.array([0, 1, 2])},
             {"meas0": np.array([0, 1, 2]), "meas1": np.array([3])},
@@ -692,7 +692,7 @@ def test_collect_complex_mapping():
     )
     assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 2)}
 
-    # Item 1 has meas0 with 3 bits — different measurement_map, so new leaf "1"
+    # Item 1 has meas0 with 3 bits — different clbit_qubit_idxs, so new leaf "1"
     dataset = raw_data.datatree["1"].dataset
     np.testing.assert_array_equal(
         dataset["unbound_instruction_sequence"].data, [InstructionSequence([], [], [])]
@@ -754,9 +754,9 @@ def test_generate_and_collect_with_pass_manager():
     # Verify generate_samplex_items produces the expected data mapper
     assert data_mapper.item_sequence_indices == [[0]]
     assert data_mapper.creg_names == [["meas0", "pass_meas"]]
-    assert list(data_mapper.measurement_maps[0].keys()) == ["meas0", "pass_meas"]
-    np.testing.assert_array_equal(data_mapper.measurement_maps[0]["meas0"], [0, 1])
-    np.testing.assert_array_equal(data_mapper.measurement_maps[0]["pass_meas"], [0])
+    assert list(data_mapper.item_clbit_qubit_idxs[0].keys()) == ["meas0", "pass_meas"]
+    np.testing.assert_array_equal(data_mapper.item_clbit_qubit_idxs[0]["meas0"], [0, 1])
+    np.testing.assert_array_equal(data_mapper.item_clbit_qubit_idxs[0]["pass_meas"], [0])
 
     # Verify the template circuit has both cregs
     assert "pass_meas" in [c.name for c in samplex_items[0].circuit.cregs]
@@ -783,7 +783,7 @@ def test_generate_and_collect_with_pass_manager():
 
 
 def test_generate_with_pass_manager_multi_qubit_creg():
-    """Test that the measurement map correctly captures all qubits when the pass manager adds a
+    """Test that the clbit-to-qubit indices capture all qubits when the pass manager adds a
     creg with multiple measurements."""
     from qiskit.circuit import ClassicalRegister
     from qiskit.circuit.library import Measure
@@ -816,14 +816,14 @@ def test_generate_with_pass_manager_multi_qubit_creg():
     )
 
     assert data_mapper.creg_names == [["meas0", "extra"]]
-    assert list(data_mapper.measurement_maps[0].keys()) == ["meas0", "extra"]
-    np.testing.assert_array_equal(data_mapper.measurement_maps[0]["meas0"], [0, 1])
-    np.testing.assert_array_equal(data_mapper.measurement_maps[0]["extra"], [0, 1])
+    assert list(data_mapper.item_clbit_qubit_idxs[0].keys()) == ["meas0", "extra"]
+    np.testing.assert_array_equal(data_mapper.item_clbit_qubit_idxs[0]["meas0"], [0, 1])
+    np.testing.assert_array_equal(data_mapper.item_clbit_qubit_idxs[0]["extra"], [0, 1])
 
 
 def test_generate_with_pass_manager_creg_bit_order():
-    """Test that the measurement map follows classical bit order, rather than ascending qubit order,
-    for a creg added by the pass manager."""
+    """Test that the clbit-to-qubit indices follow classical bit order, rather than ascending
+    qubit order, for a creg added by the pass manager."""
     from qiskit.circuit import ClassicalRegister
     from qiskit.circuit.library import Measure
     from qiskit.transpiler import PassManager, TransformationPass
@@ -849,9 +849,9 @@ def test_generate_with_pass_manager_creg_bit_order():
     cg = ExecutorCircuitGenerator(gateset, pass_manager=PassManager([AddCrossedMeasPass()]))
     samplex_items, data_mapper = cg.generate_samplex_items([seq], num_randomizations=2)
 
-    np.testing.assert_array_equal(data_mapper.measurement_maps[0]["extra"], [1, 0])
+    np.testing.assert_array_equal(data_mapper.item_clbit_qubit_idxs[0]["extra"], [1, 0])
     np.testing.assert_array_equal(
-        data_mapper.measurement_maps[0]["extra"],
+        data_mapper.item_clbit_qubit_idxs[0]["extra"],
         _creg_bit_qubits(samplex_items[0].circuit)["extra"],
     )
 

@@ -90,7 +90,7 @@ def data_mapper(model):
     return ExecutorDataMapper(
         item_sequence_indices=[],
         creg_names=[],
-        measurement_maps=[],
+        item_clbit_qubit_idxs=[],
         instruction_sequences=[],
         num_randomizations=1,
         fidelity_model=model,

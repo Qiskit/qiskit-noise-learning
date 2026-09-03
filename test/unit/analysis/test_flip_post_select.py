@@ -37,7 +37,7 @@ def test_flip_post_select_node_masks_unchanged_bits(make_fit, make_raw_data):
     )
     raw = make_raw_data(
         creg_names=["meas0", "meas0_ps"],
-        measurement_map={
+        clbit_qubit_idxs={
             "meas0": np.array([0, 1, 2, 3]),
             "meas0_ps": np.array([0, 1, 2, 3]),
         },
@@ -64,7 +64,7 @@ def test_flip_post_select_node_no_masking_when_all_flipped(make_fit, make_raw_da
     )
     raw = make_raw_data(
         creg_names=["meas0", "meas0_ps"],
-        measurement_map={
+        clbit_qubit_idxs={
             "meas0": np.array([0, 1, 2, 3]),
             "meas0_ps": np.array([0, 1, 2, 3]),
         },
@@ -97,7 +97,7 @@ def test_flip_post_select_edge_masks_adjacent_pair_failures(make_fit, make_raw_d
     )
     raw = make_raw_data(
         creg_names=["meas0", "meas0_ps"],
-        measurement_map={
+        clbit_qubit_idxs={
             "meas0": np.array([0, 1, 2, 3]),
             "meas0_ps": np.array([0, 1, 2, 3]),
         },
@@ -116,7 +116,7 @@ def test_flip_post_select_mismatched_qubits_raises(make_fit, make_raw_data):
     data = np.zeros((1, 2, 4), dtype=bool)
     raw = make_raw_data(
         creg_names=["meas0", "meas0_ps"],
-        measurement_map={
+        clbit_qubit_idxs={
             "meas0": np.array([0, 1]),
             "meas0_ps": np.array([2, 3]),
         },
@@ -124,7 +124,28 @@ def test_flip_post_select_mismatched_qubits_raises(make_fit, make_raw_data):
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    with pytest.raises(ValueError, match="do not measure the same qubits"):
+    with pytest.raises(ValueError, match="must measure the same qubits"):
+        FlipPostSelect(mode="node").run(fit)
+
+
+def test_flip_post_select_mismatched_bit_order_raises(make_fit, make_raw_data):
+    """FlipPostSelect raises ValueError when cregs measure the same qubits in different orders.
+
+    The flip comparison is elementwise over the two cregs' bits, so bit ``k`` of each must hold
+    the same physical qubit. Aligning a permuted pair is not currently supported.
+    """
+    data = np.zeros((1, 2, 4), dtype=bool)
+    raw = make_raw_data(
+        creg_names=["meas0", "meas0_ps"],
+        clbit_qubit_idxs={
+            "meas0": np.array([0, 1]),
+            "meas0_ps": np.array([1, 0]),
+        },
+        data=data,
+    )
+    fit = make_fit(raw, CouplingMap.from_line(4))
+
+    with pytest.raises(ValueError, match="in the same classical bit order"):
         FlipPostSelect(mode="node").run(fit)
 
 
@@ -154,7 +175,7 @@ def test_flip_post_select_multiple_randomizations(make_fit, make_raw_data):
     )
     raw = make_raw_data(
         creg_names=["meas0", "meas0_ps"],
-        measurement_map={
+        clbit_qubit_idxs={
             "meas0": np.array([0, 1, 2, 3]),
             "meas0_ps": np.array([0, 1, 2, 3]),
         },
@@ -190,7 +211,7 @@ def test_flip_post_select_preserves_existing_mask(make_fit, make_raw_data):
     )
     raw = make_raw_data(
         creg_names=["meas0", "meas0_ps"],
-        measurement_map={
+        clbit_qubit_idxs={
             "meas0": np.array([0, 1, 2, 3]),
             "meas0_ps": np.array([0, 1, 2, 3]),
         },

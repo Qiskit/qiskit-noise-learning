@@ -33,7 +33,7 @@ def test_zero_post_select_node_masks_shots_with_any_true_bit(make_fit, make_raw_
     )
     raw = make_raw_data(
         creg_names=["meas0_ps"],
-        measurement_map={"meas0_ps": np.array([0, 1, 2, 3])},
+        clbit_qubit_idxs={"meas0_ps": np.array([0, 1, 2, 3])},
         data=data,
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
@@ -49,7 +49,7 @@ def test_zero_post_select_node_no_masking_when_all_false(make_fit, make_raw_data
     data = np.zeros((2, 3, 4), dtype=bool)
     raw = make_raw_data(
         creg_names=["meas0_ps"],
-        measurement_map={"meas0_ps": np.array([0, 1, 2, 3])},
+        clbit_qubit_idxs={"meas0_ps": np.array([0, 1, 2, 3])},
         data=data,
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
@@ -78,7 +78,7 @@ def test_zero_post_select_edge_masks_adjacent_pair(make_fit, make_raw_data):
     )
     raw = make_raw_data(
         creg_names=["meas0_ps"],
-        measurement_map={"meas0_ps": np.array([0, 1, 2, 3])},
+        clbit_qubit_idxs={"meas0_ps": np.array([0, 1, 2, 3])},
         data=data,
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
@@ -102,7 +102,7 @@ def test_zero_post_select_edge_non_adjacent_not_masked(make_fit, make_raw_data):
     )
     raw = make_raw_data(
         creg_names=["meas0_ps"],
-        measurement_map={"meas0_ps": np.array([0, 1, 2, 3])},
+        clbit_qubit_idxs={"meas0_ps": np.array([0, 1, 2, 3])},
         data=data,
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
@@ -129,7 +129,7 @@ def test_zero_post_select_multiple_randomizations(make_fit, make_raw_data):
     )
     raw = make_raw_data(
         creg_names=["meas0_ps"],
-        measurement_map={"meas0_ps": np.array([0, 1, 2, 3])},
+        clbit_qubit_idxs={"meas0_ps": np.array([0, 1, 2, 3])},
         data=data,
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
@@ -154,7 +154,7 @@ def test_zero_post_select_preserves_existing_mask(make_fit, make_raw_data):
 
     raw = make_raw_data(
         creg_names=["meas0_ps"],
-        measurement_map={"meas0_ps": np.array([0, 1, 2, 3])},
+        clbit_qubit_idxs={"meas0_ps": np.array([0, 1, 2, 3])},
         data=data,
     )
     # Manually set shot 2 as already masked

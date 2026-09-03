@@ -235,15 +235,14 @@ def compute_expectation_value(
         bits: A record of the measured bits, with dimensions ``(randomization, shots, bits)``.
         flips: Specification of required flips on bits ``(randomization, bits)``.
         shot_mask: A boolean mask on the ``(randomization, shots)`` dimensions.
-        bit_mask: A boolean mask on the ``(bit,)`` dimension. Note that the dimension is first
-            truncated to ``0:len(bit_mask)`` under the assumption that the expectation-value
-            relevant bits are at the beginning of the dimension.
+        bit_mask: A boolean mask spanning the full ``(bit,)`` dimension of ``bits``, selecting
+            the bits whose parity gives the observable.
         signs: Signs for the computed observables along the ``(randomization,)`` dimension.
 
     Returns:
         Expectation values with dimension ``(randomization,)``.
     """
-    corrected_bits = (bits ^ flips[:, np.newaxis, :])[..., : len(bit_mask)][..., bit_mask]
+    corrected_bits = (bits ^ flips[:, np.newaxis, :])[..., bit_mask]
     broadcasted_shot_mask = np.broadcast_to(shot_mask[:, :, np.newaxis], corrected_bits.shape)
     masked_arr = np.ma.array(corrected_bits, mask=broadcasted_shot_mask)
     per_sample = 1 - 2 * np.mod(np.sum(masked_arr, axis=-1), 2)
@@ -259,7 +258,7 @@ def observable_bit_mask(
     ``creg_names`` order, and the executor circuit generator adds one register per measuring gate.
     So the measuring fidelity indices of the path, taken in traversal order, correspond one-to-one
     with the registers of the data. Each such index contributes the bits of its register that hold
-    one of its observable qubits, found from the ``measurement_map`` of the dataset rather than by
+    one of its observable qubits, found from the ``clbit_qubit_idxs`` of the dataset rather than by
     assuming the register measures in ascending qubit order.
 
     Args:
@@ -280,9 +279,9 @@ def observable_bit_mask(
     attrs = raw_data.datatree[dt_key].dataset.attrs
     creg_names = attrs["creg_names"]
     boundaries = attrs["creg_bit_boundaries"]
-    measurement_map = attrs["measurement_map"]
+    clbit_qubit_idxs = attrs["clbit_qubit_idxs"]
 
-    num_bits = sum(len(measurement_map[creg]) for creg in creg_names)
+    num_bits = sum(len(clbit_qubit_idxs[creg]) for creg in creg_names)
     mask = np.zeros(num_bits, dtype=np.bool_)
 
     creg_idx = 0
@@ -302,7 +301,7 @@ def observable_bit_mask(
         creg = creg_names[creg_idx]
         creg_idx += 1
 
-        creg_meas_idxs = {int(idx) for idx in measurement_map[creg]}
+        creg_meas_idxs = {int(idx) for idx in clbit_qubit_idxs[creg]}
         if creg_meas_idxs != fidelity_index.meas_idxs:
             raise ValueError(
                 f"The register '{creg}' measures qubits {sorted(creg_meas_idxs)}, but the path "
@@ -311,6 +310,6 @@ def observable_bit_mask(
             )
 
         start, end = boundaries[creg]
-        mask[start:end] = np.isin(measurement_map[creg], fidelity_index.observable_idxs)
+        mask[start:end] = np.isin(clbit_qubit_idxs[creg], fidelity_index.observable_idxs)
 
     return mask

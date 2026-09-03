@@ -24,7 +24,7 @@ def test_from_arrays(make_instruction_sequence):
 
     raw = RawData.from_arrays(
         creg_names=["meas0"],
-        measurement_map={"meas0": np.array([0, 1])},
+        clbit_qubit_idxs={"meas0": np.array([0, 1])},
         instruction_sequences=[seq],
         data=[np.zeros((num_randomizations, num_shots, num_bits), dtype=bool)],
         measurement_flips=[np.zeros((num_randomizations, num_bits), dtype=bool)],
@@ -50,7 +50,7 @@ def test_filter_time(make_instruction_sequence):
 
     raw = RawData.from_arrays(
         creg_names=["meas0"],
-        measurement_map={"meas0": np.array([0, 1])},
+        clbit_qubit_idxs={"meas0": np.array([0, 1])},
         instruction_sequences=[seq],
         data=[np.ones((3, num_shots, num_bits), dtype=bool)],
         measurement_flips=[np.zeros((3, num_bits), dtype=bool)],

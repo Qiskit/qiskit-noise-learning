@@ -127,12 +127,12 @@ def _cz_path(gate_set_cz, meas_in_pauli):
     )
 
 
-def _raw_data_with_map(make_instruction_sequence, creg_names, measurement_map):
+def _raw_data_with_map(make_instruction_sequence, creg_names, clbit_qubit_idxs):
     """RawData whose single leaf has the given creg structure."""
-    num_bits = sum(len(measurement_map[creg]) for creg in creg_names)
+    num_bits = sum(len(clbit_qubit_idxs[creg]) for creg in creg_names)
     return RawData.from_arrays(
         creg_names=creg_names,
-        measurement_map=measurement_map,
+        clbit_qubit_idxs=clbit_qubit_idxs,
         instruction_sequences=[make_instruction_sequence(name="CZ", fragment_depth=1)],
         data=[np.zeros((1, 2, num_bits), dtype=bool)],
         measurement_flips=[np.zeros((1, num_bits), dtype=bool)],
@@ -213,7 +213,7 @@ def _run_compute_observables(paths, instruction_sequences, data, measurement_fli
     num_bits = data[0].shape[-1] if data else 0
     raw_data = RawData.from_arrays(
         creg_names=["meas0"],
-        measurement_map={"meas0": np.arange(num_bits)},
+        clbit_qubit_idxs={"meas0": np.arange(num_bits)},
         instruction_sequences=instruction_sequences,
         data=data,
         measurement_flips=measurement_flips,

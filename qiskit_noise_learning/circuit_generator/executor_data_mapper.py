@@ -30,7 +30,7 @@ class ExecutorDataMapper:
             indices. Position in the list corresponds to the configuration index within the result
             item.
         creg_names: The name of classical registers in each program item.
-        measurement_maps: For each program item, a dictionary from creg names to the physical
+        item_clbit_qubit_idxs: For each program item, a dictionary from creg names to the physical
             qubit index measured into each of their classical bits, in classical bit order.
         instruction_sequences: The instruction sequences associated with the data.
         num_randomizations: The number of randomizations used per experiment.
@@ -44,7 +44,7 @@ class ExecutorDataMapper:
         self,
         item_sequence_indices: list[list[int]],
         creg_names: list[list[str]],
-        measurement_maps: list[dict[str, np.ndarray[int]]],
+        item_clbit_qubit_idxs: list[dict[str, np.ndarray[int]]],
         instruction_sequences: list[InstructionSequence],
         num_randomizations: int,
         fidelity_model: FidelityModel | None = None,
@@ -53,7 +53,7 @@ class ExecutorDataMapper:
     ):
         self._item_sequence_indices = item_sequence_indices
         self._creg_names = creg_names
-        self._measurement_maps = measurement_maps
+        self._item_clbit_qubit_idxs = item_clbit_qubit_idxs
         self._instruction_sequences = instruction_sequences
         self._num_randomizations = num_randomizations
         self._fidelity_model = fidelity_model
@@ -75,9 +75,9 @@ class ExecutorDataMapper:
         return self._creg_names
 
     @property
-    def measurement_maps(self) -> list[dict[str, np.ndarray[int]]]:
+    def item_clbit_qubit_idxs(self) -> list[dict[str, np.ndarray[int]]]:
         """A per-program-item map from creg name to measured qubit indices."""
-        return self._measurement_maps
+        return self._item_clbit_qubit_idxs
 
     @property
     def instruction_sequences(self) -> list:

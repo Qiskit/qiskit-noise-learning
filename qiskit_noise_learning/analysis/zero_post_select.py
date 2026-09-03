@@ -70,7 +70,7 @@ class ZeroPostSelect(AnalysisStage):
             mask = dataset["data_mask"].values.copy()
             boundaries = dataset.attrs["creg_bit_boundaries"]
             creg_names = dataset.attrs["creg_names"]
-            measurement_map = dataset.attrs["measurement_map"]
+            clbit_qubit_idxs = dataset.attrs["clbit_qubit_idxs"]
 
             for name in self._creg_identifier(creg_names):
                 start, end = boundaries[name]
@@ -79,7 +79,7 @@ class ZeroPostSelect(AnalysisStage):
                 if self._mode == "node":
                     mask |= creg_bits.any(axis=-1)
                 elif self._mode == "edge":
-                    qubit_indices = measurement_map[name]
+                    qubit_indices = clbit_qubit_idxs[name]
                     for i, qi in enumerate(qubit_indices):
                         for j, qj in enumerate(qubit_indices):
                             if j <= i:
