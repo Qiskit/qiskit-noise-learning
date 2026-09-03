@@ -31,11 +31,13 @@ def _creg_bit_qubits(circuit):
 
 def test_fidelity_index_mask_vs_circuit_creg():
     """Test the ordering of FidelityIndex.mask vs the ExecutorCircuitGenerator circuit cregs when
-    qubit_subset is not ascending.
+    the measurement gate's clbit ordering is not ascending.
     """
 
-    # qubit_subset is NOT ascending -> the auto-built "M" gate has qubit_idxs == (1, 0)
-    gate_set = QiskitGateSet(2, qubit_subset=[1, 0])
+    # an explicitly crossed measurement gate: "M" has qubit_idxs == clbit_meas_idxs == (1, 0)
+    gate_set = QiskitGateSet(2, add_default_spam=False)
+    gate_set.add_measurement([1, 0], name="M")
+    gate_set.add_preparation(name="P")
     with gate_set.build_new_gate() as builder:
         builder.circuit.cz(0, 1)
 

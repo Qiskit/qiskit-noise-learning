@@ -352,8 +352,10 @@ def test_measurement_map_matches_creg_bit_order():
     """Test that the measurement map of `generate_samplex_item()` reports, for each creg bit, the
     physical qubit that the generated circuit measures into that bit.
     """
-    # qubit_subset is NOT ascending -> the auto-built "M" gate has qubit_idxs == (1, 0)
-    gateset = QiskitGateSet(2, qubit_subset=[1, 0])
+    # an explicitly crossed measurement gate: "M" has qubit_idxs == clbit_meas_idxs == (1, 0)
+    gateset = QiskitGateSet(2, add_default_spam=False)
+    gateset.add_measurement([1, 0], name="M")
+    gateset.add_preparation(name="P")
     with gateset.build_new_gate() as builder:
         builder.circuit.cz(0, 1)
 
