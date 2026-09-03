@@ -415,7 +415,7 @@ def test_generate_samplex_items(gateset):
         sequences, num_randomizations=50
     )
     assert len(samplex_items) == 3
-    assert data_mapper.creg_names == [["meas0"], ["meas0"], ["meas0"]]
+    assert data_mapper.item_creg_names == [["meas0"], ["meas0"], ["meas0"]]
     assert data_mapper.item_sequence_indices == [[0], [1], [2]]
 
     gateset_idxs = [idx for idx in gateset.qubit_subset]
@@ -435,7 +435,7 @@ def test_generate_samplex_items(gateset):
         sequences, num_randomizations=50
     )
     assert len(samplex_items) == 4
-    assert data_mapper.creg_names == [["meas0"], ["meas0"], ["meas0"], ["meas0"]]
+    assert data_mapper.item_creg_names == [["meas0"], ["meas0"], ["meas0"], ["meas0"]]
     assert data_mapper.item_sequence_indices == [[0, 3], [1], [2, 4], [5]]
 
     seq2 = InstructionSequence(
@@ -483,7 +483,7 @@ def test_collect_empty():
     """Test `ExecutorCircuitGenerator.collect()` with no sequences."""
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[],
-        creg_names=[],
+        item_creg_names=[],
         item_clbit_qubit_idxs=[],
         instruction_sequences=[],
         num_randomizations=0,
@@ -499,7 +499,7 @@ def test_collect_single_sequence_no_measurement_flips():
     result = make_result([{"meas0": creg_data}])
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0]],
-        creg_names=[["meas0"]],
+        item_creg_names=[["meas0"]],
         item_clbit_qubit_idxs=[{"meas0": np.array([0, 1, 2])}],
         instruction_sequences=[InstructionSequence([], [], [], fragment_depth=0)],
         num_randomizations=1,
@@ -524,7 +524,7 @@ def test_collect_single_sequence_with_measurement_flips():
     result = make_result([{"meas0": creg_data, "measurement_flips.meas0": flip_data}])
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0]],
-        creg_names=[["meas0"]],
+        item_creg_names=[["meas0"]],
         item_clbit_qubit_idxs=[{"meas0": np.array([0, 1, 2])}],
         instruction_sequences=[InstructionSequence([], [], [], fragment_depth=0)],
         num_randomizations=1,
@@ -544,7 +544,7 @@ def test_collect_multiple_sequences_same_item():
     result = make_result([{"meas0": creg_data}])
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0, 1]],
-        creg_names=[["meas0"]],
+        item_creg_names=[["meas0"]],
         item_clbit_qubit_idxs=[{"meas0": np.array([0, 1])}],
         instruction_sequences=[
             InstructionSequence([], [], [], fragment_depth=0),
@@ -577,7 +577,7 @@ def test_collect_multiple_sequences_different_items():
     )
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0], [1]],
-        creg_names=[["meas0"], ["meas0"]],
+        item_creg_names=[["meas0"], ["meas0"]],
         item_clbit_qubit_idxs=[{"meas0": np.array([0, 1])}, {"meas0": np.array([0, 1])}],
         instruction_sequences=[
             InstructionSequence([], [], [], fragment_depth=0),
@@ -617,7 +617,7 @@ def test_collect_multiple_cregs():
     )
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0]],
-        creg_names=[["meas0", "meas1"]],
+        item_creg_names=[["meas0", "meas1"]],
         item_clbit_qubit_idxs=[{"meas0": np.array([0, 1]), "meas1": np.array([2, 3, 4])}],
         instruction_sequences=[InstructionSequence([], [], [], fragment_depth=0)],
         num_randomizations=1,
@@ -664,7 +664,7 @@ def test_collect_complex_mapping():
     )
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0, 2], [1], [3]],
-        creg_names=[["meas0"], ["meas0"], ["meas0", "meas1"]],
+        item_creg_names=[["meas0"], ["meas0"], ["meas0", "meas1"]],
         item_clbit_qubit_idxs=[
             {"meas0": np.array([0, 1])},
             {"meas0": np.array([0, 1, 2])},
@@ -753,7 +753,7 @@ def test_generate_and_collect_with_pass_manager():
 
     # Verify generate_samplex_items produces the expected data mapper
     assert data_mapper.item_sequence_indices == [[0]]
-    assert data_mapper.creg_names == [["meas0", "pass_meas"]]
+    assert data_mapper.item_creg_names == [["meas0", "pass_meas"]]
     assert list(data_mapper.item_clbit_qubit_idxs[0].keys()) == ["meas0", "pass_meas"]
     np.testing.assert_array_equal(data_mapper.item_clbit_qubit_idxs[0]["meas0"], [0, 1])
     np.testing.assert_array_equal(data_mapper.item_clbit_qubit_idxs[0]["pass_meas"], [0])
@@ -815,7 +815,7 @@ def test_generate_with_pass_manager_multi_qubit_creg():
         [seq], num_randomizations=num_randomizations
     )
 
-    assert data_mapper.creg_names == [["meas0", "extra"]]
+    assert data_mapper.item_creg_names == [["meas0", "extra"]]
     assert list(data_mapper.item_clbit_qubit_idxs[0].keys()) == ["meas0", "extra"]
     np.testing.assert_array_equal(data_mapper.item_clbit_qubit_idxs[0]["meas0"], [0, 1])
     np.testing.assert_array_equal(data_mapper.item_clbit_qubit_idxs[0]["extra"], [0, 1])

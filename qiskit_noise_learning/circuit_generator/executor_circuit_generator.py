@@ -101,7 +101,7 @@ class ExecutorCircuitGenerator(
 
         for item_idx, seq_indices in enumerate(data_mapper.item_sequence_indices):
             this_item = result[item_idx]
-            item_creg_names = data_mapper.creg_names[item_idx]
+            item_creg_names = data_mapper.item_creg_names[item_idx]
             clbit_qubit_idxs = data_mapper.item_clbit_qubit_idxs[item_idx]
 
             data = []
@@ -179,7 +179,7 @@ class ExecutorCircuitGenerator(
         )
         return program, ExecutorDataMapper(
             item_sequence_indices=data_mapper.item_sequence_indices,
-            creg_names=data_mapper.creg_names,
+            item_creg_names=data_mapper.item_creg_names,
             item_clbit_qubit_idxs=data_mapper.item_clbit_qubit_idxs,
             instruction_sequences=sequences,
             num_randomizations=num_randomizations,
@@ -219,7 +219,7 @@ class ExecutorCircuitGenerator(
 
         return samplex_items, ExecutorDataMapper(
             item_sequence_indices=item_sequence_indices,
-            creg_names=creg_names,
+            item_creg_names=creg_names,
             item_clbit_qubit_idxs=item_clbit_qubit_idxs,
             instruction_sequences=instruction_sequences,
             num_randomizations=num_randomizations,

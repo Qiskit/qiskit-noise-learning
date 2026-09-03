@@ -350,7 +350,8 @@ class QiskitGateSet(GateSet[QiskitGate]):
         """Add a gate to this gate set that measures specified qubits.
 
         Args:
-            qubit_idxs: The physical qubit indices to measure.
+            qubit_idxs: The physical qubit indices to measure, in the order they are measured into
+                classical bits. By default, the region of interest in ascending order.
             operation_type: The type of measurement operation to apply on each qubit.
             annotations: The annotations that describe how to implement the measurement, or ``None``
                 to use the default annotations of :class:`~.QiskitGate`.

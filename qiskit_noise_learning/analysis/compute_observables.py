@@ -186,7 +186,7 @@ class ComputeObservables(AnalysisStage):
                 raw_dataset = raw_data.datatree[dt_key].dataset
                 for fragment_depth, dataset_mapping in fragment_depth_mapping.items():
                     randomization_mask = np.array(dataset_mapping["array_indices"])
-                    bit_mask = observable_bit_mask(raw_data, dt_key, unbound_path, fragment_depth)
+                    bit_mask = observable_bit_mask(raw_dataset, unbound_path, fragment_depth)
 
                     new_observables = compute_expectation_value(
                         bits=raw_dataset["data"].data[randomization_mask],
@@ -250,20 +250,12 @@ def compute_expectation_value(
 
 
 def observable_bit_mask(
-    raw_data: RawData, dt_key: str, unbound_path: Path, fragment_depth: int
+    dataset: xr.Dataset, unbound_path: Path, fragment_depth: int
 ) -> np.ndarray[np.bool_]:
     """Return the mask on the ``"bit"`` dimension selecting a path's observable.
 
-    The ``"bit"`` dimension of a leaf dataset is every classical register concatenated in
-    ``creg_names`` order, and the executor circuit generator adds one register per measuring gate.
-    So the measuring fidelity indices of the path, taken in traversal order, correspond one-to-one
-    with the registers of the data. Each such index contributes the bits of its register that hold
-    one of its observable qubits, found from the ``clbit_qubit_idxs`` of the dataset rather than by
-    assuming the register measures in ascending qubit order.
-
     Args:
-        raw_data: The raw data the mask will be applied to.
-        dt_key: The key of the leaf dataset the mask will be applied to.
+        dataset: A leaf dataset of a :class:`~.RawData` that the mask will be applied to.
         unbound_path: The unbound path whose observable is to be selected.
         fragment_depth: The fragment depth of the data, which is how many times the repeatable
             fragment is traversed.
@@ -276,7 +268,7 @@ def observable_bit_mask(
             if a register does not measure the qubits that the corresponding fidelity index says
             its gate measures.
     """
-    attrs = raw_data.datatree[dt_key].dataset.attrs
+    attrs = dataset.attrs
     creg_names = attrs["creg_names"]
     boundaries = attrs["creg_bit_boundaries"]
     clbit_qubit_idxs = attrs["clbit_qubit_idxs"]
@@ -285,18 +277,14 @@ def observable_bit_mask(
     mask = np.zeros(num_bits, dtype=np.bool_)
 
     creg_idx = 0
-    for fidelity_index in chain(
-        unbound_path.start_fragment,
-        *(unbound_path.repeatable_fragment for _ in range(fragment_depth)),
-        unbound_path.end_fragment,
-    ):
+    for fidelity_index in unbound_path.bind_at(fragment_depth):
         if not fidelity_index.meas_idxs:
             continue
 
         if creg_idx >= len(creg_names):
             raise ValueError(
-                f"The path measures more times than the dataset '{dt_key}' has classical "
-                f"registers ({len(creg_names)})."
+                "The path measures more times than the dataset has classical registers "
+                f"({len(creg_names)})."
             )
         creg = creg_names[creg_idx]
         creg_idx += 1

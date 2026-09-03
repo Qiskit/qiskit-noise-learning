@@ -60,7 +60,13 @@ class RawData(LeveledData):
 
     The ``"bit"`` dimension is every classical register concatenated in ``creg_names`` order, so
     that ``creg_bit_boundaries`` partitions it, and bit ``j`` of a register holds the outcome for
-    physical qubit ``clbit_qubit_idxs[creg][j]``.
+    physical qubit ``clbit_qubit_idxs[creg][j]``. Note that a register need not measure in
+    ascending qubit order, and that the same physical qubit may be measured by more than one
+    register.
+
+    The registers stand in one-to-one correspondence with the measuring gates of the instruction
+    sequences the data was gathered from, in the order those gates are traversed, so that the
+    ``n``-th name of ``creg_names`` holds the outcomes of the ``n``-th measuring gate.
 
     Datasets are grouped by creg metadata: two datasets with the same ``creg_names`` and
     ``clbit_qubit_idxs`` are merged along the ``"randomization"`` dimension.

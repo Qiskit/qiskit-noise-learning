@@ -89,7 +89,7 @@ def model(gate_set_cz):
 def data_mapper(model):
     return ExecutorDataMapper(
         item_sequence_indices=[],
-        creg_names=[],
+        item_creg_names=[],
         item_clbit_qubit_idxs=[],
         instruction_sequences=[],
         num_randomizations=1,
