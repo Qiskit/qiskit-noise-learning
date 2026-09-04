@@ -17,7 +17,7 @@ from qiskit_noise_learning.analysis import (
     AnalysisPipeline,
     CurveFitObservables,
     Fit,
-    NNLSSolve,
+    LeastSquaresSolve,
 )
 from qiskit_noise_learning.data import ModelData, ObservableData
 from qiskit_noise_learning.models import GeneratorIndex, PauliLindbladModel
@@ -45,7 +45,7 @@ class TestAnalysisPipelineIntegration:
         path = make_cz_path("XI")  # row = {CZ:ZI: 4.0}
         obs = make_observable_data([(path, a_true, f_true, [1, 2, 3, 4, 5])])
 
-        pipeline = AnalysisPipeline(CurveFitObservables(), NNLSSolve())
+        pipeline = AnalysisPipeline(CurveFitObservables(), LeastSquaresSolve())
         assert pipeline.input_level is ObservableData
         assert pipeline.output_level is ModelData
 
@@ -74,7 +74,7 @@ class TestAnalysisPipelineIntegration:
             ]
         )
 
-        pipeline = AnalysisPipeline(CurveFitObservables(), NNLSSolve())
+        pipeline = AnalysisPipeline(CurveFitObservables(), LeastSquaresSolve())
         fit = Fit(model=model)
         fit[ObservableData] = obs
         result = pipeline.run(fit)

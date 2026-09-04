@@ -289,56 +289,58 @@ class ModelSolve(AnalysisStage):
         return cov_x
 
 
-class NNLSSolve(ModelSolve):
-    """Solves for the :class:`~.ModelData` using SciPy's non-negative least squares solver.
+class LeastSquaresSolve(ModelSolve):
+    r"""Solves for the :class:`~.ModelData` by (optionally non-negative) least squares.
 
-    See SciPy's
-    `documentation <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.nnls.html>`_
-    for details on the method. See :class:`~.ModelSolve` for more details about the general
-    responsibility of a model solver in this library.
-
-    Args:
-        **nnls_opts: The options passed on to the SciPy solver.
-    """
-
-    def __init__(self, **nnls_opts):
-        self.nnls_opts = nnls_opts
-
-    def _solve(self, system: LinearSystemData) -> tuple[np.ndarray, np.ndarray, dict]:
-        x, _ = opt.nnls(_as_dense(system.A), system.b, **self.nnls_opts)
-        free_indices = np.where(x > 0)[0]
-        cov_x = self._covariance(system.A, system.sigma_b, x, free_indices)
-        return x, cov_x, dict()
-
-
-class LSQLinearSolve(ModelSolve):
-    """Solves for the :class:`~.ModelData` using SciPy's linear least squares solver.
-
-    See SciPy's
-    `documentation <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.lsq_linear.html>`_
-    for details on the method. See :class:`~.ModelSolve` for more details about the general
-    responsibility of a model solver in this library.
+    Minimizes :math:`\|A x - b\|_2^2` over the design matrix ``A`` and target ``b``. If
+    :mod:`cvxpy` is installed it is used (fast, and it exploits the sparse design matrix directly);
+    otherwise the solve falls back to :func:`scipy.optimize.lsq_linear` with its
+    trust-region-reflective (``"trf"``) method, which also accepts the sparse ``A``. See
+    :class:`~.ModelSolve` for the general responsibility of a model solver in this library.
 
     Args:
-        **lsq_linear_opts: The options passed on to the SciPy solver.
+        non_negative: Whether to constrain the solution to be non-negative (``x >= 0``). Defaults
+            to ``True``.
     """
 
-    def __init__(self, **lsq_linear_opts):
-        self.lsq_linear_opts = lsq_linear_opts
-        self.lsq_linear_opts.setdefault("bounds", (0, np.inf))
-        self.lsq_linear_opts.setdefault("method", "bvls")
+    def __init__(self, non_negative: bool = True):
+        self.non_negative = non_negative
 
     def _solve(self, system: LinearSystemData) -> tuple[np.ndarray, np.ndarray, dict]:
-        opt_res = opt.lsq_linear(_as_dense(system.A), system.b, **self.lsq_linear_opts)
-        x = opt_res.x
+        if HAS_CVXPY:
+            x, metadata = self._solve_cvxpy(system)
+        else:
+            x, metadata = self._solve_scipy(system)
 
-        lb, ub = self.lsq_linear_opts["bounds"]
-        at_lower = np.isfinite(lb) & np.isclose(x, lb)
-        at_upper = np.isfinite(ub) if np.isscalar(ub) else np.isfinite(ub) & np.isclose(x, ub)
-        free_indices = np.where(~at_lower & ~at_upper)[0]
+        # Parameters away from the ``x >= 0`` boundary carry covariance; an unconstrained fit keeps
+        # every parameter.
+        if self.non_negative:
+            # clip tiny solver-tolerance excursions below the boundary back onto it
+            x = np.maximum(x, 0.0)
+            free_indices = np.where(x > 0.0)[0]
+        else:
+            free_indices = np.arange(len(x))
         cov_x = self._covariance(system.A, system.sigma_b, x, free_indices)
+        return x, cov_x, metadata
 
-        return x, cov_x, {"opt_res": opt_res}
+    def _solve_cvxpy(self, system: LinearSystemData) -> tuple[np.ndarray, dict]:
+        import cvxpy as cp
+
+        x = cp.Variable(system.A.shape[1])
+        constraints = [x >= 0] if self.non_negative else []
+        problem = cp.Problem(cp.Minimize(cp.sum_squares(system.A @ x - system.b)), constraints)
+        problem.solve()
+        if problem.status not in cp.settings.SOLUTION_PRESENT or x.value is None:
+            raise RuntimeError(
+                f"The least-squares solve did not produce a solution (cvxpy status "
+                f"'{problem.status}')."
+            )
+        return x.value, {"problem": problem}
+
+    def _solve_scipy(self, system: LinearSystemData) -> tuple[np.ndarray, dict]:
+        bounds = (0, np.inf) if self.non_negative else (-np.inf, np.inf)
+        opt_res = opt.lsq_linear(system.A, system.b, bounds=bounds, method="trf")
+        return opt_res.x, {"opt_res": opt_res}
 
 
 # A constraint policy computes a constraint value from the solve-time linear system, so a bound can
