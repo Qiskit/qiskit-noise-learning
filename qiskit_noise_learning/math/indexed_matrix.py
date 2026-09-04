@@ -16,6 +16,7 @@ from collections.abc import Hashable, Mapping, Sequence
 from typing import Generic, Self, TypeVar
 
 import numpy as np
+import scipy.sparse as sp
 
 from .indexed_vector import IndexedVector
 
@@ -34,9 +35,9 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
     """A matrix with float entries and arbitrary row and column index data.
 
     Args:
-        row_index_map: A mapping from row indices to the integer row axes of ``data``.
-        column_index_map: A mapping from column indices to the integer column axes of ``data``.
-        data: The array for the given row and column indices.
+        row_index_map: A mapping from row indices to the integer row axes of :attr:`data`.
+        column_index_map: A mapping from column indices to the integer column axes of :attr:`data`.
+        data: The array for the given row and column indices, dense or sparse.
 
     Raises:
         ValueError: If the shape of ``data`` is inconsistent with the values of ``row_index_map``
@@ -47,7 +48,7 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
         self,
         row_index_map: Mapping[RowIndex, int] | None = None,
         column_index_map: Mapping[ColumnIndex, int] | None = None,
-        data: np.ndarray[float] | None = None,
+        data: np.ndarray | sp.sparray | None = None,
     ):
         row_index_map = (
             dict() if row_index_map is None else {k: v for k, v in row_index_map.items()}
@@ -79,6 +80,15 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
         self._column_index_map = column_index_map
         self._data = data
         self._rank = None
+
+    @staticmethod
+    def _as_csr(data: np.ndarray | sp.sparray | None) -> sp.csr_array:
+        """Coerce a dense array, sparse array, or ``None`` to a 2-D CSR array."""
+        if data is None:
+            return sp.csr_array((0, 0), dtype=float)
+        if sp.issparse(data):
+            return sp.csr_array(data)
+        return sp.csr_array(np.asarray(data, dtype=float))
 
     @classmethod
     def from_index_lists(
