@@ -27,8 +27,10 @@ class FlipPostSelect(AnalysisStage):
     group, and masks shots based on the structure of the failures. What counts as a failure depends
     on the size of the group:
 
-    * Two cregs ``(base, ps)``: bit ``j`` failed if it holds the same value in both, i.e. it did
-      not flip between the two measurements.
+    * Two cregs ``(base, ps)``: a qubit failed if its bit holds the same value in both, i.e. it
+      did not flip between the two measurements. The two registers must measure the same set of
+      qubits, but need not measure them in the same classical bit order; their bits are paired up
+      by the qubit they hold.
     * One creg ``(base,)``: bit ``j`` failed if it is True. This is the natural rule when a creg
       is expected to read out all-zeros, and coincides with the two-creg rule for a ``ps`` register
       of all ones.
@@ -116,6 +118,10 @@ def _failed_bits(names: Sequence[str], dataset: xr.Dataset) -> tuple[np.ndarray,
     ``j`` of that array. A register's bits are located by the dataset's ``"creg_name"``
     coordinate, so the result does not depend on where along the ``"bit"`` dimension they sit.
 
+    A two-creg group is paired up by qubit rather than by classical bit position, so the two
+    registers may measure their common qubits in different orders. Both are put in ascending qubit
+    order, which is the order of the returned arrays.
+
     Args:
         names: The one or two creg names making up the group.
         dataset: The leaf dataset holding the bits.
@@ -125,8 +131,7 @@ def _failed_bits(names: Sequence[str], dataset: xr.Dataset) -> tuple[np.ndarray,
 
     Raises:
         ValueError: If ``names`` does not hold one or two names, if a name matches no bit of the
-            dataset, or if a two-creg group's registers do not measure the same qubits in the same
-            classical bit order.
+            dataset, or if a two-creg group's registers do not measure the same set of qubits.
     """
     if len(names) not in (1, 2):
         raise ValueError(
@@ -154,15 +159,20 @@ def _failed_bits(names: Sequence[str], dataset: xr.Dataset) -> tuple[np.ndarray,
         return data[:, :, selection], bit_qubit_idxs[selection]
 
     base_selection, ps_selection = selections
-    base_qubits = bit_qubit_idxs[base_selection]
-    ps_qubits = bit_qubit_idxs[ps_selection]
+    base_order = np.argsort(bit_qubit_idxs[base_selection], kind="stable")
+    ps_order = np.argsort(bit_qubit_idxs[ps_selection], kind="stable")
+    base_qubits = bit_qubit_idxs[base_selection][base_order]
+    ps_qubits = bit_qubit_idxs[ps_selection][ps_order]
     if not np.array_equal(base_qubits, ps_qubits):
         raise ValueError(
-            f"Cregs '{names[0]}' and '{names[1]}' must measure the same qubits in "
-            "the same classical bit order."
+            f"Cregs '{names[0]}' and '{names[1]}' must measure the same qubits, but "
+            f"'{names[0]}' measures {base_qubits.tolist()} and '{names[1]}' measures "
+            f"{ps_qubits.tolist()}."
         )
 
-    return data[:, :, base_selection] == data[:, :, ps_selection], base_qubits
+    base_bits = data[:, :, base_selection][:, :, base_order]
+    ps_bits = data[:, :, ps_selection][:, :, ps_order]
+    return base_bits == ps_bits, base_qubits
 
 
 def suffix_creg_identifier(suffix: str = "ps") -> Callable[[list[str]], Iterator[tuple[str, ...]]]:
