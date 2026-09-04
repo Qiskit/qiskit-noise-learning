@@ -21,4 +21,3 @@ from .flip_post_select import FlipPostSelect
 from .legacy import LegacySolve
 from .model_solve import LinearSystemData, LSQLinearSolve, NNLSSolve, PositivityMinSolve
 from .symmetrize import SymmetrizeFidelities, SymmetrizeGenerators
-from .zero_post_select import ZeroPostSelect
