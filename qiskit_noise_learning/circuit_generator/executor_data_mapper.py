@@ -29,9 +29,9 @@ class ExecutorDataMapper:
         item_sequence_indices: For each program item, an ordered list of instruction sequence
             indices. Position in the list corresponds to the configuration index within the result
             item.
-        creg_names: The name of classical registers in each program item.
-        measurement_maps: For each program item, a dictionary from creg names to an ordered array
-            of measured qubit indices.
+        item_creg_names: The name of classical registers in each program item.
+        item_clbit_qubit_idxs: For each program item, a dictionary from creg names to the physical
+            qubit index measured into each of their classical bits, in classical bit order.
         instruction_sequences: The instruction sequences associated with the data.
         num_randomizations: The number of randomizations used per experiment.
         fidelity_model: The fidelity model used in the experiment.
@@ -43,8 +43,8 @@ class ExecutorDataMapper:
     def __init__(
         self,
         item_sequence_indices: list[list[int]],
-        creg_names: list[list[str]],
-        measurement_maps: list[dict[str, np.ndarray[int]]],
+        item_creg_names: list[list[str]],
+        item_clbit_qubit_idxs: list[dict[str, np.ndarray[int]]],
         instruction_sequences: list[InstructionSequence],
         num_randomizations: int,
         fidelity_model: FidelityModel | None = None,
@@ -52,8 +52,8 @@ class ExecutorDataMapper:
         relations: set[tuple[int, int]] | None = None,
     ):
         self._item_sequence_indices = item_sequence_indices
-        self._creg_names = creg_names
-        self._measurement_maps = measurement_maps
+        self._item_creg_names = item_creg_names
+        self._item_clbit_qubit_idxs = item_clbit_qubit_idxs
         self._instruction_sequences = instruction_sequences
         self._num_randomizations = num_randomizations
         self._fidelity_model = fidelity_model
@@ -66,18 +66,22 @@ class ExecutorDataMapper:
         return self._item_sequence_indices
 
     @property
-    def creg_names(self) -> list[list[str]]:
+    def item_creg_names(self) -> list[list[str]]:
         """List of names of the classical registers contained in the results.
 
         The list at a given index corresponds to names expected in the data of the
         :class:`qiskit_ibm_runtime.results.QuantumProgramResult` at the same index.
         """
-        return self._creg_names
+        return self._item_creg_names
 
     @property
-    def measurement_maps(self) -> list[dict[str, np.ndarray[int]]]:
-        """A per-program-item map from creg name to an ordered array of measured qubit indices."""
-        return self._measurement_maps
+    def item_clbit_qubit_idxs(self) -> list[dict[str, np.ndarray[int]]]:
+        """A per-program-item map from creg name to measured qubit indices.
+
+        Entry ``j`` of a register's array is the physical qubit index measured into its classical
+        bit ``j``.
+        """
+        return self._item_clbit_qubit_idxs
 
     @property
     def instruction_sequences(self) -> list:

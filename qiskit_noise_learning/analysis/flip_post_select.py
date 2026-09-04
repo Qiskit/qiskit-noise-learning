@@ -71,14 +71,15 @@ class FlipPostSelect(AnalysisStage):
             mask = dataset["data_mask"].values.copy()
             boundaries = dataset.attrs["creg_bit_boundaries"]
             creg_names = dataset.attrs["creg_names"]
-            measurement_map = dataset.attrs["measurement_map"]
+            clbit_qubit_idxs = dataset.attrs["clbit_qubit_idxs"]
 
             for base_name, ps_name in self._creg_pair_identifier(creg_names):
-                base_qubits = measurement_map[base_name]
-                ps_qubits = measurement_map[ps_name]
+                base_qubits = clbit_qubit_idxs[base_name]
+                ps_qubits = clbit_qubit_idxs[ps_name]
                 if not np.array_equal(base_qubits, ps_qubits):
                     raise ValueError(
-                        f"Cregs '{base_name}' and '{ps_name}' do not measure the same qubits."
+                        f"Cregs '{base_name}' and '{ps_name}' must measure the same qubits in "
+                        "the same classical bit order."
                     )
 
                 base_start, base_end = boundaries[base_name]
@@ -92,7 +93,7 @@ class FlipPostSelect(AnalysisStage):
                 if self._mode == "node":
                     mask |= failed_to_flip.any(axis=-1)
                 elif self._mode == "edge":
-                    qubit_indices = measurement_map[base_name]
+                    qubit_indices = clbit_qubit_idxs[base_name]
                     for i, qi in enumerate(qubit_indices):
                         for j, qj in enumerate(qubit_indices):
                             if j <= i:

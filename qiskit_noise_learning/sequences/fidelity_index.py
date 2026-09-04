@@ -15,7 +15,6 @@
 from collections.abc import Container
 from typing import Self
 
-import numpy as np
 from qiskit.quantum_info import PhasedQubitSparsePauli, QubitSparsePauli
 
 from qiskit_noise_learning.gate_sets import ModelGate
@@ -248,6 +247,11 @@ class FidelityIndex:
         return self._out_z_idxs
 
     @property
+    def meas_idxs(self) -> frozenset[int]:
+        """The physical qubit indices measured by the gate."""
+        return self._meas_idxs
+
+    @property
     def sign_flip(self) -> bool:
         """Whether the transition associated with this fidelity involves a sign flip."""
         return self._sign_flip
@@ -256,20 +260,6 @@ class FidelityIndex:
     def transition(self) -> tuple[QubitSparsePauli, QubitSparsePauli]:
         """The phaseless Pauli operator transition associated with this fidelity index."""
         return self._input_pauli, self._output_pauli
-
-    @property
-    def mask(self) -> np.ndarray[np.bool_]:
-        """The mask for marginalizing measurement outcomes."""
-        sorted_meas_idxs = sorted(self._meas_idxs)
-        mask = np.zeros(len(self._meas_idxs), dtype=np.bool_)
-        mask[
-            [
-                idx
-                for idx, meas_idx in enumerate(sorted_meas_idxs)
-                if meas_idx in self.observable_idxs
-            ]
-        ] = True
-        return mask
 
     @property
     def observable_idxs(self) -> list[int]:

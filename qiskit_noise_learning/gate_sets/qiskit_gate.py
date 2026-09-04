@@ -46,8 +46,10 @@ class QiskitGate(Gate):
     """Represents a single gate in a :class:`~.QiskitGateSet`.
 
     It is assumed that the gate consists of a sequence of unitary operations, followed by
-    measurements, with no qubit being measured more than once, and finally preparations or resets.
-    This is not currently validated.
+    measurements, and finally preparations or resets. The ordering of the operations is not
+    currently validated, but every classical bit of ``circuit`` must be measured into exactly once,
+    and no qubit may be measured more than once, since it is those measurements that define
+    :attr:`clbit_meas_idxs`.
 
     In many ways, this class is similar to a :class:`~qiskit.circuit.CircuitInstruction` containing
     a :class:`~qiskit.circuit.BoxOp` in that it represents the action on some subset of qubits, and
@@ -69,6 +71,13 @@ class QiskitGate(Gate):
             defaults to Pauli twirling. If no :class:`samplomatic.Tag` annotation is provided,
             then one is added automatically whose tag name is equal to ``name``.
         latex_str: An optional LaTeX string for this gate.
+
+    Raises:
+        ValueError: If ``qubit_idxs`` does not have a length equal to ``circuit.num_qubits``.
+        ValueError: If any classical bit of ``circuit`` is measured into more than once, or is
+            never measured into.
+        ValueError: If any qubit of ``circuit`` is measured into more than one classical bit.
+        ValueError: If ``annotations`` does not include a :class:`samplomatic.Twirl` annotation.
     """
 
     def __init__(
@@ -80,25 +89,44 @@ class QiskitGate(Gate):
         annotations: Sequence[Annotation] | None = None,
         latex_str: str | None = None,
     ):
-        meas_idxs = []
+        qubit_idxs = list(qubit_idxs)
+        if circuit.num_qubits != len(qubit_idxs):
+            raise ValueError("`qubit_idxs` must have a length equal to `circuit.num_qubits`.")
+
+        clbit_meas_idxs = [None] * circuit.num_clbits
         other_preps = []
         qubit_map = dict(zip(circuit.qubits, qubit_idxs))
         for instr in circuit:
             if _is_prep(instr):
                 other_preps.extend(map(qubit_map.get, instr.qubits))
             elif _is_meas(instr):
-                meas_idxs.extend(map(qubit_map.get, instr.qubits))
+                clbit_idx = circuit.find_bit(instr.clbits[0]).index
+                if clbit_meas_idxs[clbit_idx] is not None:
+                    raise ValueError(
+                        f"Classical bit {clbit_idx} of `circuit` is measured into more than once."
+                    )
+                clbit_meas_idxs[clbit_idx] = qubit_map[instr.qubits[0]]
 
-        if circuit.num_qubits != len(qubit_idxs):
-            raise ValueError("`qubit_idxs` must have a length equal to `circuit.num_qubits`.")
+        if unmeasured := [idx for idx, q in enumerate(clbit_meas_idxs) if q is None]:
+            raise ValueError(
+                "Every classical bit of `circuit` must be measured into exactly once, but bits "
+                f"{unmeasured} are never measured into."
+            )
+        if len(set(clbit_meas_idxs)) != len(clbit_meas_idxs):
+            duplicated = sorted({q for q in clbit_meas_idxs if clbit_meas_idxs.count(q) > 1})
+            raise ValueError(
+                "No qubit of `circuit` may be measured into more than one clbit, but qubits "
+                f"{duplicated} are."
+            )
 
         super().__init__(
             name=name,
             qubit_idxs=qubit_idxs,
             prep_idxs=chain(prep_idxs, other_preps),
-            meas_idxs=meas_idxs,
+            meas_idxs=clbit_meas_idxs,
             latex_str=latex_str,
         )
+        self._clbit_meas_idxs = tuple(clbit_meas_idxs)
         self._qubit_map = qubit_map
         self._circuit = circuit
         self._annotations = [Twirl()] if annotations is None else list(annotations)
@@ -120,6 +148,15 @@ class QiskitGate(Gate):
 
         """
         return self._circuit
+
+    @property
+    def clbit_meas_idxs(self) -> tuple[int, ...]:
+        """The physical qubit index measured into each classical bit of :attr:`circuit`.
+
+        Entry ``j`` is the physical qubit whose measurement outcome is stored in classical bit
+        ``j``, which is the order in which a backend reports outcomes.
+        """
+        return self._clbit_meas_idxs
 
     @property
     def annotations(self) -> list[Annotation]:
@@ -159,12 +196,7 @@ class QiskitGate(Gate):
                     )
                 reset_qubits.add(qubit)
             elif inst.name.startswith("meas"):
-                if (qubit := inst.qubits[0]) in meas_qubits:
-                    raise ValueError(
-                        f"Cannot convert QiskitGate {self.name} into a ModelGate, "
-                        f"as two measurements occur on {qubit}."
-                    )
-                elif qubit in reset_qubits:
+                if (qubit := inst.qubits[0]) in reset_qubits:
                     raise ValueError(
                         f"Cannot convert QiskitGate {self.name} into a ModelGate, "
                         f"as a measurement occurs after reset on {qubit}."
@@ -266,8 +298,8 @@ class QiskitGate(Gate):
 
     def __repr__(self):
         qubits = int_sequence_to_str("qubits", self.qubit_idxs)
-        prep = f", {int_sequence_to_str('prep', self.sorted_prep_idxs)}" if self.prep_idxs else ""
-        meas = f", {int_sequence_to_str('meas', self.sorted_meas_idxs)}" if self.meas_idxs else ""
+        prep = f", {int_sequence_to_str('prep', sorted(self.prep_idxs))}" if self.prep_idxs else ""
+        meas = f", {int_sequence_to_str('meas', sorted(self.meas_idxs))}" if self.meas_idxs else ""
         return (
             f"QiskitGate(<name={self.name}, {qubits}, "
             f"ops={dict(self.circuit.count_ops())}{prep}{meas}>)"

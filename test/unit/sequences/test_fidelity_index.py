@@ -10,7 +10,6 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-import numpy as np
 import pytest
 from qiskit import QuantumCircuit
 from qiskit.circuit.library import CZGate
@@ -39,8 +38,8 @@ def test_init():
     assert fidelity_index.out_z_idxs == frozenset()
     assert fidelity_index.transition == (QubitSparsePauli("YZ"), QubitSparsePauli("XI"))
     assert fidelity_index.sign_flip is True
+    assert fidelity_index.meas_idxs == frozenset([0])
     assert fidelity_index.observable_idxs == [0]
-    assert np.array_equal(fidelity_index.mask, np.array([True], np.bool_))
 
 
 def test_from_gate():
@@ -119,8 +118,8 @@ def test_is_valid_for_gate():
     )
 
 
-def test_observable_idxs_and_mask():
-    """Test observable indices and mask properties."""
+def test_observable_idxs():
+    """Test the observable index property."""
     qc = QuantumCircuit(1)
     qc.sx(0)
     gate = ModelGate("L0", cliffords=[((1,), qc)], qubit_idxs=range(2), meas_idxs=[0])
@@ -128,14 +127,12 @@ def test_observable_idxs_and_mask():
     # qubit 0 Z measured but not reset
     fid_idx = FidelityIndex.from_gate(gate, QubitSparsePauli("ZI"), in_z_idxs=frozenset([0]))
     assert fid_idx.observable_idxs == [0]
-    assert np.array_equal(fid_idx.mask, np.array([True], np.bool_))
 
     # qubit 0 Z measured and reset to Z
     fid_idx = FidelityIndex.from_gate(
         gate, QubitSparsePauli("ZI"), in_z_idxs=frozenset([0]), out_z_idxs=frozenset([0])
     )
     assert fid_idx.observable_idxs == []
-    assert np.array_equal(fid_idx.mask, np.array([False], np.bool_))
 
     # qubit 0 Z measured, qubit 1 reset to Z (out_z_idxs on reset-only qubits don't matter)
     gate = ModelGate(
@@ -145,7 +142,6 @@ def test_observable_idxs_and_mask():
         gate, QubitSparsePauli("II"), in_z_idxs=frozenset([0]), out_z_idxs=frozenset([1])
     )
     assert fid_idx.observable_idxs == [0]
-    assert np.array_equal(fid_idx.mask, np.array([True], np.bool_))
 
     gate = ModelGate(
         "L0", cliffords=[((1,), qc)], qubit_idxs=range(2), meas_idxs=[0, 1], prep_idxs=[1]
@@ -154,7 +150,6 @@ def test_observable_idxs_and_mask():
         gate, QubitSparsePauli("II"), in_z_idxs=frozenset([0]), out_z_idxs=frozenset([1])
     )
     assert fid_idx.observable_idxs == [0, 1]
-    assert np.array_equal(fid_idx.mask, np.array([True, True], np.bool_))
 
     fid_idx = FidelityIndex.from_gate(
         gate,
@@ -162,16 +157,15 @@ def test_observable_idxs_and_mask():
         in_z_idxs=frozenset([0, 1]),
         out_z_idxs=frozenset([1]),
     )
-    assert np.array_equal(fid_idx.mask, np.array([True, False], np.bool_))
+    assert fid_idx.observable_idxs == [0]
 
-    # a case where the first entry in the list isn't being included
     fid_idx = FidelityIndex.from_gate(
         gate,
         QubitSparsePauli("II"),
         in_z_idxs=frozenset([1]),
         out_z_idxs=frozenset(),
     )
-    assert np.array_equal(fid_idx.mask, np.array([False, True], np.bool_))
+    assert fid_idx.observable_idxs == [1]
 
 
 def test_transition():

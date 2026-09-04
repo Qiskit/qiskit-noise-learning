@@ -109,8 +109,8 @@ def test_noise_learner_run_orchestration(mock_executor_cls, learner, gate_set_cz
     )
     fake_data_mapper = ExecutorDataMapper(
         item_sequence_indices=[],
-        creg_names=[],
-        measurement_maps=[],
+        item_creg_names=[],
+        item_clbit_qubit_idxs=[],
         instruction_sequences=[],
         num_randomizations=1,
         fidelity_model=model,

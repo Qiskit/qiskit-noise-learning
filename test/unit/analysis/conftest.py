@@ -41,15 +41,15 @@ def make_fit():
 
 @pytest.fixture()
 def make_raw_data(make_instruction_sequence):
-    """Return a builder ``(creg_names, measurement_map, data) -> RawData`` (1 sequence)."""
+    """Return a builder ``(creg_names, clbit_qubit_idxs, data) -> RawData`` (1 sequence)."""
 
-    def _make(creg_names, measurement_map, data):
+    def _make(creg_names, clbit_qubit_idxs, data):
         seq = make_instruction_sequence(name="p0", fragment_depth=1)
         num_rand = data.shape[0]
         num_bits = data.shape[2]
         return RawData.from_arrays(
             creg_names=creg_names,
-            measurement_map=measurement_map,
+            clbit_qubit_idxs=clbit_qubit_idxs,
             instruction_sequences=[seq],
             data=[data],
             measurement_flips=[np.zeros((num_rand, num_bits), dtype=bool)],

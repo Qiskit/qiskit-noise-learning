@@ -182,11 +182,11 @@ class ComputeObservables(AnalysisStage):
 
         observable_idx = 0
         for unbound_path, datatree_mapping in unbound_path_to_data.items():
-            bit_mask = unbound_path.end_fragment[-1].mask
             for dt_key, fragment_depth_mapping in datatree_mapping.items():
                 raw_dataset = raw_data.datatree[dt_key].dataset
                 for fragment_depth, dataset_mapping in fragment_depth_mapping.items():
                     randomization_mask = np.array(dataset_mapping["array_indices"])
+                    bit_mask = observable_bit_mask(raw_dataset, unbound_path, fragment_depth)
 
                     new_observables = compute_expectation_value(
                         bits=raw_dataset["data"].data[randomization_mask],
@@ -235,39 +235,69 @@ def compute_expectation_value(
         bits: A record of the measured bits, with dimensions ``(randomization, shots, bits)``.
         flips: Specification of required flips on bits ``(randomization, bits)``.
         shot_mask: A boolean mask on the ``(randomization, shots)`` dimensions.
-        bit_mask: A boolean mask on the ``(bit,)`` dimension. Note that the dimension is first
-            truncated to ``0:len(bit_mask)`` under the assumption that the expectation-value
-            relevant bits are at the beginning of the dimension.
+        bit_mask: A boolean mask spanning the full ``(bit,)`` dimension of ``bits``, selecting
+            the bits whose parity gives the observable.
         signs: Signs for the computed observables along the ``(randomization,)`` dimension.
 
     Returns:
         Expectation values with dimension ``(randomization,)``.
     """
-    corrected_bits = (bits ^ flips[:, np.newaxis, :])[..., : len(bit_mask)][..., bit_mask]
+    corrected_bits = (bits ^ flips[:, np.newaxis, :])[..., bit_mask]
     broadcasted_shot_mask = np.broadcast_to(shot_mask[:, :, np.newaxis], corrected_bits.shape)
     masked_arr = np.ma.array(corrected_bits, mask=broadcasted_shot_mask)
     per_sample = 1 - 2 * np.mod(np.sum(masked_arr, axis=-1), 2)
     return signs * per_sample.mean(axis=-1)
 
 
-def observable_bit_mask(unbound_path: Path, fragment_depth: int) -> np.ndarray[bool]:
-    """Return the observable bit mask corresponding to the unbound path at the fragment depth."""
-    mask_array = np.array([], dtype=bool)
+def observable_bit_mask(
+    dataset: xr.Dataset, unbound_path: Path, fragment_depth: int
+) -> np.ndarray[np.bool_]:
+    """Return the mask on the ``"bit"`` dimension selecting a path's observable.
 
-    start_masks = [x.mask for x in unbound_path.start_fragment]
-    for mask_fragment in start_masks:
-        mask_array = np.append(mask_array, mask_fragment)
+    Args:
+        dataset: A leaf dataset of a :class:`~.RawData` that the mask will be applied to.
+        unbound_path: The unbound path whose observable is to be selected.
+        fragment_depth: The fragment depth of the data, which is how many times the repeatable
+            fragment is traversed.
 
-    repeatable_masks = [x.mask for x in unbound_path.repeatable_fragment]
-    repeatable_mask = np.array([], dtype=bool)
-    for mask_fragment in repeatable_masks:
-        repeatable_mask = np.append(repeatable_mask, mask_fragment)
-    mask_array = np.append(
-        mask_array, np.repeat(np.array([repeatable_mask]), fragment_depth, axis=0).flatten()
-    )
+    Returns:
+        A boolean array over the full ``"bit"`` dimension of the dataset.
 
-    end_masks = [x.mask for x in unbound_path.end_fragment]
-    for mask_fragment in end_masks:
-        mask_array = np.append(mask_array, mask_fragment)
+    Raises:
+        ValueError: If the path measures more times than the dataset has classical registers, or
+            if a register does not measure the qubits that the corresponding fidelity index says
+            its gate measures.
+    """
+    attrs = dataset.attrs
+    creg_names = attrs["creg_names"]
+    boundaries = attrs["creg_bit_boundaries"]
+    clbit_qubit_idxs = attrs["clbit_qubit_idxs"]
 
-    return mask_array
+    num_bits = sum(len(clbit_qubit_idxs[creg]) for creg in creg_names)
+    mask = np.zeros(num_bits, dtype=np.bool_)
+
+    creg_idx = 0
+    for fidelity_index in unbound_path.bind_at(fragment_depth):
+        if not fidelity_index.meas_idxs:
+            continue
+
+        if creg_idx >= len(creg_names):
+            raise ValueError(
+                "The path measures more times than the dataset has classical registers "
+                f"({len(creg_names)})."
+            )
+        creg = creg_names[creg_idx]
+        creg_idx += 1
+
+        creg_meas_idxs = {int(idx) for idx in clbit_qubit_idxs[creg]}
+        if creg_meas_idxs != fidelity_index.meas_idxs:
+            raise ValueError(
+                f"The register '{creg}' measures qubits {sorted(creg_meas_idxs)}, but the path "
+                f"expects the gate '{fidelity_index.gate_name}' to measure "
+                f"{sorted(fidelity_index.meas_idxs)}."
+            )
+
+        start, end = boundaries[creg]
+        mask[start:end] = np.isin(clbit_qubit_idxs[creg], fidelity_index.observable_idxs)
+
+    return mask

@@ -46,7 +46,8 @@ class ExecutorCircuitGenerator(
         local_clifford_ref_prefix: The prefix assigned to all local Clifford parameter references
             in template circuits. Defaults to ``"c"``.
         pass_manager: An optional ``PassManager`` to apply to all template circuits produced by
-            :meth:`ExecutorCircuitGenerator.generate`.
+            :meth:`ExecutorCircuitGenerator.generate`. Pass managers should not modify the details
+            of the existing circuit (e.g. re-order qubits or rename measurements).
     """
 
     def __init__(
@@ -100,8 +101,8 @@ class ExecutorCircuitGenerator(
 
         for item_idx, seq_indices in enumerate(data_mapper.item_sequence_indices):
             this_item = result[item_idx]
-            item_creg_names = data_mapper.creg_names[item_idx]
-            item_measurement_map = data_mapper.measurement_maps[item_idx]
+            creg_names = data_mapper.item_creg_names[item_idx]
+            clbit_qubit_idxs = data_mapper.item_clbit_qubit_idxs[item_idx]
 
             data = []
             measurement_flips = []
@@ -112,7 +113,7 @@ class ExecutorCircuitGenerator(
             for d_idx, seq_idx in enumerate(seq_indices):
                 this_data = []
                 these_flips = []
-                for creg in item_creg_names:
+                for creg in creg_names:
                     this_data.append(this_item[creg][d_idx])
                     flips = this_item.get(f"measurement_flips.{creg}")
                     if flips is None:
@@ -144,8 +145,8 @@ class ExecutorCircuitGenerator(
                 instruction_sequences.append(data_mapper.instruction_sequences[seq_idx])
 
             item_raw_data = RawData.from_arrays(
-                creg_names=item_creg_names,
-                measurement_map=item_measurement_map,
+                creg_names=creg_names,
+                clbit_qubit_idxs=clbit_qubit_idxs,
                 instruction_sequences=instruction_sequences,
                 data=data,
                 measurement_flips=measurement_flips,
@@ -178,8 +179,8 @@ class ExecutorCircuitGenerator(
         )
         return program, ExecutorDataMapper(
             item_sequence_indices=data_mapper.item_sequence_indices,
-            creg_names=data_mapper.creg_names,
-            measurement_maps=data_mapper.measurement_maps,
+            item_creg_names=data_mapper.item_creg_names,
+            item_clbit_qubit_idxs=data_mapper.item_clbit_qubit_idxs,
             instruction_sequences=sequences,
             num_randomizations=num_randomizations,
             fidelity_model=experiment.fidelity_model,
@@ -203,23 +204,23 @@ class ExecutorCircuitGenerator(
         """
         samplex_items = []
         item_sequence_indices = []
-        creg_names = []
-        measurement_maps = []
+        item_creg_names = []
+        item_clbit_qubit_idxs = []
         for current_indices in self.partition(instruction_sequences):
             current_sequences = [instruction_sequences[idx] for idx in current_indices]
-            samplex_item, current_creg_names, current_meas_map = self.generate_samplex_item(
+            samplex_item, current_creg_names, current_clbit_qubit_idxs = self.generate_samplex_item(
                 current_sequences, num_randomizations=num_randomizations
             )
 
             samplex_items.append(samplex_item)
             item_sequence_indices.append(current_indices)
-            creg_names.append(current_creg_names)
-            measurement_maps.append(current_meas_map)
+            item_creg_names.append(current_creg_names)
+            item_clbit_qubit_idxs.append(current_clbit_qubit_idxs)
 
         return samplex_items, ExecutorDataMapper(
             item_sequence_indices=item_sequence_indices,
-            creg_names=creg_names,
-            measurement_maps=measurement_maps,
+            item_creg_names=item_creg_names,
+            item_clbit_qubit_idxs=item_clbit_qubit_idxs,
             instruction_sequences=instruction_sequences,
             num_randomizations=num_randomizations,
         )
@@ -238,7 +239,8 @@ class ExecutorCircuitGenerator(
         Returns:
             A samplex item where the order of the arguments correspond to the order of
             ``instruction_sequences``, an ordered list of creg names, and a dictionary mapping
-            creg names to the ordered list of qubit indices they measure.
+            creg names to the physical qubit index measured into each of their classical bits, in
+            classical bit order.
 
         Raises:
             ValueError: If ``instruction_sequences`` is empty.
@@ -253,7 +255,7 @@ class ExecutorCircuitGenerator(
         ref_iter = (f"{self._local_clifford_ref_prefix}{idx}" for idx in count())
         creg_iter = (f"{self._creg_prefix}{idx}" for idx in count())
         creg_names = []
-        measurement_map = dict()
+        clbit_qubit_idxs = dict()
 
         gateset_idxs = list(self.gate_set.qubit_subset)
         gateset_idxs.sort()
@@ -280,9 +282,9 @@ class ExecutorCircuitGenerator(
                     if isinstance(annotation, Tag):
                         annotations.append(annotation)
 
-                if num_meas := len(gate.meas_idxs):
+                if num_meas := len(gate.clbit_meas_idxs):
                     creg_names.append(next(creg_iter))
-                    measurement_map[creg_names[-1]] = np.array(sorted(gate.meas_idxs), dtype=int)
+                    clbit_qubit_idxs[creg_names[-1]] = np.array(gate.clbit_meas_idxs, dtype=int)
 
                     creg = ClassicalRegister(num_meas, creg_names[-1])
                     boxed_circuit.add_register(creg)
@@ -330,20 +332,29 @@ class ExecutorCircuitGenerator(
                 if creg.name not in creg_names:
                     creg_names.append(creg.name)
 
-            # add measurement map information for added cregs
-            original_creg_names = set(measurement_map)
+            # record the qubit measured into each classical bit of the added cregs
+            original_creg_names = set(clbit_qubit_idxs)
             for instruction in template.data:
                 if instruction.name == "measure":
                     qubit_idx = template.find_bit(instruction.qubits[0]).index
                     clbit = instruction.clbits[0]
                     for creg in template.cregs:
                         if creg.name not in original_creg_names and clbit in creg:
-                            measurement_map.setdefault(creg.name, []).append(qubit_idx)
+                            qubit_idxs = clbit_qubit_idxs.setdefault(creg.name, [None] * len(creg))
+                            qubit_idxs[creg.index(clbit)] = qubit_idx
                             break
 
-            for key, val in measurement_map.items():
+            for name in creg_names:
+                val = clbit_qubit_idxs.get(name)
+                if val is None or (
+                    isinstance(val, list) and any(qubit_idx is None for qubit_idx in val)
+                ):
+                    raise ValueError(
+                        f"Every classical bit of the register '{name}' added by the pass "
+                        "manager must be measured into exactly once."
+                    )
                 if isinstance(val, list):
-                    measurement_map[key] = np.array(sorted(val), dtype=int)
+                    clbit_qubit_idxs[name] = np.array(val, dtype=int)
 
         return (
             SamplexItem(
@@ -353,5 +364,5 @@ class ExecutorCircuitGenerator(
                 shape=(num_sequences, num_randomizations),
             ),
             creg_names,
-            measurement_map,
+            clbit_qubit_idxs,
         )

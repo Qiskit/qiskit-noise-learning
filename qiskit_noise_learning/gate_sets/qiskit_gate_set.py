@@ -100,8 +100,6 @@ class QiskitGateSet(GateSet[QiskitGate]):
             are present.
         qubit_subset: A subset of ``range(num_qubits)`` specifying the region of interest of the
             QPU. All gates added must act within this subset. By default, contains all qubits.
-            When ``add_default_spam`` is ``True``, the iteration order of this argument determines
-            the qubit ordering of the default preparation and measurement gates.
         add_default_spam: Whether to initialize the gateset with gates that respectively implement
             state preparation (given name ``"P"``) and state measurement (given name ``"M"``) on
             all qubits in the region of interest.
@@ -124,7 +122,6 @@ class QiskitGateSet(GateSet[QiskitGate]):
         if num_qubits and target and num_qubits != target.num_qubits:
             raise ValueError("The value of `num_qubits` must match `target.num_qubits`.")
 
-        qubit_subset = list(qubit_subset) if qubit_subset is not None else None
         super().__init__(
             num_qubits=num_qubits or target.num_qubits,
             qubit_subset=qubit_subset,
@@ -136,8 +133,8 @@ class QiskitGateSet(GateSet[QiskitGate]):
         self._name_iter = (f"L{idx}" for idx in count())
 
         if add_default_spam:
-            self.add_measurement(name="M", qubit_idxs=qubit_subset)
-            self.add_preparation(name="P", qubit_idxs=qubit_subset)
+            self.add_measurement(name="M")
+            self.add_preparation(name="P")
 
     def _custom_html_columns(self):
         def twirl(gate: QiskitGate) -> str:
@@ -353,7 +350,8 @@ class QiskitGateSet(GateSet[QiskitGate]):
         """Add a gate to this gate set that measures specified qubits.
 
         Args:
-            qubit_idxs: The physical qubit indices to measure.
+            qubit_idxs: The physical qubit indices to measure, in the order they are measured into
+                classical bits. By default, the region of interest in ascending order.
             operation_type: The type of measurement operation to apply on each qubit.
             annotations: The annotations that describe how to implement the measurement, or ``None``
                 to use the default annotations of :class:`~.QiskitGate`.

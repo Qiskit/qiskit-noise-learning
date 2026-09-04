@@ -55,10 +55,14 @@ def test_construction_with_qubit_subset():
     assert gs["P"] == QiskitGate("P", QuantumCircuit(num_in_subset), range(4, 90), range(4, 90))
 
 
-def test_construction_with_qubit_subset_ordering():
+def test_default_spam_ignores_qubit_subset_order():
+    """Test that the default SPAM gates act in ascending qubit order, whatever order
+    `qubit_subset` was given in.
+    """
     gs = QiskitGateSet(10, qubit_subset=[7, 2, 5])
-    assert gs["M"].qubit_idxs == (7, 2, 5)
-    assert gs["P"].qubit_idxs == (7, 2, 5)
+    assert gs["M"].qubit_idxs == (2, 5, 7)
+    assert gs["M"].clbit_meas_idxs == (2, 5, 7)
+    assert gs["P"].qubit_idxs == (2, 5, 7)
 
 
 @pytest.mark.parametrize("num_qubits", [None, 4])

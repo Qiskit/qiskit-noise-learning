@@ -15,7 +15,10 @@ import pytest
 from qiskit.quantum_info import QubitSparsePauli
 
 from qiskit_noise_learning.analysis import ComputeObservables, Fit
-from qiskit_noise_learning.analysis.compute_observables import compute_expectation_value
+from qiskit_noise_learning.analysis.compute_observables import (
+    compute_expectation_value,
+    observable_bit_mask,
+)
 from qiskit_noise_learning.data import ObservableData, RawData
 from qiskit_noise_learning.sequences import (
     FidelityIndex,
@@ -109,12 +112,109 @@ class TestEv:
         assert np.array_equal(ev, np.array([1.0]))
 
 
+def _cz_path(gate_set_cz, meas_in_pauli):
+    """A prep-CZ-measure path whose measurement transitions from ``meas_in_pauli``."""
+    return Path(
+        start_fragment=[
+            FidelityIndex.from_transition(gate_set_cz["P"], QubitSparsePauli("II"), meas_in_pauli)
+        ],
+        repeatable_fragment=[
+            FidelityIndex.from_transition(gate_set_cz["CZ"], meas_in_pauli, meas_in_pauli)
+        ],
+        end_fragment=[
+            FidelityIndex.from_transition(gate_set_cz["M"], meas_in_pauli, QubitSparsePauli("II"))
+        ],
+    )
+
+
+def _dataset_with_cregs(make_instruction_sequence, creg_names, clbit_qubit_idxs):
+    """The single leaf dataset of a RawData with the given creg structure."""
+    num_bits = sum(len(clbit_qubit_idxs[creg]) for creg in creg_names)
+    raw_data = RawData.from_arrays(
+        creg_names=creg_names,
+        clbit_qubit_idxs=clbit_qubit_idxs,
+        instruction_sequences=[make_instruction_sequence(name="CZ", fragment_depth=1)],
+        data=[np.zeros((1, 2, num_bits), dtype=bool)],
+        measurement_flips=[np.zeros((1, num_bits), dtype=bool)],
+        time_lbs=[np.empty(1, dtype="datetime64[us]")],
+        time_ubs=[np.empty(1, dtype="datetime64[us]")],
+    )
+    return raw_data.datatree["0"].dataset
+
+
+class TestObservableBitMask:
+    """Tests for the observable_bit_mask helper function."""
+
+    def test_follows_classical_bit_order(self, gate_set_cz, make_instruction_sequence):
+        """Test that the mask follows the register's classical bit order, not qubit order."""
+        path = _cz_path(gate_set_cz, QubitSparsePauli.from_label("IZ"))
+        assert path.end_fragment[-1].observable_idxs == [0]
+
+        ascending = _dataset_with_cregs(
+            make_instruction_sequence, ["meas0"], {"meas0": np.array([0, 1])}
+        )
+        assert np.array_equal(observable_bit_mask(ascending, path, 1), np.array([True, False]))
+
+        # the same path against data whose register measures the qubits in the opposite order
+        crossed = _dataset_with_cregs(
+            make_instruction_sequence, ["meas0"], {"meas0": np.array([1, 0])}
+        )
+        assert np.array_equal(observable_bit_mask(crossed, path, 1), np.array([False, True]))
+
+    def test_both_qubits_observed(self, gate_set_cz, make_instruction_sequence):
+        """Test a path observing both measured qubits."""
+        path = _cz_path(gate_set_cz, QubitSparsePauli.from_label("ZZ"))
+        assert path.end_fragment[-1].observable_idxs == [0, 1]
+
+        crossed = _dataset_with_cregs(
+            make_instruction_sequence, ["meas0"], {"meas0": np.array([1, 0])}
+        )
+        assert np.array_equal(observable_bit_mask(crossed, path, 1), np.array([True, True]))
+
+    def test_registers_the_path_does_not_measure_are_unselected(
+        self, gate_set_cz, make_instruction_sequence
+    ):
+        """Test that bits of a register beyond the path's measurements are left unselected."""
+        path = _cz_path(gate_set_cz, QubitSparsePauli.from_label("IZ"))
+
+        # the path measures once, so it pairs with the first register only, even though the second
+        # register also holds the observable qubit
+        dataset = _dataset_with_cregs(
+            make_instruction_sequence,
+            ["meas0", "meas0_ps"],
+            {"meas0": np.array([1, 0]), "meas0_ps": np.array([1, 0])},
+        )
+
+        assert np.array_equal(
+            observable_bit_mask(dataset, path, 1),
+            np.array([False, True, False, False]),
+        )
+
+    def test_raises_on_register_mismatch(self, gate_set_cz, make_instruction_sequence):
+        """Test that a register measuring other qubits than the path expects raises."""
+        path = _cz_path(gate_set_cz, QubitSparsePauli.from_label("IZ"))
+        dataset = _dataset_with_cregs(
+            make_instruction_sequence, ["meas0"], {"meas0": np.array([0, 2])}
+        )
+
+        with pytest.raises(ValueError, match=r"measures qubits \[0, 2\], but the path expects"):
+            observable_bit_mask(dataset, path, 1)
+
+    def test_raises_on_too_few_registers(self, gate_set_cz, make_instruction_sequence):
+        """Test that a path measuring more often than the data has registers raises."""
+        path = _cz_path(gate_set_cz, QubitSparsePauli.from_label("IZ"))
+        dataset = _dataset_with_cregs(make_instruction_sequence, [], {})
+
+        with pytest.raises(ValueError, match="measures more times than the dataset"):
+            observable_bit_mask(dataset, path, 1)
+
+
 def _run_compute_observables(paths, instruction_sequences, data, measurement_flips, relations=None):
     """Helper: build a Fit with the given paths and RawData, run ComputeObservables."""
     num_bits = data[0].shape[-1] if data else 0
     raw_data = RawData.from_arrays(
         creg_names=["meas0"],
-        measurement_map={"meas0": np.arange(num_bits)},
+        clbit_qubit_idxs={"meas0": np.arange(num_bits)},
         instruction_sequences=instruction_sequences,
         data=data,
         measurement_flips=measurement_flips,

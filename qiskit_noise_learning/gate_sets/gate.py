@@ -102,20 +102,10 @@ class Gate(ABC):
         """The physical qubit indices that this gate measures."""
         return self._meas_idxs
 
-    @cached_property
-    def sorted_meas_idxs(self) -> list[int]:
-        """The indices of the measured qubits in increasing order."""
-        return sorted(self._meas_idxs)
-
     @property
     def prep_idxs(self) -> frozenset[int]:
         """The physical qubit indices that this gate prepares (or resets)."""
         return self._prep_idxs
-
-    @cached_property
-    def sorted_prep_idxs(self) -> list[int]:
-        """The indices of the reset qubits in increasing order."""
-        return sorted(self._prep_idxs)
 
     @property
     def idling_idxs(self) -> set[int]:
@@ -144,8 +134,8 @@ class Gate(ABC):
 
     def __repr__(self):
         qubits = int_sequence_to_str("qubits", self.qubit_idxs)
-        prep = f", {int_sequence_to_str('prep', self.sorted_prep_idxs)}" if self.prep_idxs else ""
-        meas = f", {int_sequence_to_str('meas', self.sorted_meas_idxs)}" if self.meas_idxs else ""
+        prep = f", {int_sequence_to_str('prep', sorted(self.prep_idxs))}" if self.prep_idxs else ""
+        meas = f", {int_sequence_to_str('meas', sorted(self.meas_idxs))}" if self.meas_idxs else ""
         return (
             f"{self.__class__.__name__}(<name={self.name}, {qubits}, "
             f"ops={prep}{meas}>)@{hex(id(self))}"
