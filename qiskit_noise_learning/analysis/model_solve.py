@@ -19,6 +19,7 @@ from typing import Generic, Self, TypeVar
 
 import numpy as np
 import scipy.optimize as opt
+import scipy.sparse as sp
 
 from qiskit_noise_learning.analysis import AnalysisStage, Fit
 from qiskit_noise_learning.data import AggregatedObservableData, ModelData
@@ -33,6 +34,11 @@ from qiskit_noise_learning.sequences import LogPathMap, Path
 
 RowIndex = TypeVar("RowIndex", bound=Hashable)
 ColumnIndex = TypeVar("ColumnIndex", bound=Hashable)
+
+
+def _as_dense(matrix: np.ndarray | sp.sparray) -> np.ndarray:
+    """Densify a matrix that may be a SciPy sparse array."""
+    return matrix.toarray() if sp.issparse(matrix) else np.asarray(matrix)
 
 
 @dataclass(frozen=True, eq=False)
@@ -51,7 +57,7 @@ class LinearSystemData(Generic[RowIndex, ColumnIndex]):
     from :attr:`row_labels` or :attr:`column_labels`.
 
     Args:
-        A: The matrix with shape ``(m, n)``.
+        A: The matrix with shape ``(m, n)``, as a dense or SciPy sparse array.
         b: The target vector length ``m``.
         sigma_b: Statistical ``1``-sigma uncertainty on ``b`` per row, with length ``m``.
         row_diagnostics: Named per-row quantities recorded by the stages that produced ``b``, each
@@ -63,7 +69,7 @@ class LinearSystemData(Generic[RowIndex, ColumnIndex]):
         time_ub: Latest time bound across the rows.
     """
 
-    A: np.ndarray
+    A: np.ndarray | sp.sparray
     b: np.ndarray
     sigma_b: np.ndarray
     row_diagnostics: Mapping[str, np.ndarray]
@@ -276,7 +282,7 @@ class ModelSolve(AnalysisStage):
         cov_x = np.zeros((n, n))
         if free_indices.size > 0:
             cov_b = np.diag(sigma_b**2)
-            A_S = A[:, free_indices]
+            A_S = _as_dense(A[:, free_indices])
             A_S_pinv = np.linalg.pinv(A_S)
             cov_x_S = A_S_pinv @ cov_b @ A_S_pinv.T
             cov_x[np.ix_(free_indices, free_indices)] = cov_x_S
@@ -299,7 +305,7 @@ class NNLSSolve(ModelSolve):
         self.nnls_opts = nnls_opts
 
     def _solve(self, system: LinearSystemData) -> tuple[np.ndarray, np.ndarray, dict]:
-        x, _ = opt.nnls(system.A, system.b, **self.nnls_opts)
+        x, _ = opt.nnls(_as_dense(system.A), system.b, **self.nnls_opts)
         free_indices = np.where(x > 0)[0]
         cov_x = self._covariance(system.A, system.sigma_b, x, free_indices)
         return x, cov_x, dict()
@@ -323,7 +329,7 @@ class LSQLinearSolve(ModelSolve):
         self.lsq_linear_opts.setdefault("method", "bvls")
 
     def _solve(self, system: LinearSystemData) -> tuple[np.ndarray, np.ndarray, dict]:
-        opt_res = opt.lsq_linear(system.A, system.b, **self.lsq_linear_opts)
+        opt_res = opt.lsq_linear(_as_dense(system.A), system.b, **self.lsq_linear_opts)
         x = opt_res.x
 
         lb, ub = self.lsq_linear_opts["bounds"]
@@ -617,9 +623,10 @@ class PositivityMinSolve(ModelSolve):
                     require_complete=False,
                 )
                 w = np.zeros((m, m))
+                weights_dense = weights.toarray()
                 for row_label, row_idx in weights.row_index_map.items():
                     for col_label, col_idx in weights.column_index_map.items():
-                        w[row_index_map[row_label], row_index_map[col_label]] = weights.data[
+                        w[row_index_map[row_label], row_index_map[col_label]] = weights_dense[
                             row_idx, col_idx
                         ]
                 weighted_residual = w @ residual
