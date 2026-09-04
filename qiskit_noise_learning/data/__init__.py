@@ -14,6 +14,7 @@
 
 from .aggregated_observable_data import AggregatedObservableData
 from .leveled_data import LeveledData
+from .measurement_register import MeasurementRegister
 from .model_data import ModelData
 from .observable_data import ObservableData
 from .raw_data import RawData
