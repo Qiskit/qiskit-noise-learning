@@ -130,6 +130,19 @@ def _resolve_gate_set(gate_set: GateSet | None, model: LinearMap | None) -> Gate
     return None
 
 
+def _coupling_map_pairs(gate_set: GateSet) -> list[tuple[int, int]]:
+    """The gate set's coupling-map edges, as canonical qubit pairs within its qubit subset."""
+    subset = gate_set.qubit_subset
+    coupling_map = gate_set.model_gate_set.coupling_map
+    return sorted(
+        {
+            (min(q0, q1), max(q0, q1))
+            for q0, q1 in coupling_map.get_edges()
+            if q0 in subset and q1 in subset
+        }
+    )
+
+
 def _layer_meta(layers: Sequence[Layer]) -> dict[Hashable, tuple[str, dict[str, object] | None]]:
     """Each layer's display name and legend-handle style, keyed as its render calls key its gids."""
     meta: dict[Hashable, tuple[str, dict[str, object] | None]] = {}
@@ -513,8 +526,9 @@ def plot_path_grid_overlay(
 
 @HAS_MATPLOTLIB.require_in_call
 def plot_qubit_pair_decays(
-    pairs: Sequence[tuple[int, int]],
+    pairs: Sequence[tuple[int, int]] | None = None,
     *,
+    restrict_to_qubits: Iterable[int] | None = None,
     observable_data: ObservableData | None = None,
     observable_type: Literal["raw", "means", "both"] = "raw",
     observable_marker_kwargs: Mapping[str, object] | None = None,
@@ -545,7 +559,14 @@ def plot_qubit_pair_decays(
 
     Args:
         pairs: The qubit pairs to plot, one subplot each. A pair is unordered -- ``(1, 0)`` names
-            the same subplot as ``(0, 1)`` -- so no pair may be repeated.
+            the same subplot as ``(0, 1)`` -- so no pair may be repeated. Defaults to the gate
+            set's coupling-map pairs that lie within its :attr:`~.GateSet.qubit_subset`, keeping
+            only those that carry at least one of the decays being drawn: a derived pair with
+            nothing to show is dropped rather than drawn as a blank subplot, whereas a pair named
+            here always gets its subplot.
+        restrict_to_qubits: An optional set of qubit indices to narrow ``pairs`` down to, whether
+            ``pairs`` was given or derived. A pair is kept only when **both** of its qubits are in
+            this set, so this selects the sub-topology induced on those qubits.
         observable_data: Optional raw observable data for scatter points.
         observable_type: Which observable layer(s) to draw from ``observable_data`` -- ``"raw"``,
             ``"means"``, or ``"both"`` (see :func:`standard_decay_layers`).
@@ -582,6 +603,10 @@ def plot_qubit_pair_decays(
     Raises:
         ValueError: If no gate set is available (neither ``gate_set`` nor a model with one), or if
             ``pairs`` names the same pair twice.
+        ValueError: If ``pairs`` is not given and none can be derived, either because the gate set's
+            coupling map has no edges within its qubit subset or because none of those pairs carries
+            a decay to draw.
+        ValueError: If ``restrict_to_qubits`` leaves no pairs at all.
         ImportError: If ``matplotlib`` is not installed.
     """
     resolved_gate_set = _resolve_gate_set(gate_set, model)
@@ -607,6 +632,27 @@ def plot_qubit_pair_decays(
             empirical_points.append(averaged_data_points(aggregated_observable_data, paths))
         fragment_depths = _default_fragment_depths(*empirical_points)
 
+    # Derived after ``paths`` is resolved above, since which pairs are worth deriving depends on
+    # which decays there are to draw.
+    derived = pairs is None
+    if derived:
+        pairs = _coupling_map_pairs(resolved_gate_set)
+        if not pairs:
+            raise ValueError(
+                "Cannot derive pairs: the gate set's coupling map has no edges within its qubit "
+                f"subset {sorted(resolved_gate_set.qubit_subset)}. Pass pairs explicitly."
+            )
+
+    if restrict_to_qubits is not None:
+        allowed = frozenset(restrict_to_qubits)
+        narrowed = [pair for pair in pairs if allowed.issuperset(pair)]
+        if not narrowed:
+            raise ValueError(
+                f"restrict_to_qubits={sorted(allowed)} left no qubit pairs: none of the "
+                f"{len(pairs)} pair(s) has both of its qubits in that set."
+            )
+        pairs = narrowed
+
     groups: dict[Hashable, list[Path]] = {}
     for pair in pairs:
         # Keyed on the sorted pair, which is what the subplot title and the placeholder relabelling
@@ -619,7 +665,18 @@ def plot_qubit_pair_decays(
                 "unordered, so it can appear only once."
             )
         pair_set = set(pair)
-        groups[key] = [path for path in paths if pair_set.issuperset(_path_qubits(path))]
+        group = [path for path in paths if pair_set.issuperset(_path_qubits(path))]
+        # A derived pair is a guess at what is worth plotting, so one with nothing to draw is
+        # dropped; a pair the caller named is drawn either way, blank subplot and all.
+        if derived and not group:
+            continue
+        groups[key] = group
+
+    if derived and not groups:
+        raise ValueError(
+            f"Cannot derive pairs: none of the {len(pairs)} coupling-map pair(s) within the gate "
+            "set's qubit subset carries a decay to draw. Pass pairs explicitly."
+        )
 
     def _label(path: Path, pair: Hashable) -> str:
         low, high = sorted(pair)
