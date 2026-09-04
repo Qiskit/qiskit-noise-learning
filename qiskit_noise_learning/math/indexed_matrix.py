@@ -50,13 +50,9 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
         column_index_map: Mapping[ColumnIndex, int] | None = None,
         data: np.ndarray | sp.sparray | None = None,
     ):
-        row_index_map = (
-            dict() if row_index_map is None else {k: v for k, v in row_index_map.items()}
-        )
-        column_index_map = (
-            dict() if column_index_map is None else {k: v for k, v in column_index_map.items()}
-        )
-        data = np.array([], dtype=float) if (data is None) else data
+        row_index_map = dict() if row_index_map is None else dict(row_index_map)
+        column_index_map = dict() if column_index_map is None else dict(column_index_map)
+        data = self._as_csr(data)
 
         # validate empty case
         if data.shape[0] == 0:
