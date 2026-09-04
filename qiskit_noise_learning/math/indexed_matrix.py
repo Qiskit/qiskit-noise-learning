@@ -188,62 +188,46 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
                 f"rows, '{len(rows)}'."
             )
 
-        # iterate through arguments once, building a list of non-empty rows, their corresponding
-        # indices, and a list of the non-zero columns for each new row
-        new_row_indices: list[RowIndex] = []
-        new_rows: list[IndexedVector[ColumnIndex]] = []
-        new_row_nonzero_columns: list[list[ColumnIndex]] = []
-        new_column_count = 0
+        # Collect the COO entries of the new (non-empty) rows, growing the column map as new column
+        # labels appear.
+        new_row_count = 0
+        block_rows: list[int] = []
+        block_cols: list[int] = []
+        block_vals: list[float] = []
         for row_index, row in zip(row_indices, rows):
             if row_index in self._row_index_map:
                 raise ValueError(f"Cannot add row with duplicate row index '{row_index}'.")
 
-            current_row_nonzero_columns = []
+            row_cols: list[int] = []
+            row_vals: list[float] = []
             for column_index, value in row.items():
                 if abs(value) > tol:
-                    current_row_nonzero_columns.append(column_index)
                     if column_index not in self._column_index_map:
                         self._column_index_map[column_index] = len(self._column_index_map)
-                        new_column_count += 1
+                    row_cols.append(self._column_index_map[column_index])
+                    row_vals.append(value)
 
-            # if any non-trivial rows, add them
-            if len(current_row_nonzero_columns) != 0:
-                new_row_indices.append(row_index)
-                new_rows.append(row)
-                new_row_nonzero_columns.append(current_row_nonzero_columns)
+            # skip all-zero rows
+            if row_cols:
+                block_rows.extend([new_row_count] * len(row_cols))
+                block_cols.extend(row_cols)
+                block_vals.extend(row_vals)
+                new_row_count += 1
                 self._row_index_map[row_index] = len(self._row_index_map)
 
-        # if no new non-zero rows exit early
-        if len(new_rows) == 0:
+        if new_row_count == 0:
             return
 
-        # expand internal data array for any new columns
-        if new_column_count != 0 and len(self._data) != 0:
-            padded_data = np.append(
-                self._data,
-                np.zeros((self._data.shape[0], new_column_count), dtype=float),
-                axis=1,
-            )
-        else:
-            # if no new columns, or matrix is empty, do nothing
-            padded_data = self._data
-
-        # build array for new rows
-        new_row_array = np.zeros((len(new_rows), len(self._column_index_map)), dtype=float)
-        for array_row_idx, (row_index, row, nonzero_column_indices) in enumerate(
-            zip(new_row_indices, new_rows, new_row_nonzero_columns)
-        ):
-            for column_index in nonzero_column_indices:
-                new_row_array[array_row_idx, self._column_index_map[column_index]] = row[
-                    column_index
-                ]
-
-        # update data
-        self._data = (
-            new_row_array
-            if padded_data.shape == (0,)
-            else np.append(padded_data, new_row_array, axis=0)
+        n_cols = len(self._column_index_map)
+        new_block = sp.csr_array(
+            (np.asarray(block_vals, dtype=float), (block_rows, block_cols)),
+            shape=(new_row_count, n_cols),
         )
+
+        # widen existing rows to any newly added columns (implicit zeros), then stack below
+        old = self._data
+        old.resize((old.shape[0], n_cols))
+        self._data = sp.vstack([old, new_block], format="csr")
         self._rank = None
 
     def linearly_independent_rows(self, tol=1e-8) -> Self:
