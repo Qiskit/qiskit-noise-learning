@@ -111,6 +111,33 @@ class TestEv:
         ev = compute_expectation_value(bits, flips, shot_mask, bit_mask, signs)
         assert np.array_equal(ev, np.array([1.0]))
 
+    @pytest.mark.parametrize("sign", [1, -1])
+    def test_fully_masked_randomization_is_nan(self, sign):
+        """A randomization with every shot masked has no data to average, so it gives nan."""
+        bits = np.zeros((1, 4, 1), dtype=bool)
+        bits[0, 2:] = True
+        flips = np.zeros((1, 1), dtype=bool)
+        shot_mask = np.ones((1, 4), dtype=bool)
+        bit_mask = np.array([True])
+        signs = np.full((1,), sign, dtype=int)
+        ev = compute_expectation_value(bits, flips, shot_mask, bit_mask, signs)
+        assert np.isnan(ev).all()
+
+    def test_masking_is_per_randomization(self):
+        """One fully masked randomization gives nan without affecting others."""
+        # randomization 0 is all-zero bits (ev=1 if it were computed), randomization 1 is all-one
+        # bits on a single bit (ev=-1)
+        bits = np.zeros((2, 4, 1), dtype=bool)
+        bits[1] = True
+        flips = np.zeros((2, 1), dtype=bool)
+        shot_mask = np.zeros((2, 4), dtype=bool)
+        shot_mask[0] = True
+        bit_mask = np.array([True])
+        signs = np.ones((2,), dtype=int)
+        ev = compute_expectation_value(bits, flips, shot_mask, bit_mask, signs)
+        assert np.isnan(ev[0])
+        assert ev[1] == pytest.approx(-1.0)
+
 
 def _cz_path(gate_set_cz, meas_in_pauli):
     """A prep-CZ-measure path whose measurement transitions from ``meas_in_pauli``."""
