@@ -27,7 +27,7 @@ from ..analysis import (
     AnalysisPipeline,
     ComputeObservables,
     CurveFitObservables,
-    NNLSSolve,
+    LeastSquaresSolve,
 )
 from ..circuit_generator import ExecutorCircuitGenerator, ExecutorDataMapper
 from ..experiment_builder import (
@@ -45,7 +45,7 @@ from .learning_options import LearningOptions
 from .noise_learner_job import NoiseLearnerJob, ProgramJob
 
 _ANALYZERS = {
-    "standard": AnalysisPipeline(ComputeObservables(), CurveFitObservables(), NNLSSolve())
+    "standard": AnalysisPipeline(ComputeObservables(), CurveFitObservables(), LeastSquaresSolve())
 }
 
 _PATH_GENERATION_STAGES = {
