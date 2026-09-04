@@ -266,7 +266,8 @@ def observable_bit_mask(
             fragment is traversed.
 
     Returns:
-        A boolean array over the full ``"bit"`` dimension of the dataset.
+        A boolean array over the full ``"bit"`` dimension of the dataset, where ``True`` selects a
+        bit whose outcome contributes to the parity defining the observable.
 
     Raises:
         ValueError: If the path measures more times than the dataset has classical registers, or
