@@ -34,6 +34,9 @@ _ROW_REDUCTION_BLOCK_SIZE = 128
 class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
     """A matrix with float entries and arbitrary row and column index data.
 
+    Entries are stored as a SciPy CSR array (:attr:`data`). Obtain a dense representation
+    via :meth:`toarray`.
+
     Args:
         row_index_map: A mapping from row indices to the integer row axes of :attr:`data`.
         column_index_map: A mapping from column indices to the integer column axes of :attr:`data`.
