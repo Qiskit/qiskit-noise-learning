@@ -91,7 +91,7 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
         self,
         row_indices: Sequence[RowIndex],
         column_indices: Sequence[ColumnIndex],
-        data: np.ndarray[float],
+        data: np.ndarray,
     ) -> Self:
         """Construct from ordered lists of row and column indices.
 
@@ -142,9 +142,13 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
         return self._column_index_map
 
     @property
-    def data(self) -> np.ndarray[float]:
-        """The numerical data."""
+    def data(self) -> sp.csr_array:
+        """The numerical data, as a SciPy CSR array. Use :meth:`toarray` for a dense copy."""
         return self._data
+
+    def toarray(self) -> np.ndarray:
+        """Return the numerical data as a dense :class:`~numpy.ndarray`."""
+        return self._data.toarray()
 
     @property
     def shape(self) -> tuple[int, int]:
@@ -159,7 +163,7 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
             if any(x == 0 for x in self._data.shape):
                 self._rank = 0
             else:
-                self._rank = np.linalg.matrix_rank(self._data)
+                self._rank = np.linalg.matrix_rank(self._data.toarray())
         return self._rank
 
     def add_rows(
