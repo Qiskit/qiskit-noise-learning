@@ -14,12 +14,12 @@ their orthogonality, and the final expectation value "selects" only one of the P
 decomposition before measurement.
 
 This type of reasoning appears in many parallel research tracks in noise learning, including in the
-Pauli gate-set learning literature {cite}`chen_efficient_2026,chen_disambiguating_2026`, the ACES
-literature {cite}`flammia_averaged_2022`, and the cycle benchmarking literature
-{cite}`erhard_characterizing_2019`. This reasoning was further generalized in
-{cite}`zhang_generalized_2025` to include Clifford-MCM gates (a Clifford gate followed by a
+Pauli gate-set learning literature [[3]](#references), [[4]](#references), the ACES
+literature [[6]](#references), and the cycle benchmarking literature
+[[5]](#references). This reasoning was further generalized in
+[[7]](#references) to include Clifford-MCM gates (a Clifford gate followed by a
 projective mid-circuit measurement). This package most closely follows
-{cite}`chen_efficient_2026,zhang_generalized_2025`. While not explicitly named, we adopt the
+[[4]](#references), [[7]](#references). While not explicitly named, we adopt the
 *Pattern Transfer Graph* (PTG) formalism for describing how Pauli operators evolve through learning
 circuits, providing a direct data representation of *paths* through the graph.
 
@@ -75,7 +75,7 @@ state preparation, and any combination of the above. Note that we assume measure
 always along the $Z$-axis for each qubit. While this is not strictly required, it is a common
 feature of many quantum computing modalities, and enables simplified representations and analysis.
 
-As outlined in {cite}`beale_randomized_2023,zhang_generalized_2025` for the no-reset case, if a
+As outlined in [[1]](#references), [[7]](#references) for the no-reset case, if a
 specific twirling strategy is applied to a noisy instance of such a gate, then the action of the
 resulting operation can be modeled mathematically as a *uniform Pauli instrument*. That is, within
 the quantum instrument notation, $\E_m = \U_mG$, where $G$ is the Clifford unitary, and:
@@ -101,10 +101,10 @@ normalization).
 Note that we are not concerned here with the specifics of the twirling strategy: that such a
 strategy exists to put the channel into the above form is enough. Note that "finer" twirling
 strategies exist which can further restrict the form of the Pauli channels
-{cite}`berg_techniques_2024`; however, we take the above form as the most general mathematical
+[[2]](#references); however, we take the above form as the most general mathematical
 representation under consideration.
 
-In Lemma 1 of {cite}`zhang_generalized_2025`, it is shown that $\E_m = \U_mG$ can be rewritten
+In Lemma 1 of [[7]](#references), it is shown that $\E_m = \U_mG$ can be rewritten
 as:
 
 $$ \E_m = \frac{1}{2^{2|M| + |N|}}\sum_{x, y \in \Z_2^M, Q \in \P^N} (-1)^{m \cdot (x + y)}
@@ -159,10 +159,10 @@ related simply to products of the underlying fidelities of the individual gates,
 model parameters can be inferred by *inverting* whatever sparse parameter-to-fidelity mapping is
 being assumed.
 
-In {cite}`chen_efficient_2026`, in the context of unitary gate sets, this is formalized into the
+In [[4]](#references), in the context of unitary gate sets, this is formalized into the
 *Pattern Transfer Graph* (PTG): a directed graph describing all possible experiments consisting of
 elements of the gate set and layers of single-qubit Clifford gates (assumed to be perfect, or
-"free", operations). This was generalized in {cite}`zhang_generalized_2025` to include gate sets
+"free", operations). This was generalized in [[7]](#references) to include gate sets
 with mid-circuit measurements. In both cases, each experiment is described by tracking a single
 Pauli operator through the circuit, under the assumption of a particular observable being computed
 at each measurement site. Here we do not directly review the graph or path constructions; however, we
@@ -171,7 +171,7 @@ present the required facts for justifying them within our own notation and with 
 While the tracking of a single Pauli operator through the circuit may be intuitive in the unitary
 gate set case, it does not so obviously hold in the more general Clifford-MCM-reset case, due to the
 non-deterministic nature of measurement. The following proposition recovers this picture even in the
-more general case {cite}`zhang_generalized_2025`:
+more general case [[7]](#references):
 
 ```{prf:proposition}
 :label: prop-mcm-evolution
@@ -220,10 +220,22 @@ $\lambda^Q_{x,y} \opbra{G^\dagger(Q \otimes I_{N \cap R} \otimes Z^x)}$, yieldin
 result.
 ```
 
-See {cite}`zhang_generalized_2025` for development beyond this point: the definition of the PTG,
+See [[7]](#references) for development beyond this point: the definition of the PTG,
 paths through the PTG, and the proof that any properly-defined path corresponds to an experiment.
 
+(references)=
 ## References
 
-```{bibliography}
-```
+[1] Stefanie J. Beale and Joel J. Wallman. Randomized compiling for subsystem measurements. 2023. URL: http://arxiv.org/abs/2304.06599, doi:10.48550/arXiv.2304.06599.
+
+[2] Ewout van den Berg and Pawel Wocjan. Techniques for learning sparse Pauli-Lindblad noise models. *Quantum*, 8:1556, 2024. URL: https://quantum-journal.org/papers/q-2024-12-10-1556/, doi:10.22331/q-2024-12-10-1556.
+
+[3] Edward H. Chen, Senrui Chen, Laurin E. Fischer, Andrew Eddins, Luke C. G. Govia, Brad Mitchell, Andre He, Youngseok Kim, Liang Jiang, and Alireza Seif. Disambiguating pauli noise in quantum computers. *PRX Quantum*, pages, 2026. doi:10.1103/69wc-gzl6.
+
+[4] Senrui Chen, Zhihan Zhang, Liang Jiang, and Steven T. Flammia. Efficient Self-Consistent Learning of Gate Set Pauli Noise. *PRX Quantum*, 7(1):010305, 2026. URL: https://link.aps.org/doi/10.1103/1pnv-t9px, doi:10.1103/1pnv-t9px.
+
+[5] Alexander Erhard, Joel J. Wallman, Lukas Postler, Michael Meth, Roman Stricker, Esteban A. Martinez, Philipp Schindler, Thomas Monz, Joseph Emerson, and Rainer Blatt. Characterizing large-scale quantum computers via cycle benchmarking. *Nature Communications*, 10(1):5347, 2019. doi:10.1038/s41467-019-13068-7.
+
+[6] Steven T. Flammia. Averaged Circuit Eigenvalue Sampling. In 17th Conference on the Theory of Quantum Computation, Communication and Cryptography (TQC 2022), volume 232 of *Leibniz International Proceedings in Informatics* (LIPIcs), 4:1–4:10. Dagstuhl, Germany, 2022. Schloss Dagstuhl – Leibniz-Zentrum für Informatik. doi:10.4230/LIPIcs.TQC.2022.4.
+
+[7] Zhihan Zhang, Senrui Chen, Yunchao Liu, and Liang Jiang. Generalized Cycle Benchmarking Algorithm for Characterizing Midcircuit Measurements. *PRX Quantum*, 6(1):010310, 2025. URL: https://link.aps.org/doi/10.1103/PRXQuantum.6.010310, doi:10.1103/PRXQuantum.6.010310.
