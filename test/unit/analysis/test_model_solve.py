@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 from qiskit.quantum_info import QubitSparsePauli, QubitSparsePauliList
 
-from qiskit_noise_learning.analysis import Fit, LSQLinearSolve, NNLSSolve, PositivityMinSolve
+from qiskit_noise_learning.analysis import Fit, LeastSquaresSolve, PositivityMinSolve
 from qiskit_noise_learning.data import AggregatedObservableData
 from qiskit_noise_learning.math import IndexedMatrix, IndexedVector
 from qiskit_noise_learning.models import (
@@ -26,7 +26,7 @@ from qiskit_noise_learning.models import (
 )
 from qiskit_noise_learning.optionals import HAS_CVXPY
 
-_SOLVERS = [LSQLinearSolve(), NNLSSolve()]
+_SOLVERS = [LeastSquaresSolve()]
 
 # Each CZ path's row is built from real Pauli-Lindblad commutation, so every coefficient is 2.0 per
 # anticommuting generator. With the generator sets chosen below the CZ fidelity "XI" anticommutes
@@ -168,7 +168,7 @@ def test_metadata_contains_residual(gate_set_cz, make_cz_path, make_aggregated_o
 
     fit = Fit(model=model)
     fit[AggregatedObservableData] = make_aggregated_observable_data([(path, -1, 0.8)])
-    result = NNLSSolve().run(fit)
+    result = LeastSquaresSolve().run(fit)
 
     assert "residual" in result.model_data.metadata
 
@@ -189,7 +189,7 @@ def test_unusable_uncertainty_warns_with_the_row_position(
 
     # ``path0`` is the first entry, so it is row 0 of the system.
     with pytest.warns(UserWarning, match=r"1 of 2 row.*row_labels: 0\."):
-        NNLSSolve().run(fit)
+        LeastSquaresSolve().run(fit)
 
 
 def test_usable_uncertainties_do_not_warn(
@@ -204,7 +204,7 @@ def test_usable_uncertainties_do_not_warn(
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        NNLSSolve().run(fit)
+        LeastSquaresSolve().run(fit)
 
 
 @pytest.mark.parametrize("solver", _SOLVERS)

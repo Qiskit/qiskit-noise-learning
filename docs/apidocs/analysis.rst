@@ -19,10 +19,9 @@ Classes
    CurveFitObservables
    Fit
    FlipPostSelect
+   LeastSquaresSolve
    LegacySolve
    LinearSystemData
-   LSQLinearSolve
-   NNLSSolve
    PositivityMinSolve
    SymmetrizeFidelities
    SymmetrizeGenerators
