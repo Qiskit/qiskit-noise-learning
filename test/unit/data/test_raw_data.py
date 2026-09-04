@@ -12,7 +12,7 @@
 
 import numpy as np
 
-from qiskit_noise_learning.data import RawData
+from qiskit_noise_learning.data import MeasurementRegister, RawData
 
 
 def test_from_arrays(make_instruction_sequence):
@@ -23,8 +23,7 @@ def test_from_arrays(make_instruction_sequence):
     num_bits = 2
 
     raw = RawData.from_arrays(
-        creg_names=["meas0"],
-        clbit_qubit_idxs={"meas0": np.array([0, 1])},
+        registers=[MeasurementRegister("meas0", (0, 1), measuring_gate_idx=0)],
         instruction_sequences=[seq],
         data=[np.zeros((num_randomizations, num_shots, num_bits), dtype=bool)],
         measurement_flips=[np.zeros((num_randomizations, num_bits), dtype=bool)],
@@ -36,8 +35,9 @@ def test_from_arrays(make_instruction_sequence):
     ds = dt["0"].dataset
     assert ds["data"].shape == (num_randomizations, num_shots, num_bits)
     assert ds["measurement_flips"].shape == (num_randomizations, num_bits)
-    assert ds.attrs["creg_names"] == ["meas0"]
-    assert ds.attrs["creg_bit_boundaries"] == {"meas0": (0, 2)}
+    np.testing.assert_array_equal(ds["creg_name"].values, ["meas0", "meas0"])
+    np.testing.assert_array_equal(ds["qubit_idx"].values, [0, 1])
+    np.testing.assert_array_equal(ds["measuring_gate_idx"].values, [0, 0])
 
 
 def test_filter_time(make_instruction_sequence):
@@ -49,8 +49,7 @@ def test_filter_time(make_instruction_sequence):
     t_ubs = np.array(["2026-01-02", "2026-01-04", "2026-01-06"], dtype="datetime64[us]")
 
     raw = RawData.from_arrays(
-        creg_names=["meas0"],
-        clbit_qubit_idxs={"meas0": np.array([0, 1])},
+        registers=[MeasurementRegister("meas0", (0, 1), measuring_gate_idx=0)],
         instruction_sequences=[seq],
         data=[np.ones((3, num_shots, num_bits), dtype=bool)],
         measurement_flips=[np.zeros((3, num_bits), dtype=bool)],

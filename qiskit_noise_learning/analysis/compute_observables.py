@@ -274,13 +274,13 @@ def observable_bit_mask(
             if a register does not measure the qubits that the corresponding fidelity index says
             its gate measures.
     """
-    attrs = dataset.attrs
-    creg_names = attrs["creg_names"]
-    boundaries = attrs["creg_bit_boundaries"]
-    clbit_qubit_idxs = attrs["clbit_qubit_idxs"]
+    bit_creg_names = dataset["creg_name"].values
+    bit_qubit_idxs = dataset["qubit_idx"].values
+    # The registers in the order their bits first appear, which is the order they are paired with
+    # the path's measuring gates.
+    creg_names = list(dict.fromkeys(str(name) for name in bit_creg_names))
 
-    num_bits = sum(len(clbit_qubit_idxs[creg]) for creg in creg_names)
-    mask = np.zeros(num_bits, dtype=np.bool_)
+    mask = np.zeros(dataset.sizes["bit"], dtype=np.bool_)
 
     creg_idx = 0
     for fidelity_index in unbound_path.bind_at(fragment_depth):
@@ -295,7 +295,9 @@ def observable_bit_mask(
         creg = creg_names[creg_idx]
         creg_idx += 1
 
-        creg_meas_idxs = {int(idx) for idx in clbit_qubit_idxs[creg]}
+        selection = bit_creg_names == creg
+        creg_qubit_idxs = bit_qubit_idxs[selection]
+        creg_meas_idxs = {int(idx) for idx in creg_qubit_idxs}
         if creg_meas_idxs != fidelity_index.meas_idxs:
             raise ValueError(
                 f"The register '{creg}' measures qubits {sorted(creg_meas_idxs)}, but the path "
@@ -303,7 +305,6 @@ def observable_bit_mask(
                 f"{sorted(fidelity_index.meas_idxs)}."
             )
 
-        start, end = boundaries[creg]
-        mask[start:end] = np.isin(clbit_qubit_idxs[creg], fidelity_index.observable_idxs)
+        mask[selection] = np.isin(creg_qubit_idxs, fidelity_index.observable_idxs)
 
     return mask

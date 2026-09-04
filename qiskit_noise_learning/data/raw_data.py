@@ -18,20 +18,24 @@ import xarray as xr
 from qiskit_noise_learning.sequences import InstructionSequence
 
 from .leveled_data import LeveledData
+from .measurement_register import MeasurementRegister
 from .xarray_utils import filter_time, ragged_concat
 
 # The coordinates over the "bit" dimension that give each bit its identity. Two datasets may be
 # merged only if they agree on all of them.
-_BIT_COORD_NAMES = ("creg_name", "qubit_idx")
+_BIT_COORD_NAMES = ("creg_name", "qubit_idx", "measuring_gate_idx")
 
 
-def _bit_coord_arrays(
-    creg_names: list[str], clbit_qubit_idxs: dict[str, np.ndarray]
-) -> tuple[np.ndarray, np.ndarray]:
-    """Return the per-bit creg name and qubit index arrays for contiguously laid out cregs."""
-    names = [name for name in creg_names for _ in range(len(clbit_qubit_idxs[name]))]
-    qubit_idxs = [int(idx) for name in creg_names for idx in clbit_qubit_idxs[name]]
-    return np.array(names, dtype=np.str_), np.array(qubit_idxs, dtype=int)
+def _bit_coords(registers: list[MeasurementRegister]) -> dict[str, tuple[tuple[str], np.ndarray]]:
+    """Return the ``"bit"`` coordinates for registers laid out contiguously in the given order."""
+    names = [register.name for register in registers for _ in range(register.num_bits)]
+    qubit_idxs = [idx for register in registers for idx in register.qubit_idxs]
+    gate_idxs = [register.measuring_gate_idx for register in registers for _ in register.qubit_idxs]
+    return {
+        "creg_name": (("bit",), np.array(names, dtype=np.str_)),
+        "qubit_idx": (("bit",), np.array(qubit_idxs, dtype=int)),
+        "measuring_gate_idx": (("bit",), np.array(gate_idxs, dtype=int)),
+    }
 
 
 class RawData(LeveledData):
@@ -63,27 +67,21 @@ class RawData(LeveledData):
           ``("bit",)``.
         - ``qubit_idx``: The physical qubit index whose outcome each bit holds, along dimension
           ``("bit",)``.
-    - Attrs:
+        - ``measuring_gate_idx``: The measuring gate whose outcomes this bit's register holds,
+          counted among the measuring gates of the instruction sequences only, in the order those
+          gates are traversed, or ``-1`` if the register has no such gate. Along dimension
+          ``("bit",)``.
 
-        - ``creg_names``: Ordered list of classical register names.
-        - ``clbit_qubit_idxs``: Dictionary mapping creg names to arrays of measured qubit indices,
-          where entry ``j`` is the physical qubit index measured into classical bit ``j`` of the
-          register.
-        - ``creg_bit_boundaries``: Dictionary mapping creg names to ``(start_idx, end_idx)`` tuples
-          indicating the slice of the ``"bit"`` dimension for that register.
+    Together these three describe the ``"bit"`` dimension bit by bit, so a consumer never needs to
+    know how the bits were laid out. Note that a register need not measure in ascending qubit order,
+    and that the same physical qubit may be measured by more than one register.
 
-    The ``"bit"`` dimension is every classical register concatenated in ``creg_names`` order, so
-    that ``creg_bit_boundaries`` partitions it, and bit ``j`` of a register holds the outcome for
-    physical qubit ``clbit_qubit_idxs[creg][j]``. Note that a register need not measure in
-    ascending qubit order, and that the same physical qubit may be measured by more than one
-    register.
-
-    The registers stand in one-to-one correspondence with the measuring gates of the instruction
-    sequences the data was gathered from, in the order those gates are traversed, so that the
-    ``n``-th name of ``creg_names`` holds the outcomes of the ``n``-th measuring gate.
+    Only measuring gates are counted by ``measuring_gate_idx``, because one leaf may hold data from
+    several fragment depths, so a position among *all* gates would not be a property of a bit.
 
     Datasets are grouped by their ``"bit"`` coordinates: two datasets whose bits carry the same
-    ``creg_name`` and ``qubit_idx`` values are merged along the ``"randomization"`` dimension.
+    ``creg_name``, ``qubit_idx`` and ``measuring_gate_idx`` values are merged along the
+    ``"randomization"`` dimension.
 
     Args:
         datatree: A datatree in the above format.
@@ -100,8 +98,7 @@ class RawData(LeveledData):
     @classmethod
     def from_arrays(
         cls,
-        creg_names: list[str],
-        clbit_qubit_idxs: dict[str, np.ndarray],
+        registers: list[MeasurementRegister],
         instruction_sequences: list[InstructionSequence],
         data: list[np.ndarray[np.bool_]],
         measurement_flips: list[np.ndarray[np.bool_]],
@@ -110,19 +107,17 @@ class RawData(LeveledData):
     ):
         """Instantiate from data specified as arrays.
 
-        All instruction sequences must share the same creg structure (same ``creg_names`` and
-        ``clbit_qubit_idxs``). The resulting ``RawData`` contains a single-leaf datatree.
+        All instruction sequences must share the same registers. The resulting ``RawData`` contains
+        a single-leaf datatree.
 
         Args:
-            creg_names: Ordered list of classical register names.
-            clbit_qubit_idxs: Dictionary mapping creg names to arrays of measured physical qubit
-                indices, where entry ``j`` is the physical qubit index measured into classical bit
-                ``j`` of the register.
+            registers: The classical registers holding the data, in the order their bits are laid
+                out along the ``"bit"`` dimension.
             instruction_sequences: The list of instruction sequences used to generate the
                 experiments.
             data: A list of outcome data for each instruction sequence for all classical registers.
                 The data has dimensions ``("randomization", "shot", "bit")``. Bits are ordered
-                according to ``creg_names`` order, with each creg's bits contiguous.
+                according to ``registers`` order, with each register's bits contiguous.
             measurement_flips: A list of measurement flips to be applied to the data for each
                 instruction sequence. Dimensions are ``("randomization", "bit")``.
             time_lbs: A lower bound on the data collection time for each randomization for a given
@@ -131,19 +126,13 @@ class RawData(LeveledData):
                 instruction sequence. The dimensions are ``("randomization",)``.
 
         Raises:
-            ValueError: If the creg names are not unique, if a creg name has no entry in
-                ``clbit_qubit_idxs``, if the per-sequence arguments do not all have the same
-                length, or if an array's ``"bit"`` dimension does not match the total number of
-                classical bits.
+            ValueError: If the register names are not unique, if the per-sequence arguments do not
+                all have the same length, or if an array's ``"bit"`` dimension does not match the
+                total number of classical bits.
         """
-        if len(set(creg_names)) != len(creg_names):
-            raise ValueError(f"The creg names must be unique, but got {creg_names}.")
-
-        if missing := [name for name in creg_names if name not in clbit_qubit_idxs]:
-            raise ValueError(
-                f"Every creg name requires an entry in clbit_qubit_idxs, but {missing} do not "
-                "have one."
-            )
+        names = [register.name for register in registers]
+        if len(set(names)) != len(names):
+            raise ValueError(f"The register names must be unique, but got {names}.")
 
         lengths = {
             "instruction_sequences": len(instruction_sequences),
@@ -157,15 +146,8 @@ class RawData(LeveledData):
                 f"The per-sequence arguments must all have the same length, but got {lengths}."
             )
 
-        bit_creg_names, bit_qubit_idxs = _bit_coord_arrays(creg_names, clbit_qubit_idxs)
-        num_bits = len(bit_qubit_idxs)
-
-        creg_bit_boundaries = {}
-        offset = 0
-        for creg in creg_names:
-            length = len(clbit_qubit_idxs[creg])
-            creg_bit_boundaries[creg] = (offset, offset + length)
-            offset += length
+        bit_coords = _bit_coords(registers)
+        num_bits = sum(register.num_bits for register in registers)
 
         raw_data = cls(datatree=xr.DataTree())
         for inst_sequence, inst_data, inst_meas_flips, inst_time_lbs, inst_time_ubs in zip(
@@ -204,13 +186,7 @@ class RawData(LeveledData):
                         ("randomization",),
                         np.array([inst_sequence.fragment_depth] * len(inst_data), dtype=int),
                     ),
-                    "creg_name": (("bit",), bit_creg_names),
-                    "qubit_idx": (("bit",), bit_qubit_idxs),
-                },
-                attrs={
-                    "creg_names": creg_names,
-                    "clbit_qubit_idxs": clbit_qubit_idxs,
-                    "creg_bit_boundaries": creg_bit_boundaries,
+                    **bit_coords,
                 },
             )
 

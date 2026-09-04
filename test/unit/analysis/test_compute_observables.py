@@ -19,7 +19,7 @@ from qiskit_noise_learning.analysis.compute_observables import (
     compute_expectation_value,
     observable_bit_mask,
 )
-from qiskit_noise_learning.data import ObservableData, RawData
+from qiskit_noise_learning.data import MeasurementRegister, ObservableData, RawData
 from qiskit_noise_learning.sequences import (
     FidelityIndex,
     PartialPauliPermutation,
@@ -157,9 +157,12 @@ def _cz_path(gate_set_cz, meas_in_pauli):
 def _dataset_with_cregs(make_instruction_sequence, creg_names, clbit_qubit_idxs):
     """The single leaf dataset of a RawData with the given creg structure."""
     num_bits = sum(len(clbit_qubit_idxs[creg]) for creg in creg_names)
+    registers = [
+        MeasurementRegister(name, tuple(int(idx) for idx in clbit_qubit_idxs[name]), gate_idx)
+        for gate_idx, name in enumerate(creg_names)
+    ]
     raw_data = RawData.from_arrays(
-        creg_names=creg_names,
-        clbit_qubit_idxs=clbit_qubit_idxs,
+        registers=registers,
         instruction_sequences=[make_instruction_sequence(name="CZ", fragment_depth=1)],
         data=[np.zeros((1, 2, num_bits), dtype=bool)],
         measurement_flips=[np.zeros((1, num_bits), dtype=bool)],
@@ -240,8 +243,7 @@ def _run_compute_observables(paths, instruction_sequences, data, measurement_fli
     """Helper: build a Fit with the given paths and RawData, run ComputeObservables."""
     num_bits = data[0].shape[-1] if data else 0
     raw_data = RawData.from_arrays(
-        creg_names=["meas0"],
-        clbit_qubit_idxs={"meas0": np.arange(num_bits)},
+        registers=[MeasurementRegister("meas0", tuple(range(num_bits)), 0)],
         instruction_sequences=instruction_sequences,
         data=data,
         measurement_flips=measurement_flips,
