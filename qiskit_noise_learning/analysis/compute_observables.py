@@ -234,19 +234,24 @@ def compute_expectation_value(
     Args:
         bits: A record of the measured bits, with dimensions ``(randomization, shots, bits)``.
         flips: Specification of required flips on bits ``(randomization, bits)``.
-        shot_mask: A boolean mask on the ``(randomization, shots)`` dimensions.
-        bit_mask: A boolean mask spanning the full ``(bit,)`` dimension of ``bits``, selecting
-            the bits whose parity gives the observable.
+        shot_mask: A boolean mask on the ``(randomization, shots)`` dimensions, where ``True``
+            marks a shot to exclude, following the ``numpy.ma`` convention.
+        bit_mask: A boolean mask spanning the full ``(bit,)`` dimension of ``bits``, where ``True``
+            selects a bit to include, so that the parity of the selected bits gives the observable.
+            Note that this is the opposite convention to ``shot_mask``.
         signs: Signs for the computed observables along the ``(randomization,)`` dimension.
 
     Returns:
-        Expectation values with dimension ``(randomization,)``.
+        Expectation values with dimension ``(randomization,)``. A randomization whose every shot is
+        masked has no data to average, and is returned as ``nan``.
     """
     corrected_bits = (bits ^ flips[:, np.newaxis, :])[..., bit_mask]
     broadcasted_shot_mask = np.broadcast_to(shot_mask[:, :, np.newaxis], corrected_bits.shape)
     masked_arr = np.ma.array(corrected_bits, mask=broadcasted_shot_mask)
     per_sample = 1 - 2 * np.mod(np.sum(masked_arr, axis=-1), 2)
-    return signs * per_sample.mean(axis=-1)
+
+    # fill fully-masked randomizations with nan
+    return np.ma.filled(signs * per_sample.mean(axis=-1), np.nan)
 
 
 def observable_bit_mask(
