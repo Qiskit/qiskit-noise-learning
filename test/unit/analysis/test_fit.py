@@ -81,6 +81,22 @@ def test_plot_drops_one_layer_without_error(fit_with_data, kwargs):
     assert isinstance(fit_with_data.plot_qubit_pair_decays([(0, 1)], **kwargs), InteractiveFigure)
 
 
+def test_plot_derives_pairs_from_the_models_gate_set(fit_with_data):
+    # No ``pairs``: they come from the coupling map of the fit's model's gate set, which for the
+    # 2-qubit ``gate_set_cz`` is the single pair (0, 1) that the fit's decay path acts on.
+    figure = fit_with_data.plot_qubit_pair_decays(observable_type="means")
+    titles = [ax.get_title() for ax in figure.figure.axes if ax.get_title()]
+    assert titles == ["(i, j) = (0, 1)"]
+    assert figure.figure.axes[0].has_data()
+
+
+def test_plot_forwards_restrict_to_qubits(fit_with_data):
+    # Qubit 1 alone cannot make a pair, so the filter empties the derived list and says so rather
+    # than drawing an empty figure.
+    with pytest.raises(ValueError, match="left no qubit pairs"):
+        fit_with_data.plot_qubit_pair_decays(observable_type="means", restrict_to_qubits=[1])
+
+
 def test_plot_without_model_raises():
     fit = Fit(model=None)
     with pytest.raises(ValueError, match="model"):
