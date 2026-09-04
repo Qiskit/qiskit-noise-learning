@@ -266,7 +266,7 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
         for start in range(0, n_rows, _ROW_REDUCTION_BLOCK_SIZE):
             if rank == max_rank:
                 break
-            block = self._data[start : start + _ROW_REDUCTION_BLOCK_SIZE].astype(float)
+            block = self._data[start : start + _ROW_REDUCTION_BLOCK_SIZE].toarray()
 
             # Orthogonalize the block against the accepted basis in bulk, then resolve
             # dependencies within the block sequentially.
@@ -363,7 +363,7 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
             right = other.data[[other.row_index_map[k] for k in shared], :]
             data = left @ right
         else:
-            data = np.zeros((n_rows, n_cols), dtype=float)
+            data = sp.csr_array((n_rows, n_cols), dtype=float)
 
         return IndexedMatrix[RowIndex, OtherColumnIndex](
             row_index_map=self._row_index_map.copy(),
@@ -380,9 +380,10 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
         if isinstance(index, Hashable) and (
             (row_idx := self._row_index_map.get(index, None)) is not None
         ):
+            dense_row = self._data[[row_idx]].toarray().ravel()
             return IndexedVector[ColumnIndex](
                 {
-                    col_idx: self._data[row_idx][data_idx]
+                    col_idx: float(dense_row[data_idx])
                     for col_idx, data_idx in self._column_index_map.items()
                 }
             )
