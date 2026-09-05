@@ -16,6 +16,7 @@ from collections.abc import Hashable, Mapping, Sequence
 from typing import Generic, Self, TypeVar
 
 import numpy as np
+import scipy.sparse as sp
 
 from .indexed_vector import IndexedVector
 
@@ -33,10 +34,13 @@ _ROW_REDUCTION_BLOCK_SIZE = 128
 class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
     """A matrix with float entries and arbitrary row and column index data.
 
+    Entries are stored as a SciPy CSR array (:attr:`data`). Obtain a dense representation
+    via :meth:`toarray`.
+
     Args:
-        row_index_map: A mapping from row indices to the integer row axes of ``data``.
-        column_index_map: A mapping from column indices to the integer column axes of ``data``.
-        data: The array for the given row and column indices.
+        row_index_map: A mapping from row indices to the integer row axes of :attr:`data`.
+        column_index_map: A mapping from column indices to the integer column axes of :attr:`data`.
+        data: The array for the given row and column indices, dense or sparse.
 
     Raises:
         ValueError: If the shape of ``data`` is inconsistent with the values of ``row_index_map``
@@ -47,15 +51,11 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
         self,
         row_index_map: Mapping[RowIndex, int] | None = None,
         column_index_map: Mapping[ColumnIndex, int] | None = None,
-        data: np.ndarray[float] | None = None,
+        data: np.ndarray | sp.sparray | None = None,
     ):
-        row_index_map = (
-            dict() if row_index_map is None else {k: v for k, v in row_index_map.items()}
-        )
-        column_index_map = (
-            dict() if column_index_map is None else {k: v for k, v in column_index_map.items()}
-        )
-        data = np.array([], dtype=float) if (data is None) else data
+        row_index_map = dict() if row_index_map is None else dict(row_index_map)
+        column_index_map = dict() if column_index_map is None else dict(column_index_map)
+        data = self._as_csr(data)
 
         # validate empty case
         if data.shape[0] == 0:
@@ -80,12 +80,21 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
         self._data = data
         self._rank = None
 
+    @staticmethod
+    def _as_csr(data: np.ndarray | sp.sparray | None) -> sp.csr_array:
+        """Coerce a dense array, sparse array, or ``None`` to a 2-D CSR array."""
+        if data is None:
+            return sp.csr_array((0, 0), dtype=float)
+        if sp.issparse(data):
+            return sp.csr_array(data)
+        return sp.csr_array(np.asarray(data, dtype=float))
+
     @classmethod
     def from_index_lists(
         self,
         row_indices: Sequence[RowIndex],
         column_indices: Sequence[ColumnIndex],
-        data: np.ndarray[float],
+        data: np.ndarray,
     ) -> Self:
         """Construct from ordered lists of row and column indices.
 
@@ -136,9 +145,13 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
         return self._column_index_map
 
     @property
-    def data(self) -> np.ndarray[float]:
-        """The numerical data."""
+    def data(self) -> sp.csr_array:
+        """The numerical data, as a SciPy CSR array. Use :meth:`toarray` for a dense copy."""
         return self._data
+
+    def toarray(self) -> np.ndarray:
+        """Return the numerical data as a dense :class:`~numpy.ndarray`."""
+        return self._data.toarray()
 
     @property
     def shape(self) -> tuple[int, int]:
@@ -153,7 +166,7 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
             if any(x == 0 for x in self._data.shape):
                 self._rank = 0
             else:
-                self._rank = np.linalg.matrix_rank(self._data)
+                self._rank = np.linalg.matrix_rank(self._data.toarray())
         return self._rank
 
     def add_rows(
@@ -178,62 +191,46 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
                 f"rows, '{len(rows)}'."
             )
 
-        # iterate through arguments once, building a list of non-empty rows, their corresponding
-        # indices, and a list of the non-zero columns for each new row
-        new_row_indices: list[RowIndex] = []
-        new_rows: list[IndexedVector[ColumnIndex]] = []
-        new_row_nonzero_columns: list[list[ColumnIndex]] = []
-        new_column_count = 0
+        # Collect the COO entries of the new (non-empty) rows, growing the column map as new column
+        # labels appear.
+        new_row_count = 0
+        block_rows: list[int] = []
+        block_cols: list[int] = []
+        block_vals: list[float] = []
         for row_index, row in zip(row_indices, rows):
             if row_index in self._row_index_map:
                 raise ValueError(f"Cannot add row with duplicate row index '{row_index}'.")
 
-            current_row_nonzero_columns = []
+            row_cols: list[int] = []
+            row_vals: list[float] = []
             for column_index, value in row.items():
                 if abs(value) > tol:
-                    current_row_nonzero_columns.append(column_index)
                     if column_index not in self._column_index_map:
                         self._column_index_map[column_index] = len(self._column_index_map)
-                        new_column_count += 1
+                    row_cols.append(self._column_index_map[column_index])
+                    row_vals.append(value)
 
-            # if any non-trivial rows, add them
-            if len(current_row_nonzero_columns) != 0:
-                new_row_indices.append(row_index)
-                new_rows.append(row)
-                new_row_nonzero_columns.append(current_row_nonzero_columns)
+            # skip all-zero rows
+            if row_cols:
+                block_rows.extend([new_row_count] * len(row_cols))
+                block_cols.extend(row_cols)
+                block_vals.extend(row_vals)
+                new_row_count += 1
                 self._row_index_map[row_index] = len(self._row_index_map)
 
-        # if no new non-zero rows exit early
-        if len(new_rows) == 0:
+        if new_row_count == 0:
             return
 
-        # expand internal data array for any new columns
-        if new_column_count != 0 and len(self._data) != 0:
-            padded_data = np.append(
-                self._data,
-                np.zeros((self._data.shape[0], new_column_count), dtype=float),
-                axis=1,
-            )
-        else:
-            # if no new columns, or matrix is empty, do nothing
-            padded_data = self._data
-
-        # build array for new rows
-        new_row_array = np.zeros((len(new_rows), len(self._column_index_map)), dtype=float)
-        for array_row_idx, (row_index, row, nonzero_column_indices) in enumerate(
-            zip(new_row_indices, new_rows, new_row_nonzero_columns)
-        ):
-            for column_index in nonzero_column_indices:
-                new_row_array[array_row_idx, self._column_index_map[column_index]] = row[
-                    column_index
-                ]
-
-        # update data
-        self._data = (
-            new_row_array
-            if padded_data.shape == (0,)
-            else np.append(padded_data, new_row_array, axis=0)
+        n_cols = len(self._column_index_map)
+        new_block = sp.csr_array(
+            (np.asarray(block_vals, dtype=float), (block_rows, block_cols)),
+            shape=(new_row_count, n_cols),
         )
+
+        # widen existing rows to any newly added columns (implicit zeros), then stack below
+        old = self._data
+        old.resize((old.shape[0], n_cols))
+        self._data = sp.vstack([old, new_block], format="csr")
         self._rank = None
 
     def linearly_independent_rows(self, tol=1e-8) -> Self:
@@ -256,7 +253,7 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
         for start in range(0, n_rows, _ROW_REDUCTION_BLOCK_SIZE):
             if rank == max_rank:
                 break
-            block = self._data[start : start + _ROW_REDUCTION_BLOCK_SIZE].astype(float)
+            block = self._data[start : start + _ROW_REDUCTION_BLOCK_SIZE].toarray()
 
             # Orthogonalize the block against the accepted basis in bulk, then resolve
             # dependencies within the block sequentially.
@@ -353,7 +350,7 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
             right = other.data[[other.row_index_map[k] for k in shared], :]
             data = left @ right
         else:
-            data = np.zeros((n_rows, n_cols), dtype=float)
+            data = sp.csr_array((n_rows, n_cols), dtype=float)
 
         return IndexedMatrix[RowIndex, OtherColumnIndex](
             row_index_map=self._row_index_map.copy(),
@@ -370,9 +367,10 @@ class IndexedMatrix(Generic[RowIndex, ColumnIndex]):
         if isinstance(index, Hashable) and (
             (row_idx := self._row_index_map.get(index, None)) is not None
         ):
+            dense_row = self._data[[row_idx]].toarray().ravel()
             return IndexedVector[ColumnIndex](
                 {
-                    col_idx: self._data[row_idx][data_idx]
+                    col_idx: float(dense_row[data_idx])
                     for col_idx, data_idx in self._column_index_map.items()
                 }
             )
