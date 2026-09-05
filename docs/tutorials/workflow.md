@@ -252,10 +252,10 @@ Build an analysis pipeline around nonnegative least squares fitting of the model
 from qiskit_noise_learning.analysis import (
     ComputeObservables,  # computes observables from raw data
     CurveFitObservables,  # performs exponential fitting
-    NNLSSolve,  # solves model with nonnegative least squares
+    LeastSquaresSolve,  # solves model with (nonnegative) least squares
 )
 
-analyzer = ComputeObservables() + CurveFitObservables() + NNLSSolve()
+analyzer = ComputeObservables() + CurveFitObservables() + LeastSquaresSolve()
 
 fit = analyzer.run(fit)
 ```
