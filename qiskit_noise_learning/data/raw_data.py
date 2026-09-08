@@ -72,16 +72,19 @@ class RawData(LeveledData):
           gates are traversed, or ``-1`` if the register has no such gate. Along dimension
           ``("bit",)``.
 
-    Together these three describe the ``"bit"`` dimension bit by bit, so a consumer never needs to
-    know how the bits were laid out. Note that a register need not measure in ascending qubit order,
-    and that the same physical qubit may be measured by more than one register.
+    Together ``creg_name``, ``qubit_idx`` and ``measuring_gate_idx`` describe the ``"bit"``
+    dimension bit by bit, so a consumer never needs to know how the bits were laid out. Note that a
+    register need not measure in ascending qubit order, and that the same physical qubit may be
+    measured by more than one register.
 
     Only measuring gates are counted by ``measuring_gate_idx``, because one leaf may hold data from
     several fragment depths, so a position among *all* gates would not be a property of a bit.
 
     Datasets are grouped by their ``"bit"`` coordinates: two datasets whose bits carry the same
     ``creg_name``, ``qubit_idx`` and ``measuring_gate_idx`` values are merged along the
-    ``"randomization"`` dimension.
+    ``"randomization"`` dimension. The comparison is elementwise along ``"bit"``, so datasets are
+    grouped by their bit *layout* and not merely by the set of registers they hold; see
+    :meth:`merge`.
 
     Args:
         datatree: A datatree in the above format.
@@ -199,7 +202,20 @@ class RawData(LeveledData):
 
         Datasets whose ``"bit"`` coordinates agree are concatenated along the ``"randomization"``
         dimension. Potential raggedness of the ``"shot"`` dimension is handled via the
-        ``"data_mask"`` data variable.
+        ``"data_mask"`` data variable. A dataset matching none of the existing leaves is added as a
+        new leaf.
+
+        The coordinates are compared **elementwise along** ``"bit"``, so two datasets are merged
+        only when their bits agree position by position. Datasets describing the same registers in a
+        different bit order -- the registers permuted along the ``"bit"`` dimension, or one register
+        holding the same qubits in different classical bits -- therefore do *not* match, and are
+        kept as separate leaves rather than being permuted into a common layout.
+
+        That is a missed merge rather than a correctness problem: each leaf remains correctly
+        self-describing, every randomization is still counted exactly once, and because
+        :class:`~.ObservableData` is keyed by unbound path and fragment depth rather than by leaf,
+        the split leaves' values are pooled again downstream. The cost is the duplicated ``"bit"``
+        coordinates and the extra leaf.
 
         Args:
             other: The other raw dataset.
@@ -227,7 +243,11 @@ class RawData(LeveledData):
 
     @staticmethod
     def _find_matching_key(datatree: xr.DataTree, dataset: xr.Dataset) -> str | None:
-        """Find a key in the datatree whose dataset has matching ``"bit"`` coordinates."""
+        """Find a key in the datatree whose dataset has matching ``"bit"`` coordinates.
+
+        Matching is elementwise, so a dataset holding the same registers in a different bit order
+        does not match; see ``RawData.merge``.
+        """
         for key, node in datatree.items():
             if all(_variables_equal(node.dataset, dataset, name) for name in _BIT_COORD_NAMES):
                 return key

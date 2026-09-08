@@ -11,6 +11,7 @@
 # that they have been altered from the originals.
 
 import numpy as np
+import pytest
 
 from qiskit_noise_learning.data import MeasurementRegister, RawData
 
@@ -62,3 +63,109 @@ def test_filter_time(make_instruction_sequence):
     assert np.isnat(time_lbs_out[0])
     assert not np.isnat(time_lbs_out[1])
     assert np.isnat(time_lbs_out[2])
+
+
+MEAS0 = MeasurementRegister("meas0", (0, 1), measuring_gate_idx=0)
+FLAG_PS = MeasurementRegister("flag_ps", (2, 3), measuring_gate_idx=-1)
+
+
+def _raw_data(registers, seq, num_shots=4):
+    """Build a single-leaf ``RawData`` over ``registers`` holding one randomization of zeros."""
+    num_bits = sum(register.num_bits for register in registers)
+    return RawData.from_arrays(
+        registers=registers,
+        instruction_sequences=[seq],
+        data=[np.zeros((1, num_shots, num_bits), dtype=bool)],
+        measurement_flips=[np.zeros((1, num_bits), dtype=bool)],
+        time_lbs=[np.array(["2026-01-01"], dtype="datetime64[us]")],
+        time_ubs=[np.array(["2026-01-02"], dtype="datetime64[us]")],
+    )
+
+
+def test_merge_matching_bit_coords_gives_one_leaf(make_instruction_sequence):
+    """Data sharing a bit layout concatenates into a single leaf.
+
+    This is the control for the mismatch cases below: without it, a bug that split *every* merge
+    into two leaves would satisfy them all.
+    """
+    seq = make_instruction_sequence(name="CZ", fragment_depth=1)
+    registers = [MEAS0, FLAG_PS]
+
+    merged = _raw_data(registers, seq).merge(_raw_data(registers, seq))
+
+    assert list(merged.datatree) == ["0"]
+    assert merged.datatree["0"].dataset.sizes["randomization"] == 2
+
+
+@pytest.mark.parametrize(
+    "other_registers",
+    [
+        pytest.param(
+            [MEAS0, MeasurementRegister("flag2_ps", (2, 3), measuring_gate_idx=-1)], id="creg_name"
+        ),
+        pytest.param(
+            [MeasurementRegister("meas0", (1, 0), measuring_gate_idx=0), FLAG_PS], id="qubit_idx"
+        ),
+        pytest.param(
+            [MEAS0, MeasurementRegister("flag_ps", (2, 3), measuring_gate_idx=1)],
+            id="measuring_gate_idx",
+        ),
+        pytest.param([FLAG_PS, MEAS0], id="register_order"),
+    ],
+)
+def test_merge_mismatched_bit_coords_gives_two_leaves(other_registers, make_instruction_sequence):
+    """Data whose bit layout differs in any single coordinate lands in its own leaf.
+
+    A shared leaf would silently pair up bits that mean different things, so each of the three
+    coordinates on its own, and a permutation of the registers along the bit axis, must split.
+    """
+    seq = make_instruction_sequence(name="CZ", fragment_depth=1)
+
+    merged = _raw_data([MEAS0, FLAG_PS], seq).merge(_raw_data(other_registers, seq))
+
+    assert list(merged.datatree) == ["0", "1"]
+    for node in merged.datatree.values():
+        assert node.dataset.sizes["randomization"] == 1
+
+
+def test_from_arrays_duplicate_register_names_raises(make_instruction_sequence):
+    """Two registers of the same name cannot be told apart by the ``creg_name`` coordinate."""
+    seq = make_instruction_sequence(name="CZ", fragment_depth=1)
+
+    with pytest.raises(ValueError, match="register names must be unique"):
+        _raw_data([MEAS0, MeasurementRegister("meas0", (2, 3), measuring_gate_idx=1)], seq)
+
+
+def test_from_arrays_short_per_sequence_list_raises(make_instruction_sequence):
+    """A per-sequence list shorter than the others raises rather than being silently truncated."""
+    seq = make_instruction_sequence(name="CZ", fragment_depth=1)
+
+    with pytest.raises(ValueError, match="must all have the same length"):
+        RawData.from_arrays(
+            registers=[MEAS0],
+            instruction_sequences=[seq, seq],
+            data=[np.zeros((1, 4, 2), dtype=bool)] * 2,
+            measurement_flips=[np.zeros((1, 2), dtype=bool)] * 2,
+            time_lbs=[np.array(["2026-01-01"], dtype="datetime64[us]")],
+            time_ubs=[np.array(["2026-01-02"], dtype="datetime64[us]")] * 2,
+        )
+
+
+@pytest.mark.parametrize("name", ["data", "measurement_flips"])
+def test_from_arrays_wrong_bit_size_raises(name, make_instruction_sequence):
+    """An array whose ``"bit"`` dimension disagrees with the registers' total bit count raises."""
+    seq = make_instruction_sequence(name="CZ", fragment_depth=1)
+    arrays = {
+        "data": [np.zeros((1, 4, 2), dtype=bool)],
+        "measurement_flips": [np.zeros((1, 2), dtype=bool)],
+    }
+    arrays[name] = [array[..., :1] for array in arrays[name]]
+
+    with pytest.raises(ValueError, match=f"an entry of {name} has 1 along its 'bit' dimension"):
+        RawData.from_arrays(
+            registers=[MEAS0],
+            instruction_sequences=[seq],
+            time_lbs=[np.array(["2026-01-01"], dtype="datetime64[us]")],
+            time_ubs=[np.array(["2026-01-02"], dtype="datetime64[us]")],
+            **arrays,
+        )
