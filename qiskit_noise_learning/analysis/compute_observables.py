@@ -270,9 +270,9 @@ def observable_bit_mask(
         bit whose outcome contributes to the parity defining the observable.
 
     Raises:
-        ValueError: If the path measures more times than the dataset has registers holding a
-            measuring gate's outcomes, or if such a register does not measure the qubits that the
-            corresponding fidelity index says its gate measures.
+        ValueError: If the path measures more times than the datasets measuring gate registers, or
+            if such a register does not measure the qubits that the corresponding fidelity index
+            says its gate measures.
     """
     bit_creg_names = dataset["creg_name"].values
     bit_qubit_idxs = dataset["qubit_idx"].values
@@ -280,8 +280,6 @@ def observable_bit_mask(
 
     mask = np.zeros(dataset.sizes["bit"], dtype=np.bool_)
 
-    # Each bit records which of the path's measuring gates its register holds the outcomes of, so
-    # the pairing is read off the bits rather than inferred from their layout.
     gate_idx = 0
     for fidelity_index in unbound_path.bind_at(fragment_depth):
         if not fidelity_index.meas_idxs:

@@ -26,18 +26,6 @@ from .xarray_utils import filter_time, ragged_concat
 _BIT_COORD_NAMES = ("creg_name", "qubit_idx", "measuring_gate_idx")
 
 
-def _bit_coords(registers: list[MeasurementRegister]) -> dict[str, tuple[tuple[str], np.ndarray]]:
-    """Return the ``"bit"`` coordinates for registers laid out contiguously in the given order."""
-    names = [register.name for register in registers for _ in range(register.num_bits)]
-    qubit_idxs = [idx for register in registers for idx in register.qubit_idxs]
-    gate_idxs = [register.measuring_gate_idx for register in registers for _ in register.qubit_idxs]
-    return {
-        "creg_name": (("bit",), np.array(names, dtype=np.str_)),
-        "qubit_idx": (("bit",), np.array(qubit_idxs, dtype=int)),
-        "measuring_gate_idx": (("bit",), np.array(gate_idxs, dtype=int)),
-    }
-
-
 class RawData(LeveledData):
     """Raw experimental outcome data associated with instruction sequences and classical registers.
 
@@ -71,14 +59,6 @@ class RawData(LeveledData):
           counted among the measuring gates of the instruction sequences only, in the order those
           gates are traversed, or ``-1`` if the register has no such gate. Along dimension
           ``("bit",)``.
-
-    Together ``creg_name``, ``qubit_idx`` and ``measuring_gate_idx`` describe the ``"bit"``
-    dimension bit by bit, so a consumer never needs to know how the bits were laid out. Note that a
-    register need not measure in ascending qubit order, and that the same physical qubit may be
-    measured by more than one register.
-
-    Only measuring gates are counted by ``measuring_gate_idx``, because one leaf may hold data from
-    several fragment depths, so a position among *all* gates would not be a property of a bit.
 
     Datasets are grouped by their ``"bit"`` coordinates: two datasets whose bits carry the same
     ``creg_name``, ``qubit_idx`` and ``measuring_gate_idx`` values are merged along the
@@ -149,8 +129,19 @@ class RawData(LeveledData):
                 f"The per-sequence arguments must all have the same length, but got {lengths}."
             )
 
-        bit_coords = _bit_coords(registers)
-        num_bits = sum(register.num_bits for register in registers)
+        # Each register's bits are contiguous and in the order the registers are given, which is
+        # the layout the data and measurement_flips entries must already be in.
+        bit_creg_names = [register.name for register in registers for _ in range(register.num_bits)]
+        bit_qubit_idxs = [idx for register in registers for idx in register.qubit_idxs]
+        bit_gate_idxs = [
+            register.measuring_gate_idx for register in registers for _ in register.qubit_idxs
+        ]
+        bit_coords = {
+            "creg_name": (("bit",), np.array(bit_creg_names, dtype=np.str_)),
+            "qubit_idx": (("bit",), np.array(bit_qubit_idxs, dtype=int)),
+            "measuring_gate_idx": (("bit",), np.array(bit_gate_idxs, dtype=int)),
+        }
+        num_bits = len(bit_qubit_idxs)
 
         raw_data = cls(datatree=xr.DataTree())
         for inst_sequence, inst_data, inst_meas_flips, inst_time_lbs, inst_time_ubs in zip(
@@ -204,18 +195,6 @@ class RawData(LeveledData):
         dimension. Potential raggedness of the ``"shot"`` dimension is handled via the
         ``"data_mask"`` data variable. A dataset matching none of the existing leaves is added as a
         new leaf.
-
-        The coordinates are compared **elementwise along** ``"bit"``, so two datasets are merged
-        only when their bits agree position by position. Datasets describing the same registers in a
-        different bit order -- the registers permuted along the ``"bit"`` dimension, or one register
-        holding the same qubits in different classical bits -- therefore do *not* match, and are
-        kept as separate leaves rather than being permuted into a common layout.
-
-        That is a missed merge rather than a correctness problem: each leaf remains correctly
-        self-describing, every randomization is still counted exactly once, and because
-        :class:`~.ObservableData` is keyed by unbound path and fragment depth rather than by leaf,
-        the split leaves' values are pooled again downstream. The cost is the duplicated ``"bit"``
-        coordinates and the extra leaf.
 
         Args:
             other: The other raw dataset.

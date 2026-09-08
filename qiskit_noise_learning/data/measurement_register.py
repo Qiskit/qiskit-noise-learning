@@ -15,27 +15,15 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class MeasurementRegister:
-    """One classical register of an experiment, and what its bits mean.
-
-    An ordered collection of these fully describes the ``"bit"`` dimension of a
-    :class:`~.RawData` leaf: each register contributes ``num_bits`` bits, and every bit knows
-    the register it belongs to, the physical qubit it holds the outcome for, and the measuring
-    gate whose outcomes its register was created to hold.
-
-    Note that a register need not measure in ascending qubit order, and that the same physical
-    qubit may be measured by more than one register.
+    """A description of a classical register.
 
     Args:
         name: The name of the classical register.
         qubit_idxs: The measured physical qubit indices, where entry ``j`` is the qubit whose
             outcome is stored in classical bit ``j`` of the register.
         measuring_gate_idx: The position of the register's measuring gate among the measuring
-            gates of the instruction sequence, in the order those gates are traversed, or ``-1``
-            if the register has no corresponding measuring gate.
-
-            Only measuring gates are counted, because a single :class:`~.RawData` leaf holds
-            data from more than one fragment depth, so a position among *all* gates would not be
-            a property of the register.
+            gates of an instruction sequence. A value of ``-1`` indicates the register does not
+            correspond to a result within an instruction sequence.
     """
 
     name: str

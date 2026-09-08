@@ -232,8 +232,7 @@ class ExecutorCircuitGenerator(
 
         Returns:
             A samplex item where the order of the arguments correspond to the order of
-            ``instruction_sequences``, and the item's classical registers, ordered so that
-            concatenating their outcomes gives the ``"bit"`` dimension of a :class:`~.RawData`.
+            ``instruction_sequences``, and the item's classical registers.
 
         Raises:
             ValueError: If ``instruction_sequences`` is empty.
