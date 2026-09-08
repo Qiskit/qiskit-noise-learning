@@ -35,6 +35,9 @@ class AerRuntimeJob:
         program: The quantum program to execute.
         noise_dict: A map from barrier label refs to Pauli-Lindblad noise maps.
         angle_decimals: Rounding precision for gate angles (in units of π/2).
+        noise_after: If ``True`` (default), insert noise after the gate (targets ``R``
+            barriers); if ``False``, insert noise before the gate (targets ``M`` barriers).
+            Set to ``False`` when the circuit was built with ``inject_noise_site='before'``.
         warn_absent: If ``True`` (default), warn when a tagged barrier has no entry in
             ``noise_dict``.
         seed: Root seed for this job's randomness.  If ``None``, one is drawn
@@ -47,6 +50,7 @@ class AerRuntimeJob:
         program: QuantumProgram,
         noise_dict: dict[str, PauliLindbladMap] | None = None,
         angle_decimals: int = 5,
+        noise_after: bool = True,
         warn_absent: bool = True,
         seed: int | None = None,
     ):
@@ -54,6 +58,7 @@ class AerRuntimeJob:
         self._program = program
         self._noise_dict = noise_dict
         self._angle_decimals = angle_decimals
+        self._noise_after = noise_after
         self._warn_absent = warn_absent
         # Resolve None to a concrete seed so that the run can always be replayed.
         self._seed = int(np.random.SeedSequence(seed).entropy)
@@ -65,6 +70,7 @@ class AerRuntimeJob:
             program=self._program,
             noise_dict=self._noise_dict,
             angle_decimals=self._angle_decimals,
+            noise_after=self._noise_after,
             warn_absent=self._warn_absent,
             seed=self._seed,
         )
@@ -103,10 +109,11 @@ class AerExecutor:
     When ``noise_dict`` is provided, Pauli-Lindblad noise is injected into circuits at
     tagged barriers via :class:`~.InsertNoisePass`.  Samplomatic inserts three barriers
     around each boxed gate — left (``L``), middle (``M``), and right (``R``) — with
-    labels of the form ``<pos><idx>@tag=<tag>`` (e.g. ``R0@tag=r0``).  By default,
-    noise is injected at the ``R`` (right) barriers, i.e. *after* the gate.  Use
-    ``noise_after=False`` on :class:`InsertNoisePass` to target ``M`` barriers instead
-    (noise *before* the gate).
+    labels of the form ``<pos><idx>@tag=<tag>`` (e.g. ``R0@tag=r0``).  When
+    ``noise_after=True`` (default), noise is injected at the ``R`` (right) barriers,
+    i.e. *after* the gate.  Set ``noise_after=False`` to target ``M`` barriers instead
+    (noise *before* the gate); use this when circuits were built with
+    ``inject_noise_site='before'``.
 
     The ``noise_dict`` format is:
 
@@ -131,6 +138,9 @@ class AerExecutor:
         angle_decimals: Gate angles are rounded to the nearest multiple of π/2 at this
             decimal precision before simulation. This prevents floating-point drift from
             preventing Clifford-method simulation when angles are nominally Clifford.
+        noise_after: If ``True`` (default), insert noise after each gate (targets ``R``
+            barriers).  Set to ``False`` to insert noise before each gate (targets ``M``
+            barriers); use this when circuits were built with ``inject_noise_site='before'``.
         warn_absent: If ``True`` (default), emit a warning when a tagged barrier's tag is
             not found in ``noise_dict``.  Set to ``False`` when partial coverage of tags is
             intentional.
@@ -146,12 +156,14 @@ class AerExecutor:
         qasm_simulator: AerSimulator,
         noise_dict: dict[str, PauliLindbladMap] | None = None,
         angle_decimals: int = 5,
+        noise_after: bool = True,
         warn_absent: bool = True,
         root_seed: int | None = None,
     ):
         self._qasm_simulator = qasm_simulator
         self._noise_dict = noise_dict
         self._angle_decimals = angle_decimals
+        self._noise_after = noise_after
         self._warn_absent = warn_absent
         self._seed_sequence = np.random.SeedSequence(root_seed)
 
@@ -182,6 +194,7 @@ class AerExecutor:
             program=program,
             noise_dict=self._noise_dict,
             angle_decimals=self._angle_decimals,
+            noise_after=self._noise_after,
             warn_absent=self._warn_absent,
             seed=next_seed(self._seed_sequence),
         )

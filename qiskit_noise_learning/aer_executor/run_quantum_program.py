@@ -45,6 +45,7 @@ def run_quantum_program(
     program: QuantumProgram,
     noise_dict: dict[str, PauliLindbladMap] | None = None,
     angle_decimals: int = 5,
+    noise_after: bool = True,
     warn_absent: bool = True,
     seed: int | None = None,
 ) -> QuantumProgramResult:
@@ -56,6 +57,8 @@ def run_quantum_program(
         noise_dict: A map from barrier label refs to noise maps.
         angle_decimals: Gate angles are rounded to the nearest multiple of π/2 at this
             decimal precision before simulation.  See :func:`AerExecutor` for details.
+        noise_after: If ``True`` (default), insert noise after each gate (``R`` barriers);
+            if ``False``, insert before (``M`` barriers).  See :class:`AerExecutor`.
         warn_absent: Passed to :class:`InsertNoisePass`; see :class:`AerExecutor`.
         seed: Root seed for this run.  Independent seeds are derived from it for the twirl
             sampling and for each item's shot sampling, so a fixed value reproduces the run
@@ -79,7 +82,7 @@ def run_quantum_program(
 
         if noise_dict is not None:
             circuit = PassManager(
-                [InsertNoisePass(noise_dict=noise_dict, warn_absent=warn_absent)]
+                [InsertNoisePass(noise_dict=noise_dict, noise_after=noise_after, warn_absent=warn_absent)]
             ).run(prog_item.circuit)
         else:
             circuit = prog_item.circuit
