@@ -26,7 +26,6 @@ from qiskit_noise_learning.models import (
 )
 from qiskit_noise_learning.optionals import HAS_CVXPY
 
-_SOLVERS = [LeastSquaresSolve()]
 
 # Each CZ path's row is built from real Pauli-Lindblad commutation, so every coefficient is 2.0 per
 # anticommuting generator. With the generator sets chosen below the CZ fidelity "XI" anticommutes
@@ -41,7 +40,6 @@ def _get_rate_from_fit(fit, gate_name, label):
     return fit.model_data.dataset["parameter_values"].sel(parameter_index=gen).item()
 
 
-@pytest.mark.parametrize("solver", _SOLVERS)
 def test_single_unbound_path(solver, gate_set_cz, make_cz_path, make_aggregated_observable_data):
     """Solving a single unbound path with a 1x1 design matrix."""
     f_true = 0.8
@@ -56,7 +54,6 @@ def test_single_unbound_path(solver, gate_set_cz, make_cz_path, make_aggregated_
     assert np.isclose(_get_rate_from_fit(result, "CZ", "ZI"), -np.log(f_true) / 4, atol=1e-6)
 
 
-@pytest.mark.parametrize("solver", _SOLVERS)
 def test_multiple_unbound_paths(solver, gate_set_cz, make_cz_path, make_aggregated_observable_data):
     """Solving two unbound paths mapped to different generators (diagonal design matrix)."""
     f0, f1 = 0.9, 0.7
@@ -74,7 +71,6 @@ def test_multiple_unbound_paths(solver, gate_set_cz, make_cz_path, make_aggregat
     assert np.isclose(_get_rate_from_fit(result, "CZ", "IZ"), -np.log(f1) / 4, atol=1e-6)
 
 
-@pytest.mark.parametrize("solver", _SOLVERS)
 def test_underdetermined(solver, gate_set_cz, make_cz_path, make_aggregated_observable_data):
     """Solving one decay onto two generators — solver picks a non-negative split."""
     f_true = 0.8
@@ -94,7 +90,6 @@ def test_underdetermined(solver, gate_set_cz, make_cz_path, make_aggregated_obse
     assert result.model_data.dataset["covariance"].values.shape == (2, 2)
 
 
-@pytest.mark.parametrize("solver", _SOLVERS)
 def test_overdetermined(solver, gate_set_cz, make_cz_path, make_aggregated_observable_data):
     """Solving three decays onto two generators with consistent data."""
     f0, f1 = 0.9, 0.8
@@ -115,7 +110,6 @@ def test_overdetermined(solver, gate_set_cz, make_cz_path, make_aggregated_obser
     assert result.model_data.dataset["covariance"].values.shape == (2, 2)
 
 
-@pytest.mark.parametrize("solver", _SOLVERS)
 def test_covariance_identity_design(
     solver, gate_set_cz, make_cz_path, make_aggregated_observable_data
 ):
@@ -136,7 +130,6 @@ def test_covariance_identity_design(
     assert np.isclose(cov[0, 0], expected_var, rtol=1e-6)
 
 
-@pytest.mark.parametrize("solver", _SOLVERS)
 def test_covariance_constrained_params(
     solver, gate_set_cz, make_cz_path, make_aggregated_observable_data
 ):
@@ -207,7 +200,6 @@ def test_usable_uncertainties_do_not_warn(
         LeastSquaresSolve().run(fit)
 
 
-@pytest.mark.parametrize("solver", _SOLVERS)
 def test_bound_paths_in_fit_paths(
     solver, gate_set_cz, make_cz_path, make_aggregated_observable_data
 ):
@@ -231,7 +223,6 @@ def test_bound_paths_in_fit_paths(
     assert np.isclose(12 * r_cz + 2 * r_p + 2 * r_m, -np.log(f_true), atol=1e-6)
 
 
-@pytest.mark.parametrize("solver", _SOLVERS)
 def test_mixed_bound_and_unbound_paths(
     solver, gate_set_cz, make_cz_path, make_aggregated_observable_data
 ):
@@ -259,7 +250,6 @@ def test_mixed_bound_and_unbound_paths(
     assert np.isclose(8 * r_cz + 2 * r_p + 2 * r_m, -np.log(f1), atol=1e-6)
 
 
-@pytest.mark.parametrize("solver", _SOLVERS)
 def test_no_paths_uses_all_data(solver, gate_set_cz, make_cz_path, make_aggregated_observable_data):
     """When fit.paths is not specified, all data is used."""
     model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
