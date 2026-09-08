@@ -315,7 +315,7 @@ class LeastSquaresSolve(ModelSolve):
         if self.non_negative:
             # clip tiny solver-tolerance excursions below the boundary back onto it
             x = np.maximum(x, 0.0)
-            free_indices = np.where(x > 0.0)[0]
+            free_indices = np.where(~np.isclose(x, 0.0))[0]
         else:
             free_indices = np.arange(len(x))
         cov_x = self._covariance(system.A, system.sigma_b, x, free_indices)
