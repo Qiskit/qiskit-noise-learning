@@ -10,6 +10,8 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 
@@ -69,13 +71,13 @@ MEAS0 = MeasurementRegister("meas0", (0, 1), measuring_gate_idx=0)
 FLAG_PS = MeasurementRegister("flag_ps", (2, 3), measuring_gate_idx=-1)
 
 
-def _raw_data(registers, seq, num_shots=4):
+def _raw_data(registers, seq):
     """Build a single-leaf ``RawData`` over ``registers`` holding one randomization of zeros."""
     num_bits = sum(register.num_bits for register in registers)
     return RawData.from_arrays(
         registers=registers,
         instruction_sequences=[seq],
-        data=[np.zeros((1, num_shots, num_bits), dtype=bool)],
+        data=[np.zeros((1, 4, num_bits), dtype=bool)],
         measurement_flips=[np.zeros((1, num_bits), dtype=bool)],
         time_lbs=[np.array(["2026-01-01"], dtype="datetime64[us]")],
         time_ubs=[np.array(["2026-01-02"], dtype="datetime64[us]")],
@@ -100,18 +102,12 @@ def test_merge_matching_bit_coords_gives_one_leaf(make_instruction_sequence):
 @pytest.mark.parametrize(
     "other_registers",
     [
-        pytest.param(
-            [MEAS0, MeasurementRegister("flag2_ps", (2, 3), measuring_gate_idx=-1)], id="creg_name"
-        ),
-        pytest.param(
-            [MeasurementRegister("meas0", (1, 0), measuring_gate_idx=0), FLAG_PS], id="qubit_idx"
-        ),
-        pytest.param(
-            [MEAS0, MeasurementRegister("flag_ps", (2, 3), measuring_gate_idx=1)],
-            id="measuring_gate_idx",
-        ),
-        pytest.param([FLAG_PS, MEAS0], id="register_order"),
+        [MEAS0, replace(FLAG_PS, name="flag2_ps")],
+        [replace(MEAS0, qubit_idxs=(1, 0)), FLAG_PS],
+        [MEAS0, replace(FLAG_PS, measuring_gate_idx=1)],
+        [FLAG_PS, MEAS0],
     ],
+    ids=["creg_name", "qubit_idx", "measuring_gate_idx", "register_order"],
 )
 def test_merge_mismatched_bit_coords_gives_two_leaves(other_registers, make_instruction_sequence):
     """Data whose bit layout differs in any single coordinate lands in its own leaf.
@@ -133,7 +129,7 @@ def test_from_arrays_duplicate_register_names_raises(make_instruction_sequence):
     seq = make_instruction_sequence(name="CZ", fragment_depth=1)
 
     with pytest.raises(ValueError, match="register names must be unique"):
-        _raw_data([MEAS0, MeasurementRegister("meas0", (2, 3), measuring_gate_idx=1)], seq)
+        _raw_data([MEAS0, replace(FLAG_PS, name="meas0")], seq)
 
 
 def test_from_arrays_short_per_sequence_list_raises(make_instruction_sequence):
