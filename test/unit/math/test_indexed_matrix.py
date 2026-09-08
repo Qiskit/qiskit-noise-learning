@@ -25,7 +25,7 @@ def test_construction():
 
     assert indexed_matrix.row_index_map == {1: 0, 4: 1, 2: 2}
     assert indexed_matrix.column_index_map == {1: 0, 4: 1, 6: 2}
-    assert (indexed_matrix.data == np.eye(3, dtype=float)).all()
+    assert (indexed_matrix.toarray() == np.eye(3, dtype=float)).all()
     assert indexed_matrix.shape == (3, 3)
 
     indexed_matrix = IndexedMatrix.from_index_lists(
@@ -34,7 +34,7 @@ def test_construction():
 
     assert indexed_matrix.row_index_map == {1: 0, 4: 1, 2: 2}
     assert indexed_matrix.column_index_map == {1: 0, 4: 1, 6: 2}
-    assert (indexed_matrix.data == np.eye(3, dtype=float)).all()
+    assert (indexed_matrix.toarray() == np.eye(3, dtype=float)).all()
     assert indexed_matrix.shape == (3, 3)
 
 
@@ -57,7 +57,7 @@ def test_construction_errors():
         IndexedMatrix(
             row_index_map={x: x for x in range(3)},
             column_index_map=dict(),
-            data=np.array([], dtype=float),
+            data=np.empty((0, 0), dtype=float),
         )
 
 
@@ -89,7 +89,8 @@ def test_add_rows():
     assert indexed_matrix.row_index_map == {1: 0, 4: 1, 2: 2, 3: 3}
     assert indexed_matrix.column_index_map == {1: 0, 4: 1, 6: 2}
     assert (
-        indexed_matrix.data == np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [2, 0, 0]], dtype=float)
+        indexed_matrix.toarray()
+        == np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [2, 0, 0]], dtype=float)
     ).all()
 
     indexed_matrix.add_rows(
@@ -99,7 +100,7 @@ def test_add_rows():
     assert indexed_matrix.row_index_map == {1: 0, 4: 1, 2: 2, 3: 3, 5: 4, 6: 5}
     assert indexed_matrix.column_index_map == {1: 0, 4: 1, 6: 2, 7: 3}
     assert (
-        indexed_matrix.data
+        indexed_matrix.toarray()
         == np.array(
             [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [2, 0, 0, 0], [0, 2, 0, 0], [0, 3, 0, 2]],
             dtype=float,
@@ -123,7 +124,8 @@ def test_add_rows_tol():
     assert indexed_matrix.row_index_map == {1: 0, 4: 1, 2: 2, 3: 3}
     assert indexed_matrix.column_index_map == {1: 0, 4: 1, 6: 2}
     assert (
-        indexed_matrix.data == np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 3, 0]], dtype=float)
+        indexed_matrix.toarray()
+        == np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 3, 0]], dtype=float)
     ).all()
 
 
@@ -133,7 +135,7 @@ def test_add_rows_empty():
     indexed_matrix.add_rows(row_indices=[5], rows=[IndexedVector({1: 2.0, 7: 3.0})])
     assert indexed_matrix.row_index_map == {5: 0}
     assert indexed_matrix.column_index_map == {1: 0, 7: 1}
-    assert (indexed_matrix.data == np.array([[2, 3]], dtype=float)).all()
+    assert (indexed_matrix.toarray() == np.array([[2, 3]], dtype=float)).all()
 
 
 def test_add_rows_errors():
@@ -294,13 +296,13 @@ def test_copy():
     assert indexed_matrix.row_index_map == {1: 0, 4: 1, 2: 2, 5: 3}
     assert indexed_matrix.column_index_map == {1: 0, 4: 1, 6: 2, 10: 3}
     assert (
-        indexed_matrix.data
+        indexed_matrix.toarray()
         == np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0.0, 0.0, 0.0, 1.0]], dtype=float)
     ).all()
 
     assert indexed_matrix_copy.row_index_map == {1: 0, 4: 1, 2: 2}
     assert indexed_matrix_copy.column_index_map == {1: 0, 4: 1, 6: 2}
-    assert (indexed_matrix_copy.data == np.eye(3, dtype=float)).all()
+    assert (indexed_matrix_copy.toarray() == np.eye(3, dtype=float)).all()
 
 
 def test_getitem():
