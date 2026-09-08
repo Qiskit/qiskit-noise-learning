@@ -14,9 +14,16 @@ import warnings
 
 import numpy as np
 import pytest
+import scipy.sparse as sp
 from qiskit.quantum_info import QubitSparsePauli, QubitSparsePauliList
 
-from qiskit_noise_learning.analysis import Fit, LeastSquaresSolve, PositivityMinSolve
+from qiskit_noise_learning.analysis import (
+    Fit,
+    LeastSquaresSolve,
+    LinearSystemData,
+    PositivityMinSolve,
+    model_solve,
+)
 from qiskit_noise_learning.data import AggregatedObservableData
 from qiskit_noise_learning.math import IndexedMatrix, IndexedVector
 from qiskit_noise_learning.models import (
@@ -25,6 +32,20 @@ from qiskit_noise_learning.models import (
     PauliLindbladModel,
 )
 from qiskit_noise_learning.optionals import HAS_CVXPY
+
+
+@pytest.fixture(params=["cvxpy", "scipy"])
+def solver(request, monkeypatch):
+    """Exercise both solver code paths: cvxpy when available, and the scipy fallback.
+
+    The scipy fallback is forced by making ``LeastSquaresSolve`` see cvxpy as absent.
+    """
+    if request.param == "cvxpy":
+        if not HAS_CVXPY:
+            pytest.skip("cvxpy is not installed")
+    else:
+        monkeypatch.setattr(model_solve, "HAS_CVXPY", False)
+    return LeastSquaresSolve()
 
 
 # Each CZ path's row is built from real Pauli-Lindblad commutation, so every coefficient is 2.0 per
@@ -164,6 +185,18 @@ def test_metadata_contains_residual(gate_set_cz, make_cz_path, make_aggregated_o
     result = LeastSquaresSolve().run(fit)
 
     assert "residual" in result.model_data.metadata
+
+
+def test_from_fit_design_matrix_is_sparse(
+    gate_set_cz, make_cz_path, make_aggregated_observable_data
+):
+    """The design matrix reaches the solver as a sparse array (guards the sparse pipeline)."""
+    model = PauliLindbladModel(gate_set_cz, {"CZ": QubitSparsePauliList(["ZI"]), **_PM_GENS})
+
+    fit = Fit(model=model)
+    fit[AggregatedObservableData] = make_aggregated_observable_data([(make_cz_path("XI"), -1, 0.8)])
+
+    assert sp.issparse(LinearSystemData.from_fit(fit).A)
 
 
 @pytest.mark.parametrize("bad_std", [0.0, float("nan"), float("inf")])
