@@ -292,11 +292,9 @@ class ModelSolve(AnalysisStage):
 class LeastSquaresSolve(ModelSolve):
     r"""Solves for the :class:`~.ModelData` by least squares, with optional non-negativity constraints.
 
-    Minimizes :math:`\|A x - b\|_2^2` over the design matrix ``A`` and target ``b``. If
-    :mod:`cvxpy` is installed it is used (fast, and it exploits the sparse design matrix directly);
-    otherwise the solve falls back to :func:`scipy.optimize.lsq_linear` with its
-    trust-region-reflective (``"trf"``) method, which also accepts the sparse ``A``. See
-    :class:`~.ModelSolve` for the general responsibility of a model solver in this library.
+    Minimizes :math:`\|A x - b\|_2^2` over the design matrix ``A`` and target ``b``. 
+    Defaults to using :mod:`cvxpy` if installed, or else falls back to :func:`scipy.optimize.lsq_linear`.
+    See :class:`~.ModelSolve` for the general responsibility of a model solver in this library.
 
     Args:
         non_negative: Whether to constrain the solution to be non-negative (``x >= 0``). Defaults
