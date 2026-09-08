@@ -270,40 +270,40 @@ def observable_bit_mask(
         bit whose outcome contributes to the parity defining the observable.
 
     Raises:
-        ValueError: If the path measures more times than the dataset has classical registers, or
-            if a register does not measure the qubits that the corresponding fidelity index says
-            its gate measures.
+        ValueError: If the path measures more times than the datasets measuring gate registers, or
+            if such a register does not measure the qubits that the corresponding fidelity index
+            says its gate measures.
     """
-    attrs = dataset.attrs
-    creg_names = attrs["creg_names"]
-    boundaries = attrs["creg_bit_boundaries"]
-    clbit_qubit_idxs = attrs["clbit_qubit_idxs"]
+    bit_creg_names = dataset["creg_name"].values
+    bit_qubit_idxs = dataset["qubit_idx"].values
+    bit_gate_idxs = dataset["measuring_gate_idx"].values
 
-    num_bits = sum(len(clbit_qubit_idxs[creg]) for creg in creg_names)
-    mask = np.zeros(num_bits, dtype=np.bool_)
+    mask = np.zeros(dataset.sizes["bit"], dtype=np.bool_)
 
-    creg_idx = 0
+    gate_idx = 0
     for fidelity_index in unbound_path.bind_at(fragment_depth):
         if not fidelity_index.meas_idxs:
             continue
 
-        if creg_idx >= len(creg_names):
+        selection = bit_gate_idxs == gate_idx
+        if not selection.any():
             raise ValueError(
-                "The path measures more times than the dataset has classical registers "
-                f"({len(creg_names)})."
+                f"The path measures more times than the dataset has registers: no bit of the "
+                f"dataset holds the outcomes of measuring gate {gate_idx}, which the path expects "
+                f"to be the gate '{fidelity_index.gate_name}'."
             )
-        creg = creg_names[creg_idx]
-        creg_idx += 1
 
-        creg_meas_idxs = {int(idx) for idx in clbit_qubit_idxs[creg]}
+        creg_qubit_idxs = bit_qubit_idxs[selection]
+        creg_meas_idxs = {int(idx) for idx in creg_qubit_idxs}
         if creg_meas_idxs != fidelity_index.meas_idxs:
+            cregs = "', '".join(sorted({str(name) for name in bit_creg_names[selection]}))
             raise ValueError(
-                f"The register '{creg}' measures qubits {sorted(creg_meas_idxs)}, but the path "
+                f"The register '{cregs}' measures qubits {sorted(creg_meas_idxs)}, but the path "
                 f"expects the gate '{fidelity_index.gate_name}' to measure "
                 f"{sorted(fidelity_index.meas_idxs)}."
             )
 
-        start, end = boundaries[creg]
-        mask[start:end] = np.isin(clbit_qubit_idxs[creg], fidelity_index.observable_idxs)
+        mask[selection] = np.isin(creg_qubit_idxs, fidelity_index.observable_idxs)
+        gate_idx += 1
 
     return mask

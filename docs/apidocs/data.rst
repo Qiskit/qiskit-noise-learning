@@ -14,6 +14,7 @@ Classes
 
    AggregatedObservableData
    LeveledData
+   MeasurementRegister
    ModelData
    ObservableData
    RawData
