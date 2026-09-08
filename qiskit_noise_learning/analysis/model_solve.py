@@ -290,7 +290,7 @@ class ModelSolve(AnalysisStage):
 
 
 class LeastSquaresSolve(ModelSolve):
-    r"""Solves for the :class:`~.ModelData` by (optionally non-negative) least squares.
+    r"""Solves for the :class:`~.ModelData` by least squares, with optional non-negativity constraints.
 
     Minimizes :math:`\|A x - b\|_2^2` over the design matrix ``A`` and target ``b``. If
     :mod:`cvxpy` is installed it is used (fast, and it exploits the sparse design matrix directly);

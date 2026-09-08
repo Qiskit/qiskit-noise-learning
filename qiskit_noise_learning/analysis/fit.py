@@ -13,7 +13,7 @@
 """Fit."""
 
 import warnings
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import TYPE_CHECKING, Literal, Self
 
 from qiskit_noise_learning.data import (
@@ -202,8 +202,9 @@ class Fit:
 
     def plot_qubit_pair_decays(
         self,
-        pairs: Sequence[tuple[int, int]],
+        pairs: Sequence[tuple[int, int]] | None = None,
         *,
+        restrict_to_qubits: Iterable[int] | None = None,
         observable_type: Literal["raw", "means", "both"] | None = None,
         exponential_fit: bool = False,
         model_prediction: bool = False,
@@ -225,7 +226,12 @@ class Fit:
 
         Args:
             pairs: The qubit pairs to plot, one subplot each. A pair is unordered -- ``(1, 0)``
-                names the same subplot as ``(0, 1)`` -- so no pair may be repeated.
+                names the same subplot as ``(0, 1)`` -- so no pair may be repeated. Defaults to the
+                pairs of the coupling map of the gate set in this fit, lying within its
+                :attr:`~.GateSet.qubit_subset`, and keeping only those that carry at least one of
+                the decays being drawn.
+            restrict_to_qubits: An optional set of qubit indices to filter ``pairs`` down to those
+                for which **both** of its qubits are in this set.
             observable_type: How to draw the empirical observable data: ``"raw"`` (raw
                 per-randomization scatter), ``"means"`` (per-fragment-depth means with error bars),
                 ``"both"``, or ``None`` (the default) to omit the empirical points. Uses this fit's
@@ -260,6 +266,8 @@ class Fit:
         Raises:
             ValueError: If the fit has no model (and hence no gate set) to build labels from, or if
                 ``pairs`` names the same pair twice.
+            ValueError: If ``pairs`` is not given and the default cannot can be derived.
+            ValueError: If ``restrict_to_qubits`` filters out all pairs.
             ImportError: If ``matplotlib`` is not installed.
         """
         from ..visualizations.path_data.orchestrators import (
@@ -305,6 +313,7 @@ class Fit:
 
         return _plot_qubit_pair_decays(
             pairs,
+            restrict_to_qubits=restrict_to_qubits,
             observable_data=observable_data,
             observable_type=observable_type or "raw",
             observable_marker_kwargs=observable_marker_kwargs,

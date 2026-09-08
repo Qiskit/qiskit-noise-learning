@@ -27,7 +27,7 @@ def make_fit():
 
     The fit wraps a real :class:`~.IdentityFidelityModel` over a real
     :class:`~.ModelGateSet` carrying the requested coupling map, since the
-    post-select stages read only ``fit.model.gate_set.coupling_map``.
+    post-select stage reads only ``fit.model.gate_set.coupling_map``.
     """
 
     def _make(raw_data, coupling_map):

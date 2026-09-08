@@ -25,4 +25,3 @@ Classes
    PositivityMinSolve
    SymmetrizeFidelities
    SymmetrizeGenerators
-   ZeroPostSelect

@@ -35,8 +35,10 @@ class RawData(LeveledData):
     - Data variables:
 
         - ``data``: The raw boolean data with dimensions ``("randomization", "shot", "bit")``.
-        - ``data_mask``: A boolean mask with dimensions ``("randomization", "shot")``. Handles
-          potential raggedness in the ``"shot"`` dimension across different randomizations.
+        - ``data_mask``: A boolean mask with dimensions ``("randomization", "shot")``, where
+          ``True`` marks a shot to exclude, following the ``numpy.ma`` convention. Handles
+          potential raggedness in the ``"shot"`` dimension across different randomizations, as
+          well as the outcome of any post-selection.
         - ``measurement_flips``: A boolean array of measurement flips with dimensions
           ``("randomization", "bit")``.
         - ``time_lbs``: Lower bound on data acquisition times, with dimensions
