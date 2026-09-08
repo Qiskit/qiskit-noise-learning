@@ -290,10 +290,10 @@ class ModelSolve(AnalysisStage):
 
 
 class LeastSquaresSolve(ModelSolve):
-    r"""Solves for the :class:`~.ModelData` by least squares, with optional non-negativity constraints.
+    r"""Solves for :class:`~.ModelData` by least squares, with optional non-negativity constraints.
 
     Minimizes :math:`\|A x - b\|_2^2` over the design matrix ``A`` and target ``b``. 
-    Defaults to using :mod:`cvxpy` if installed, or else falls back to :func:`scipy.optimize.lsq_linear`.
+    Uses :mod:`cvxpy` if it is installed, or else falls back to :func:`scipy.optimize.lsq_linear`.
     See :class:`~.ModelSolve` for the general responsibility of a model solver in this library.
 
     Args:
