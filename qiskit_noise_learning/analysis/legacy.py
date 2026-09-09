@@ -51,7 +51,7 @@ class LegacySolve(AnalysisStage):
         aggregated_data = fit[AggregatedObservableData]
 
         noise_map = fit_noise_model_legacy(
-            fit,
+            aggregated_data,
             noise_assumption="symmetric_fidelities",
             decimals=None,
             optimizer_name="nnls",
@@ -190,7 +190,7 @@ def make_conj_pauli_list(
 
 
 def fit_noise_model_legacy(
-    fit: Fit,
+    aggregated_data: AggregatedObservableData,
     noise_assumption: NoiseAssumptionLiteral = "symmetric_fidelities",
     decimals: int | None = None,
     optimizer_name: OptimizerLiteral = "nnls",
@@ -204,7 +204,7 @@ def fit_noise_model_legacy(
     :class:`~.ModelSolve` and friends.
 
     Args:
-        fit: A :class:`~.Fit` container holding :class:`~.AggregatedObservableData`.
+        aggregated_data: The :class:`~.AggregatedObservableData` to fit.
         noise_assumption: How to treat Clifford conjugation of generators.
             ``"symmetric_fidelities"`` uses the square root of each pair fidelity as a
             single-layer fidelity. ``"symmetric_generators"`` assumes conjugate generator
@@ -225,10 +225,8 @@ def fit_noise_model_legacy(
         MissingOptionalLibraryError: If ``optimizer_name="cvxpy"`` and ``cvxpy`` is not
             installed.
     """
-    fid_ps_1, fid_ps_2 = get_fid_pairs(
-        fit.aggregated_observable_data.dataset.estimate_values.unbound_path.data
-    )
-    fid_pair_data = fit.aggregated_observable_data.dataset.estimate_values
+    fid_ps_1, fid_ps_2 = get_fid_pairs(aggregated_data.dataset.estimate_values.unbound_path.data)
+    fid_pair_data = aggregated_data.dataset.estimate_values
     fidelities_canonical = make_canonical_fid_dict(
         fid_ps_1.to_pauli_list().to_labels(), fid_ps_2.to_pauli_list().to_labels(), fid_pair_data
     )
