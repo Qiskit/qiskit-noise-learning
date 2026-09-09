@@ -12,6 +12,8 @@
 
 """Functions for running a QuantumProgram on a local Aer simulator."""
 
+from typing import Literal
+
 import numpy as np
 from qiskit.primitives.containers.bindings_array import BindingsArray
 from qiskit.primitives.containers.sampler_pub import SamplerPub
@@ -45,6 +47,7 @@ def run_quantum_program(
     program: QuantumProgram,
     noise_dict: dict[str, PauliLindbladMap] | None = None,
     angle_decimals: int = 5,
+    noise_site: Literal["before", "after"] = "after",
     warn_absent: bool = True,
     seed: int | None = None,
 ) -> QuantumProgramResult:
@@ -55,7 +58,9 @@ def run_quantum_program(
         program: The program to run.
         noise_dict: A map from barrier label refs to noise maps.
         angle_decimals: Gate angles are rounded to the nearest multiple of π/2 at this
-            decimal precision before simulation.  See :func:`AerExecutor` for details.
+            decimal precision before simulation.  See :class:`AerExecutor` for details.
+        noise_site: Whether to insert noise ``"after"`` each gate (default) or ``"before"``
+            it.  See :class:`AerExecutor`.
         warn_absent: Passed to :class:`InsertNoisePass`; see :class:`AerExecutor`.
         seed: Root seed for this run.  Independent seeds are derived from it for the twirl
             sampling and for each item's shot sampling, so a fixed value reproduces the run
@@ -79,7 +84,11 @@ def run_quantum_program(
 
         if noise_dict is not None:
             circuit = PassManager(
-                [InsertNoisePass(noise_dict=noise_dict, warn_absent=warn_absent)]
+                [InsertNoisePass(
+                    noise_dict=noise_dict,
+                    noise_after=(noise_site == "after"),
+                    warn_absent=warn_absent,
+                )]
             ).run(prog_item.circuit)
         else:
             circuit = prog_item.circuit
