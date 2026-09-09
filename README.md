@@ -36,8 +36,8 @@ of every aspect of a noise learning protocol. The second is a higher-level inter
 stock workflow into an easy-to-use `NoiseLearner` object. You can see both demonstrated in the
 following tutorials, which run locally against a fake backend and need no IBM Quantum credentials:
 
-- [`docs/tutorials/noise_learner.md`](docs/tutorials/noise_learner.md) — end-to-end use of `NoiseLearner`
-- [`docs/tutorials/workflow.md`](docs/tutorials/workflow.md) — step-by-step walkthrough of the internal pipeline
+- [`docs/guides/noise_learner.md`](docs/tutorials/noise_learner.md) — end-to-end use of `NoiseLearner`
+- [`docs/guides/workflow.md`](docs/tutorials/workflow.md) — step-by-step walkthrough of the internal pipeline
 
 
 ## Development

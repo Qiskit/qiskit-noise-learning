@@ -56,7 +56,6 @@ napoleon_include_init_with_doc = False
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy", None),
     "qiskit": ("https://quantum.cloud.ibm.com/docs/api/qiskit", None),
     "qiskit-ibm-runtime": ("https://quantum.cloud.ibm.com/docs/api/qiskit-ibm-runtime", None),
 }
