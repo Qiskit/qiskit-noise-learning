@@ -15,7 +15,7 @@ import warnings
 from abc import abstractmethod
 from collections.abc import Callable, Hashable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
-from typing import Generic, Self, TypeVar
+from typing import Generic, Literal, Self, TypeVar
 
 import numpy as np
 import scipy.optimize as opt
@@ -298,21 +298,23 @@ class LeastSquaresSolve(ModelSolve):
     Args:
         non_negative: Whether to constrain the solution to be non-negative (``x >= 0``). Defaults
             to ``True``.
-        solver: Either ``"cvxpy"`` (default) or ``"scipy"`` (calls ``lsq_linear``; can be much
-        slower). If ``"cvxpy"`` is requested but not installed, warns and falls back to scipy.
+        solver: Either ``"cvxpy"`` (default) or ``"scipy"``. If ``"cvxpy"`` is requested but not
+            installed, warns and falls back to ``"scipy"``.
 
     Raises:
         ValueError: If ``solver`` is not ``"cvxpy"`` or ``"scipy"``.
     """
 
-    def __init__(self, non_negative: bool = True, solver: str = "cvxpy"):
+    def __init__(self, non_negative: bool = True, solver: Literal["cvxpy", "scipy"] | None = None):
         if solver not in ("cvxpy", "scipy"):
             raise ValueError(f"`solver` must be 'cvxpy' or 'scipy', got {solver!r}.")
         self.non_negative = non_negative
         self.solver = solver
 
     def _solve(self, system: LinearSystemData) -> tuple[np.ndarray, np.ndarray, dict]:
-        use_cvxpy = self.solver == "cvxpy"
+        solver = self.solver or "cvxpy" if HAS_CVXPY else "scipy"
+
+        use_cvxpy = solver == "cvxpy"
         if use_cvxpy and not HAS_CVXPY:
             warnings.warn(
                 "The 'cvxpy' solver was requested but cvxpy is not installed; falling back to the "
