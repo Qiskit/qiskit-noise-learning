@@ -306,13 +306,13 @@ class LeastSquaresSolve(ModelSolve):
     """
 
     def __init__(self, non_negative: bool = True, solver: Literal["cvxpy", "scipy"] | None = None):
-        if solver not in ("cvxpy", "scipy"):
-            raise ValueError(f"`solver` must be 'cvxpy' or 'scipy', got {solver!r}.")
+        if solver not in ("cvxpy", "scipy", None):
+            raise ValueError(f"`solver` must be 'cvxpy', 'scipy', or None, got {solver!r}.")
         self.non_negative = non_negative
         self.solver = solver
 
     def _solve(self, system: LinearSystemData) -> tuple[np.ndarray, np.ndarray, dict]:
-        solver = self.solver or "cvxpy" if HAS_CVXPY else "scipy"
+        solver = self.solver or ("cvxpy" if HAS_CVXPY else "scipy")
 
         use_cvxpy = solver == "cvxpy"
         if use_cvxpy and not HAS_CVXPY:

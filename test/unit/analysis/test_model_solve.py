@@ -59,7 +59,7 @@ class TestLeastSquaresSolve:
 
     def test_invalid_solver_raises(self):
         """An unknown solver name is rejected at construction."""
-        with pytest.raises(ValueError, match="must be 'cvxpy' or 'scipy'"):
+        with pytest.raises(ValueError, match="`solver` must be 'cvxpy', 'scipy', or None"):
             LeastSquaresSolve(solver="nnls")
 
     def test_single_unbound_path(
