@@ -22,7 +22,6 @@ from qiskit_noise_learning.analysis import (
     LeastSquaresSolve,
     LinearSystemData,
     PositivityMinSolve,
-    model_solve,
 )
 from qiskit_noise_learning.data import AggregatedObservableData
 from qiskit_noise_learning.math import IndexedMatrix, IndexedVector
@@ -35,17 +34,11 @@ from qiskit_noise_learning.optionals import HAS_CVXPY
 
 
 @pytest.fixture(params=["cvxpy", "scipy"])
-def solver(request, monkeypatch):
-    """Exercise both solver code paths: cvxpy when available, and the scipy fallback.
-
-    The scipy fallback is forced by making ``LeastSquaresSolve`` see cvxpy as absent.
-    """
-    if request.param == "cvxpy":
-        if not HAS_CVXPY:
-            pytest.skip("cvxpy is not installed")
-    else:
-        monkeypatch.setattr(model_solve, "HAS_CVXPY", False)
-    return LeastSquaresSolve()
+def solver(request):
+    """Exercise both solver backends: cvxpy (when installed) and scipy."""
+    if request.param == "cvxpy" and not HAS_CVXPY:
+        pytest.skip("cvxpy is not installed")
+    return LeastSquaresSolve(solver=request.param)
 
 
 # Each CZ path's row is built from real Pauli-Lindblad commutation, so every coefficient is 2.0 per
@@ -63,6 +56,11 @@ def _get_rate_from_fit(fit, gate_name, label):
 
 class TestLeastSquaresSolve:
     """Tests for :class:`~.LeastSquaresSolve`."""
+
+    def test_invalid_solver_raises(self):
+        """An unknown solver name is rejected at construction."""
+        with pytest.raises(ValueError, match="must be 'cvxpy' or 'scipy'"):
+            LeastSquaresSolve(solver="nnls")
 
     def test_single_unbound_path(
         self, solver, gate_set_cz, make_cz_path, make_aggregated_observable_data
