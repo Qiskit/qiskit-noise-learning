@@ -293,19 +293,35 @@ class LeastSquaresSolve(ModelSolve):
     r"""Solves for :class:`~.ModelData` by least squares, with optional non-negativity constraints.
 
     Minimizes :math:`\|A x - b\|_2^2` over the design matrix ``A`` and target ``b``.
-    Uses :mod:`cvxpy` if it is installed, or else falls back to :func:`scipy.optimize.lsq_linear`.
     See :class:`~.ModelSolve` for the general responsibility of a model solver in this library.
 
     Args:
         non_negative: Whether to constrain the solution to be non-negative (``x >= 0``). Defaults
             to ``True``.
+        solver: Either ``"cvxpy"`` (default) or ``"scipy"`` (calls ``lsq_linear``; can be much
+        slower). If ``"cvxpy"`` is requested but not installed, warns and falls back to scipy.
+
+    Raises:
+        ValueError: If ``solver`` is not ``"cvxpy"`` or ``"scipy"``.
     """
 
-    def __init__(self, non_negative: bool = True):
+    def __init__(self, non_negative: bool = True, solver: str = "cvxpy"):
+        if solver not in ("cvxpy", "scipy"):
+            raise ValueError(f"`solver` must be 'cvxpy' or 'scipy', got {solver!r}.")
         self.non_negative = non_negative
+        self.solver = solver
 
     def _solve(self, system: LinearSystemData) -> tuple[np.ndarray, np.ndarray, dict]:
-        if HAS_CVXPY:
+        use_cvxpy = self.solver == "cvxpy"
+        if use_cvxpy and not HAS_CVXPY:
+            warnings.warn(
+                "The 'cvxpy' solver was requested but cvxpy is not installed; falling back to the "
+                "'scipy' solver.",
+                stacklevel=2,
+            )
+            use_cvxpy = False
+
+        if use_cvxpy:
             x, metadata = self._solve_cvxpy(system)
         else:
             x, metadata = self._solve_scipy(system)
