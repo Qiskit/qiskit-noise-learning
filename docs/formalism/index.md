@@ -1,5 +1,8 @@
 # Mathematical formalism
 
+% Local LaTeX macros
+$\newcommand{\Z}{\mathbb{Z}}\newcommand{\E}{\mathcal{E}}\newcommand{\Pauli}{\mathcal{P}}\newcommand{\U}{\mathcal{U}}\newcommand{\ip}[2]{\langle #1, #2 \rangle}\newcommand{\bra}[1]{\langle #1 |}\newcommand{\ket}[1]{| #1 \rangle}\newcommand{\opbra}[1]{\langle\!\langle #1 |}\newcommand{\opket}[1]{| #1 \rangle\!\rangle}$
+
 Given the task of learning Pauli noise for a set of Clifford gates, a common analysis technique is
 to track how individual Pauli operators are transformed through a sequence of gate applications
 (under the assumption that the gates are Clifford and the noise is a Pauli channel, a single Pauli
@@ -32,13 +35,13 @@ the package.
 ### 1.1 Notation
 
 For $K \in \mathbb{N}$, let $[K] = \{0, 1, \dots, K - 1\}$. For a finite set $S \subset \mathbb{N}$
-of qubit indices, let $\P^S$ denote the set of *unphased* Pauli operators acting on those qubits.
-Note that we think of elements of $\P^S$ as functions mapping $S \rightarrow \{I, X, Y, Z\}$, so
-that for any $P \in \P^S$ and $T \subseteq S$, $P|_T$ denotes the restriction of $P$ to the qubit
-subset $T$. Along these lines, for disjoint sets $S, T$, and $P \in \P^S$ and $Q \in \P^T$, $P
-\otimes Q$ denotes the element of $\P^{S \cup T}$ such that $P \otimes Q |_S = P$ and $P \otimes Q
-|_T = Q$. This notation is helpful to avoid explicitly dealing with subsystem orderings, and to make
-it easy to describe restrictions.
+of qubit indices, let $\Pauli^S$ denote the set of *unphased* Pauli operators acting on those
+qubits. Note that we think of elements of $\Pauli^S$ as functions mapping $S \rightarrow \{I, X, Y,
+Z\}$, so that for any $P \in \Pauli^S$ and $T \subseteq S$, $P|_T$ denotes the restriction of $P$ to
+the qubit subset $T$. Along these lines, for disjoint sets $S, T$, and $P \in \Pauli^S$ and $Q \in
+\Pauli^T$, $P \otimes Q$ denotes the element of $\Pauli^{S \cup T}$ such that $P \otimes Q |_S = P$
+and $P \otimes Q |_T = Q$. This notation is helpful to avoid explicitly dealing with subsystem
+orderings, and to make it easy to describe restrictions.
 
 For finite subsets $M \subset \mathbb{N}$, we denote $\Z_2^M$ as the set of the bit
 strings whose elements are indexed by $M$. Similarly to the above, we think of elements as functions
@@ -107,7 +110,7 @@ representation under consideration.
 In Lemma 1 of {cite}`zhang_generalized_2025`, it is shown that $\E_m = \U_mG$ can be rewritten
 as:
 
-$$ \E_m = \frac{1}{2^{2|M| + |N|}}\sum_{x, y \in \Z_2^M, Q \in \P^N} (-1)^{m \cdot (x + y)}
+$$ \E_m = \frac{1}{2^{2|M| + |N|}}\sum_{x, y \in \Z_2^M, Q \in \Pauli^N} (-1)^{m \cdot (x + y)}
 \lambda^Q_{x, y}\opket{Q \otimes Z^y}\opbra{G^\dagger(Q \otimes Z^x)}. $$ (clifford_mcm_form)
 
 for some real numbers $\lambda_{x,y}^Q$, which are called the *fidelities* of the instrument.
@@ -126,7 +129,7 @@ attained by simply composing it with Equation {eq}`reset_form`. This composition
 simplification, yields:
 
 $$ \frac{1}{2^{2|M|+|N|}} \sum_{\substack{x \in \Z_2^M, y \in \Z_2^{M \cup R} \\ Q \in
-\P^{N\setminus R}}} (-1)^{m \cdot (x + y|_M)} \lambda^Q_{x,y}  \opket{Q \otimes
+\Pauli^{N\setminus R}}} (-1)^{m \cdot (x + y|_M)} \lambda^Q_{x,y}  \opket{Q \otimes
 Z^y}\opbra{G^\dagger(Q \otimes I_{N \cap R} \otimes Z^x)}. $$ (clifford_mcm_reset_form)
 
 This decomposition indicates that the number of fidelities $\lambda^Q_{x, y}$ is
@@ -176,7 +179,7 @@ more general case {cite}`zhang_generalized_2025`:
 ```{prf:proposition}
 :label: prop-mcm-evolution
 
-For any $x \in \Z_2^M$, $y \in \Z_2^{M \cup R}$, and $Q\in \P^{N \setminus R}$, it holds that:
+For any $x \in \Z_2^M$, $y \in \Z_2^{M \cup R}$, and $Q\in \Pauli^{N \setminus R}$, it holds that:
 
 $$
 \opbra{Q \otimes Z^y}\otimes \opbra{Z^{x + y|_M}}_M \left(\sum_{m\in \Z_2^M} \E_m \otimes \opket{m}\right)
@@ -196,7 +199,7 @@ that for $x, y \in \Z_2^M$, it holds that $Z^{x+y} = \sum_{m \in \Z_2^M} (-1)^{m
 y)}\ket{m}\bra{m}$, and as such (in super operator notation) we have:
 
 $$ \begin{aligned} \sum_{m \in \Z_2^M} \E_m \otimes \opket{m}_M = \frac{1}{2^{2|M|+|N|}}\sum_{\substack{x \in
-\Z_2^M, y \in \Z_2^{M \cup R} \\ Q \in \P^{N\setminus R}}} \lambda^Q_{x,y}  \opket{Q \otimes Z^y}
+\Z_2^M, y \in \Z_2^{M \cup R} \\ Q \in \Pauli^{N\setminus R}}} \lambda^Q_{x,y}  \opket{Q \otimes Z^y}
 \opbra{G^\dagger(Q \otimes I_{N \cap R} \otimes Z^x)} \otimes \opket{Z^{x + y|_M}}_M, \end{aligned} $$
 
 where we have applied Equation {eq}`clifford_mcm_reset_form` and collected terms, and we use the
@@ -209,8 +212,8 @@ It holds that:
 $$
 \begin{aligned}
 &\opbra{Q \otimes Z^y} \otimes \opbra{Z^{x + y|_M}} \left(\sum_{m\in \Z_2^M} \E_m \otimes \opket{m}\right)\\
-&= \opbra{Q \otimes Z^y} \otimes \opbra{Z^{x + y|_M}} \left( \frac{1}{2^{2|M|+|N|}} \sum_{\substack{a \in \Z_2^M, b \in \Z_2^{M \cup R} \\ P \in \P^{N\setminus R}}} \lambda^P_{a,b}  \opket{P \otimes Z^b}\opbra{G^\dagger(P \otimes I_{N \cap R} \otimes Z^a)} \otimes \opket{Z^{a + b|_M}} \right) \\
-&=\frac{1}{2^{2|M| + |N|}}\sum_{\substack{a \in \Z_2^M, b \in \Z_2^{M \cup R} \\ P \in \P^{N \setminus R}}} \lambda^P_{a, b}\underbrace{\ip{Q \otimes Z^y}{P \otimes Z^b}}_{2^{|M| + |N|} \delta_{P, Q}\delta_{y,b}} \underbrace{\ip{Z^{x + y|_M}}{Z^{a + b|_M}}}_{2^{|M|}\delta_{x+y|_M,a+b|_M}}\opbra{G^\dagger(P \otimes I_{N \cap R} \otimes Z^a)}
+&= \opbra{Q \otimes Z^y} \otimes \opbra{Z^{x + y|_M}} \left( \frac{1}{2^{2|M|+|N|}} \sum_{\substack{a \in \Z_2^M, b \in \Z_2^{M \cup R} \\ P \in \Pauli^{N\setminus R}}} \lambda^P_{a,b}  \opket{P \otimes Z^b}\opbra{G^\dagger(P \otimes I_{N \cap R} \otimes Z^a)} \otimes \opket{Z^{a + b|_M}} \right) \\
+&=\frac{1}{2^{2|M| + |N|}}\sum_{\substack{a \in \Z_2^M, b \in \Z_2^{M \cup R} \\ P \in \Pauli^{N \setminus R}}} \lambda^P_{a, b}\underbrace{\ip{Q \otimes Z^y}{P \otimes Z^b}}_{2^{|M| + |N|} \delta_{P, Q}\delta_{y,b}} \underbrace{\ip{Z^{x + y|_M}}{Z^{a + b|_M}}}_{2^{|M|}\delta_{x+y|_M,a+b|_M}}\opbra{G^\dagger(P \otimes I_{N \cap R} \otimes Z^a)}
 \end{aligned}
 $$
 
