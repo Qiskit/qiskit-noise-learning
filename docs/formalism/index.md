@@ -9,7 +9,8 @@ $\newcommand{\Z}{\mathbb{Z}} % integers
 \newcommand{\bra}[1]{\langle #1 |}
 \newcommand{\ket}[1]{| #1 \rangle}
 \newcommand{\opbra}[1]{\langle\!\langle #1 |} % vectorized bra
-\newcommand{\opket}[1]{| #1 \rangle\!\rangle}$ % vectorized ket
+\newcommand{\opket}[1]{| #1 \rangle\!\rangle} % vectorized ket
+$
 Given the task of learning Pauli noise for a set of Clifford gates, a common analysis technique is
 to track how individual Pauli operators are transformed through a sequence of gate applications
 (under the assumption that the gates are Clifford and the noise is a Pauli channel, a single Pauli
