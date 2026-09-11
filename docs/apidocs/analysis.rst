@@ -23,6 +23,7 @@ Classes
    LinearSystemData
    LSQLinearSolve
    NNLSSolve
+   PerLayerLegacySolve
    PositivityMinSolve
    SymmetrizeFidelities
    SymmetrizeGenerators
