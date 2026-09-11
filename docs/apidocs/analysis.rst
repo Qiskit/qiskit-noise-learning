@@ -19,6 +19,7 @@ Classes
    CurveFitObservables
    Fit
    FlipPostSelect
+   LeastSquaresSolve
    LegacySolve
    LinearSystemData
    LSQLinearSolve

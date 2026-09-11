@@ -19,6 +19,6 @@ from .curve_fit_observables import CurveFitObservables
 from .fit import Fit
 from .flip_post_select import FlipPostSelect
 from .legacy import LegacySolve
-from .model_solve import LinearSystemData, LSQLinearSolve, NNLSSolve, PositivityMinSolve
+from .model_solve import LeastSquaresSolve, LinearSystemData, PositivityMinSolve
 from .per_layer_legacy import PerLayerLegacySolve
 from .symmetrize import SymmetrizeFidelities, SymmetrizeGenerators
