@@ -85,7 +85,8 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
         gate_set: The gate set whose fidelities are being modelled. To be converted to a
             :class:`ModelGateSet`.
         generators: A dictionary mapping gate name to the set of Pauli-Lindblad generators for the
-            noise model of that gate. The generators for each gate must be unique.
+            noise model of that gate. The generators for each gate must be unique. Generators for
+            preparation and measurement layers must be built from I and X only.
         noise_site: A dictionary specifying, for each gate name, whether the noise model occurs
             before or after the gate, indicated with strings ``"before"`` and ``"after"``. Any
             unspecified values for the gate set will be populated with default values: ``"before"``
@@ -110,7 +111,7 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
         self._meas_names = set(meas_names)
         self._prep_names = set(prep_names)
 
-        _validate_generators(gate_set, generators)
+        _validate_generators(gate_set, generators, prep_names, meas_names)
 
         self._noise_site = _validate_and_complete_noise_site_dict(
             gate_set, noise_site, prep_names, meas_names
@@ -528,32 +529,47 @@ def _validate_gate_set_form(gate_set: ModelGateSet) -> tuple[list[str], list[str
     return preparation_names, measurement_names
 
 
-def _validate_generators(gate_set: ModelGateSet, generators: dict[str, QubitSparsePauliList]):
+def _validate_generators(
+    gate_set: ModelGateSet,
+    generators: dict[str, QubitSparsePauliList],
+    prep_names: list[str],
+    meas_names: list[str],
+):
     """Validate the generators for the gate set.
 
-    Ensures the generators act only on the qubits the gate acts on, and that each generator is
-    unique.
+    Ensures the generators act only on the qubits the gate acts on, that each generator is unique,
+    and that preparation and measurement generators are built from :math:`I` and :math:`X` only.
 
     Args:
         gate_set: The gate set.
         generators: The generators to validate.
+        prep_names: The names of the pure preparation gates.
+        meas_names: The names of the pure measurement gates.
 
     Raises:
         ValueError: If the names of the gates don't match the keys of the dictionary, any generator
-            acts outside the bounds of the gate, or if any generator list does not have unqiue
-            elements.
+            acts outside the bounds of the gate, any generator list does not have unqiue elements,
+            or a preparation or measurement generator contains a Pauli other than :math:`X`.
     """
 
     if set(gate_set) != set(generators):
         raise ValueError("The gate names of gate_set must match the keys of generators.")
 
     for name, gate in gate_set.items():
+        is_spam = name in prep_names or name in meas_names
+
         unique_pauli_list = []
         for pauli in generators[name]:
             if pauli in unique_pauli_list:
                 raise ValueError("Generators for a given gate must be unique.")
             if not set(pauli.indices).issubset(gate.qubit_idxs):
                 raise ValueError("Generators must act only on the qubits the gate acts on.")
+            if is_spam and not (pauli.paulis == QubitSparsePauli.Pauli.X).all():
+                raise ValueError(
+                    f"Generator {pauli} of preparation or measurement gate {name!r} contains a "
+                    "Pauli other than X; preparation and measurement are assumed to occur in the "
+                    "Z basis, so their generators must be built from I and X only."
+                )
 
             unique_pauli_list.append(pauli)
 

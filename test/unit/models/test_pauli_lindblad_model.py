@@ -148,7 +148,7 @@ def test_construction_generator_errors(gate_set_cz):
             {
                 "R": QubitSparsePauliList(["IX"]),
                 "P": QubitSparsePauliList(["IX"]),
-                "M": QubitSparsePauliList(["IZ"]),
+                "M": QubitSparsePauliList(["IX"]),
             },
         )
 
@@ -158,7 +158,7 @@ def test_construction_generator_errors(gate_set_cz):
             {
                 "CZ": QubitSparsePauliList(["XX", "XX"]),
                 "P": QubitSparsePauliList(["IX"]),
-                "M": QubitSparsePauliList(["IZ"]),
+                "M": QubitSparsePauliList(["IX"]),
             },
         )
 
@@ -170,9 +170,20 @@ def test_construction_generator_errors(gate_set_cz):
             {
                 "CZ": QubitSparsePauliList(["XXI"]),
                 "P": QubitSparsePauliList(["IX"]),
-                "M": QubitSparsePauliList(["IZ"]),
+                "M": QubitSparsePauliList(["IX"]),
             },
         )
+
+
+def test_construction_spam_generators_must_be_x_only(gate_set_cz, generators_cz):
+    with pytest.raises(ValueError, match="contains a Pauli other than X"):
+        PauliLindbladModel(gate_set_cz, {**generators_cz, "P": QubitSparsePauliList(["IZ"])})
+
+    with pytest.raises(ValueError, match="contains a Pauli other than X"):
+        PauliLindbladModel(gate_set_cz, {**generators_cz, "M": QubitSparsePauliList(["XI", "IY"])})
+
+    # a mixed-Pauli generator on a Clifford gate is still fine
+    PauliLindbladModel(gate_set_cz, generators_cz)
 
 
 def test_noise_site_errors(gate_set_cz, generators_cz):
