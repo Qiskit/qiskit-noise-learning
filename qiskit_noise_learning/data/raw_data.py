@@ -18,12 +18,12 @@ import xarray as xr
 from qiskit_noise_learning.sequences import InstructionSequence
 
 from .leveled_data import LeveledData
+from .measurement_register import MeasurementRegister
 from .xarray_utils import filter_time, ragged_concat
 
-
-def _clbit_qubit_idxs_equal(map1: dict[str, np.ndarray], map2: dict[str, np.ndarray]) -> bool:
-    """Check equality of two clbit-to-qubit index maps (dicts of str -> np.ndarray)."""
-    return map1.keys() == map2.keys() and all(np.array_equal(map1[k], map2[k]) for k in map1)
+# The coordinates over the "bit" dimension that give each bit its identity. Two datasets may be
+# merged only if they agree on all of them.
+_BIT_COORD_NAMES = ("creg_name", "qubit_idx", "measuring_gate_idx")
 
 
 class RawData(LeveledData):
@@ -51,27 +51,20 @@ class RawData(LeveledData):
           dimension ``("randomization",)``, of type :class:`InstructionSequence`.
         - ``fragment_depth``: Integer array of fragment depths along dimension
           ``("randomization",)``.
-    - Attrs:
+        - ``creg_name``: The name of the classical register each bit belongs to, along dimension
+          ``("bit",)``.
+        - ``qubit_idx``: The physical qubit index whose outcome each bit holds, along dimension
+          ``("bit",)``.
+        - ``measuring_gate_idx``: The measuring gate whose outcomes this bit's register holds,
+          counted among the measuring gates of the instruction sequences only, in the order those
+          gates are traversed, or ``-1`` if the register has no such gate. Along dimension
+          ``("bit",)``.
 
-        - ``creg_names``: Ordered list of classical register names.
-        - ``clbit_qubit_idxs``: Dictionary mapping creg names to arrays of measured qubit indices,
-          where entry ``j`` is the physical qubit index measured into classical bit ``j`` of the
-          register.
-        - ``creg_bit_boundaries``: Dictionary mapping creg names to ``(start_idx, end_idx)`` tuples
-          indicating the slice of the ``"bit"`` dimension for that register.
-
-    The ``"bit"`` dimension is every classical register concatenated in ``creg_names`` order, so
-    that ``creg_bit_boundaries`` partitions it, and bit ``j`` of a register holds the outcome for
-    physical qubit ``clbit_qubit_idxs[creg][j]``. Note that a register need not measure in
-    ascending qubit order, and that the same physical qubit may be measured by more than one
-    register.
-
-    The registers stand in one-to-one correspondence with the measuring gates of the instruction
-    sequences the data was gathered from, in the order those gates are traversed, so that the
-    ``n``-th name of ``creg_names`` holds the outcomes of the ``n``-th measuring gate.
-
-    Datasets are grouped by creg metadata: two datasets with the same ``creg_names`` and
-    ``clbit_qubit_idxs`` are merged along the ``"randomization"`` dimension.
+    Datasets are grouped by their ``"bit"`` coordinates: two datasets whose bits carry the same
+    ``creg_name``, ``qubit_idx`` and ``measuring_gate_idx`` values are merged along the
+    ``"randomization"`` dimension. The comparison is elementwise along ``"bit"``, so datasets are
+    grouped by their bit *layout* and not merely by the set of registers they hold; see
+    :meth:`merge`.
 
     Args:
         datatree: A datatree in the above format.
@@ -88,8 +81,7 @@ class RawData(LeveledData):
     @classmethod
     def from_arrays(
         cls,
-        creg_names: list[str],
-        clbit_qubit_idxs: dict[str, np.ndarray],
+        registers: list[MeasurementRegister],
         instruction_sequences: list[InstructionSequence],
         data: list[np.ndarray[np.bool_]],
         measurement_flips: list[np.ndarray[np.bool_]],
@@ -98,37 +90,74 @@ class RawData(LeveledData):
     ):
         """Instantiate from data specified as arrays.
 
-        All instruction sequences must share the same creg structure (same ``creg_names`` and
-        ``clbit_qubit_idxs``). The resulting ``RawData`` contains a single-leaf datatree.
+        All instruction sequences must share the same registers. The resulting ``RawData`` contains
+        a single-leaf datatree.
 
         Args:
-            creg_names: Ordered list of classical register names.
-            clbit_qubit_idxs: Dictionary mapping creg names to arrays of measured physical qubit
-                indices, where entry ``j`` is the physical qubit index measured into classical bit
-                ``j`` of the register.
+            registers: The classical registers holding the data, in the order their bits are laid
+                out along the ``"bit"`` dimension.
             instruction_sequences: The list of instruction sequences used to generate the
                 experiments.
             data: A list of outcome data for each instruction sequence for all classical registers.
                 The data has dimensions ``("randomization", "shot", "bit")``. Bits are ordered
-                according to ``creg_names`` order, with each creg's bits contiguous.
+                according to ``registers`` order, with each register's bits contiguous.
             measurement_flips: A list of measurement flips to be applied to the data for each
                 instruction sequence. Dimensions are ``("randomization", "bit")``.
             time_lbs: A lower bound on the data collection time for each randomization for a given
                 instruction sequence. The dimensions are ``("randomization",)``.
             time_ubs: An upper bound on the data collection time for each randomization for a given
                 instruction sequence. The dimensions are ``("randomization",)``.
+
+        Raises:
+            ValueError: If the register names are not unique, if the per-sequence arguments do not
+                all have the same length, or if an array's ``"bit"`` dimension does not match the
+                total number of classical bits.
         """
-        creg_bit_boundaries = {}
-        offset = 0
-        for creg in creg_names:
-            length = len(clbit_qubit_idxs[creg])
-            creg_bit_boundaries[creg] = (offset, offset + length)
-            offset += length
+        names = [register.name for register in registers]
+        if len(set(names)) != len(names):
+            raise ValueError(f"The register names must be unique, but got {names}.")
+
+        lengths = {
+            "instruction_sequences": len(instruction_sequences),
+            "data": len(data),
+            "measurement_flips": len(measurement_flips),
+            "time_lbs": len(time_lbs),
+            "time_ubs": len(time_ubs),
+        }
+        if len(set(lengths.values())) > 1:
+            raise ValueError(
+                f"The per-sequence arguments must all have the same length, but got {lengths}."
+            )
+
+        # Each register's bits are contiguous and in the order the registers are given, which is
+        # the layout the data and measurement_flips entries must already be in.
+        bit_creg_names = [register.name for register in registers for _ in range(register.num_bits)]
+        bit_qubit_idxs = [idx for register in registers for idx in register.qubit_idxs]
+        bit_gate_idxs = [
+            register.measuring_gate_idx for register in registers for _ in register.qubit_idxs
+        ]
+        bit_coords = {
+            "creg_name": (("bit",), np.array(bit_creg_names, dtype=np.str_)),
+            "qubit_idx": (("bit",), np.array(bit_qubit_idxs, dtype=int)),
+            "measuring_gate_idx": (("bit",), np.array(bit_gate_idxs, dtype=int)),
+        }
+        num_bits = len(bit_qubit_idxs)
 
         raw_data = cls(datatree=xr.DataTree())
         for inst_sequence, inst_data, inst_meas_flips, inst_time_lbs, inst_time_ubs in zip(
             instruction_sequences, data, measurement_flips, time_lbs, time_ubs
         ):
+            if inst_data.shape[-1] != num_bits:
+                raise ValueError(
+                    f"The cregs hold {num_bits} classical bits in total, but an entry of data has "
+                    f"{inst_data.shape[-1]} along its 'bit' dimension."
+                )
+            if inst_meas_flips.shape[-1] != num_bits:
+                raise ValueError(
+                    f"The cregs hold {num_bits} classical bits in total, but an entry of "
+                    f"measurement_flips has {inst_meas_flips.shape[-1]} along its 'bit' dimension."
+                )
+
             new_dataset = xr.Dataset(
                 data_vars={
                     "data": xr.DataArray(data=inst_data, dims=["randomization", "shot", "bit"]),
@@ -151,11 +180,7 @@ class RawData(LeveledData):
                         ("randomization",),
                         np.array([inst_sequence.fragment_depth] * len(inst_data), dtype=int),
                     ),
-                },
-                attrs={
-                    "creg_names": creg_names,
-                    "clbit_qubit_idxs": clbit_qubit_idxs,
-                    "creg_bit_boundaries": creg_bit_boundaries,
+                    **bit_coords,
                 },
             )
 
@@ -166,9 +191,10 @@ class RawData(LeveledData):
     def merge(self, other: Self) -> Self:
         """Merge with another raw data set.
 
-        Datasets with matching creg metadata (``creg_names`` and ``clbit_qubit_idxs``) are
-        concatenated along the ``"randomization"`` dimension. Potential raggedness of the
-        ``"shot"`` dimension is handled via the ``"data_mask"`` data variable.
+        Datasets whose ``"bit"`` coordinates agree are concatenated along the ``"randomization"``
+        dimension. Potential raggedness of the ``"shot"`` dimension is handled via the
+        ``"data_mask"`` data variable. A dataset matching none of the existing leaves is added as a
+        new leaf.
 
         Args:
             other: The other raw dataset.
@@ -181,7 +207,7 @@ class RawData(LeveledData):
 
         for _, other_node in other.datatree.items():
             other_ds = other_node.dataset
-            matched_key = self._find_matching_key(new_datatree, other_ds.attrs)
+            matched_key = self._find_matching_key(new_datatree, other_ds)
             if matched_key is not None:
                 new_datatree[matched_key] = ragged_concat(
                     datasets=[new_datatree[matched_key].dataset, other_ds],
@@ -195,13 +221,14 @@ class RawData(LeveledData):
         return RawData(datatree=new_datatree)
 
     @staticmethod
-    def _find_matching_key(datatree: xr.DataTree, attrs: dict) -> str | None:
-        """Find a key in the datatree whose dataset has matching creg metadata."""
+    def _find_matching_key(datatree: xr.DataTree, dataset: xr.Dataset) -> str | None:
+        """Find a key in the datatree whose dataset has matching ``"bit"`` coordinates.
+
+        Matching is elementwise, so a dataset holding the same registers in a different bit order
+        does not match; see ``RawData.merge``.
+        """
         for key, node in datatree.items():
-            node_attrs = node.dataset.attrs
-            if node_attrs.get("creg_names") == attrs.get("creg_names") and _clbit_qubit_idxs_equal(
-                node_attrs.get("clbit_qubit_idxs", {}), attrs.get("clbit_qubit_idxs", {})
-            ):
+            if all(_variables_equal(node.dataset, dataset, name) for name in _BIT_COORD_NAMES):
                 return key
         return None
 
@@ -216,3 +243,12 @@ class RawData(LeveledData):
             The time filtered version of self.
         """
         return RawData(filter_time(self.datatree, lb=lb, ub=ub))
+
+
+def _variables_equal(dataset1: xr.Dataset, dataset2: xr.Dataset, name: str) -> bool:
+    """Check whether two datasets hold an equal variable under ``name``, or neither holds one."""
+    variable1 = dataset1.variables.get(name)
+    variable2 = dataset2.variables.get(name)
+    if variable1 is None or variable2 is None:
+        return variable1 is None and variable2 is None
+    return variable1.equals(variable2)

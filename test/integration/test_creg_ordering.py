@@ -49,20 +49,20 @@ def test_observable_of_crossed_measurement():
     seq = unbound_seq.bind_at(fragment_depth)
     path = unbound_path.bind_at(fragment_depth)
 
-    item, _, clbit_qubit_idxs = ExecutorCircuitGenerator(gate_set).generate_samplex_item(
+    _, registers = ExecutorCircuitGenerator(gate_set).generate_samplex_item(
         [seq], num_randomizations=1
     )
-    creg_names = [creg.name for creg in item.circuit.cregs]
-    np.testing.assert_array_equal(clbit_qubit_idxs["meas0"], [1, 0])
+    (register,) = registers
+    assert register.name == "meas0"
+    assert register.qubit_idxs == (1, 0)
 
     # a single shot outcome of 1 on physical qubit 0 and 0 on physical qubit 1
     data = np.zeros((1, 1, 2), dtype=bool)
-    data[..., list(clbit_qubit_idxs["meas0"]).index(0)] = True
+    data[..., register.qubit_idxs.index(0)] = True
 
     fit = Fit(paths=[path])
     fit[RawData] = RawData.from_arrays(
-        creg_names=creg_names,
-        clbit_qubit_idxs=clbit_qubit_idxs,
+        registers=registers,
         instruction_sequences=[seq],
         data=[data],
         measurement_flips=[np.zeros((1, 2), dtype=bool)],

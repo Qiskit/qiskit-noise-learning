@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from typing import Literal
 
 import numpy as np
@@ -27,8 +27,10 @@ class FlipPostSelect(AnalysisStage):
     group, and masks shots based on the structure of the failures. What counts as a failure depends
     on the size of the group:
 
-    * Two cregs ``(base, ps)``: bit ``j`` failed if it holds the same value in both, i.e. it did
-      not flip between the two measurements.
+    * Two cregs ``(base, ps)``: a qubit failed if its bit holds the same value in both, i.e. it
+      did not flip between the two measurements. The two registers must measure the same set of
+      qubits, but need not measure them in the same classical bit order; their bits are paired up
+      by the qubit they hold.
     * One creg ``(base,)``: bit ``j`` failed if it is True. This is the natural rule when a creg
       is expected to read out all-zeros, and coincides with the two-creg rule for a ``ps`` register
       of all ones.
@@ -82,14 +84,10 @@ class FlipPostSelect(AnalysisStage):
         def _dataset_masker(dataset: xr.Dataset) -> xr.Dataset:
             if "data" not in dataset:
                 return dataset
-            data = dataset["data"].values
             mask = dataset["data_mask"].values.copy()
-            boundaries = dataset.attrs["creg_bit_boundaries"]
-            creg_names = dataset.attrs["creg_names"]
-            clbit_qubit_idxs = dataset.attrs["clbit_qubit_idxs"]
 
-            for names in self._creg_identifier(creg_names):
-                failed, qubit_idxs = _failed_bits(names, data, boundaries, clbit_qubit_idxs)
+            for names in self._creg_identifier(_creg_names(dataset)):
+                failed, qubit_idxs = _failed_bits(names, dataset)
 
                 if self._mode == "node":
                     mask |= failed.any(axis=-1)
@@ -107,44 +105,74 @@ class FlipPostSelect(AnalysisStage):
         fit[RawData] = RawData(fit.raw_data.datatree.map_over_datasets(_dataset_masker))
 
 
-def _failed_bits(
-    names: Sequence[str],
-    data: np.ndarray,
-    boundaries: Mapping[str, tuple[int, int]],
-    clbit_qubit_idxs: Mapping[str, np.ndarray],
-) -> tuple[np.ndarray, np.ndarray]:
+def _creg_names(dataset: xr.Dataset) -> list[str]:
+    """Return the dataset's creg names, in order of first appearance along the ``"bit"`` dim."""
+    return list(dict.fromkeys(str(name) for name in dataset["creg_name"].values))
+
+
+def _failed_bits(names: Sequence[str], dataset: xr.Dataset) -> tuple[np.ndarray, np.ndarray]:
     """Return the failed bits of the creg group ``names``, and the qubits those bits measure.
 
-    The returned array has shape ``(randomization, shot, bit)``, and entry ``j`` of the returned
-    qubit indices is the physical qubit measured into bit ``j``. Note that the one-creg branch
-    returns a view into ``data`` rather than a fresh array.
+    The returned array has shape ``(randomization, shot, bit)``, spanning only the bits of the
+    group, and entry ``j`` of the returned qubit indices is the physical qubit measured into bit
+    ``j`` of that array. A register's bits are located by the dataset's ``"creg_name"``
+    coordinate, so the result does not depend on where along the ``"bit"`` dimension they sit.
+
+    A two-creg group is paired up by qubit rather than by classical bit position, so the two
+    registers may measure their common qubits in different orders. Both are put in ascending qubit
+    order, which is the order of the returned arrays.
+
+    Args:
+        names: The one or two creg names making up the group.
+        dataset: The leaf dataset holding the bits.
+
+    Returns:
+        The failed bits, and the physical qubits those bits measure.
+
+    Raises:
+        ValueError: If ``names`` does not hold one or two names, if a name matches no bit of the
+            dataset, or if a two-creg group's registers do not measure the same set of qubits.
     """
-    if len(names) == 1:
-        (name,) = names
-        start, end = boundaries[name]
-        return data[:, :, start:end], clbit_qubit_idxs[name]
+    if len(names) not in (1, 2):
+        raise ValueError(
+            f"The creg identifier must yield tuples of one or two creg names, but got "
+            f"{tuple(names)}."
+        )
 
-    if len(names) == 2:
-        base_name, ps_name = names
-        base_qubits = clbit_qubit_idxs[base_name]
-        ps_qubits = clbit_qubit_idxs[ps_name]
-        if not np.array_equal(base_qubits, ps_qubits):
+    bit_creg_names = dataset["creg_name"].values
+    bit_qubit_idxs = dataset["qubit_idx"].values
+
+    selections = []
+    for name in names:
+        selection = bit_creg_names == name
+        if not selection.any():
             raise ValueError(
-                f"Cregs '{base_name}' and '{ps_name}' must measure the same qubits in "
-                "the same classical bit order."
+                f"The creg identifier yielded '{name}', but no bit of the dataset belongs to a "
+                f"register of that name. The registers present are {_creg_names(dataset)}."
             )
+        selections.append(selection)
 
-        base_start, base_end = boundaries[base_name]
-        ps_start, ps_end = boundaries[ps_name]
+    data = dataset["data"].values
 
-        base_bits = data[:, :, base_start:base_end]
-        ps_bits = data[:, :, ps_start:ps_end]
+    if len(names) == 1:
+        (selection,) = selections
+        return data[:, :, selection], bit_qubit_idxs[selection]
 
-        return base_bits == ps_bits, base_qubits
+    base_selection, ps_selection = selections
+    base_order = np.argsort(bit_qubit_idxs[base_selection], kind="stable")
+    ps_order = np.argsort(bit_qubit_idxs[ps_selection], kind="stable")
+    base_qubits = bit_qubit_idxs[base_selection][base_order]
+    ps_qubits = bit_qubit_idxs[ps_selection][ps_order]
+    if not np.array_equal(base_qubits, ps_qubits):
+        raise ValueError(
+            f"Cregs '{names[0]}' and '{names[1]}' must measure the same qubits, but "
+            f"'{names[0]}' measures {base_qubits.tolist()} and '{names[1]}' measures "
+            f"{ps_qubits.tolist()}."
+        )
 
-    raise ValueError(
-        f"The creg identifier must yield tuples of one or two creg names, but got {tuple(names)}."
-    )
+    base_bits = data[:, :, base_selection][:, :, base_order]
+    ps_bits = data[:, :, ps_selection][:, :, ps_order]
+    return base_bits == ps_bits, base_qubits
 
 
 def suffix_creg_identifier(suffix: str = "ps") -> Callable[[list[str]], Iterator[tuple[str, ...]]]:

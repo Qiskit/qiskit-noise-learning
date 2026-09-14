@@ -74,10 +74,17 @@ def ragged_concat(datasets: list[xr.Dataset], concat_dim: str, ragged_dim: str):
     Note that if raggedness handling is not needed, the standard ``xr.concat`` function should be
     used.
 
+    Coordinates that do not span ``concat_dim`` describe the datasets' other dimensions, and so must
+    agree across them, and an error is raised if they do not.
+
     Args:
         datasets: The datasets to concatenate.
         concat_dim: The dimension to concatenate.
         ragged_dim: The dimensions to apply raggedness handling to.
+
+    Raises:
+        xarray.MergeError: If a coordinate that does not span ``concat_dim`` differs across the
+            datasets.
     """
     # find max ragged dim
     max_ragged_size = 0
@@ -88,7 +95,7 @@ def ragged_concat(datasets: list[xr.Dataset], concat_dim: str, ragged_dim: str):
         extend_dimension(x, ragged_dim, extension_size=max_ragged_size - x.sizes[ragged_dim])
         for x in datasets
     ]
-    return xr.concat(extended_datasets, dim=concat_dim)
+    return xr.concat(extended_datasets, dim=concat_dim, coords="minimal", compat="equals")
 
 
 def extend_dimension(dataset: xr.Dataset, dim: str, extension_size: int) -> xr.Dataset:

@@ -16,7 +16,7 @@ import xarray as xr
 from qiskit.transpiler import CouplingMap
 
 from qiskit_noise_learning.analysis import FlipPostSelect
-from qiskit_noise_learning.data import RawData
+from qiskit_noise_learning.data import MeasurementRegister, RawData
 
 
 def test_flip_post_select_node_masks_unchanged_bits(make_fit, make_raw_data):
@@ -36,11 +36,10 @@ def test_flip_post_select_node_masks_unchanged_bits(make_fit, make_raw_data):
         dtype=bool,
     )
     raw = make_raw_data(
-        creg_names=["meas0", "meas0_ps"],
-        clbit_qubit_idxs={
-            "meas0": np.array([0, 1, 2, 3]),
-            "meas0_ps": np.array([0, 1, 2, 3]),
-        },
+        registers=[
+            MeasurementRegister("meas0", (0, 1, 2, 3), measuring_gate_idx=-1),
+            MeasurementRegister("meas0_ps", (0, 1, 2, 3), measuring_gate_idx=-1),
+        ],
         data=data,
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
@@ -63,11 +62,10 @@ def test_flip_post_select_node_no_masking_when_all_flipped(make_fit, make_raw_da
         dtype=bool,
     )
     raw = make_raw_data(
-        creg_names=["meas0", "meas0_ps"],
-        clbit_qubit_idxs={
-            "meas0": np.array([0, 1, 2, 3]),
-            "meas0_ps": np.array([0, 1, 2, 3]),
-        },
+        registers=[
+            MeasurementRegister("meas0", (0, 1, 2, 3), measuring_gate_idx=-1),
+            MeasurementRegister("meas0_ps", (0, 1, 2, 3), measuring_gate_idx=-1),
+        ],
         data=data,
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
@@ -96,11 +94,10 @@ def test_flip_post_select_edge_masks_adjacent_pair_failures(make_fit, make_raw_d
         dtype=bool,
     )
     raw = make_raw_data(
-        creg_names=["meas0", "meas0_ps"],
-        clbit_qubit_idxs={
-            "meas0": np.array([0, 1, 2, 3]),
-            "meas0_ps": np.array([0, 1, 2, 3]),
-        },
+        registers=[
+            MeasurementRegister("meas0", (0, 1, 2, 3), measuring_gate_idx=-1),
+            MeasurementRegister("meas0_ps", (0, 1, 2, 3), measuring_gate_idx=-1),
+        ],
         data=data,
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
@@ -115,11 +112,10 @@ def test_flip_post_select_mismatched_qubits_raises(make_fit, make_raw_data):
     """FlipPostSelect raises ValueError when paired cregs measure different qubits."""
     data = np.zeros((1, 2, 4), dtype=bool)
     raw = make_raw_data(
-        creg_names=["meas0", "meas0_ps"],
-        clbit_qubit_idxs={
-            "meas0": np.array([0, 1]),
-            "meas0_ps": np.array([2, 3]),
-        },
+        registers=[
+            MeasurementRegister("meas0", (0, 1), measuring_gate_idx=-1),
+            MeasurementRegister("meas0_ps", (2, 3), measuring_gate_idx=-1),
+        ],
         data=data,
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
@@ -128,24 +124,54 @@ def test_flip_post_select_mismatched_qubits_raises(make_fit, make_raw_data):
         FlipPostSelect(mode="node").run(fit)
 
 
-def test_flip_post_select_mismatched_bit_order_raises(make_fit, make_raw_data):
-    """FlipPostSelect raises ValueError when cregs measure the same qubits in different orders.
+def test_flip_post_select_permuted_pair_aligns_by_qubit(make_fit, make_raw_data):
+    """A paired creg measuring the same qubits in a different bit order is aligned by qubit.
 
-    The flip comparison is elementwise over the two cregs' bits, so bit ``k`` of each must hold
-    the same physical qubit. Aligning a permuted pair is not currently supported.
+    The two cregs' bits are paired by the qubit they hold, not by classical bit position, so a
+    permuted ``ps`` register post-selects the same shots an aligned one would.
     """
-    data = np.zeros((1, 2, 4), dtype=bool)
+    # data layout: [meas0 bit 0 = q0, meas0 bit 1 = q1, meas0_ps bit 0 = q1, meas0_ps bit 1 = q0]
+    # shot 0: q0 holds False in both and q1 holds True in both → neither flipped → mask.
+    #         Compared elementwise instead, every bit would look flipped and the shot would survive,
+    #         so this shot fails if the alignment is dropped.
+    # shot 1: both qubits flipped → keep
+    data = np.array(
+        [
+            [
+                [False, True, True, False],
+                [False, False, True, True],
+            ]
+        ],
+        dtype=bool,
+    )
     raw = make_raw_data(
-        creg_names=["meas0", "meas0_ps"],
-        clbit_qubit_idxs={
-            "meas0": np.array([0, 1]),
-            "meas0_ps": np.array([1, 0]),
-        },
+        registers=[
+            MeasurementRegister("meas0", (0, 1), measuring_gate_idx=-1),
+            MeasurementRegister("meas0_ps", (1, 0), measuring_gate_idx=-1),
+        ],
         data=data,
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    with pytest.raises(ValueError, match="in the same classical bit order"):
+    result = FlipPostSelect(mode="node").run(fit)
+
+    mask = result[RawData].datatree["0"].dataset["data_mask"].values
+    np.testing.assert_array_equal(mask, [[True, False]])
+
+
+def test_flip_post_select_partially_overlapping_qubits_raises(make_fit, make_raw_data):
+    """FlipPostSelect raises ValueError when one paired creg measures qubits the other does not."""
+    data = np.zeros((1, 2, 5), dtype=bool)
+    raw = make_raw_data(
+        registers=[
+            MeasurementRegister("meas0", (0, 1), measuring_gate_idx=-1),
+            MeasurementRegister("meas0_ps", (0, 1, 2), measuring_gate_idx=-1),
+        ],
+        data=data,
+    )
+    fit = make_fit(raw, CouplingMap.from_line(4))
+
+    with pytest.raises(ValueError, match="must measure the same qubits"):
         FlipPostSelect(mode="node").run(fit)
 
 
@@ -174,11 +200,10 @@ def test_flip_post_select_multiple_randomizations(make_fit, make_raw_data):
         dtype=bool,
     )
     raw = make_raw_data(
-        creg_names=["meas0", "meas0_ps"],
-        clbit_qubit_idxs={
-            "meas0": np.array([0, 1, 2, 3]),
-            "meas0_ps": np.array([0, 1, 2, 3]),
-        },
+        registers=[
+            MeasurementRegister("meas0", (0, 1, 2, 3), measuring_gate_idx=-1),
+            MeasurementRegister("meas0_ps", (0, 1, 2, 3), measuring_gate_idx=-1),
+        ],
         data=data,
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
@@ -210,11 +235,10 @@ def test_flip_post_select_preserves_existing_mask(make_fit, make_raw_data):
         dtype=bool,
     )
     raw = make_raw_data(
-        creg_names=["meas0", "meas0_ps"],
-        clbit_qubit_idxs={
-            "meas0": np.array([0, 1, 2, 3]),
-            "meas0_ps": np.array([0, 1, 2, 3]),
-        },
+        registers=[
+            MeasurementRegister("meas0", (0, 1, 2, 3), measuring_gate_idx=-1),
+            MeasurementRegister("meas0_ps", (0, 1, 2, 3), measuring_gate_idx=-1),
+        ],
         data=data,
     )
     # Set shot 1 as already masked
@@ -246,8 +270,9 @@ def test_flip_post_select_single_creg_node_masks_shots_with_any_true_bit(make_fi
         dtype=bool,
     )
     raw = make_raw_data(
-        creg_names=["meas0_ps"],
-        clbit_qubit_idxs={"meas0_ps": np.array([0, 1, 2, 3])},
+        registers=[
+            MeasurementRegister("meas0_ps", (0, 1, 2, 3), measuring_gate_idx=-1),
+        ],
         data=data,
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
@@ -275,8 +300,9 @@ def test_flip_post_select_single_creg_edge_masks_adjacent_pair(make_fit, make_ra
         dtype=bool,
     )
     raw = make_raw_data(
-        creg_names=["meas0_ps"],
-        clbit_qubit_idxs={"meas0_ps": np.array([0, 1, 2, 3])},
+        registers=[
+            MeasurementRegister("meas0_ps", (0, 1, 2, 3), measuring_gate_idx=-1),
+        ],
         data=data,
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
@@ -302,8 +328,9 @@ def test_flip_post_select_single_creg_multiple_randomizations(make_fit, make_raw
         dtype=bool,
     )
     raw = make_raw_data(
-        creg_names=["meas0_ps"],
-        clbit_qubit_idxs={"meas0_ps": np.array([0, 1, 2, 3])},
+        registers=[
+            MeasurementRegister("meas0_ps", (0, 1, 2, 3), measuring_gate_idx=-1),
+        ],
         data=data,
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
@@ -327,8 +354,9 @@ def test_flip_post_select_single_creg_preserves_existing_mask(make_fit, make_raw
     data[0, 1, 0] = True  # shot 1 will be masked by node mode
 
     raw = make_raw_data(
-        creg_names=["meas0_ps"],
-        clbit_qubit_idxs={"meas0_ps": np.array([0, 1, 2, 3])},
+        registers=[
+            MeasurementRegister("meas0_ps", (0, 1, 2, 3), measuring_gate_idx=-1),
+        ],
         data=data,
     )
     # Manually set shot 2 as already masked
@@ -366,12 +394,11 @@ def test_flip_post_select_default_identifier_mixes_paired_and_unpaired_cregs(
         dtype=bool,
     )
     raw = make_raw_data(
-        creg_names=["meas0", "meas0_ps", "flag_ps"],
-        clbit_qubit_idxs={
-            "meas0": np.array([0, 1]),
-            "meas0_ps": np.array([0, 1]),
-            "flag_ps": np.array([2, 3]),
-        },
+        registers=[
+            MeasurementRegister("meas0", (0, 1), measuring_gate_idx=-1),
+            MeasurementRegister("meas0_ps", (0, 1), measuring_gate_idx=-1),
+            MeasurementRegister("flag_ps", (2, 3), measuring_gate_idx=-1),
+        ],
         data=data,
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
@@ -398,11 +425,10 @@ def test_flip_post_select_custom_identifier_can_force_single_creg_rule(make_fit,
         dtype=bool,
     )
     raw = make_raw_data(
-        creg_names=["meas0", "meas0_ps"],
-        clbit_qubit_idxs={
-            "meas0": np.array([0, 1]),
-            "meas0_ps": np.array([0, 1]),
-        },
+        registers=[
+            MeasurementRegister("meas0", (0, 1), measuring_gate_idx=-1),
+            MeasurementRegister("meas0_ps", (0, 1), measuring_gate_idx=-1),
+        ],
         data=data,
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
@@ -421,8 +447,9 @@ def test_flip_post_select_invalid_group_size_raises(names, make_fit, make_raw_da
     """An identifier yielding anything other than one or two names raises ValueError."""
     data = np.zeros((1, 2, 4), dtype=bool)
     raw = make_raw_data(
-        creg_names=["meas0_ps"],
-        clbit_qubit_idxs={"meas0_ps": np.array([0, 1, 2, 3])},
+        registers=[
+            MeasurementRegister("meas0_ps", (0, 1, 2, 3), measuring_gate_idx=-1),
+        ],
         data=data,
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
