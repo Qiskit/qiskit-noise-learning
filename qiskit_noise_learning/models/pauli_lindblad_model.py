@@ -12,10 +12,11 @@
 
 """PauliLindbladModel"""
 
+import warnings
 from collections.abc import Iterable
 from copy import copy
 from dataclasses import dataclass
-from itertools import chain, product
+from itertools import chain, combinations, product
 from typing import Literal, Self
 
 import numpy as np
@@ -85,7 +86,8 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
         gate_set: The gate set whose fidelities are being modelled. To be converted to a
             :class:`ModelGateSet`.
         generators: A dictionary mapping gate name to the set of Pauli-Lindblad generators for the
-            noise model of that gate. The generators for each gate must be unique.
+            noise model of that gate. The generators for each gate must be unique. Generators for
+            preparation and measurement layers must be built from I and X only.
         noise_site: A dictionary specifying, for each gate name, whether the noise model occurs
             before or after the gate, indicated with strings ``"before"`` and ``"after"``. Any
             unspecified values for the gate set will be populated with default values: ``"before"``
@@ -110,7 +112,7 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
         self._meas_names = set(meas_names)
         self._prep_names = set(prep_names)
 
-        _validate_generators(gate_set, generators)
+        _validate_generators(gate_set, generators, prep_names, meas_names)
 
         self._noise_site = _validate_and_complete_noise_site_dict(
             gate_set, noise_site, prep_names, meas_names
@@ -446,13 +448,29 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
         )
 
     def to_pauli_lindblad_maps(
-        self, model_data: ModelData, include_spam: bool = False
+        self,
+        model_data: ModelData,
+        include_spam: bool = False,
+        symmetrize_spam: bool = False,
     ) -> dict[str, PauliLindbladMap]:
-        """Return a dictionary of :class:`PauliLindbladMap` for each gate in the model.
+        r"""Return a dictionary of :class:`PauliLindbladMap` for each gate in the model.
 
         Args:
-            model_fit: The fitted model parameters and covariance.
+            model_data: The fitted model parameters.
             include_spam: Whether to include SPAM gates in the output.
+            symmetrize_spam: Whether to symmetrize the preparation and measurement noise maps into
+                fully-specified generalized depolarizing maps. Has no effect unless ``include_spam``
+                is ``True``. Noise for SPAM layers is restricted to be specified with only I and X
+                Paulis. If ``False``, this method returns the SPAM maps with the generators as they
+                are specified: with only I and X Paulis. If ``True``, the SPAM noise maps are
+                alternatively returned as generalized depolarizing maps; meaning all generators
+                that have the same pattern necessarily have the same rate. The generalized
+                depolarizing map is chosen such that: (1) It has the same fidelities on Z-only
+                operators as the original X-only map, and (2) It does not add any new maximal
+                patterns. Note that the number of generators may increase: the mapping requires that
+                the qubit subsets specified by the generators is closed under taking subsets, which
+                will not typically be true for k-local maps. Lastly, note that this may introduce
+                negative rates that were not there before; in which case a warning is raised.
 
         Returns:
             A dictionary from gate names to corresponding noise maps.
@@ -462,17 +480,39 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
         """
 
         noise_maps = {}
+
+        # rates of the gates to symmetrize, gathered here and converted once the rates of a whole
+        # gate are known. Stays empty unless symmetrize_spam and include_spam are both set.
+        rates_to_symmetrize = {}
+
         for generator_index, rate in zip(
             model_data.dataset["parameter_index"].data, model_data.dataset["parameter_values"].data
         ):
             if (gate_name := generator_index.gate_name) not in self.gate_set:
                 raise ValueError(f"Encountered generator for {gate_name} not present in gate set.")
-            if not include_spam:
-                if gate_name in self._meas_names or gate_name in self._prep_names:
-                    continue
 
-            noise_maps.setdefault(gate_name, []).append(
-                PauliLindbladMap.GeneratorTerm(rate, generator_index.generator)
+            is_spam = gate_name in self._meas_names or gate_name in self._prep_names
+            if is_spam and not include_spam:
+                continue
+
+            if is_spam and symmetrize_spam:
+                # generators of SPAM gates are X-only, so each is determined by its support
+                support = tuple(int(idx) for idx in generator_index.generator.indices)
+                rates_to_symmetrize.setdefault(gate_name, {})[support] = float(rate)
+                # claim the key now, so that the returned gates stay in order of first appearance
+                noise_maps.setdefault(gate_name, [])
+            else:
+                noise_maps.setdefault(gate_name, []).append(
+                    PauliLindbladMap.GeneratorTerm(rate, generator_index.generator)
+                )
+
+        for gate_name, rates in rates_to_symmetrize.items():
+            symmetrized = _symmetrized_spam_rates(rates)
+            # raise a warning if symmetrization introduces rate negativity
+            if min(rates.values(), default=0.0) >= 0.0:
+                _warn_on_negative_rates(gate_name, symmetrized)
+            noise_maps[gate_name] = _generalized_depolarizing_terms(
+                symmetrized, self.gate_set.num_qubits
             )
 
         return {
@@ -528,32 +568,47 @@ def _validate_gate_set_form(gate_set: ModelGateSet) -> tuple[list[str], list[str
     return preparation_names, measurement_names
 
 
-def _validate_generators(gate_set: ModelGateSet, generators: dict[str, QubitSparsePauliList]):
+def _validate_generators(
+    gate_set: ModelGateSet,
+    generators: dict[str, QubitSparsePauliList],
+    prep_names: list[str],
+    meas_names: list[str],
+):
     """Validate the generators for the gate set.
 
-    Ensures the generators act only on the qubits the gate acts on, and that each generator is
-    unique.
+    Ensures the generators act only on the qubits the gate acts on, that each generator is unique,
+    and that preparation and measurement generators are built from :math:`I` and :math:`X` only.
 
     Args:
         gate_set: The gate set.
         generators: The generators to validate.
+        prep_names: The names of the pure preparation gates.
+        meas_names: The names of the pure measurement gates.
 
     Raises:
         ValueError: If the names of the gates don't match the keys of the dictionary, any generator
-            acts outside the bounds of the gate, or if any generator list does not have unqiue
-            elements.
+            acts outside the bounds of the gate, any generator list does not have unqiue elements,
+            or a preparation or measurement generator contains a Pauli other than :math:`X`.
     """
 
     if set(gate_set) != set(generators):
         raise ValueError("The gate names of gate_set must match the keys of generators.")
 
     for name, gate in gate_set.items():
+        is_spam = name in prep_names or name in meas_names
+
         unique_pauli_list = []
         for pauli in generators[name]:
             if pauli in unique_pauli_list:
                 raise ValueError("Generators for a given gate must be unique.")
             if not set(pauli.indices).issubset(gate.qubit_idxs):
                 raise ValueError("Generators must act only on the qubits the gate acts on.")
+            if is_spam and not (pauli.paulis == QubitSparsePauli.Pauli.X).all():
+                raise ValueError(
+                    f"Generator {pauli} of preparation or measurement gate {name!r} contains a "
+                    "Pauli other than X; preparation and measurement are assumed to occur in the "
+                    "Z basis, so their generators must be built from I and X only."
+                )
 
             unique_pauli_list.append(pauli)
 
@@ -676,4 +731,89 @@ def _k_local_paulis(
         QubitSparsePauliList.from_qubit_sparse_paulis(paulis)
         if paulis
         else QubitSparsePauliList.empty(num_qubits)
+    )
+
+
+def _symmetrized_spam_rates(rates: dict[tuple[int, ...], float]) -> dict[tuple[int, ...], float]:
+    """Convert X-only rates into generalized depolarizing rates with the same Z-Pauli fidelities.
+
+    Both parameterizations are indexed by the qubit subset a generator is supported on. Requiring
+    equal fidelities on every ``Z^S`` determines the result uniquely, as
+
+        out[R] = sum over R' containing R of (-1) ** (|R'| - |R|) * rates[R'] / 2 ** |R'|,
+
+    which is computed here by distributing each input rate over the subsets of its own support. The
+    result is therefore supported on the subsets of the supports of ``rates``, so no new qubit is
+    introduced and no support grows.
+
+    Args:
+        rates: A mapping from qubit subsets to X-only rates. Subsets must be sorted tuples.
+
+    Returns:
+        A mapping from qubit subsets to generalized depolarizing rates.
+    """
+
+    symmetrized: dict[tuple[int, ...], float] = {}
+
+    for support, rate in rates.items():
+        weight = len(support)
+        for size in range(1, weight + 1):
+            sign = -1.0 if (weight - size) % 2 else 1.0
+            contribution = sign * rate / 2**weight
+            for subset in combinations(support, size):
+                symmetrized[subset] = symmetrized.get(subset, 0.0) + contribution
+
+    return symmetrized
+
+
+def _generalized_depolarizing_terms(
+    rates: dict[tuple[int, ...], float], num_qubits: int
+) -> list[PauliLindbladMap.GeneratorTerm]:
+    """Return the generator terms of a generalized depolarizing map.
+
+    Every Pauli supported on a given qubit subset carries that subset's rate.
+
+    Args:
+        rates: A mapping from qubit subsets to rates.
+        num_qubits: The number of qubits the generators act on.
+
+    Returns:
+        A list of generator terms.
+    """
+
+    terms = []
+    for support, rate in rates.items():
+        for paulis in product("XYZ", repeat=len(support)):
+            terms.append(
+                PauliLindbladMap.GeneratorTerm(
+                    rate,
+                    QubitSparsePauli.from_sparse_label(
+                        ("".join(paulis), list(support)), num_qubits=num_qubits
+                    ),
+                )
+            )
+    return terms
+
+
+def _warn_on_negative_rates(gate_name: str, rates: dict[tuple[int, ...], float]):
+    """Warn if any rate is negative, listing at most ten of the offending qubit subsets.
+
+    Args:
+        gate_name: The name of the gate the rates belong to.
+        rates: A mapping from qubit subsets to rates.
+    """
+
+    negative = sorted(support for support, rate in rates.items() if rate < 0.0)
+    if not negative:
+        return
+
+    shown = ", ".join(str(support) for support in negative[:10])
+    if len(negative) > 10:
+        shown += f", and {len(negative) - 10} more"
+
+    warnings.warn(
+        f"Symmetrizing the noise of gate {gate_name!r} produced {len(negative)} negative rate(s), "
+        "so the resulting map is not completely positive and cannot be sampled from; its action on "
+        f"Z-type Paulis is unaffected. Qubit subsets carrying a negative rate: {shown}.",
+        stacklevel=2,
     )

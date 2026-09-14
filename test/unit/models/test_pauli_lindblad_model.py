@@ -10,7 +10,8 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from itertools import product
+import warnings
+from itertools import combinations, product
 
 import numpy as np
 import pytest
@@ -148,7 +149,7 @@ def test_construction_generator_errors(gate_set_cz):
             {
                 "R": QubitSparsePauliList(["IX"]),
                 "P": QubitSparsePauliList(["IX"]),
-                "M": QubitSparsePauliList(["IZ"]),
+                "M": QubitSparsePauliList(["IX"]),
             },
         )
 
@@ -158,7 +159,7 @@ def test_construction_generator_errors(gate_set_cz):
             {
                 "CZ": QubitSparsePauliList(["XX", "XX"]),
                 "P": QubitSparsePauliList(["IX"]),
-                "M": QubitSparsePauliList(["IZ"]),
+                "M": QubitSparsePauliList(["IX"]),
             },
         )
 
@@ -170,9 +171,20 @@ def test_construction_generator_errors(gate_set_cz):
             {
                 "CZ": QubitSparsePauliList(["XXI"]),
                 "P": QubitSparsePauliList(["IX"]),
-                "M": QubitSparsePauliList(["IZ"]),
+                "M": QubitSparsePauliList(["IX"]),
             },
         )
+
+
+def test_construction_spam_generators_must_be_x_only(gate_set_cz, generators_cz):
+    with pytest.raises(ValueError, match="contains a Pauli other than X"):
+        PauliLindbladModel(gate_set_cz, {**generators_cz, "P": QubitSparsePauliList(["IZ"])})
+
+    with pytest.raises(ValueError, match="contains a Pauli other than X"):
+        PauliLindbladModel(gate_set_cz, {**generators_cz, "M": QubitSparsePauliList(["XI", "IY"])})
+
+    # a mixed-Pauli generator on a Clifford gate is still fine
+    PauliLindbladModel(gate_set_cz, generators_cz)
 
 
 def test_noise_site_errors(gate_set_cz, generators_cz):
@@ -784,6 +796,144 @@ def test_to_pauli_lindblad_maps_raises(gate_set_cz, generators_cz):
 
     with pytest.raises(ValueError, match="not present in gate set"):
         model.to_pauli_lindblad_maps(model_fit)
+
+
+# --------------------------------------------------------------------------------------------------
+# to_pauli_lindblad_maps, symmetrize_spam argument
+# --------------------------------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def gate_set_3q():
+    """A 3-qubit gate set with only pure preparation ``P`` and measurement ``M``."""
+    model_gate_set = ModelGateSet(3)
+    model_gate_set.add_gate(ModelGate("P", qubit_idxs=range(3), prep_idxs=range(3)))
+    model_gate_set.add_gate(ModelGate("M", qubit_idxs=range(3), meas_idxs=range(3)))
+    return model_gate_set
+
+
+def _pauli(letter, support, num_qubits):
+    return QubitSparsePauli.from_sparse_label((letter * len(support), list(support)), num_qubits)
+
+
+def _spam_model_and_data(gate_set, rates, num_qubits):
+    """Build an X-only SPAM model, and fit data for it, from a mapping from support to rate."""
+    generators = {
+        name: QubitSparsePauliList.from_qubit_sparse_paulis(
+            [_pauli("X", support, num_qubits) for support in rates]
+        )
+        for name in gate_set
+    }
+    parameter_indices = [
+        GeneratorIndex(name, _pauli("X", support, num_qubits))
+        for name in gate_set
+        for support in rates
+    ]
+    size = len(parameter_indices)
+
+    model_data = ModelData.from_arrays(
+        parameter_indices=parameter_indices,
+        parameter_values=np.array([rates[support] for _ in gate_set for support in rates]),
+        covariance=np.eye(size),
+        time_lbs=np.empty(size, dtype="datetime64[us]"),
+        time_ubs=np.empty(size, dtype="datetime64[us]"),
+    )
+    return PauliLindbladModel(gate_set, generators), model_data
+
+
+def _rates_by_support(noise_map):
+    """A mapping from qubit subset to the set of rates carried by the Paulis on that subset."""
+    rates = {}
+    for generator, rate in zip(noise_map.generators(), noise_map.rates):
+        rates.setdefault(tuple(sorted(int(idx) for idx in generator.indices)), set()).add(
+            float(rate)
+        )
+    return rates
+
+
+def test_symmetrize_spam_one_local(gate_set_cz):
+    """Each single-qubit rate is halved and spread over X, Y and Z."""
+    rates = {(0,): 1e-2, (1,): 8e-3}
+    model, model_data = _spam_model_and_data(gate_set_cz, rates, 2)
+
+    symmetrized = model.to_pauli_lindblad_maps(model_data, True, symmetrize_spam=True)["M"]
+
+    assert _rates_by_support(symmetrized) == {(0,): {5e-3}, (1,): {4e-3}}
+    assert symmetrized.num_terms == 6
+
+
+def test_symmetrize_spam_two_local(gate_set_cz, generators_cz):
+    """A pair rate quarters, and corrects the single-qubit rates it overlaps."""
+    rates = {(0,): 1e-2, (1,): 8e-3, (0, 1): 1e-3}
+    model, model_data = _spam_model_and_data(gate_set_cz, rates, 2)
+
+    symmetrized = model.to_pauli_lindblad_maps(model_data, True, symmetrize_spam=True)["M"]
+
+    # r_j = x_j / 2 - x_01 / 4, and r_01 = x_01 / 4
+    assert _rates_by_support(symmetrized) == {
+        (0,): {4.75e-3},
+        (1,): {3.75e-3},
+        (0, 1): {2.5e-4},
+    }
+    assert symmetrized.num_terms == 15
+
+    # left alone, the map keeps the X-only generators it was fit with
+    plain = model.to_pauli_lindblad_maps(model_data, True, symmetrize_spam=False)["M"]
+    assert plain.to_sparse_list() == [("X", [0], 1e-2), ("X", [1], 8e-3), ("XX", [0, 1], 1e-3)]
+
+
+def test_symmetrize_spam_three_local(gate_set_3q):
+    """A weight-three rate pulls in the subsets of its support, including absent ones."""
+    # the connected 3-local supports on the path 0 - 1 - 2, which omit (0, 2)
+    rates = {
+        (0,): 1e-2,
+        (1,): 1e-2,
+        (2,): 1e-2,
+        (0, 1): 1e-3,
+        (1, 2): 1e-3,
+        (0, 1, 2): 1e-4,
+    }
+    model, model_data = _spam_model_and_data(gate_set_3q, rates, 3)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        symmetrized = model.to_pauli_lindblad_maps(model_data, True, symmetrize_spam=True)["M"]
+        plain = model.to_pauli_lindblad_maps(model_data, True, symmetrize_spam=False)["M"]
+
+    # (0, 2) is absent from the model but is a subset of (0, 1, 2), so it is introduced, one qubit
+    # smaller and therefore with a single negated term
+    assert _rates_by_support(symmetrized) == {
+        (0,): {4.7625e-3},
+        (1,): {4.5125e-3},
+        (2,): {4.7625e-3},
+        (0, 1): {2.375e-4},
+        (0, 2): {-1.25e-5},
+        (1, 2): {2.375e-4},
+        (0, 1, 2): {1.25e-5},
+    }
+    assert symmetrized.num_terms == 63
+
+    # the point of the exercise: the two maps act identically on every Z-type Pauli
+    for size in [1, 2, 3]:
+        for support in combinations(range(3), size):
+            pauli = _pauli("Z", support, 3)
+            assert symmetrized.pauli_fidelity(pauli) == pytest.approx(plain.pauli_fidelity(pauli))
+
+
+def test_symmetrize_spam_warns_only_on_new_negative_rates(gate_set_cz):
+    """A negative rate is worth flagging only if the rates being symmetrized had none."""
+    # a pair rate above twice the single-qubit rates drives r_j negative
+    model, model_data = _spam_model_and_data(gate_set_cz, {(0,): 1e-3, (1,): 1e-3, (0, 1): 5e-3}, 2)
+    with pytest.warns(UserWarning, match="negative rate"):
+        model.to_pauli_lindblad_maps(model_data, True, symmetrize_spam=True)
+
+    # a caller whose fit already has negative rates has accepted them
+    model, model_data = _spam_model_and_data(
+        gate_set_cz, {(0,): -1e-3, (1,): 5e-3, (0, 1): 5e-3}, 2
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        model.to_pauli_lindblad_maps(model_data, True, symmetrize_spam=True)
 
 
 def test_rate_space_dim(generators_cz):
