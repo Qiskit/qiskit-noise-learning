@@ -51,23 +51,23 @@ def assert_correct(expected: dict[str, np.ndarray], executor_results: dict[str, 
         AssertionError: If corrected data does not exactly match the expected outcome.
     """
     for name, expected_bits in expected.items():
-        assert name in executor_results, (
-            f"Classical register '{name}' not found in executor results"
-        )
+        assert (
+            name in executor_results
+        ), f"Classical register '{name}' not found in executor results"
         arr = executor_results[name]
         assert arr.dtype == np.bool_, f"Expected '{name}' to have dtype bool, got '{arr.dtype}'."
         assert arr.ndim == 3, f"Expected 3-d array for '{name}', got shape {arr.shape}"
-        assert arr.shape[2] == len(expected_bits), (
-            f"Expected {len(expected_bits)} bits for '{name}', got {arr.shape[2]}"
-        )
+        assert arr.shape[2] == len(
+            expected_bits
+        ), f"Expected {len(expected_bits)} bits for '{name}', got {arr.shape[2]}"
 
         corrected = arr
         if (flips := executor_results.get(f"measurement_flips.{name}")) is not None:
             corrected = arr ^ flips
 
-        assert (corrected == expected_bits).all(), (
-            f"Corrected data for '{name}' does not match expected outcome {expected_bits}"
-        )
+        assert (
+            corrected == expected_bits
+        ).all(), f"Corrected data for '{name}' does not match expected outcome {expected_bits}"
 
 
 def test_clifford_circuit_item(fez_backend, stabilizer_simulator):
@@ -114,9 +114,9 @@ def test_clifford_circuit_item(fez_backend, stabilizer_simulator):
     # Verify that all shots are either all-zeros or all-ones across the 3 bits.
     for key, arr in item_data.items():
         for shot in arr:
-            assert all(shot == 0) or all(shot == 1), (
-                f"Unexpected measurement outcome {shot} — GHZ state should only yield 000 or 111"
-            )
+            assert all(shot == 0) or all(
+                shot == 1
+            ), f"Unexpected measurement outcome {shot} — GHZ state should only yield 000 or 111"
 
 
 def test_clifford_samplex_item(fez_backend, stabilizer_simulator):

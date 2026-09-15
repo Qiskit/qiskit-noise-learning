@@ -103,9 +103,9 @@ def test_broadcast_sample_no_broadcast_axes(cx_item):
     assert isinstance(result, dict)
     assert len(result) > 0
     for key, val in result.items():
-        assert val.shape[: len(shape)] == shape, (
-            f"Expected leading shape {shape} for '{key}', got {val.shape}"
-        )
+        assert (
+            val.shape[: len(shape)] == shape
+        ), f"Expected leading shape {shape} for '{key}', got {val.shape}"
 
 
 def test_broadcast_sample_output_keys(cx_item):
@@ -129,9 +129,9 @@ def test_broadcast_sample_all_broadcast_axes(param_item_mixed):
     result = broadcast_sample(item.samplex, item.samplex_arguments, shape, rng)
 
     for key, val in result.items():
-        assert val.shape[: len(shape)] == shape, (
-            f"Expected leading shape {shape} for '{key}', got {val.shape}"
-        )
+        assert (
+            val.shape[: len(shape)] == shape
+        ), f"Expected leading shape {shape} for '{key}', got {val.shape}"
 
 
 def test_broadcast_sample_rng_reproducible(cx_item):

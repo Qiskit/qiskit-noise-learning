@@ -115,6 +115,6 @@ class TestVanillaInstructionSequences:
         exp = seqs_stage.run(exp)
 
         for path in exp.paths:
-            assert any(path.is_traversed_by(seq) for seq in exp.instruction_sequences), (
-                f"Path not traversed by any sequence: {path}"
-            )
+            assert any(
+                path.is_traversed_by(seq) for seq in exp.instruction_sequences
+            ), f"Path not traversed by any sequence: {path}"

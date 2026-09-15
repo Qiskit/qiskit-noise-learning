@@ -221,9 +221,9 @@ class TestSvgContract:
         hashed = re.compile(r"^[pm][0-9a-f]{8,}$")
         mine = {gid for gid in _definitions(figure.to_svg()) if hashed.match(gid)}
         theirs = {gid for gid in _definitions(twin.to_svg()) if hashed.match(gid)}
-        assert mine and theirs, (
-            "no hash-named definitions; has matplotlib changed how it names them?"
-        )
+        assert (
+            mine and theirs
+        ), "no hash-named definitions; has matplotlib changed how it names them?"
         assert not mine & theirs
 
 
