@@ -174,7 +174,7 @@ def test_recovers_known_rates_symmetric_fidelities(two_qubit_anticomm_fit, optim
         pytest.importorskip("cvxpy")
 
     nm = fit_noise_model_legacy(
-        two_qubit_anticomm_fit,
+        two_qubit_anticomm_fit.aggregated_observable_data,
         noise_assumption="symmetric_fidelities",
         optimizer_name=optimizer,
     )
@@ -187,13 +187,13 @@ def test_recovers_known_rates_symmetric_fidelities(two_qubit_anticomm_fit, optim
 
 
 def test_returns_pauli_lindblad_map(two_qubit_anticomm_fit):
-    nm = fit_noise_model_legacy(two_qubit_anticomm_fit)
+    nm = fit_noise_model_legacy(two_qubit_anticomm_fit.aggregated_observable_data)
     assert isinstance(nm, PauliLindbladMap)
     assert len(list(nm.generators())) == 2
 
 
 def test_decimals_rounds_rates(two_qubit_anticomm_fit):
-    nm = fit_noise_model_legacy(two_qubit_anticomm_fit, decimals=1)
+    nm = fit_noise_model_legacy(two_qubit_anticomm_fit.aggregated_observable_data, decimals=1)
     rates = sorted(nm.rates, reverse=True)
     # 0.10 stays 0.1; 0.05 rounds to 0.1 (banker's rounding via numpy → 0.0 or 0.1).
     # Either way both are 1-decimal-rounded values.
@@ -203,17 +203,26 @@ def test_decimals_rounds_rates(two_qubit_anticomm_fit):
 
 def test_unrecognized_optimizer_raises(two_qubit_anticomm_fit):
     with pytest.raises(ValueError, match="Optimizer name"):
-        fit_noise_model_legacy(two_qubit_anticomm_fit, optimizer_name="not_a_solver")
+        fit_noise_model_legacy(
+            two_qubit_anticomm_fit.aggregated_observable_data, optimizer_name="not_a_solver"
+        )
 
 
 def test_unrecognized_assumption_raises(two_qubit_anticomm_fit):
     with pytest.raises(ValueError, match="Noise assumption"):
-        fit_noise_model_legacy(two_qubit_anticomm_fit, noise_assumption="not_an_assumption")
+        fit_noise_model_legacy(
+            two_qubit_anticomm_fit.aggregated_observable_data,
+            noise_assumption="not_an_assumption",
+        )
 
 
 def test_nnls_with_constrained_false_raises(two_qubit_anticomm_fit):
     with pytest.raises(ValueError, match="constrained=False"):
-        fit_noise_model_legacy(two_qubit_anticomm_fit, optimizer_name="nnls", constrained=False)
+        fit_noise_model_legacy(
+            two_qubit_anticomm_fit.aggregated_observable_data,
+            optimizer_name="nnls",
+            constrained=False,
+        )
 
 
 def test_cvxpy_branch_raises_when_unavailable(two_qubit_anticomm_fit, monkeypatch):
@@ -229,7 +238,9 @@ def test_cvxpy_branch_raises_when_unavailable(two_qubit_anticomm_fit, monkeypatc
     monkeypatch.setattr(legacy, "HAS_CVXPY", _UnavailableCVXPY)
 
     with pytest.raises(ImportError):
-        fit_noise_model_legacy(two_qubit_anticomm_fit, optimizer_name="cvxpy")
+        fit_noise_model_legacy(
+            two_qubit_anticomm_fit.aggregated_observable_data, optimizer_name="cvxpy"
+        )
 
 
 def test_zero_noise_yields_zero_rates(gate_set_2q_identity):
@@ -237,7 +248,7 @@ def test_zero_noise_yields_zero_rates(gate_set_2q_identity):
     pps = [_pp(gate_set_2q_identity, "XI", "XI"), _pp(gate_set_2q_identity, "ZI", "ZI")]
     fit = Fit()
     fit[AggregatedObservableData] = _make_aggregated_observable_data(pps, np.array([1.0, 1.0]))
-    nm = fit_noise_model_legacy(fit)
+    nm = fit_noise_model_legacy(fit.aggregated_observable_data)
     assert all(r == pytest.approx(0.0, abs=1e-12) for r in nm.rates)
 
 
