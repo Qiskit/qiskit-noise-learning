@@ -167,6 +167,15 @@ class AerExecutor:
         self._seed_sequence = np.random.SeedSequence(root_seed)
 
     @property
+    def noise_site(self) -> Literal["before", "after"]:
+        """Whether noise is inserted ``"after"`` each gate (default) or ``"before"`` it."""
+        return self._noise_site
+
+    @noise_site.setter
+    def noise_site(self, value: Literal["before", "after"]) -> None:
+        self._noise_site = value
+
+    @property
     def root_seed(self) -> int:
         """The root seed each run's randomness is derived from.
 

@@ -106,9 +106,9 @@ def test_resolve_passthrough_shapes(cx_samplex_item):
 
     assert len(passthrough) > 0
     for key, val in passthrough.items():
-        assert (
-            val.shape[: len(item.shape)] == item.shape
-        ), f"Expected leading shape {item.shape} for passthrough '{key}', got {val.shape}"
+        assert val.shape[: len(item.shape)] == item.shape, (
+            f"Expected leading shape {item.shape} for passthrough '{key}', got {val.shape}"
+        )
 
 
 def test_resolve_measurement_flips_in_passthrough(cx_samplex_item):
@@ -169,9 +169,9 @@ def test_resolve_param_sweep_shapes(param_samplex_item):
 
     assert circuit_item.circuit_arguments.shape[: len(shape)] == shape
     for key, val in passthrough.items():
-        assert (
-            val.shape[: len(shape)] == shape
-        ), f"Expected leading shape {shape} for '{key}', got {val.shape}"
+        assert val.shape[: len(shape)] == shape, (
+            f"Expected leading shape {shape} for '{key}', got {val.shape}"
+        )
 
 
 # ---------------------------------------------------------------------------

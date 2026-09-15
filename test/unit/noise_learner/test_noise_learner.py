@@ -149,3 +149,55 @@ def test_noise_learner_run_uses_supplied_executor(mock_executor_cls, options):
     executor.run.assert_called_once()
     (program,) = executor.run.call_args.args
     assert isinstance(program, QuantumProgram)
+
+
+def _make_box_with_noise_site(backend, pair=(17, 27), site="after"):
+    circuit = QuantumCircuit(backend.num_qubits)
+    with circuit.box([Twirl(), InjectNoise("layer", site=site)]):
+        circuit.cz(*pair)
+    return circuit.data[0]
+
+
+def test_derive_noise_site_single_site(options):
+    """_derive_noise_site returns the site when all boxes agree."""
+    backend = FakeFez()
+    learner = NoiseLearner(backend, options)
+    instr = _make_box_with_noise_site(backend, site="before")
+    assert learner._derive_noise_site([instr]) == "before"  # noqa: SLF001
+
+
+def test_derive_noise_site_no_annotation(options):
+    """_derive_noise_site returns None when no boxes carry InjectNoise."""
+    backend = FakeFez()
+    learner = NoiseLearner(backend, options)
+    instr = _make_box_instruction()
+    assert learner._derive_noise_site([instr]) is None  # noqa: SLF001
+
+
+def test_derive_noise_site_conflicting_raises(options):
+    """_derive_noise_site raises when boxes disagree on site."""
+    backend = FakeFez()
+    learner = NoiseLearner(backend, options)
+    instr_before = _make_box_with_noise_site(backend, pair=(17, 27), site="before")
+    instr_after = _make_box_with_noise_site(backend, pair=(12, 17), site="after")
+    with pytest.raises(ValueError, match="noise_site"):
+        learner._derive_noise_site([instr_before, instr_after])  # noqa: SLF001
+
+
+def test_aer_executor_noise_site_propagated_by_noise_learner(options):
+    """NoiseLearner sets AerExecutor.noise_site from the box InjectNoise annotation."""
+    from unittest.mock import patch as _patch
+
+    backend = FakeFez()
+    fake_executor = MagicMock(spec=AerExecutor)
+    fake_executor.noise_site = "after"
+
+    learner = NoiseLearner(backend, options, executor=fake_executor)
+
+    instr = _make_box_with_noise_site(backend, site="before")
+
+    fake_result = (QuantumProgram(shots=4, items=[]), MagicMock())
+    with _patch.object(learner, "_generate", return_value=fake_result):
+        learner.run([instr])
+
+    assert fake_executor.noise_site == "before"

@@ -84,11 +84,13 @@ def run_quantum_program(
 
         if noise_dict is not None:
             circuit = PassManager(
-                [InsertNoisePass(
-                    noise_dict=noise_dict,
-                    noise_after=(noise_site == "after"),
-                    warn_absent=warn_absent,
-                )]
+                [
+                    InsertNoisePass(
+                        noise_dict=noise_dict,
+                        noise_after=(noise_site == "after"),
+                        warn_absent=warn_absent,
+                    )
+                ]
             ).run(prog_item.circuit)
         else:
             circuit = prog_item.circuit
