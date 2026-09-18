@@ -14,4 +14,5 @@ API reference
    models
    noise_learner
    sequences
+   utils
    visualizations
