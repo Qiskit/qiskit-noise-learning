@@ -48,6 +48,13 @@ class ExecutorCircuitGenerator(
         pass_manager: An optional ``PassManager`` to apply to all template circuits produced by
             :meth:`ExecutorCircuitGenerator.generate`. Pass managers should not modify the details
             of the existing circuit (e.g. re-order qubits or rename measurements).
+
+    Pure preparation gates (those with ``prep_idxs`` and no measurement) are kept in the instruction
+    sequence but their box is never emitted into the template circuit. The basis-change layer that
+    would follow the preparation is folded into the first real gate box's left-dressing single-qubit
+    layer, so that layer becomes the site of preparation noise and every circuit carries one fewer
+    single-qubit layer. Preparation noise is injected at that layer via :func:`inject_prep_noise`,
+    rather than into a dedicated leading box.
     """
 
     def __init__(
@@ -271,6 +278,12 @@ class ExecutorCircuitGenerator(
             elif isinstance(instr, ApplyGate):
                 gate = self.gate_set[instr.gate_name]
 
+                if gate.prep_idxs and not gate.clbit_meas_idxs:
+                    # Do not emit the preparation box: no ref is consumed and the accumulated
+                    # permutation is not reset, so it folds into the first real gate box's
+                    # left-dressing, which becomes the preparation-noise site.
+                    continue
+
                 body = QuantumCircuit([boxed_circuit.qubits[idx] for idx in gate.qubit_idxs])
                 ref = next(ref_iter)
 
@@ -316,6 +329,10 @@ class ExecutorCircuitGenerator(
                 if isinstance(instr, PartialPauliPermutation):
                     current_permutation = instr.compose(current_permutation)
                 elif isinstance(instr, ApplyGate):
+                    gate = self.gate_set[instr.gate_name]
+                    if gate.prep_idxs and not gate.clbit_meas_idxs:
+                        # Skip identically to the first loop so local-Clifford refs stay aligned.
+                        continue
                     samplex_arguments[f"local_cliffords.{next(ref_iter)}"][idx + 1, 0] = (
                         TO_SAMPLOMATIC_C1[
                             current_permutation.partial_permutation_indices[gateset_idxs]
