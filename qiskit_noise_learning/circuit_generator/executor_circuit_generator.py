@@ -49,12 +49,10 @@ class ExecutorCircuitGenerator(
             :meth:`ExecutorCircuitGenerator.generate`. Pass managers should not modify the details
             of the existing circuit (e.g. re-order qubits or rename measurements).
 
-    Pure preparation gates (those with ``prep_idxs`` and no measurement) are kept in the instruction
-    sequence but their box is never emitted into the template circuit. The basis-change layer that
-    would follow the preparation is folded into the first real gate box's left-dressing single-qubit
-    layer, so that layer becomes the site of preparation noise and every circuit carries one fewer
-    single-qubit layer. Preparation noise is injected at that layer via :func:`inject_prep_noise`,
-    rather than into a dedicated leading box.
+    Pure preparation gates (those with ``prep_idxs`` and no operations) are kept in the instruction
+    sequence, but not explicitly included as a box in the template circuit. Instead, the single-qubit
+    gates (noise + basis rotation) associated with preparation are absorbed into the first box's
+    left-dressing.
     """
 
     def __init__(
@@ -278,7 +276,7 @@ class ExecutorCircuitGenerator(
             elif isinstance(instr, ApplyGate):
                 gate = self.gate_set[instr.gate_name]
 
-                if gate.prep_idxs and not gate.clbit_meas_idxs:
+                if gate.prep_idxs and gate.circuit.size() == 0:
                     # Do not emit the preparation box: no ref is consumed and the accumulated
                     # permutation is not reset, so it folds into the first real gate box's
                     # left-dressing, which becomes the preparation-noise site.
@@ -330,7 +328,7 @@ class ExecutorCircuitGenerator(
                     current_permutation = instr.compose(current_permutation)
                 elif isinstance(instr, ApplyGate):
                     gate = self.gate_set[instr.gate_name]
-                    if gate.prep_idxs and not gate.clbit_meas_idxs:
+                    if gate.prep_idxs and gate.circuit.size() == 0:
                         # Skip identically to the first loop so local-Clifford refs stay aligned.
                         continue
                     samplex_arguments[f"local_cliffords.{next(ref_iter)}"][idx + 1, 0] = (
