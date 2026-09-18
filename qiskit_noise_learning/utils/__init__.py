@@ -10,4 +10,4 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from .build_with_prep_noise_ import build_with_prep_noise, inject_prep_noise
+from .build_with_prep_noise import build_with_prep_noise, inject_prep_noise

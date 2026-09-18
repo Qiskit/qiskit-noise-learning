@@ -11,9 +11,10 @@
 # that they have been altered from the originals.
 
 import numpy as np
+import pytest
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import PauliLindbladMap
-from samplomatic import build
+from samplomatic import InjectNoise, Twirl, build
 from samplomatic.transpiler import generate_boxing_pass_manager
 
 from qiskit_noise_learning.utils import build_with_prep_noise, inject_prep_noise
@@ -107,3 +108,24 @@ def test_build_with_prep_noise_builds_and_samples():
     out = samplex.sample(_map_inputs(samplex), num_randomizations=200, rng=2)
     assert template.num_qubits == 2
     assert np.asarray(out["pauli_signs"]).shape == (200, 1)
+
+
+def test_build_with_prep_noise_rejects_gate_before_first_box():
+    """A gate before the first box means preparation noise would not be at the front."""
+    qc = QuantumCircuit(2)
+    qc.h(0)  # loose gate before any box
+    with qc.box([Twirl(), InjectNoise("layer")]):
+        qc.cz(0, 1)
+
+    with pytest.raises(ValueError, match="before the first box"):
+        build_with_prep_noise(qc, [0, 1], _REF)
+
+
+def test_build_with_prep_noise_rejects_right_dressed_first_box():
+    """A right-dressed first box puts its dressing after its content, not at the front."""
+    qc = QuantumCircuit(2)
+    with qc.box([Twirl(dressing="right"), InjectNoise("layer")]):
+        qc.cz(0, 1)
+
+    with pytest.raises(ValueError, match="left-dressed"):
+        build_with_prep_noise(qc, [0, 1], _REF)

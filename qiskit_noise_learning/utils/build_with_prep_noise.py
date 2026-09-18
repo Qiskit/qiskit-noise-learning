@@ -13,10 +13,11 @@
 """Samplex surgery for injecting state-preparation noise at the front of a circuit.
 
 Noise-learning and mitigation circuits no longer carry a dedicated preparation box (an empty
-twirled single-qubit layer) at their start.  Instead, state-preparation noise is represented as a
-:class:`~qiskit.quantum_info.PauliLindbladMap` and injected directly into a built samplex so that it
-acts *before any gate* on the prepared qubits -- earlier than the box ``"before"`` injection site,
-which sits after single-qubit gates absorbed into the first dressing.
+twirled single-qubit layer) at their start.  Instead, state-preparation noise is absorbed into
+the first twirl site (dressing) following preparation. The noise needs to act before anything else,
+which at time of writing cannot be specified at the box annotation level (the usual ``"before"``
+injection site sits after single-qubit gates absorbed into the dressing), so instead this noise is
+inserted by modifying the samplex object itself.
 """
 
 from collections.abc import Sequence
@@ -24,6 +25,7 @@ from collections.abc import Sequence
 import numpy as np
 from qiskit.circuit import QuantumCircuit
 from samplomatic import build
+from samplomatic.annotations import DressingMode, Twirl
 from samplomatic.samplex import Samplex
 from samplomatic.samplex.nodes import (
     CollectTemplateValues,
@@ -33,6 +35,7 @@ from samplomatic.samplex.nodes import (
     Node,
 )
 from samplomatic.tensor_interface import PauliLindbladMapSpecification, TensorSpecification
+from samplomatic.utils import get_annotation
 from samplomatic.virtual_registers import VirtualType
 
 _PAULI_SIGNS_OUTPUT = "pauli_signs"
@@ -56,16 +59,13 @@ def inject_prep_noise(
 ) -> Samplex:
     """Inject state-preparation Pauli-Lindblad noise at the physical front of a built samplex.
 
-    The noise is spliced into the *earliest* single-qubit dressing of the circuit (the
-    :class:`~samplomatic.samplex.nodes.CollectTemplateValues` with the smallest template index) as
-    the last operand of that dressing's combine node.  Because the injection is a virtual
-    Pauli-frame operation folded into the existing dressing, it adds no physical layer and acts
-    before every gate on ``qubits`` -- including a leading single-qubit gate absorbed into that
-    dressing.  This reproduces the transpiler's native ``inject_noise_site="before"`` result exactly
-    when nothing precedes the dressing, and correctly precedes leading single-qubit gates when they
-    are present (which the ``"before"`` annotation site does not).
+    The noise is absorbed into the first single-qubit dressing of the circuit. The noise should act
+    on ``qubits`` before any gate (and before other single-qubit gates absorbed into that dressing).
+    The first box must be left-dressed and must be the first operation in the circuit, or else the
+    prep noise will be injected erroneously after other operations. The user must ensure these
+    conditions, as this function does not have access to the circuit itself.
 
-    The concrete :class:`~qiskit.quantum_info.PauliLindbladMap` is supplied at sampling time via the
+    The :class:`~qiskit.quantum_info.PauliLindbladMap` is supplied at sampling time via the
     ``samplex.sample`` input ``pauli_lindblad_maps.{noise_ref}``, and the sampled Pauli signs are
     appended as a new column of the ``pauli_signs`` output.
 
@@ -209,24 +209,50 @@ def build_with_prep_noise(
 ) -> tuple[QuantumCircuit, Samplex]:
     """Build a boxed circuit and inject preparation noise at the circuit's front.
 
-    This is the entry point for assembling a prep-layer-free mitigation program: it runs
-    :func:`samplomatic.build` and then applies :func:`inject_prep_noise` once for the preparation
-    noise. The concrete map is supplied at sampling time as the samplex input
-    ``pauli_lindblad_maps.{noise_ref}``; noise for the ordinary boxes is applied by their own
-    :class:`~samplomatic.annotations.InjectNoise` annotations (during sampling) or by
-    :class:`~.InsertNoisePass` (during Aer simulation), unchanged.
+    Used for mitigating learned state-prep (qubit initialization) noise, without adding an extra
+    layer of single-qubit gates. It runs :func:`samplomatic.build` then :func:`inject_prep_noise`.
+    The noise map is supplied separately as a samplex input ``pauli_lindblad_maps.{noise_ref}``.
 
     The ``qubits``, ``noise_ref``, and ``modifier_ref`` arguments mirror :func:`inject_prep_noise`.
 
+    The circuit must begin with a left-dressed box, so that preparation noise can be absorbed and
+    still act before every gate. An operation *before* the first box, or a first box that is not
+    left-dressed (its dressing would sit after the box's content), would leave the injected noise no
+    longer at the front; both are rejected up front, since :func:`inject_prep_noise` cannot detect
+    them from the samplex alone.
+
     Args:
-        boxed_circuit: A circuit whose ordinary layers are annotated boxes.
+        boxed_circuit: A circuit whose ordinary layers are annotated boxes, beginning with a
+            left-dressed box.
         qubits: The prepared qubits the noise acts on (see :func:`inject_prep_noise`).
         noise_ref: The reference keying the map at sampling time.
         modifier_ref: Optional reference for per-sample rate modifiers.
 
     Returns:
         The built template circuit and the samplex with preparation noise injected.
+
+    Raises:
+        ValueError: If an operation precedes the first box, or the first box is not left-dressed, so
+            preparation noise could not be placed at the front.
     """
+    for instruction in boxed_circuit.data:
+        operation = instruction.operation
+        if operation.name == "barrier":
+            continue
+        if operation.name != "box":
+            raise ValueError(
+                "build_with_prep_noise requires the circuit to begin with a box so that "
+                f"preparation noise acts at the front, but found operation '{operation.name}' "
+                "before the first box."
+            )
+        twirl = get_annotation(operation, Twirl)
+        if twirl is None or twirl.dressing != DressingMode.LEFT:
+            raise ValueError(
+                "build_with_prep_noise requires the first box to be left-dressed so that "
+                "preparation noise acts before its content, but the first box is not left-dressed."
+            )
+        break  # the first non-barrier operation is a left-dressed box, as required
+
     template, samplex = build(boxed_circuit)
     inject_prep_noise(samplex, qubits, noise_ref, modifier_ref=modifier_ref)
     return template, samplex
