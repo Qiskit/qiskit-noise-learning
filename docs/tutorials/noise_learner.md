@@ -130,7 +130,7 @@ from qiskit_noise_learning.noise_learner import LearningOptions, NoiseLearner
 options = LearningOptions(
     fragment_depths=[2, 16, 64, 128],
     num_randomizations=50,
-    shots_per_randomizations=20,
+    shots_per_randomization=20,
 )
 
 learner = NoiseLearner(backend, options=options, executor=executor)

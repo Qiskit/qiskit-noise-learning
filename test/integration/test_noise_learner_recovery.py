@@ -47,7 +47,7 @@ def test_noise_learner_run_against_aer_executor():
         root_seed=7,
     )
     options = LearningOptions(
-        num_randomizations=16, shots_per_randomizations=64, fragment_depths=[2, 8, 32]
+        num_randomizations=16, shots_per_randomization=64, fragment_depths=[2, 8, 32]
     )
 
     result = NoiseLearner(backend, options, executor=executor).run([circuit[0]]).result()
