@@ -178,7 +178,7 @@ class NoiseLearner:
         experiment = pipeline.run(
             Experiment(
                 fidelity_model=fidelity_model,
-                shots=self._options.shots_per_randomizations,
+                shots=self._options.shots_per_randomization,
                 randomizations=self._options.num_randomizations,
             )
         )

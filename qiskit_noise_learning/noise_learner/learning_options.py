@@ -23,7 +23,7 @@ class LearningOptions(BaseModel):
     num_randomizations: int = Field(32, ge=1)
     """The number of randomizations to use per learning circuit."""
 
-    shots_per_randomizations: int = Field(128, ge=1)
+    shots_per_randomization: int = Field(128, ge=1)
     """The number of shots to use per randomization."""
 
     fragment_depths: list[int] = Field([0, 1, 2, 4, 16, 32])

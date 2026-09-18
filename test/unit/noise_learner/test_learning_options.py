@@ -19,7 +19,7 @@ from qiskit_noise_learning.noise_learner import LearningOptions
 def test_default_options():
     """Test default values of LearningOptions."""
     assert LearningOptions().num_randomizations == 32
-    assert LearningOptions().shots_per_randomizations == 128
+    assert LearningOptions().shots_per_randomization == 128
     assert LearningOptions().fragment_depths == [0, 1, 2, 4, 16, 32]
     assert LearningOptions().k_locality == 2
     assert LearningOptions().path_generator == "even_depth"
@@ -30,12 +30,12 @@ def test_custom_values():
     """Test learning options with custom values."""
     opts = LearningOptions(
         num_randomizations=10,
-        shots_per_randomizations=50,
+        shots_per_randomization=50,
         fragment_depths=[0, 2, 4],
         k_locality=3,
     )
     assert opts.num_randomizations == 10
-    assert opts.shots_per_randomizations == 50
+    assert opts.shots_per_randomization == 50
     assert opts.fragment_depths == [0, 2, 4]
     assert opts.k_locality == 3
 
@@ -51,15 +51,15 @@ def test_invalid_num_randomizations_zero_rejected():
         LearningOptions(num_randomizations=0)
 
 
-def test_valid_shots_per_randomizations():
+def test_valid_shots_per_randomization():
     """Test edge cases for valid shots per randomization."""
-    assert LearningOptions(shots_per_randomizations=1).shots_per_randomizations == 1
+    assert LearningOptions(shots_per_randomization=1).shots_per_randomization == 1
 
 
-def test_invalid_shots_per_randomizations():
+def test_invalid_shots_per_randomization():
     """Test non-positive shots per randomization is rejected."""
     with pytest.raises(ValidationError):
-        LearningOptions(shots_per_randomizations=0)
+        LearningOptions(shots_per_randomization=0)
 
 
 def test_k_locality_zero_allowed():
