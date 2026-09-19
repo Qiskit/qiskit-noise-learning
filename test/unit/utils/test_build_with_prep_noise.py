@@ -129,3 +129,16 @@ def test_build_with_prep_noise_rejects_right_dressed_first_box():
 
     with pytest.raises(ValueError, match="left-dressed"):
         build_with_prep_noise(qc, [0, 1], _REF)
+
+
+def test_inject_prep_noise_rejects_qubit_count_mismatch():
+    """Prep qubits must match the earliest dressing; a smaller count is not supported."""
+    surgery = build(_boxed(2, None))[1]  # earliest dressing spans 2 qubits
+    with pytest.raises(NotImplementedError, match="earliest single-qubit dressing"):
+        inject_prep_noise(surgery, [0], _REF)
+
+
+def test_build_with_prep_noise_rejects_partial_first_box():
+    """Preparation noise on only part of the first box's qubits is not supported."""
+    with pytest.raises(NotImplementedError, match="not supported"):
+        build_with_prep_noise(_boxed(2, None), [0], _REF)

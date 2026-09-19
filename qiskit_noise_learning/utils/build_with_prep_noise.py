@@ -61,9 +61,9 @@ def inject_prep_noise(
 
     The noise is absorbed into the first single-qubit dressing of the circuit. The noise should act
     on ``qubits`` before any gate (and before other single-qubit gates absorbed into that dressing).
-    The first box must be left-dressed and must be the first operation in the circuit, or else the
-    prep noise will be injected erroneously after other operations. The user must ensure these
-    conditions, as this function does not have access to the circuit itself.
+    The first box must be left-dressed, must be the first operation in the circuit, and must span
+    the same qubits as the prep-noise, or else the prep noise will be injected incorrectly. The user
+    must ensure these conditions, as this function does not have access to the circuit itself.
 
     The :class:`~qiskit.quantum_info.PauliLindbladMap` is supplied at sampling time via the
     ``samplex.sample`` input ``pauli_lindblad_maps.{noise_ref}``, and the sampled Pauli signs are
@@ -93,6 +93,13 @@ def inject_prep_noise(
 
     Returns:
         The mutated, re-finalized samplex (also modified in place).
+
+    Raises:
+        ValueError: If the circuit has no initial single-qubit dressing to inject into.
+        NotImplementedError: If ``qubits`` does not match the circuit's earliest single-qubit
+            dressing -- i.e. the first layer is split over multiple boxes, or the first box covers
+            only some of the prepared qubits. Injecting across multiple first-layer dressings is
+            not supported.
     """
     graph = samplex.graph
     num_subsystems = len(qubits)
@@ -111,6 +118,16 @@ def inject_prep_noise(
         )
     collect_idx = min(dressings)[1]
     collect = graph[collect_idx]
+
+    dressing_width = len(collect._subsystem_idxs)  # noqa: SLF001
+    if num_subsystems != dressing_width:
+        raise NotImplementedError(
+            f"Preparation noise on {num_subsystems} qubits does not match the circuit's earliest "
+            f"single-qubit dressing, which spans {dressing_width} qubits. Injecting preparation "
+            "noise across a first layer that is split over multiple boxes (or that covers only "
+            "some of the prepared qubits) is not supported."
+        )
+
     dressing_register = collect._register_name  # noqa: SLF001
     dressing_type = collect._register_type  # noqa: SLF001
 
