@@ -150,7 +150,8 @@ def test_generate_samplex_item(gateset):
         [seq0], num_randomizations=50
     )
 
-    assert len(samplex_item.samplex_arguments) == 12
+    # 10 gate layers plus one measurement box; the preparation box is not emitted
+    assert len(samplex_item.samplex_arguments) == 11
     assert creg_names == ["meas0"]
     assert "meas0" in clbit_qubit_idxs
 
@@ -183,16 +184,18 @@ def test_generate_samplex_item(gateset):
     )
 
     assert samplex_item.samplex == other_samplex_item.samplex
-    assert len(other_samplex_item.samplex_arguments) == 12
+    assert len(other_samplex_item.samplex_arguments) == 11
     assert other_creg_names == creg_names
     assert other_clbit_qubit_idxs.keys() == clbit_qubit_idxs.keys()
 
-    expected = np.zeros((3, 1, 10), np.uint8)
+    # With the preparation box gone, the first emitted box is the first gate layer. seq2's leading
+    # permutation folds into it, so every gate layer carries a 7 for seq2 (index 2), and the final
+    # measurement box additionally carries a 7 for seq1 (index 1), whose permutation precedes "M".
     values = list(other_samplex_item.samplex_arguments.values())
-    assert np.array_equal(values[0], expected)
 
+    expected = np.zeros((3, 1, 10), np.uint8)
     expected[2, 0] = 7
-    for value in values[1:-1]:
+    for value in values[:-1]:
         assert np.array_equal(value, expected)
 
     expected[1, 0] = 7
@@ -488,7 +491,7 @@ def test_generate_samplex_items_different_decomposition_mode():
     )
 
     ops = samplex_items[0].circuit.count_ops()
-    assert ops["sx"] == 20  # 10 in the prepare, 10 in the measure
+    assert ops["sx"] == 10  # 10 in the measure; the preparation box is not emitted
     assert ops["rx"] == 25  # 5 in each of the 5 layers
 
 
@@ -878,3 +881,49 @@ def test_generate_with_pass_manager_unmeasured_creg_raises():
     cg = ExecutorCircuitGenerator(gateset, pass_manager=PassManager([AddUnmeasuredCregPass()]))
     with pytest.raises(ValueError, match="register 'extra' .* measured into exactly once"):
         cg.generate_samplex_items([seq], num_randomizations=2)
+
+
+def test_prep_box_is_not_emitted_and_leading_permutation_folds():
+    """The pure-preparation box is never emitted; a permutation following it folds into the first
+    real gate box, whose dressing becomes the preparation-noise site."""
+    gateset = gateset_full()  # QiskitGateSet(10): "P", "M", "L0", "L1"
+    perm = PartialPauliPermutation([1] + [0] * 9)
+    seq = InstructionSequence(
+        [ApplyGate("P"), perm], [ApplyGate("L0")], [ApplyGate("M")], fragment_depth=2
+    )
+
+    item, *_ = ExecutorCircuitGenerator(gateset).generate_samplex_item([seq], num_randomizations=1)
+
+    # two L0 applications plus one measurement box, and no preparation box
+    refs = [k for k in item.samplex_arguments if k.startswith("local_cliffords.")]
+    assert len(refs) == 3
+
+    # the permutation that followed "P" folded into the first emitted (L0) box
+    expected = np.zeros((1, 1, 10), np.uint8)
+    expected[0, 0, 0] = 7
+    np.testing.assert_array_equal(item.samplex_arguments["local_cliffords.c0"], expected)
+
+
+def test_prep_box_skip_keeps_ref_alignment_across_sequences():
+    """The prep box is skipped identically in every sequence of an item, keeping the per-sequence
+    local-Clifford arguments aligned."""
+    gateset = gateset_full()
+    perm = PartialPauliPermutation([1] + [0] * 9)
+    seq_a = InstructionSequence(
+        [ApplyGate("P")], [ApplyGate("L0"), ApplyGate("L1")], [ApplyGate("M")], fragment_depth=2
+    )
+    seq_b = InstructionSequence(
+        [ApplyGate("P"), perm],
+        [ApplyGate("L0"), ApplyGate("L1")],
+        [ApplyGate("M")],
+        fragment_depth=2,
+    )
+
+    item, *_ = ExecutorCircuitGenerator(gateset).generate_samplex_item(
+        [seq_a, seq_b], num_randomizations=5
+    )
+
+    # every local-Clifford argument is filled for both sequences (no desynced/empty slot)
+    for name, arg in item.samplex_arguments.items():
+        if name.startswith("local_cliffords."):
+            assert arg.shape[0] == 2
