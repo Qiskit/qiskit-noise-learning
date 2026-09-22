@@ -69,7 +69,7 @@ class ExecutorCircuitGenerator(
     @staticmethod
     def collect(result, data_mapper):
         # extract time bounds on a program item basis
-        if hasattr(result.metadata, "chunk_timing"):
+        if getattr(result.metadata, "chunk_timing", None):
             program_item_time_lbs = [
                 np.array([], dtype="datetime64[us]") for _ in range(len(result))
             ]
@@ -88,7 +88,9 @@ class ExecutorCircuitGenerator(
                         program_item_time_lbs[part.idx_item], [chunk_stop] * part.size
                     )
         else:
-            num_seqs_per_item = max(len(indices) for indices in data_mapper.item_sequence_indices)
+            num_seqs_per_item = max(
+                (len(indices) for indices in data_mapper.item_sequence_indices), default=0
+            )
             the_length = num_seqs_per_item * data_mapper.num_randomizations
             program_item_time_lbs = np.full(
                 (len(result), the_length), "NaT", dtype="datetime64[us]"

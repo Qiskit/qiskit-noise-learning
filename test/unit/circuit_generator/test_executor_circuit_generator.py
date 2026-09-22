@@ -530,6 +530,30 @@ def test_collect_single_sequence_no_measurement_flips():
     assert dataset.dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 3)}
 
 
+def test_collect_empty_chunk_timing():
+    """Test `ExecutorCircuitGenerator.collect()` when ``metadata.chunk_timing`` is empty.
+
+    This is what the runtime's local (simulator) mode returns: the attribute exists but holds no
+    chunks. Time bounds must fall back to NaT rather than zero-length arrays.
+    """
+    creg_data = np.array([[[[1, 0, 1]], [[0, 1, 1]]]], dtype=np.uint8)  # 2 randomizations
+    result = make_result([{"meas0": creg_data}], chunk_timing=[])
+    data_mapper = ExecutorDataMapper(
+        item_sequence_indices=[[0]],
+        item_creg_names=[["meas0"]],
+        item_clbit_qubit_idxs=[{"meas0": np.array([0, 1, 2])}],
+        instruction_sequences=[InstructionSequence([], [], [], fragment_depth=0)],
+        num_randomizations=2,
+    )
+
+    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    dataset = fit.raw_data.datatree["0"].dataset
+    np.testing.assert_array_equal(dataset["data"].values, creg_data[0])
+    assert dataset["time_lbs"].shape == (2,)
+    assert np.isnat(dataset["time_lbs"].values).all()
+    assert np.isnat(dataset["time_ubs"].values).all()
+
+
 def test_collect_single_sequence_with_measurement_flips():
     """Test `ExecutorCircuitGenerator.collect()` with measurement flips present."""
     creg_data = np.array([[[[1, 0, 1]]]], dtype=np.uint8)
