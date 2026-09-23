@@ -12,5 +12,6 @@
 
 """Executor circuit generator."""
 
-from .executor_circuit_generator import ExecutorCircuitGenerator
-from .executor_data_mapper import ExecutorDataMapper
+from .executor import ExecutorCircuitGenerator, ExecutorDataMapper
+
+__all__ = ["ExecutorCircuitGenerator", "ExecutorDataMapper"]
