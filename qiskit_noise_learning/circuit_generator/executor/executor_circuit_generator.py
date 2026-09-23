@@ -25,9 +25,9 @@ from samplomatic.annotations import InjectLocalClifford, Tag, Twirl
 from qiskit_noise_learning.analysis.fit import Fit
 from qiskit_noise_learning.data import RawData
 
-from ..gate_sets import QiskitGateSet
-from ..sequences import ApplyGate, InstructionSequence, PartialPauliPermutation
-from .circuit_generator import CircuitGenerator
+from ...gate_sets import QiskitGateSet
+from ...sequences import ApplyGate, InstructionSequence, PartialPauliPermutation
+from ..circuit_generator import CircuitGenerator
 from .executor_data_mapper import ExecutorDataMapper
 
 TO_SAMPLOMATIC_C1 = np.array([0, 7, 9, 13, 18, 22], dtype=np.uint8)
