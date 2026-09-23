@@ -58,7 +58,7 @@ def _make_annotated_layer(backend, pair=(17, 27)):
 @pytest.fixture()
 def options():
     return LearningOptions(
-        num_randomizations=4, shots_per_randomizations=16, fragment_depths=[0, 1, 2]
+        num_randomizations=4, shots_per_randomization=16, fragment_depths=[0, 1, 2]
     )
 
 
