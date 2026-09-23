@@ -22,6 +22,7 @@ Classes
    LeastSquaresSolve
    LegacySolve
    LinearSystemData
+   PerLayerLegacySolve
    PositivityMinSolve
    SymmetrizeFidelities
    SymmetrizeGenerators
