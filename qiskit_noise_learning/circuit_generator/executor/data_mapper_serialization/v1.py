@@ -13,7 +13,7 @@
 """Version 1 of the serialized data mapper payload."""
 
 from collections.abc import Hashable, Iterable, Sequence
-from typing import Any, TypeAlias
+from typing import Any, NotRequired, TypedDict
 
 import numpy as np
 from numpy.typing import NDArray
@@ -36,9 +36,6 @@ from .arrays import IDX, pack_paulis, pack_ragged, unpack_paulis, unpack_ragged
 VERSION = 1
 """The version number written into payloads by this module."""
 
-Payload: TypeAlias = dict[str, Any]
-"""A payload, or one of its nested sections: a mapping of names onto arrays and plain data."""
-
 _UNBOUND = -1
 """Written in place of an unbound sequence's fragment depth of ``None``."""
 
@@ -49,12 +46,364 @@ _PAULI_LINDBLAD_MODEL = "pauli_lindblad"
 
 
 # ------------------------------------------------------------------------------------------------
-# Interning
+# The format
 # ------------------------------------------------------------------------------------------------
-# Instructions cannot be interned on themselves: ``ApplyGate`` and ``PartialPauliPermutation``
-# define ``__eq__`` without ``__hash__``, so they are unhashable. ``FidelityIndex`` is hashable, but
-# its ``__eq__`` compares four of its eight fields, so interning on it risks collapsing values that
-# differ in a field this module has to write. Both get an explicit key covering everything written.
+
+
+class Payload(TypedDict):
+    """A serialized data mapper."""
+
+    version: int
+    """The format version."""
+
+    num_qubits: int
+    """The qubit count shared by every Pauli in the payload."""
+
+    num_randomizations: int
+    """How many randomizations were used per experiment."""
+
+    gate_names: list[str]
+    """Every gate name the payload refers to by position, sorted."""
+
+    layout: "LayoutPayload"
+    """How result arrays map back onto the instruction sequences."""
+
+    sequences: "SequencesPayload"
+    """The instruction sequences."""
+
+    paths: "PathsPayload | None"
+    """The analysis paths, or ``None`` if the mapper carried none."""
+
+    relations: "RelationsPayload | None"
+    """The path to sequence relations, or ``None`` if the mapper carried none."""
+
+    model: "ModelPayload | None"
+    """The fidelity model, or ``None`` if the mapper carried none."""
+
+
+class LayoutPayload(TypedDict):
+    """How the arrays in a program's results map back onto the instruction sequences."""
+
+    item_sequence_idxs: NDArray[IDX]
+    """The sequence positions belonging to every program item, concatenated."""
+
+    item_sequence_lengths: NDArray[IDX]
+    """How many sequence positions each program item holds."""
+
+    item_creg_names: list[list[str]]
+    """The classical register names in each program item."""
+
+    item_clbit_qubit_idxs: NDArray[IDX]
+    """The measured qubit of every classical bit, concatenated over registers and items.
+
+    Ordered to match ``item_creg_names`` read item by item, and register by register within an item.
+    """
+
+    item_clbit_lengths: NDArray[IDX]
+    """How many classical bits each of those registers has."""
+
+
+class SequencesPayload(TypedDict):
+    """The instruction sequences the results are indexed by."""
+
+    structure: "SequenceStructurePayload"
+    """How the sequences are cut out of ``instruction_idxs``."""
+
+    instruction_idxs: NDArray[IDX]
+    """For each instruction of each sequence in turn, its position in ``instructions``."""
+
+    instructions: "InstructionsPayload"
+    """The distinct instructions, stored once each."""
+
+
+class PathsPayload(TypedDict):
+    """The analysis paths."""
+
+    structure: "SequenceStructurePayload"
+    """How the paths are cut out of ``fidelity_idxs``."""
+
+    fidelity_idxs: NDArray[IDX]
+    """For each fidelity index of each path in turn, its position in ``fidelity_indices``."""
+
+    fidelity_indices: "FidelityIndicesPayload"
+    """The distinct fidelity indices, stored once each."""
+
+
+class RelationsPayload(TypedDict):
+    """Which paths are traversed by which instruction sequences, sorted."""
+
+    path_idxs: NDArray[IDX]
+    """The path position of each relation."""
+
+    sequence_idxs: NDArray[IDX]
+    """The instruction sequence position of each relation."""
+
+
+class ModelPayload(TypedDict):
+    """A fidelity model and the gate set it is built on.
+
+    The gate set entries are always present. The generator entries are present only when ``kind`` is
+    ``_PAULI_LINDBLAD_MODEL``, an identity model having no parameters of its own.
+    """
+
+    kind: str
+    """Which model this is: ``_IDENTITY_MODEL`` or ``_PAULI_LINDBLAD_MODEL``."""
+
+    num_qubits: int
+    """How many qubits the modelled device has."""
+
+    qubit_subset: NDArray[IDX]
+    """The qubits of interest, sorted."""
+
+    coupling_map_controls: NDArray[IDX]
+    """The first qubit of each coupling map edge, the edges being sorted."""
+
+    coupling_map_targets: NDArray[IDX]
+    """The second qubit of each coupling map edge."""
+
+    gate_names: list[str]
+    """The gate names, sorted. Every other gate array here is in this order."""
+
+    gate_qubit_idxs: NDArray[IDX]
+    """The sorted qubits of every gate, concatenated."""
+
+    gate_qubit_lengths: NDArray[IDX]
+    """How many qubits each gate acts on."""
+
+    gate_meas_idxs: NDArray[IDX]
+    """The sorted measured qubits of every gate, concatenated."""
+
+    gate_meas_lengths: NDArray[IDX]
+    """How many qubits each gate measures."""
+
+    gate_prep_idxs: NDArray[IDX]
+    """The sorted prepared qubits of every gate, concatenated."""
+
+    gate_prep_lengths: NDArray[IDX]
+    """How many qubits each gate prepares."""
+
+    clifford_counts: NDArray[IDX]
+    """How many Cliffords each gate is composed of."""
+
+    clifford_qubit_idxs: NDArray[IDX]
+    """The qubits of every Clifford, concatenated, in each gate's temporal order."""
+
+    clifford_qubit_lengths: NDArray[IDX]
+    """How many qubits each Clifford acts on."""
+
+    clifford_num_qubits: NDArray[IDX]
+    """The qubit count of each Clifford, which fixes its tableau's shape."""
+
+    clifford_tableaus: NDArray[np.bool_]
+    """Every Clifford's tableau, flattened and concatenated.
+
+    Booleans, which the transport bit-packs, so these cost an eighth of their length.
+    """
+
+    generator_gate_names: NotRequired[list[str]]
+    """The gates that have generators, sorted."""
+
+    generator_counts: NotRequired[NDArray[IDX]]
+    """How many generators each of those gates has."""
+
+    generator_terms: NotRequired[NDArray[np.uint8]]
+    """The Pauli terms of every generator, concatenated."""
+
+    generator_idxs: NotRequired[NDArray[IDX]]
+    """The qubit indices of every generator, concatenated."""
+
+    generator_lengths: NotRequired[NDArray[IDX]]
+    """The number of terms in each generator."""
+
+    noise_site: NotRequired[dict[str, str]]
+    """Whether each gate's noise is modelled before or after it."""
+
+
+class SequenceStructurePayload(TypedDict):
+    """How a list of instruction sequences or paths is cut out of one flat list of its elements.
+
+    Both are fragment chains, so both are described the same way: three fragment lengths and a
+    fragment depth each.
+    """
+
+    start_lengths: NDArray[IDX]
+    """The number of elements in each one's start fragment."""
+
+    repeatable_lengths: NDArray[IDX]
+    """The number of elements in each one's repeatable fragment."""
+
+    end_lengths: NDArray[IDX]
+    """The number of elements in each one's end fragment."""
+
+    fragment_depths: NDArray[np.int32]
+    """Each one's fragment depth, or ``_UNBOUND`` where it has none."""
+
+
+class InstructionsPayload(TypedDict):
+    """The distinct instructions a payload's sequences are built from."""
+
+    kinds: NDArray[np.uint8]
+    """Which kind of instruction each one is: ``_APPLY_GATE`` or ``_PAULI_PERMUTATION``."""
+
+    gates: NDArray[IDX]
+    """For an applied gate, its position in the payload's ``gate_names``; zero otherwise."""
+
+    permutations: NDArray[np.int8]
+    """The permutation indices of every Pauli permutation, concatenated."""
+
+    permutation_lengths: NDArray[IDX]
+    """The number of indices belonging to each Pauli permutation."""
+
+
+class FidelityIndicesPayload(TypedDict):
+    """The distinct fidelity indices a payload's paths are built from.
+
+    Every array here has one entry per fidelity index, except the concatenations, which have one
+    entry per Pauli term or qubit index and are cut up by their accompanying lengths.
+    """
+
+    gates: NDArray[IDX]
+    """Each one's gate, as a position in the payload's ``gate_names``."""
+
+    sign_flips: NDArray[np.bool_]
+    """Whether each one flips the sign."""
+
+    pauli_terms: NDArray[np.uint8]
+    """The Pauli terms of every ``pauli``, concatenated."""
+
+    pauli_idxs: NDArray[IDX]
+    """The qubit indices of every ``pauli``, concatenated."""
+
+    pauli_lengths: NDArray[IDX]
+    """The number of terms in each ``pauli``."""
+
+    input_terms: NDArray[np.uint8]
+    """The Pauli terms of every input Pauli, concatenated."""
+
+    input_idxs: NDArray[IDX]
+    """The qubit indices of every input Pauli, concatenated."""
+
+    input_lengths: NDArray[IDX]
+    """The number of terms in each input Pauli."""
+
+    output_terms: NDArray[np.uint8]
+    """The Pauli terms of every output Pauli, concatenated."""
+
+    output_idxs: NDArray[IDX]
+    """The qubit indices of every output Pauli, concatenated."""
+
+    output_lengths: NDArray[IDX]
+    """The number of terms in each output Pauli."""
+
+    in_z_idxs: NDArray[IDX]
+    """The sorted incoming Z qubit indices of every one, concatenated."""
+
+    in_z_lengths: NDArray[IDX]
+    """How many incoming Z qubit indices each one has."""
+
+    out_z_idxs: NDArray[IDX]
+    """The sorted outgoing Z qubit indices of every one, concatenated."""
+
+    out_z_lengths: NDArray[IDX]
+    """How many outgoing Z qubit indices each one has."""
+
+    meas_idxs: NDArray[IDX]
+    """The sorted measured qubit indices of every one, concatenated."""
+
+    meas_lengths: NDArray[IDX]
+    """How many measured qubit indices each one has."""
+
+
+# ------------------------------------------------------------------------------------------------
+# Reading and writing a whole payload
+# ------------------------------------------------------------------------------------------------
+
+
+def write(mapper: ExecutorDataMapper) -> Payload:
+    """Serialize a data mapper.
+
+    Args:
+        mapper: The data mapper to serialize.
+
+    Returns:
+        The payload, holding only the leaf types the executor's passthrough data accepts: arrays,
+        strings, integers, booleans, ``None``, and lists and dictionaries of those.
+
+    Raises:
+        TypeError: If the mapper carries a fidelity model this version cannot write.
+    """
+    gate_names, gate_idxs = _gate_name_table(mapper)
+    instructions, instruction_idxs = _intern(
+        _flatten(mapper.instruction_sequences), _instruction_key
+    )
+
+    paths: PathsPayload | None = None
+    if mapper.paths is not None:
+        fidelity_indices, fidelity_idxs = _intern(_flatten(mapper.paths), _fidelity_index_key)
+        paths = {
+            "structure": _write_sequence_structure(mapper.paths),
+            "fidelity_idxs": fidelity_idxs,
+            "fidelity_indices": _write_fidelity_indices(fidelity_indices, gate_idxs),
+        }
+
+    return {
+        "version": VERSION,
+        "num_qubits": _num_qubits(mapper),
+        "num_randomizations": int(mapper.num_randomizations),
+        "gate_names": gate_names,
+        "layout": _write_layout(mapper),
+        "sequences": {
+            "structure": _write_sequence_structure(mapper.instruction_sequences),
+            "instruction_idxs": instruction_idxs,
+            "instructions": _write_instructions(instructions, gate_idxs),
+        },
+        "paths": paths,
+        "relations": _write_relations(mapper.relations),
+        "model": _write_model(mapper.fidelity_model),
+    }
+
+
+def read(payload: Payload) -> ExecutorDataMapper:
+    """Rebuild the data mapper that :func:`write` was given.
+
+    Args:
+        payload: A payload written by :func:`write`.
+
+    Returns:
+        The data mapper. Fields whose order carries no meaning, such as the relations, may come
+        back ordered differently to the mapper that was written.
+    """
+    gate_names = [str(name) for name in payload["gate_names"]]
+    num_qubits = int(payload["num_qubits"])
+
+    sequences_payload = payload["sequences"]
+    table = _read_instructions(sequences_payload["instructions"], gate_names)
+    instructions = [table[n] for n in sequences_payload["instruction_idxs"].tolist()]
+    sequences = _rebuild_sequences(
+        InstructionSequence, instructions, sequences_payload["structure"]
+    )
+
+    paths = None
+    if (paths_payload := payload["paths"]) is not None:
+        fidelity_table = _read_fidelity_indices(
+            paths_payload["fidelity_indices"], gate_names, num_qubits
+        )
+        fidelity_indices = [fidelity_table[n] for n in paths_payload["fidelity_idxs"].tolist()]
+        paths = _rebuild_sequences(Path, fidelity_indices, paths_payload["structure"])
+
+    return ExecutorDataMapper(
+        instruction_sequences=sequences,
+        num_randomizations=int(payload["num_randomizations"]),
+        paths=paths,
+        relations=_read_relations(payload["relations"]),
+        fidelity_model=_read_model(payload["model"]),
+        **_read_layout(payload["layout"]),
+    )
+
+
+# ------------------------------------------------------------------------------------------------
+# Building the sections: interning
+# ------------------------------------------------------------------------------------------------
 
 
 def _instruction_key(instruction: Instruction) -> Hashable:
@@ -105,7 +454,7 @@ def _intern(elements: Sequence[Any], key_of: Any) -> tuple[list[Any], NDArray[ID
 
 
 # ------------------------------------------------------------------------------------------------
-# Sequence and path skeletons
+# Sequence and path structure
 # ------------------------------------------------------------------------------------------------
 
 
@@ -122,7 +471,7 @@ def _flatten(sequences: Iterable[Any]) -> list[Any]:
     ]
 
 
-def _write_skeletons(sequences: Sequence[Any]) -> Payload:
+def _write_sequence_structure(sequences: Sequence[Any]) -> SequenceStructurePayload:
     """Write the fragment lengths and bound depth of each sequence or path.
 
     One array per fragment rather than one array of triples, for the reason given in
@@ -140,7 +489,9 @@ def _write_skeletons(sequences: Sequence[Any]) -> Payload:
     }
 
 
-def _read_skeletons(cls: type, elements: Sequence[Any], payload: Payload) -> list[Any]:
+def _rebuild_sequences(
+    cls: type, elements: Sequence[Any], payload: SequenceStructurePayload
+) -> list[Any]:
     """Rebuild sequences or paths by cutting a flat element list at the written lengths."""
     out, cursor = [], 0
     for n_start, n_repeat, n_end, depth in zip(
@@ -168,7 +519,9 @@ def _read_skeletons(cls: type, elements: Sequence[Any], payload: Payload) -> lis
 # ------------------------------------------------------------------------------------------------
 
 
-def _write_instructions(instructions: Sequence[Instruction], gate_idxs: dict[str, int]) -> Payload:
+def _write_instructions(
+    instructions: Sequence[Instruction], gate_idxs: dict[str, int]
+) -> InstructionsPayload:
     """Write instructions as parallel arrays, permutations concatenated separately."""
     kinds = np.array(
         [
@@ -200,7 +553,9 @@ def _write_instructions(instructions: Sequence[Instruction], gate_idxs: dict[str
     }
 
 
-def _read_instructions(payload: Payload, gate_names: Sequence[str]) -> list[Instruction]:
+def _read_instructions(
+    payload: InstructionsPayload, gate_names: Sequence[str]
+) -> list[Instruction]:
     """Rebuild the instructions written by :func:`_write_instructions`."""
     permutations = unpack_ragged(payload["permutations"], payload["permutation_lengths"])
     out: list[Instruction] = []
@@ -221,7 +576,7 @@ def _read_instructions(payload: Payload, gate_names: Sequence[str]) -> list[Inst
 
 def _write_fidelity_indices(
     fidelity_indices: Sequence[FidelityIndex], gate_idxs: dict[str, int]
-) -> Payload:
+) -> FidelityIndicesPayload:
     """Write fidelity indices as parallel arrays, one concatenation per field."""
     transitions = [fidelity_index.transition for fidelity_index in fidelity_indices]
     pauli_terms, pauli_idxs, pauli_lengths = pack_paulis(
@@ -265,7 +620,7 @@ def _write_fidelity_indices(
 
 
 def _read_fidelity_indices(
-    payload: Payload, gate_names: Sequence[str], num_qubits: int
+    payload: FidelityIndicesPayload, gate_names: Sequence[str], num_qubits: int
 ) -> list[FidelityIndex]:
     """Rebuild the fidelity indices written by :func:`_write_fidelity_indices`."""
     paulis = unpack_paulis(
@@ -307,7 +662,7 @@ def _read_index_sets(flat: NDArray[Any], lengths: NDArray[IDX]) -> list[frozense
 # ------------------------------------------------------------------------------------------------
 
 
-def _write_layout(mapper: ExecutorDataMapper) -> Payload:
+def _write_layout(mapper: ExecutorDataMapper) -> LayoutPayload:
     """Write the fields recording how result arrays map back onto sequences."""
     sequence_idxs, sequence_lengths = pack_ragged(mapper.item_sequence_indices)
     clbit_idxs, clbit_lengths = pack_ragged(
@@ -326,7 +681,7 @@ def _write_layout(mapper: ExecutorDataMapper) -> Payload:
     }
 
 
-def _read_layout(payload: Payload) -> Payload:
+def _read_layout(payload: LayoutPayload) -> dict[str, Any]:
     """Rebuild the layout fields as keyword arguments for the data mapper."""
     creg_names = [list(names) for names in payload["item_creg_names"]]
     clbit_rows = unpack_ragged(payload["item_clbit_qubit_idxs"], payload["item_clbit_lengths"])
@@ -347,7 +702,7 @@ def _read_layout(payload: Payload) -> Payload:
 # ------------------------------------------------------------------------------------------------
 
 
-def _write_relations(relations: set[tuple[int, int]] | None) -> Payload | None:
+def _write_relations(relations: set[tuple[int, int]] | None) -> RelationsPayload | None:
     """Write relations as one sorted array of path indices and one of sequence indices.
 
     Sorted first, that being the canonical order for a set of index pairs. The two columns are
@@ -365,7 +720,7 @@ def _write_relations(relations: set[tuple[int, int]] | None) -> Payload | None:
     }
 
 
-def _read_relations(payload: Payload | None) -> set[tuple[int, int]] | None:
+def _read_relations(payload: RelationsPayload | None) -> set[tuple[int, int]] | None:
     """Rebuild the relations written by :func:`_write_relations`."""
     if payload is None:
         return None
@@ -377,7 +732,7 @@ def _read_relations(payload: Payload | None) -> set[tuple[int, int]] | None:
 # ------------------------------------------------------------------------------------------------
 
 
-def _write_model(model: FidelityModel | None) -> Payload | None:
+def _write_model(model: FidelityModel | None) -> ModelPayload | None:
     """Write a fidelity model, including the gate set it is built on."""
     if model is None:
         return None
@@ -392,7 +747,7 @@ def _write_model(model: FidelityModel | None) -> Payload | None:
     gates = [gate_set[name] for name in names]
     cliffords = [clifford for gate in gates for clifford in gate.cliffords]
     clifford_qubits, clifford_qubit_lengths = pack_ragged([idxs for idxs, _ in cliffords])
-    payload: Payload = {
+    payload: ModelPayload = {
         "kind": (
             _PAULI_LINDBLAD_MODEL if isinstance(model, PauliLindbladModel) else _IDENTITY_MODEL
         ),
@@ -442,7 +797,7 @@ def _write_model(model: FidelityModel | None) -> Payload | None:
     return payload
 
 
-def _read_model(payload: Payload | None) -> FidelityModel | None:
+def _read_model(payload: ModelPayload | None) -> FidelityModel | None:
     """Rebuild the fidelity model written by :func:`_write_model`."""
     if payload is None:
         return None
@@ -549,83 +904,3 @@ def _num_qubits(mapper: ExecutorDataMapper) -> int:
     for fidelity_index in _flatten(mapper.paths or []):
         return int(fidelity_index.pauli.num_qubits)
     return 0
-
-
-def write(mapper: ExecutorDataMapper) -> Payload:
-    """Serialize a data mapper.
-
-    Args:
-        mapper: The data mapper to serialize.
-
-    Returns:
-        The payload, holding only the leaf types the executor's passthrough data accepts: arrays,
-        strings, integers, booleans, ``None``, and lists and dictionaries of those.
-
-    Raises:
-        TypeError: If the mapper carries a fidelity model this version cannot write.
-    """
-    gate_names, gate_idxs = _gate_name_table(mapper)
-    instructions, instruction_idxs = _intern(
-        _flatten(mapper.instruction_sequences), _instruction_key
-    )
-
-    paths: Payload | None = None
-    if mapper.paths is not None:
-        fidelity_indices, fidelity_idxs = _intern(_flatten(mapper.paths), _fidelity_index_key)
-        paths = {
-            "skeletons": _write_skeletons(mapper.paths),
-            "fidelity_idxs": fidelity_idxs,
-            "fidelity_indices": _write_fidelity_indices(fidelity_indices, gate_idxs),
-        }
-
-    return {
-        "version": VERSION,
-        "num_qubits": _num_qubits(mapper),
-        "num_randomizations": int(mapper.num_randomizations),
-        "gate_names": gate_names,
-        "layout": _write_layout(mapper),
-        "sequences": {
-            "skeletons": _write_skeletons(mapper.instruction_sequences),
-            "instruction_idxs": instruction_idxs,
-            "instructions": _write_instructions(instructions, gate_idxs),
-        },
-        "paths": paths,
-        "relations": _write_relations(mapper.relations),
-        "model": _write_model(mapper.fidelity_model),
-    }
-
-
-def read(payload: Payload) -> ExecutorDataMapper:
-    """Rebuild the data mapper that :func:`write` was given.
-
-    Args:
-        payload: A payload written by :func:`write`.
-
-    Returns:
-        The data mapper. Fields whose order carries no meaning, such as the relations, may come
-        back ordered differently to the mapper that was written.
-    """
-    gate_names = [str(name) for name in payload["gate_names"]]
-    num_qubits = int(payload["num_qubits"])
-
-    sequences_payload = payload["sequences"]
-    table = _read_instructions(sequences_payload["instructions"], gate_names)
-    instructions = [table[n] for n in sequences_payload["instruction_idxs"].tolist()]
-    sequences = _read_skeletons(InstructionSequence, instructions, sequences_payload["skeletons"])
-
-    paths = None
-    if (paths_payload := payload["paths"]) is not None:
-        fidelity_table = _read_fidelity_indices(
-            paths_payload["fidelity_indices"], gate_names, num_qubits
-        )
-        fidelity_indices = [fidelity_table[n] for n in paths_payload["fidelity_idxs"].tolist()]
-        paths = _read_skeletons(Path, fidelity_indices, paths_payload["skeletons"])
-
-    return ExecutorDataMapper(
-        instruction_sequences=sequences,
-        num_randomizations=int(payload["num_randomizations"]),
-        paths=paths,
-        relations=_read_relations(payload["relations"]),
-        fidelity_model=_read_model(payload["model"]),
-        **_read_layout(payload["layout"]),
-    )
