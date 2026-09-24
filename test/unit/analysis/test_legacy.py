@@ -15,7 +15,7 @@
 import numpy as np
 import pytest
 from qiskit.circuit import QuantumCircuit
-from qiskit.quantum_info import Clifford, PauliLindbladMap, QubitSparsePauli
+from qiskit.quantum_info import Clifford, PauliLindbladMap, QubitSparsePauli, QubitSparsePauliList
 
 from qiskit_noise_learning.analysis import Fit
 from qiskit_noise_learning.analysis.legacy import (
@@ -27,6 +27,7 @@ from qiskit_noise_learning.analysis.legacy import (
 )
 from qiskit_noise_learning.data import AggregatedObservableData, ModelData
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
+from qiskit_noise_learning.models import PauliLindbladModel
 from qiskit_noise_learning.sequences import FidelityIndex, Path
 
 
@@ -38,14 +39,14 @@ def gate_set_2q_identity():
     return mgs
 
 
-def _pp(gate_set: ModelGateSet, in_pauli: str, out_pauli: str) -> Path:
+def _pp(gate_set: ModelGateSet, in_pauli: str, out_pauli: str, gate_name: str = "LL") -> Path:
     """Build an unbound Path with a 2-entry repeatable fragment that loops in_pauli↔out_pauli.
 
     The two ``FidelityIndex`` entries form the closed (in→out, out→in) cycle expected
     by experiment generators, with empty start/end fragments. Tests only need the
     repeatable fragment.
     """
-    gate = gate_set["LL"]
+    gate = gate_set[gate_name]
     return Path(
         start_fragment=[],
         repeatable_fragment=[
@@ -174,7 +175,7 @@ def test_recovers_known_rates_symmetric_fidelities(two_qubit_anticomm_fit, optim
         pytest.importorskip("cvxpy")
 
     nm = fit_noise_model_legacy(
-        two_qubit_anticomm_fit,
+        two_qubit_anticomm_fit.aggregated_observable_data,
         noise_assumption="symmetric_fidelities",
         optimizer_name=optimizer,
     )
@@ -187,13 +188,13 @@ def test_recovers_known_rates_symmetric_fidelities(two_qubit_anticomm_fit, optim
 
 
 def test_returns_pauli_lindblad_map(two_qubit_anticomm_fit):
-    nm = fit_noise_model_legacy(two_qubit_anticomm_fit)
+    nm = fit_noise_model_legacy(two_qubit_anticomm_fit.aggregated_observable_data)
     assert isinstance(nm, PauliLindbladMap)
     assert len(list(nm.generators())) == 2
 
 
 def test_decimals_rounds_rates(two_qubit_anticomm_fit):
-    nm = fit_noise_model_legacy(two_qubit_anticomm_fit, decimals=1)
+    nm = fit_noise_model_legacy(two_qubit_anticomm_fit.aggregated_observable_data, decimals=1)
     rates = sorted(nm.rates, reverse=True)
     # 0.10 stays 0.1; 0.05 rounds to 0.1 (banker's rounding via numpy → 0.0 or 0.1).
     # Either way both are 1-decimal-rounded values.
@@ -203,17 +204,26 @@ def test_decimals_rounds_rates(two_qubit_anticomm_fit):
 
 def test_unrecognized_optimizer_raises(two_qubit_anticomm_fit):
     with pytest.raises(ValueError, match="Optimizer name"):
-        fit_noise_model_legacy(two_qubit_anticomm_fit, optimizer_name="not_a_solver")
+        fit_noise_model_legacy(
+            two_qubit_anticomm_fit.aggregated_observable_data, optimizer_name="not_a_solver"
+        )
 
 
 def test_unrecognized_assumption_raises(two_qubit_anticomm_fit):
     with pytest.raises(ValueError, match="Noise assumption"):
-        fit_noise_model_legacy(two_qubit_anticomm_fit, noise_assumption="not_an_assumption")
+        fit_noise_model_legacy(
+            two_qubit_anticomm_fit.aggregated_observable_data,
+            noise_assumption="not_an_assumption",
+        )
 
 
 def test_nnls_with_constrained_false_raises(two_qubit_anticomm_fit):
     with pytest.raises(ValueError, match="constrained=False"):
-        fit_noise_model_legacy(two_qubit_anticomm_fit, optimizer_name="nnls", constrained=False)
+        fit_noise_model_legacy(
+            two_qubit_anticomm_fit.aggregated_observable_data,
+            optimizer_name="nnls",
+            constrained=False,
+        )
 
 
 def test_cvxpy_branch_raises_when_unavailable(two_qubit_anticomm_fit, monkeypatch):
@@ -229,7 +239,9 @@ def test_cvxpy_branch_raises_when_unavailable(two_qubit_anticomm_fit, monkeypatc
     monkeypatch.setattr(legacy, "HAS_CVXPY", _UnavailableCVXPY)
 
     with pytest.raises(ImportError):
-        fit_noise_model_legacy(two_qubit_anticomm_fit, optimizer_name="cvxpy")
+        fit_noise_model_legacy(
+            two_qubit_anticomm_fit.aggregated_observable_data, optimizer_name="cvxpy"
+        )
 
 
 def test_zero_noise_yields_zero_rates(gate_set_2q_identity):
@@ -237,33 +249,70 @@ def test_zero_noise_yields_zero_rates(gate_set_2q_identity):
     pps = [_pp(gate_set_2q_identity, "XI", "XI"), _pp(gate_set_2q_identity, "ZI", "ZI")]
     fit = Fit()
     fit[AggregatedObservableData] = _make_aggregated_observable_data(pps, np.array([1.0, 1.0]))
-    nm = fit_noise_model_legacy(fit)
+    nm = fit_noise_model_legacy(fit.aggregated_observable_data)
     assert all(r == pytest.approx(0.0, abs=1e-12) for r in nm.rates)
 
 
-def test_legacy_solve_writes_model_data(two_qubit_anticomm_fit):
-    result = LegacySolve().run(two_qubit_anticomm_fit)
+@pytest.fixture()
+def gate_set_two_layers(gate_set_2q_identity):
+    gate_set_2q_identity.add_gate(ModelGate("MM", [((0, 1), Clifford(QuantumCircuit(2)))]))
+    return gate_set_2q_identity
 
-    md = result.model_data
+
+@pytest.mark.parametrize("gate_names", [("LL",), ("LL", "MM"), ("MM", "LL")])
+def test_legacy_solve_recovers_layer_rates(gate_set_two_layers, gate_names):
+    # Pair fidelities are exp(-4 * the anticommuting generator's rate).
+    rates_by_gate = {"LL": (0.1, 0.05), "MM": (0.14, 0.10)}
+    paths, fidelities, expected_rates = [], [], {}
+    for name in gate_names:
+        x_rate, z_rate = rates_by_gate[name]
+        paths.extend(_pp(gate_set_two_layers, p, p, name) for p in ("XI", "ZI"))
+        fidelities.extend(np.exp(-4 * np.array([z_rate, x_rate])))
+        expected_rates.update({(name, "XI"): x_rate, (name, "ZI"): z_rate})
+    fit = Fit()
+    fit[AggregatedObservableData] = _make_aggregated_observable_data(paths, np.array(fidelities))
+
+    md = LegacySolve().run(fit).model_data
     assert isinstance(md, ModelData)
-
-    # Parameter labels should be GeneratorIndex objects with the gate name from the
-    # unbound path's repeatable_fragment[0].gate_name (the gate set fixture uses "LL").
-    indices = md.dataset["parameter_index"].values.tolist()
-    assert all(idx.gate_name == "LL" for idx in indices)
-
-    # Recovered rates should match the analytical values.
-    rates_by_gen_label = {
-        idx.generator.to_pauli().to_label(): float(val)
-        for idx, val in zip(indices, md.dataset["parameter_values"].values)
+    indices = md.dataset["parameter_index"].values
+    rates = {
+        (idx.gate_name, idx.generator.to_pauli().to_label()): float(value)
+        for idx, value in zip(indices, md.dataset["parameter_values"].values)
     }
-    assert rates_by_gen_label["XI"] == pytest.approx(0.1, abs=1e-6)
-    assert rates_by_gen_label["ZI"] == pytest.approx(0.05, abs=1e-6)
+    assert rates == pytest.approx(expected_rates, abs=1e-6)
+    assert [idx.gate_name for idx in indices] == [name for name in gate_names for _ in range(2)]
+    # LegacySolve reports zero covariance for all returned parameters.
+    np.testing.assert_array_equal(
+        md.dataset["covariance"].values, np.zeros((len(rates), len(rates)))
+    )
 
 
-def test_legacy_solve_covariance_is_zero(two_qubit_anticomm_fit):
-    # LegacySolve does not currently compute a covariance — it reports zero.
-    result = LegacySolve().run(two_qubit_anticomm_fit)
-    cov = result.model_data.dataset["covariance"].values
-    assert cov.shape == (2, 2)
-    assert np.allclose(cov, 0.0)
+def test_legacy_solve_omits_unestimated_generators(two_qubit_anticomm_fit, gate_set_two_layers):
+    gate_set_two_layers.add_gate(ModelGate("P", qubit_idxs=[0, 1], prep_idxs=[0, 1]))
+    gate_set_two_layers.add_gate(ModelGate("M", qubit_idxs=[0, 1], meas_idxs=[0, 1]))
+    model = PauliLindbladModel(
+        gate_set_two_layers,
+        generators={
+            "LL": QubitSparsePauliList(["XI", "ZI", "ZZ"]),
+            "MM": QubitSparsePauliList(["XI", "ZI"]),
+            "P": QubitSparsePauliList(["XI", "IX"]),
+            "M": QubitSparsePauliList(["XI", "IX"]),
+        },
+    )
+    fit = Fit(model=model)
+    fit[AggregatedObservableData] = two_qubit_anticomm_fit.aggregated_observable_data
+
+    expected = LegacySolve().run(two_qubit_anticomm_fit).model_data.dataset
+    actual = LegacySolve().run(fit).model_data.dataset
+    # Adding a model must not add rates for extra generators, unsolved layers, or SPAM.
+    assert actual.identical(expected)
+
+
+@pytest.mark.parametrize("fragment_length", [0, 3])
+def test_legacy_solve_rejects_invalid_fragments(gate_set_2q_identity, fragment_length):
+    fi = _pp(gate_set_2q_identity, "XI", "XI").repeatable_fragment[0]
+    path = Path(start_fragment=[], repeatable_fragment=[fi] * fragment_length, end_fragment=[])
+    fit = Fit()
+    fit[AggregatedObservableData] = _make_aggregated_observable_data([path], np.array([0.9]))
+    with pytest.raises(ValueError, match="repeatable_fragment"):
+        LegacySolve().run(fit)

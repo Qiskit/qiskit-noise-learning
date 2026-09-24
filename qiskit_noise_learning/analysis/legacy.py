@@ -10,9 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Legacy noise-model fitter retained as a cross-check reference. Accepts only a single layer
-in a gate set.
-"""
+"""Legacy noise-model fitters retained as cross-check references."""
 
 from collections import defaultdict
 from typing import Any, Literal
@@ -27,65 +25,12 @@ from qiskit_noise_learning.analysis import AnalysisStage, Fit
 from qiskit_noise_learning.data import AggregatedObservableData, ModelData
 from qiskit_noise_learning.data.xarray_utils import time_bound
 from qiskit_noise_learning.models import GeneratorIndex
+from qiskit_noise_learning.sequences import Path
 
 from ..optionals import HAS_CVXPY
 
 OptimizerLiteral = Literal["nnls", "lsq_linear_sparse", "cvxpy"]
 NoiseAssumptionLiteral = Literal["symmetric_fidelities", "symmetric_generators"]
-
-
-class LegacySolve(AnalysisStage):
-    """Solves for the :class:`~.ModelData` using the legacy pair-fidelity method.
-
-    This solver assumes that the gate set only has a single unitary gate, and that the paths
-    are of a vanilla-learning type (i.e. even depth with no single-qubit Cliffords required).
-
-    Delegates to :func:`fit_noise_model_legacy` with ``noise_assumption="symmetric_fidelities"``,
-    ``optimizer_name="nnls"``, and ``constrained=True``.
-    """
-
-    input_level = AggregatedObservableData
-    output_level = ModelData
-
-    def _run(self, fit: Fit) -> None:
-        aggregated_data = fit[AggregatedObservableData]
-
-        noise_map = fit_noise_model_legacy(
-            fit,
-            noise_assumption="symmetric_fidelities",
-            decimals=None,
-            optimizer_name="nnls",
-            constrained=True,
-        )
-
-        layer_name = (
-            fit.aggregated_observable_data.dataset.unbound_path[0]
-            .item()
-            .repeatable_fragment[0]
-            .gate_name
-        )
-
-        param_labels = [
-            GeneratorIndex(gate_name=layer_name, generator=g) for g in noise_map.generators()
-        ]
-        x = np.array(noise_map.rates)
-        cov_x = np.zeros(shape=(len(x), len(x)))
-        metadata = {}
-        # Filter to decay data (fragment_depth == -1)
-        decay_mask = aggregated_data.dataset["fragment_depth"].data == -1
-        decay_dataset = aggregated_data.dataset.sel({"observable": decay_mask})
-
-        time_lb = time_bound(decay_dataset["time_lbs"].data, "min")
-        time_ub = time_bound(decay_dataset["time_ubs"].data, "max")
-
-        fit[ModelData] = ModelData.from_arrays(
-            parameter_indices=param_labels,
-            parameter_values=x,
-            covariance=cov_x,
-            time_lbs=np.full(len(x), time_lb, dtype="datetime64[us]"),
-            time_ubs=np.full(len(x), time_ub, dtype="datetime64[us]"),
-            metadata=metadata,
-        )
 
 
 def get_fid_pairs(unbound_paths) -> tuple[QubitSparsePauliList, QubitSparsePauliList]:
@@ -190,7 +135,7 @@ def make_conj_pauli_list(
 
 
 def fit_noise_model_legacy(
-    fit: Fit,
+    aggregated_data: AggregatedObservableData,
     noise_assumption: NoiseAssumptionLiteral = "symmetric_fidelities",
     decimals: int | None = None,
     optimizer_name: OptimizerLiteral = "nnls",
@@ -204,7 +149,7 @@ def fit_noise_model_legacy(
     :class:`~.ModelSolve` and friends.
 
     Args:
-        fit: A :class:`~.Fit` container holding :class:`~.AggregatedObservableData`.
+        aggregated_data: The :class:`~.AggregatedObservableData` to fit.
         noise_assumption: How to treat Clifford conjugation of generators.
             ``"symmetric_fidelities"`` uses the square root of each pair fidelity as a
             single-layer fidelity. ``"symmetric_generators"`` assumes conjugate generator
@@ -225,10 +170,8 @@ def fit_noise_model_legacy(
         MissingOptionalLibraryError: If ``optimizer_name="cvxpy"`` and ``cvxpy`` is not
             installed.
     """
-    fid_ps_1, fid_ps_2 = get_fid_pairs(
-        fit.aggregated_observable_data.dataset.estimate_values.unbound_path.data
-    )
-    fid_pair_data = fit.aggregated_observable_data.dataset.estimate_values
+    fid_ps_1, fid_ps_2 = get_fid_pairs(aggregated_data.dataset.estimate_values.unbound_path.data)
+    fid_pair_data = aggregated_data.dataset.estimate_values
     fidelities_canonical = make_canonical_fid_dict(
         fid_ps_1.to_pauli_list().to_labels(), fid_ps_2.to_pauli_list().to_labels(), fid_pair_data
     )
@@ -333,3 +276,89 @@ def fit_noise_model_legacy(
         list(zip(sparse_model_paulis.to_labels(), sparse_model_coeffs))
     )
     return noise_map_pecr
+
+
+def _row_gate_name(path: Path) -> str:
+    if len(path.repeatable_fragment) == 0:
+        raise ValueError(
+            "LegacySolve requires every observable to have a non-empty "
+            "repeatable_fragment to determine its layer; encountered a path with an empty "
+            "repeatable_fragment."
+        )
+    return path.repeatable_fragment[0].gate_name
+
+
+class LegacySolve(AnalysisStage):
+    """Solves for the :class:`~.ModelData` using the legacy pair-fidelity method, applied
+    independently to each gate layer.
+
+    For each distinct gate name found in the :class:`~.AggregatedObservableData`, this stage
+    partitions the observable rows by that gate name, runs :func:`~.fit_noise_model_legacy`
+    with ``noise_assumption="symmetric_fidelities"``, ``optimizer_name="nnls"``, and
+    ``constrained=True``, then concatenates all per-layer results into a single
+    :class:`~.ModelData`.
+
+    Only generators estimated from the observable data are included in the output.
+    Unestimated generators in the fit's model are omitted; their rates are not assumed to be zero.
+    Model predictions requiring those missing parameters must be handled separately.
+
+    If any layer violates the legacy-learner assumptions (wrong repeatable-fragment length,
+    single-qubit Cliffords required, or inconsistent conjugate fidelities), the entire solve
+    raises.  There is no per-layer skip or warning.
+
+    Layer order in the output :class:`~.ModelData` follows first-seen order in the observable
+    dataset, which is deterministic for a given :class:`~.AggregatedObservableData`.
+    """
+
+    input_level = AggregatedObservableData
+    output_level = ModelData
+
+    def _run(self, fit: Fit) -> None:
+        aggregated_data = fit[AggregatedObservableData]
+        dataset = aggregated_data.dataset
+
+        paths = dataset["unbound_path"].data
+        gate_names = np.array([_row_gate_name(p) for p in paths], dtype=object)
+
+        all_labels: list[GeneratorIndex] = []
+        all_rates: list[float] = []
+        all_time_lbs: list[np.datetime64] = []
+        all_time_ubs: list[np.datetime64] = []
+
+        for name in dict.fromkeys(gate_names):
+            mask = gate_names == name
+            layer_data = AggregatedObservableData(dataset.sel({"observable": mask}))
+
+            noise_map = fit_noise_model_legacy(
+                layer_data,
+                noise_assumption="symmetric_fidelities",
+                decimals=None,
+                optimizer_name="nnls",
+                constrained=True,
+            )
+
+            layer_labels = [
+                GeneratorIndex(gate_name=name, generator=g) for g in noise_map.generators()
+            ]
+            layer_rates = list(noise_map.rates)
+
+            decay_mask = layer_data.dataset["fragment_depth"].data == -1
+            decay_ds = layer_data.dataset.sel({"observable": decay_mask})
+            time_lb = time_bound(decay_ds["time_lbs"].data, "min")
+            time_ub = time_bound(decay_ds["time_ubs"].data, "max")
+
+            all_labels.extend(layer_labels)
+            all_rates.extend(layer_rates)
+            all_time_lbs.extend([time_lb] * len(layer_labels))
+            all_time_ubs.extend([time_ub] * len(layer_labels))
+
+        x = np.array(all_rates)
+        cov_x = np.zeros((len(x), len(x)))
+        fit[ModelData] = ModelData.from_arrays(
+            parameter_indices=all_labels,
+            parameter_values=x,
+            covariance=cov_x,
+            time_lbs=np.array(all_time_lbs, dtype="datetime64[us]"),
+            time_ubs=np.array(all_time_ubs, dtype="datetime64[us]"),
+            metadata={},
+        )
