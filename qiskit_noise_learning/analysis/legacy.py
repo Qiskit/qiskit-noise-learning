@@ -33,60 +33,6 @@ OptimizerLiteral = Literal["nnls", "lsq_linear_sparse", "cvxpy"]
 NoiseAssumptionLiteral = Literal["symmetric_fidelities", "symmetric_generators"]
 
 
-class LegacySolve(AnalysisStage):
-    """Solves for the :class:`~.ModelData` using the legacy pair-fidelity method.
-
-    This solver assumes that the gate set only has a single unitary gate, and that the paths
-    are of a vanilla-learning type (i.e. even depth with no single-qubit Cliffords required).
-
-    Delegates to :func:`fit_noise_model_legacy` with ``noise_assumption="symmetric_fidelities"``,
-    ``optimizer_name="nnls"``, and ``constrained=True``.
-    """
-
-    input_level = AggregatedObservableData
-    output_level = ModelData
-
-    def _run(self, fit: Fit) -> None:
-        aggregated_data = fit[AggregatedObservableData]
-
-        noise_map = fit_noise_model_legacy(
-            aggregated_data,
-            noise_assumption="symmetric_fidelities",
-            decimals=None,
-            optimizer_name="nnls",
-            constrained=True,
-        )
-
-        layer_name = (
-            fit.aggregated_observable_data.dataset.unbound_path[0]
-            .item()
-            .repeatable_fragment[0]
-            .gate_name
-        )
-
-        param_labels = [
-            GeneratorIndex(gate_name=layer_name, generator=g) for g in noise_map.generators()
-        ]
-        x = np.array(noise_map.rates)
-        cov_x = np.zeros(shape=(len(x), len(x)))
-        metadata = {}
-        # Filter to decay data (fragment_depth == -1)
-        decay_mask = aggregated_data.dataset["fragment_depth"].data == -1
-        decay_dataset = aggregated_data.dataset.sel({"observable": decay_mask})
-
-        time_lb = time_bound(decay_dataset["time_lbs"].data, "min")
-        time_ub = time_bound(decay_dataset["time_ubs"].data, "max")
-
-        fit[ModelData] = ModelData.from_arrays(
-            parameter_indices=param_labels,
-            parameter_values=x,
-            covariance=cov_x,
-            time_lbs=np.full(len(x), time_lb, dtype="datetime64[us]"),
-            time_ubs=np.full(len(x), time_ub, dtype="datetime64[us]"),
-            metadata=metadata,
-        )
-
-
 def get_fid_pairs(unbound_paths) -> tuple[QubitSparsePauliList, QubitSparsePauliList]:
     """Extract the first and second Paulis from the repeatable fragment of each unbound path.
 
@@ -335,14 +281,14 @@ def fit_noise_model_legacy(
 def _row_gate_name(path: Path) -> str:
     if len(path.repeatable_fragment) == 0:
         raise ValueError(
-            "PerLayerLegacySolve requires every observable to have a non-empty "
+            "LegacySolve requires every observable to have a non-empty "
             "repeatable_fragment to determine its layer; encountered a path with an empty "
             "repeatable_fragment."
         )
     return path.repeatable_fragment[0].gate_name
 
 
-class PerLayerLegacySolve(AnalysisStage):
+class LegacySolve(AnalysisStage):
     """Solves for the :class:`~.ModelData` using the legacy pair-fidelity method, applied
     independently to each gate layer.
 
@@ -352,10 +298,9 @@ class PerLayerLegacySolve(AnalysisStage):
     ``constrained=True``, then concatenates all per-layer results into a single
     :class:`~.ModelData`.
 
-    This is a strict generalization of :class:`~.LegacySolve`: on a single-layer gate set
-    it produces the same output.  On a multi-layer gate set it assigns each
-    :class:`~.GeneratorIndex` to its correct gate layer, whereas :class:`~.LegacySolve`
-    would mislabel all generators with the first-seen gate name.
+    Only generators estimated from the observable data are included in the output.
+    Unestimated generators in the fit's model are omitted; their rates are not assumed to be zero.
+    Model predictions requiring those missing parameters must be handled separately.
 
     If any layer violates the legacy-learner assumptions (wrong repeatable-fragment length,
     single-qubit Cliffords required, or inconsistent conjugate fidelities), the entire solve
@@ -406,21 +351,6 @@ class PerLayerLegacySolve(AnalysisStage):
             all_rates.extend(layer_rates)
             all_time_lbs.extend([time_lb] * len(layer_labels))
             all_time_ubs.extend([time_ub] * len(layer_labels))
-
-        # Pad any generators not covered by the solved layers (e.g. P/M gates absent from
-        # vanilla paths) with rate 0.0 and NaT time bounds so that predicted_path_decays
-        # can build a complete parameter vector for model-prediction plots.
-        if fit.model is not None:
-            solved = set(all_labels)
-            nat = np.datetime64("NaT")
-            for gate_name, paulis in fit.model.generators.items():
-                for g in paulis:
-                    idx = GeneratorIndex(gate_name=gate_name, generator=g)
-                    if idx not in solved:
-                        all_labels.append(idx)
-                        all_rates.append(0.0)
-                        all_time_lbs.append(nat)
-                        all_time_ubs.append(nat)
 
         x = np.array(all_rates)
         cov_x = np.zeros((len(x), len(x)))

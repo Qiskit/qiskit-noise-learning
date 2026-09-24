@@ -10,16 +10,17 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Unit tests for PerLayerLegacySolve."""
+"""Unit tests for LegacySolve."""
 
 import numpy as np
 import pytest
 from qiskit.circuit import QuantumCircuit
-from qiskit.quantum_info import Clifford, QubitSparsePauli
+from qiskit.quantum_info import Clifford, QubitSparsePauli, QubitSparsePauliList
 
-from qiskit_noise_learning.analysis import Fit, PerLayerLegacySolve
+from qiskit_noise_learning.analysis import Fit, LegacySolve
 from qiskit_noise_learning.data import AggregatedObservableData, ModelData
 from qiskit_noise_learning.gate_sets import ModelGate, ModelGateSet
+from qiskit_noise_learning.models import PauliLindbladModel
 from qiskit_noise_learning.sequences import FidelityIndex, Path
 
 
@@ -110,18 +111,18 @@ def two_layer_fit(gate_set_two_layers) -> Fit:
     return fit
 
 
-class TestPerLayerLegacySolveSingleLayer:
+class TestLegacySolveSingleLayer:
     def test_writes_model_data(self, single_layer_fit):
-        result = PerLayerLegacySolve().run(single_layer_fit)
+        result = LegacySolve().run(single_layer_fit)
         assert isinstance(result.model_data, ModelData)
 
     def test_gate_name_matches_layer(self, single_layer_fit):
-        result = PerLayerLegacySolve().run(single_layer_fit)
+        result = LegacySolve().run(single_layer_fit)
         indices = result.model_data.dataset["parameter_index"].values.tolist()
         assert all(idx.gate_name == "LL" for idx in indices)
 
     def test_recovers_known_rates(self, single_layer_fit):
-        result = PerLayerLegacySolve().run(single_layer_fit)
+        result = LegacySolve().run(single_layer_fit)
         md = result.model_data
         rates_by_gen = {
             idx.generator.to_pauli().to_label(): float(val)
@@ -133,32 +134,54 @@ class TestPerLayerLegacySolveSingleLayer:
         assert rates_by_gen["ZI"] == pytest.approx(0.05, abs=1e-6)
 
     def test_covariance_is_zero(self, single_layer_fit):
-        result = PerLayerLegacySolve().run(single_layer_fit)
+        result = LegacySolve().run(single_layer_fit)
         cov = result.model_data.dataset["covariance"].values
         assert cov.shape == (2, 2)
         assert np.allclose(cov, 0.0)
 
+    def test_unestimated_model_generators_are_omitted(self, single_layer_fit, gate_set_two_layers):
+        model = PauliLindbladModel(
+            gate_set_two_layers,
+            generators={
+                "LL": QubitSparsePauliList(["XI", "ZI", "ZZ"]),
+                "MM": QubitSparsePauliList(["XI", "ZI"]),
+            },
+        )
+        fit = Fit(model=model)
+        fit[AggregatedObservableData] = single_layer_fit.aggregated_observable_data
 
-class TestPerLayerLegacySolveTwoLayers:
+        result = LegacySolve().run(fit)
+        rates = {
+            (idx.gate_name, idx.generator.to_pauli().to_label()): float(value)
+            for idx, value in zip(
+                result.model_data.dataset["parameter_index"].values,
+                result.model_data.dataset["parameter_values"].values,
+            )
+        }
+        assert rates == pytest.approx({("LL", "XI"): 0.1, ("LL", "ZI"): 0.05})
+        assert result.model_data.dataset["covariance"].shape == (2, 2)
+
+
+class TestLegacySolveTwoLayers:
     def test_writes_model_data(self, two_layer_fit):
-        result = PerLayerLegacySolve().run(two_layer_fit)
+        result = LegacySolve().run(two_layer_fit)
         assert isinstance(result.model_data, ModelData)
 
     def test_both_gate_names_present(self, two_layer_fit):
-        result = PerLayerLegacySolve().run(two_layer_fit)
+        result = LegacySolve().run(two_layer_fit)
         indices = result.model_data.dataset["parameter_index"].values.tolist()
         gate_names = {idx.gate_name for idx in indices}
         assert gate_names == {"LL", "MM"}
 
     def test_layer_order_is_first_seen(self, two_layer_fit):
-        result = PerLayerLegacySolve().run(two_layer_fit)
+        result = LegacySolve().run(two_layer_fit)
         indices = result.model_data.dataset["parameter_index"].values.tolist()
         # LL rows come before MM rows in the fixture, so LL labels must appear first.
         first_name = indices[0].gate_name
         assert first_name == "LL"
 
     def test_recovers_ll_rates(self, two_layer_fit):
-        result = PerLayerLegacySolve().run(two_layer_fit)
+        result = LegacySolve().run(two_layer_fit)
         md = result.model_data
         rates_by_gen = {
             (idx.gate_name, idx.generator.to_pauli().to_label()): float(val)
@@ -170,7 +193,7 @@ class TestPerLayerLegacySolveTwoLayers:
         assert rates_by_gen[("LL", "ZI")] == pytest.approx(0.05, abs=1e-6)
 
     def test_recovers_mm_rates(self, two_layer_fit):
-        result = PerLayerLegacySolve().run(two_layer_fit)
+        result = LegacySolve().run(two_layer_fit)
         md = result.model_data
         rates_by_gen = {
             (idx.gate_name, idx.generator.to_pauli().to_label()): float(val)
@@ -183,13 +206,13 @@ class TestPerLayerLegacySolveTwoLayers:
         assert rates_by_gen[("MM", "ZI")] == pytest.approx(0.10, abs=1e-6)
 
     def test_covariance_shape_and_zero(self, two_layer_fit):
-        result = PerLayerLegacySolve().run(two_layer_fit)
+        result = LegacySolve().run(two_layer_fit)
         cov = result.model_data.dataset["covariance"].values
         assert cov.shape == (4, 4)
         assert np.allclose(cov, 0.0)
 
 
-class TestPerLayerLegacySolveFailures:
+class TestLegacySolveFailures:
     def test_wrong_fragment_length_raises(self, gate_set_2q_identity):
         gate = gate_set_2q_identity["LL"]
         fi = FidelityIndex.from_transition(
@@ -199,7 +222,7 @@ class TestPerLayerLegacySolveFailures:
         fit = Fit()
         fit[AggregatedObservableData] = _make_aggregated_observable_data([pp_3], np.array([0.9]))
         with pytest.raises(ValueError, match="repeatable_fragment"):
-            PerLayerLegacySolve().run(fit)
+            LegacySolve().run(fit)
 
     def test_empty_repeatable_fragment_raises(self):
         pp_empty = Path(start_fragment=[], repeatable_fragment=[], end_fragment=[])
@@ -208,4 +231,4 @@ class TestPerLayerLegacySolveFailures:
             [pp_empty], np.array([0.9])
         )
         with pytest.raises(ValueError, match="repeatable_fragment"):
-            PerLayerLegacySolve().run(fit)
+            LegacySolve().run(fit)
