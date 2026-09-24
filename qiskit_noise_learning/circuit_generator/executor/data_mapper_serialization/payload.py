@@ -10,13 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Writing and reading a data mapper through a program's passthrough data.
-
-Only the current version is ever written, and every version ever written stays readable. So there is
-one writer, and one reader per version, chosen by the version recorded in the data itself. There is
-deliberately no chain of converters between versions: each reader stands alone, which keeps a new
-version from disturbing the ones already in use.
-"""
+"""Writing and reading a data mapper through a program's passthrough data."""
 
 from collections.abc import Callable
 from typing import Any
@@ -25,12 +19,7 @@ from ..executor_data_mapper import ExecutorDataMapper
 from . import v1
 
 PAYLOAD_KEY = "qiskit_noise_learning"
-"""The entry under which a program's passthrough data carries the serialized data mapper.
-
-Passthrough data belongs to whoever submits the program, who may be keeping their own entries in it,
-so this package confines itself to one entry rather than occupying the whole of it. The name is part
-of the format.
-"""
+"""The entry under which a program's passthrough data carries the serialized data mapper."""
 
 CURRENT_VERSION = v1.VERSION
 """The format version :func:`dump` writes."""
@@ -39,10 +28,7 @@ READERS: dict[int, Callable[[dict[str, Any]], ExecutorDataMapper]] = {v1.VERSION
 """Every format version this release can read, and the function that reads it."""
 
 RETIRED: dict[int, str] = {}
-"""Format versions no longer readable, against the last release that could read them.
-
-An entry here is what lets :func:`load` name a release that works, rather than only refusing.
-"""
+"""Format versions no longer readable, against the last release that could read them."""
 
 
 class PayloadVersionError(ValueError):
@@ -52,8 +38,7 @@ class PayloadVersionError(ValueError):
 def dump(mapper: ExecutorDataMapper) -> dict[str, Any]:
     """Serialize a data mapper for a program's passthrough data.
 
-    The result holds one entry, so it can be merged into whatever else the submitter is passing
-    through. Its values are only the types passthrough data accepts: arrays, strings, whole numbers,
+    Its values are only the types passthrough data accepts: arrays, strings, whole numbers,
     booleans, ``None``, and lists and dictionaries of those.
 
     Args:
