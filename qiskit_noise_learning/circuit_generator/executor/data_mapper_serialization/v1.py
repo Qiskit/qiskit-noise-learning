@@ -10,21 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Version 1 of the serialized data mapper payload.
-
-Every decision about the format is made in this module: which fields are written, in what order,
-with what dtypes, under what keys. A later version of the format is a new module beside this one,
-and this one keeps reading the payloads it wrote.
-
-How the bytes are read never changes, because payloads already written cannot. How the data mapper
-is built from them may: this module has to build whatever the class looks like now. Giving the
-mapper a new optional field costs nothing here, but renaming a field, dropping one, or changing what
-one means needs an edit in every version module that is still readable.
-
-Repeated instructions and fidelity indices are written once into a table that the sequences and
-paths index into. Measured against writing every occurrence, this is both smaller and faster in both
-directions, because there is roughly two and a half times as much repetition as distinct content.
-"""
+"""Version 1 of the serialized data mapper payload."""
 
 from collections.abc import Hashable, Iterable, Sequence
 from typing import Any, TypeAlias

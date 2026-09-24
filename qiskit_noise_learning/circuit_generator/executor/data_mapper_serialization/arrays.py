@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Array plumbing shared by every version of the serialized payload."""
+"""Array helper functions for serialization."""
 
 from collections.abc import Sequence
 from typing import Any, TypeAlias
@@ -20,7 +20,7 @@ from numpy.typing import DTypeLike, NDArray
 from qiskit.quantum_info import QubitSparsePauli
 
 IDX: TypeAlias = np.uint32
-"""The dtype every index and offset array is written with."""
+"""The dtype every indexing."""
 
 Row: TypeAlias = Sequence[int] | NDArray[Any]
 """One row handed to :func:`pack_ragged`, either a sequence of indices or an array of them."""
@@ -28,12 +28,6 @@ Row: TypeAlias = Sequence[int] | NDArray[Any]
 
 def pack_ragged(rows: Sequence[Row], dtype: DTypeLike = IDX) -> tuple[NDArray[Any], NDArray[IDX]]:
     """Concatenate rows of differing lengths into one array, plus each row's length.
-
-    Two things about the transport shape this. Each array is compressed on its own, so one long
-    array beats one array per row. And row *lengths* are written rather than offsets into the
-    concatenation: lengths repeat, often taking only one or two distinct values, where offsets climb
-    monotonically and share no structure. Measured over a 196-qubit payload, the offsets form cost
-    158.9 KB against 4.8 KB for lengths.
 
     Args:
         rows: The rows to concatenate.
