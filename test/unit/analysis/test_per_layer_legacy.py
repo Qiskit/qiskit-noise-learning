@@ -140,8 +140,8 @@ class TestLegacySolveSingleLayer:
         assert np.allclose(cov, 0.0)
 
     def test_unestimated_model_generators_are_omitted(self, single_layer_fit, gate_set_two_layers):
-        gate_set_two_layers.add_gate(ModelGate("P", prep_idxs=[0, 1]))
-        gate_set_two_layers.add_gate(ModelGate("M", meas_idxs=[0, 1]))
+        gate_set_two_layers.add_gate(ModelGate("P", qubit_idxs=[0, 1], prep_idxs=[0, 1]))
+        gate_set_two_layers.add_gate(ModelGate("M", qubit_idxs=[0, 1], meas_idxs=[0, 1]))
         model = PauliLindbladModel(
             gate_set_two_layers,
             generators={
