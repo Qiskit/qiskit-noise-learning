@@ -332,6 +332,10 @@ def write(mapper: ExecutorDataMapper) -> Payload:
     Raises:
         TypeError: If the mapper carries a fidelity model this version cannot write.
     """
+    # The model is written first so that an unwritable one is refused here, rather than surfacing
+    # later as an attribute error from whichever helper first reaches into it.
+    model = _write_model(mapper.fidelity_model)
+
     gate_names, gate_idxs = _gate_name_table(mapper)
     instructions, instruction_idxs = _intern(
         _flatten(mapper.instruction_sequences), _instruction_key
@@ -359,7 +363,7 @@ def write(mapper: ExecutorDataMapper) -> Payload:
         },
         "paths": paths,
         "relations": _write_relations(mapper.relations),
-        "model": _write_model(mapper.fidelity_model),
+        "model": model,
     }
 
 
