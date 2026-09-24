@@ -38,7 +38,7 @@ class PayloadVersionError(ValueError):
 def dump(mapper: ExecutorDataMapper) -> dict[str, Any]:
     """Serialize a data mapper for a program's passthrough data.
 
-    Its values are only the types passthrough data accepts: arrays, strings, whole numbers,
+    Its values are only the types passthrough data accepts: arrays, strings, integers,
     booleans, ``None``, and lists and dictionaries of those.
 
     Args:
@@ -79,7 +79,7 @@ def load(passthrough_data: dict[str, Any]) -> ExecutorDataMapper:
         version = int(payload["version"])
     except (TypeError, KeyError, ValueError):
         raise PayloadVersionError(
-            f"The '{PAYLOAD_KEY}' passthrough data entry has no whole-number 'version', so there "
+            f"The '{PAYLOAD_KEY}' passthrough data entry has no integer 'version', so there "
             "is no way to tell how to read it."
         ) from None
 
