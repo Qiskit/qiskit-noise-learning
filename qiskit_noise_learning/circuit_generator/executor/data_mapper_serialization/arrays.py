@@ -37,8 +37,10 @@ def pack_ragged(rows: Sequence[Row], dtype: DTypeLike = IDX) -> tuple[NDArray[An
         A tuple of the concatenated values and the length of each row.
 
     Examples:
-        >>> from qiskit_noise_learning.circuit_generator.executor.arrays import pack_ragged
-        >>> flat, lengths = pack_ragged([[1, 2, 3], [], [4]])
+        >>> from qiskit_noise_learning.circuit_generator.executor.data_mapper_serialization import (
+        ...     arrays,
+        ... )
+        >>> flat, lengths = arrays.pack_ragged([[1, 2, 3], [], [4]])
         >>> flat.tolist(), lengths.tolist()
         ([1, 2, 3, 4], [3, 0, 1])
     """
@@ -78,8 +80,12 @@ def pack_paulis(
 
     Examples:
         >>> from qiskit.quantum_info import QubitSparsePauli
-        >>> from qiskit_noise_learning.circuit_generator.executor.arrays import pack_paulis
-        >>> terms, indices, lengths = pack_paulis([QubitSparsePauli.from_label("IXZ")])
+        >>> from qiskit_noise_learning.circuit_generator.executor.data_mapper_serialization import (
+        ...     arrays,
+        ... )
+        >>> terms, indices, lengths = arrays.pack_paulis(
+        ...     [QubitSparsePauli.from_label("IXZ")]
+        ... )
         >>> terms.tolist(), indices.tolist(), lengths.tolist()
         ([1, 2], [0, 1], [2])
     """
