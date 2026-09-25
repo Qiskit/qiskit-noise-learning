@@ -23,14 +23,13 @@ from ..sequences import InstructionSequence
 
 TaskT = TypeVar("TaskT")
 ResultT = TypeVar("ResultT")
-DataMapperT = TypeVar("DataMapperT")
 
 
-class CircuitGenerator(abc.ABC, Generic[TaskT, DataMapperT, ResultT]):
+class CircuitGenerator(abc.ABC, Generic[TaskT, ResultT]):
     """Generate experimental tasks from given instruction sequences.
 
     In addition to generating experimental tasks, this class also provides an interface to designate
-    data, that is, to convert the results from tasks to the standard results.
+    data, that is, to convert the results from tasks into a :class:`~.Fit`.
     """
 
     @property
@@ -40,11 +39,11 @@ class CircuitGenerator(abc.ABC, Generic[TaskT, DataMapperT, ResultT]):
 
     @staticmethod
     @abc.abstractmethod
-    def collect(result: ResultT, data_mapper: DataMapperT) -> Fit:
+    def collect(result: ResultT) -> Fit:
         """Coerce data from a specific execution framework into a canonical form."""
 
     @abc.abstractmethod
-    def generate(self, experiment: Experiment) -> tuple[TaskT, DataMapperT]:
+    def generate(self, experiment: Experiment) -> TaskT:
         """Generate a new experimental task from the provided experiment."""
 
     @classmethod

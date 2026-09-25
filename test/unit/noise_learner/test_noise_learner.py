@@ -14,15 +14,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from qiskit.circuit import BoxOp, QuantumCircuit
-from qiskit.quantum_info import QubitSparsePauliList
 from qiskit_ibm_runtime import Executor
 from qiskit_ibm_runtime.fake_provider.backends.fez import FakeFez
 from qiskit_ibm_runtime.quantum_program import QuantumProgram
 from samplomatic import InjectNoise, Twirl
 
 from qiskit_noise_learning.aer_executor import AerExecutor
-from qiskit_noise_learning.circuit_generator import ExecutorDataMapper
-from qiskit_noise_learning.models import PauliLindbladModel
 from qiskit_noise_learning.noise_learner import (
     LearningOptions,
     NoiseLearner,
@@ -99,29 +96,12 @@ def test_noise_learner_run_orchestration(mock_executor_cls, learner, gate_set_cz
     generate_calls = []
 
     fake_program = QuantumProgram(shots=16, items=[])
-    model = PauliLindbladModel(
-        gate_set_cz,
-        {
-            "CZ": QubitSparsePauliList(["ZI"]),
-            "P": QubitSparsePauliList(["XI"]),
-            "M": QubitSparsePauliList(["XI"]),
-        },
-    )
-    fake_data_mapper = ExecutorDataMapper(
-        item_sequence_indices=[],
-        item_creg_names=[],
-        item_clbit_qubit_idxs=[],
-        instruction_sequences=[],
-        num_randomizations=1,
-        fidelity_model=model,
-        paths=[],
-    )
     fake_job = MagicMock()
     mock_executor_cls.return_value.run.return_value = fake_job
 
     def fake_generate(instructions):
         generate_calls.append(instructions)
-        return (fake_program, fake_data_mapper)
+        return fake_program
 
     learner._generate = fake_generate  # noqa: SLF001
 
@@ -132,7 +112,6 @@ def test_noise_learner_run_orchestration(mock_executor_cls, learner, gate_set_cz
     assert len(generate_calls) == 1
     mock_executor_cls.assert_called_once_with(mode=learner.backend)
     mock_executor_cls.return_value.run.assert_called_once_with(fake_program)
-    assert result._data_mapper is fake_data_mapper  # noqa: SLF001
     assert result._analysis_stage is learner._analyzer  # noqa: SLF001
 
 
