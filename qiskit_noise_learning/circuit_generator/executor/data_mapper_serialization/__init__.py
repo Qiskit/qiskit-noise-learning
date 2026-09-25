@@ -30,9 +30,8 @@ The versioning system policy is as follows:
   error raising for unsupported version numbers, is managed by :func:`load`.
 
 A new version should be defined when the :class:`ExecutorDataMapper` is modified in a way that
-fundamentally changes the payload format. For example:
-* Adding a new optional argument to the data mapper will not require a new version: the current
-  ``read`` function can be updated to assign the value ``None`` if the field is not present.
+fundamentally changes the payload format. For example, a new field necessitates a new version; an
+older deserializer (say from a previous version of the package) will not be able to interpret it.
 
 A version should be retired when it cannot be reconciled with the current version of
 :class:`ExecutorDataMapper`. For example:
