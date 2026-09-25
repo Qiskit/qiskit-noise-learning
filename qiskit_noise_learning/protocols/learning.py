@@ -98,7 +98,7 @@ def prepare_learning_program(
         backend: The backend supplying the compilation target: the gate set, coupling map and qubit
             count that generated circuits are built against.
         instructions: The instructions to learn the noise of. Each instruction should contain a
-            :class:`~qiskit.circuit.BoxOp` operation.
+            :class:`~qiskit.circuit.BoxOp` operation, and must be self-inverse.
         num_randomizations: The number of randomizations to use per learning circuit.
         shots_per_randomization: The number of shots to use per randomization.
         fragment_depths: The fragment depths to use, that is, the number of repetitions of each
