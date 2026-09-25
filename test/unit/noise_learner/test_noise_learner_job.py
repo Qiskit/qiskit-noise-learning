@@ -21,6 +21,7 @@ from qiskit_ibm_runtime import RuntimeJobV2
 from qiskit_noise_learning.aer_executor import AerRuntimeJob
 from qiskit_noise_learning.analysis import AnalysisStage
 from qiskit_noise_learning.circuit_generator import ExecutorDataMapper
+from qiskit_noise_learning.circuit_generator.executor.data_mapper_serialization import dump
 from qiskit_noise_learning.data import ModelData, RawData
 from qiskit_noise_learning.models import PauliLindbladModel
 from qiskit_noise_learning.noise_learner import (
@@ -31,10 +32,11 @@ from qiskit_noise_learning.noise_learner import (
 
 
 class _StubProgramResult:
-    """Minimal stub mimicking QuantumProgramResult with metadata."""
+    """Minimal stub mimicking QuantumProgramResult with metadata and passthrough data."""
 
-    def __init__(self):
+    def __init__(self, passthrough_data=None):
         self.metadata = SimpleNamespace(chunk_timing=[])
+        self.passthrough_data = passthrough_data
 
     def __len__(self):
         return 0
@@ -44,16 +46,17 @@ class _StubProgramResult:
 
 
 class _StubRuntimeJob:
-    def __init__(self):
+    def __init__(self, passthrough_data=None):
         self.call_count = 0
         self.last_args = None
         self.last_kwargs = None
+        self._passthrough_data = passthrough_data
 
     def result(self, *args, **kwargs):
         self.call_count += 1
         self.last_args = args
         self.last_kwargs = kwargs
-        return _StubProgramResult()
+        return _StubProgramResult(self._passthrough_data)
 
 
 class _StubAnalysisStage(AnalysisStage):
@@ -99,8 +102,9 @@ def data_mapper(model):
 
 
 @pytest.fixture()
-def stub_runtime_job():
-    return _StubRuntimeJob()
+def stub_runtime_job(data_mapper):
+    """A job whose result carries the data mapper, the way a generated program's result does."""
+    return _StubRuntimeJob(dump(data_mapper))
 
 
 @pytest.fixture()
@@ -109,8 +113,8 @@ def analysis_stage():
 
 
 @pytest.fixture()
-def job(stub_runtime_job, data_mapper, analysis_stage):
-    return NoiseLearnerJob(stub_runtime_job, data_mapper, analysis_stage)
+def job(stub_runtime_job, analysis_stage):
+    return NoiseLearnerJob(stub_runtime_job, analysis_stage)
 
 
 @pytest.mark.parametrize("job_cls", [RuntimeJobV2, AerRuntimeJob])
@@ -125,10 +129,19 @@ def test_noise_learner_job_init(job, stub_runtime_job):
 
 
 def test_noise_learner_result_result(job, model):
-    """Test NoiseLearnerJob.result returns sensible data."""
+    """Test NoiseLearnerJob.result returns sensible data.
+
+    The fit's model is rebuilt from the result's passthrough data rather than handed over directly,
+    so it is an equivalent model and not the same object.
+    """
     result = job.result()
     assert isinstance(result, NoiseLearnerResult)
-    assert result.fit.model is model
+    assert result.fit.model is not model
+    assert type(result.fit.model) is type(model)
+    assert sorted(result.fit.model.generators) == sorted(model.generators)
+    assert all(
+        result.fit.model.generators[name] == model.generators[name] for name in model.generators
+    )
     assert isinstance(result.fit.raw_data, RawData)
     assert isinstance(result.fit.model_data, ModelData)
 
