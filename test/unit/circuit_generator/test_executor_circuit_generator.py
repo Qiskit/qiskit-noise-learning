@@ -19,6 +19,7 @@ from qiskit_ibm_runtime.results import QuantumProgramResult
 from samplomatic import Twirl
 
 from qiskit_noise_learning.circuit_generator import ExecutorCircuitGenerator, ExecutorDataMapper
+from qiskit_noise_learning.circuit_generator.executor.data_mapper_serialization import dump
 from qiskit_noise_learning.gate_sets import QiskitGateSet
 from qiskit_noise_learning.sequences import (
     ApplyGate,
@@ -70,6 +71,7 @@ def make_result(items, chunk_timing=None):
     class _Result:
         def __init__(self):
             self.metadata = SimpleNamespace(chunk_timing=chunk_timing)
+            self.passthrough_data = None
 
         def __len__(self):
             return len(items)
@@ -78,6 +80,12 @@ def make_result(items, chunk_timing=None):
             return items[idx]
 
     return _Result()
+
+
+def with_mapper(result, data_mapper):
+    """Give a stub result the data mapper a real program result would carry."""
+    result.passthrough_data = dump(data_mapper)
+    return result
 
 
 def _creg_bit_qubits(circuit):
@@ -501,8 +509,8 @@ def test_collect_empty():
         instruction_sequences=[],
         num_randomizations=0,
     )
-    result = QuantumProgramResult([])
-    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    result = QuantumProgramResult([], passthrough_data=dump(data_mapper))
+    fit = ExecutorCircuitGenerator.collect(result)
     assert len(fit.raw_data.datatree) == 0
 
 
@@ -518,7 +526,7 @@ def test_collect_single_sequence_no_measurement_flips():
         num_randomizations=1,
     )
 
-    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    fit = ExecutorCircuitGenerator.collect(with_mapper(result, data_mapper))
     raw_data = fit.raw_data
     dataset = raw_data.datatree["0"]
     np.testing.assert_array_equal(
@@ -543,7 +551,7 @@ def test_collect_single_sequence_with_measurement_flips():
         num_randomizations=1,
     )
 
-    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    fit = ExecutorCircuitGenerator.collect(with_mapper(result, data_mapper))
     dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(dataset["data"].values, creg_data.reshape(1, 1, 3))
     np.testing.assert_array_equal(dataset["measurement_flips"].values, flip_data.reshape(1, 3))
@@ -566,7 +574,7 @@ def test_collect_multiple_sequences_same_item():
         num_randomizations=1,
     )
 
-    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    fit = ExecutorCircuitGenerator.collect(with_mapper(result, data_mapper))
     dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
         dataset["unbound_instruction_sequence"].data, [InstructionSequence([], [], [])] * 2
@@ -599,7 +607,7 @@ def test_collect_multiple_sequences_different_items():
         num_randomizations=1,
     )
 
-    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    fit = ExecutorCircuitGenerator.collect(with_mapper(result, data_mapper))
     dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
         dataset["unbound_instruction_sequence"].data, [InstructionSequence([], [], [])] * 2
@@ -636,7 +644,7 @@ def test_collect_multiple_cregs():
         num_randomizations=1,
     )
 
-    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    fit = ExecutorCircuitGenerator.collect(with_mapper(result, data_mapper))
 
     dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
@@ -690,7 +698,7 @@ def test_collect_complex_mapping():
         num_randomizations=1,
     )
 
-    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    fit = ExecutorCircuitGenerator.collect(with_mapper(result, data_mapper))
     raw_data = fit.raw_data
 
     # Item 0 has meas0 with 2 bits — leaf "0"
@@ -769,7 +777,7 @@ def test_generate_and_collect_with_pass_manager():
     meas0_data = np.ones((1, num_randomizations, num_shots, 2), dtype=np.uint8)
     pass_meas_data = np.zeros((1, num_randomizations, num_shots, 1), dtype=np.uint8)
     result = make_result([{"meas0": meas0_data, "pass_meas": pass_meas_data}])
-    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    fit = ExecutorCircuitGenerator.collect(with_mapper(result, data_mapper))
 
     dataset = fit.raw_data.datatree["0"].dataset
     assert dataset.attrs["creg_names"] == ["meas0", "pass_meas"]

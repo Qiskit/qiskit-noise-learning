@@ -78,8 +78,21 @@ def built_experiment_mapper():
             fidelity_model=PauliLindbladModel.k_local(gate_set, k=2), shots=64, randomizations=4
         )
     )
-    _, mapper = ExecutorCircuitGenerator(gate_set).generate(experiment)
-    return mapper
+    samplex_items, layout = ExecutorCircuitGenerator(gate_set).generate_samplex_items(
+        experiment.instruction_sequences, num_randomizations=experiment.randomizations
+    )
+    assert samplex_items, "expected the generator to produce program items"
+    # Built manually from the experiment and layout
+    return ExecutorDataMapper(
+        item_sequence_indices=layout.item_sequence_indices,
+        item_creg_names=layout.item_creg_names,
+        item_clbit_qubit_idxs=layout.item_clbit_qubit_idxs,
+        instruction_sequences=experiment.instruction_sequences,
+        num_randomizations=experiment.randomizations,
+        fidelity_model=experiment.fidelity_model,
+        paths=experiment.paths,
+        relations=experiment.relations,
+    )
 
 
 @pytest.fixture()

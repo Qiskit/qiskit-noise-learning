@@ -28,15 +28,14 @@ from qiskit_noise_learning.data import RawData
 from ...gate_sets import QiskitGateSet
 from ...sequences import ApplyGate, InstructionSequence, PartialPauliPermutation
 from ..circuit_generator import CircuitGenerator
+from .data_mapper_serialization import dump, load
 from .executor_data_mapper import ExecutorDataMapper
 
 TO_SAMPLOMATIC_C1 = np.array([0, 7, 9, 13, 18, 22], dtype=np.uint8)
 """An array elements of :const:`~C1_TO_TABLEAU` to corresponding value in samplomatic."""
 
 
-class ExecutorCircuitGenerator(
-    CircuitGenerator[QuantumProgram, ExecutorDataMapper, QuantumProgramResult]
-):
+class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramResult]):
     """A circuit generator that converts sequences of Qiskit gates into a samplex items.
 
     Args:
@@ -67,7 +66,9 @@ class ExecutorCircuitGenerator(
         return self._gate_set
 
     @staticmethod
-    def collect(result, data_mapper):
+    def collect(result):
+        data_mapper = load(result.passthrough_data)
+
         # extract time bounds on a program item basis
         if hasattr(result.metadata, "chunk_timing"):
             program_item_time_lbs = [
@@ -170,22 +171,23 @@ class ExecutorCircuitGenerator(
 
         sequences = experiment.instruction_sequences
         num_randomizations = experiment.randomizations
-        samplex_items, data_mapper = self.generate_samplex_items(
+        samplex_items, layout = self.generate_samplex_items(
             sequences, num_randomizations=num_randomizations
         )
-        program = QuantumProgram(
-            shots=experiment.shots,
-            items=samplex_items,
-        )
-        return program, ExecutorDataMapper(
-            item_sequence_indices=data_mapper.item_sequence_indices,
-            item_creg_names=data_mapper.item_creg_names,
-            item_clbit_qubit_idxs=data_mapper.item_clbit_qubit_idxs,
+        data_mapper = ExecutorDataMapper(
+            item_sequence_indices=layout.item_sequence_indices,
+            item_creg_names=layout.item_creg_names,
+            item_clbit_qubit_idxs=layout.item_clbit_qubit_idxs,
             instruction_sequences=sequences,
             num_randomizations=num_randomizations,
             fidelity_model=experiment.fidelity_model,
             paths=experiment.paths,
             relations=experiment.relations,
+        )
+        return QuantumProgram(
+            shots=experiment.shots,
+            items=samplex_items,
+            passthrough_data=dump(data_mapper),
         )
 
     def generate_samplex_items(
