@@ -12,7 +12,6 @@ API reference
    gate_sets
    math
    models
-   noise_learner
    protocols
    sequences
    visualizations
