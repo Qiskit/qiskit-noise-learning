@@ -33,7 +33,7 @@ The versioning system policy is as follows:
 A new version is defined when the :class:`ExecutorDataMapper` is modified in a way that
 requires a change to the payload format. For example, a new field necessitates a new payload version.
 
-A version should be retired when it cannot be reconciled with the current version of
+A payload version is retired when it cannot be reconciled with the current version of
 :class:`ExecutorDataMapper`. For example:
 * If the quantum program layout information is changed, but in a recoverable way, it is not
   necessary to retire the version.
