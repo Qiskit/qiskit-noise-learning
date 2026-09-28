@@ -603,7 +603,6 @@ def test_collect_empty_chunk_timing():
     chunks. Time bounds must fall back to NaT rather than zero-length arrays.
     """
     creg_data = np.array([[[[1, 0, 1]], [[0, 1, 1]]]], dtype=np.uint8)  # 2 randomizations
-    result = make_result([{"meas0": creg_data}], chunk_timing=[])
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0]],
         item_creg_names=[["meas0"]],
@@ -611,8 +610,9 @@ def test_collect_empty_chunk_timing():
         instruction_sequences=[InstructionSequence([], [], [], fragment_depth=0)],
         num_randomizations=2,
     )
+    result = make_result([{"meas0": creg_data}], data_mapper, chunk_timing=[])
 
-    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    fit = ExecutorCircuitGenerator.collect(result)
     dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(dataset["data"].values, creg_data[0])
     assert dataset["time_lbs"].shape == (2,)
