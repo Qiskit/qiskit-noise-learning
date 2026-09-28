@@ -32,18 +32,8 @@ def process_learning_results(
 ) -> Fit:
     """Analyze the results of a program built by :func:`~.prepare_learning_program`.
 
-    Observables are computed from the raw data, exponentials are fitted to them across the fragment
-    depths, and the resulting pair fidelities are solved for the model's generator rates. The
-    returned fit holds the data at every level of that chain, together with the model, paths,
-    instruction sequences and relations recovered from the results' passthrough data.
-
-    .. note::
-        The analysis applied here assumes the experiment that :func:`~.prepare_learning_program`
-        builds. In particular the solver requires the linearly independent path set that the
-        preparation's rank reduction produces, and rejects results in which a pair fidelity is
-        measured more than once. To analyze a hand-built experiment, collect it with
-        :meth:`~.ExecutorCircuitGenerator.collect` and compose an :class:`~.AnalysisPipeline`
-        directly.
+    Applies the standard "vanilla" learning program analysis using curve fitting and
+    :class:`~.LegacySolve` fit the model.
 
     Example::
 
@@ -56,9 +46,7 @@ def process_learning_results(
         results: The results of a program built by :func:`~.prepare_learning_program`.
         raw_data_stage: An optional analysis stage to run on the raw data ahead of the standard
             analysis, typically to post-select on registers that a pass manager added during
-            preparation. It must consume and produce :class:`~.RawData`. An
-            :class:`~.AnalysisPipeline` is itself a stage, so a chain composed with ``+`` is
-            accepted, and is spliced in ahead of the standard stages rather than nested.
+            preparation. It must consume and produce :class:`~.RawData`.
 
     Returns:
         The fit, holding the data at every analysis level.
