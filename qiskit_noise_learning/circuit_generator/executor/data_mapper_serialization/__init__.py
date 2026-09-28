@@ -21,8 +21,8 @@ arrays, strings, integers, booleans, ``None``, or nested containers of lists or 
 these. The serialization is intended to be used as executor passthrough data.
 
 The versioning system policy is as follows:
-* A payload version is specified in a file ``v*.py``, containing a ``read`` function for deserializing the
-  inner dictionary above.
+* A payload version is specified in a file ``v*.py``, containing a ``read`` function for
+  deserializing the inner dictionary above.
 * Payload versioning is independent of this library's package versioning.
 * The latest version file also contains a ``write`` function for serialization: as such only the
   latest version ever writes.
@@ -31,20 +31,22 @@ The versioning system policy is as follows:
   error raising for unsupported version numbers, is managed by :func:`load`.
 
 A new version is defined when the :class:`ExecutorDataMapper` is modified in a way that
-requires a change to the payload format. For example, a new field necessitates a new payload version.
+requires a change to the payload format. For example, a new field necessitates a new payload
+version.
 
 A payload version is retired when it cannot be reconciled with the current version of
 :class:`ExecutorDataMapper`. For example:
 * If the quantum program layout information is changed, but in a recoverable way, it is not
   necessary to retire the version.
 * However, if the latest version of the layout becomes incomparable to the payload version, it is
-  retired. The entire version file is deleted and users must downgrade package versions to load data.
+  retired. The entire version file is deleted and users must downgrade package versions to load
+  data.
 
 If a new version is specified, if possible, the ``read`` function for previous versions should be
 updated to output the latest data mapper format. If this is not possible, the entire version file
 should be deleted. If the ``read`` of the superseded version is still supported, its ``write``
 function should be deleted. The version flags in ``payload.py`` should be updated to reflect any
-Though, when a new version is introduced, if possible, the ``read`` function for previous 
+Though, when a new version is introduced, if possible, the ``read`` function for previous
 versions are updated to still return valid :class:`ExecutorDataMapper` instances to maintain
 backwards compatibility of loading data even through package and payload version increments.
 Old ``write`` functions are deleted. The version flags in ``payload.py`` are updated to reflect any
