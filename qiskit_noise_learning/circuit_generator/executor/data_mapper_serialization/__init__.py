@@ -37,8 +37,8 @@ A payload version is retired when it cannot be reconciled with the current versi
 :class:`ExecutorDataMapper`. For example:
 * If the quantum program layout information is changed, but in a recoverable way, it is not
   necessary to retire the version.
-* However, if the latest version of the layout becomes incomparable to the payload version, it must
-  be retired.
+* However, if the latest version of the layout becomes incomparable to the payload version, it is
+  retired. The entire version file is deleted and users must downgrade package versions to load data.
 
 If a new version is specified, if possible, the ``read`` function for previous versions should be
 updated to output the latest data mapper format. If this is not possible, the entire version file
