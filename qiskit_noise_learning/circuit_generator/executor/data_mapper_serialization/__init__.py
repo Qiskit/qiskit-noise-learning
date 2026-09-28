@@ -23,6 +23,7 @@ these. The serialization is intended to be used as executor passthrough data.
 The versioning system policy is as follows:
 * A payload version is specified in a file ``v*.py``, containing a ``read`` function for deserializing the
   inner dictionary above.
+* Payload versioning is independent of this library's package versioning.
 * The latest version file also contains a ``write`` function for serialization: as such only the
   latest version ever writes.
 * The current version number, supported previous version numbers for reading, and the retired
