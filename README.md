@@ -37,9 +37,10 @@ of every aspect of a noise learning protocol. The second is a higher-level inter
 `process_learning_results` functions wrap a stock workflow into a single call on each side of
 execution.
 
-The low-level interface is demonstrated in the following tutorial, which runs locally against a fake
-backend and needs no IBM Quantum credentials:
+You can see both demonstrated in the following tutorials, which run locally against a fake backend
+and need no IBM Quantum credentials:
 
+- [`docs/tutorials/learning_protocol.md`](docs/tutorials/learning_protocol.md) — end-to-end use of the protocol functions
 - [`docs/tutorials/workflow.md`](docs/tutorials/workflow.md) — step-by-step walkthrough of the internal pipeline
 
 
