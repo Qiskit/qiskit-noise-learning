@@ -44,4 +44,5 @@ than reach for a protocol. The workflow tutorial walks through doing so, and eve
 assembles internally is public.
 """
 
-from .learning import prepare_learning_program, process_learning_results
+from .prepare_learning_program import prepare_learning_program
+from .process_learning_results import process_learning_results
