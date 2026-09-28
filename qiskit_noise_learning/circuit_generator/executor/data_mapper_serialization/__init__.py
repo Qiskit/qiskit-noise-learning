@@ -21,7 +21,7 @@ arrays, strings, integers, booleans, ``None``, or nested containers of lists or 
 these. The serialization is intended to be used as executor passthrough data.
 
 The versioning system policy is as follows:
-* A version is specified in a file ``v*.py``, containing a ``read`` function for deserializing the
+* A payload version is specified in a file ``v*.py``, containing a ``read`` function for deserializing the
   inner dictionary above.
 * The latest version file also contains a ``write`` function for serialization: as such only the
   latest version ever writes.
