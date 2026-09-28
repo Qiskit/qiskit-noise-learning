@@ -13,5 +13,6 @@ API reference
    math
    models
    noise_learner
+   protocols
    sequences
    visualizations
