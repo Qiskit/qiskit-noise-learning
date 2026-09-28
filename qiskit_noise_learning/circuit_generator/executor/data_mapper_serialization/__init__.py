@@ -44,6 +44,10 @@ If a new version is specified, if possible, the ``read`` function for previous v
 updated to output the latest data mapper format. If this is not possible, the entire version file
 should be deleted. If the ``read`` of the superseded version is still supported, its ``write``
 function should be deleted. The version flags in ``payload.py`` should be updated to reflect any
+Though, when a new version is introduced, if possible, the ``read`` function for previous 
+versions are updated to still return valid :class:`ExecutorDataMapper` instances to maintain
+backwards compatibility of loading data even through package and payload version increments.
+Old ``write`` functions are deleted. The version flags in ``payload.py`` are updated to reflect any
 changes.
 
 Lastly, any supported version should have unit tests verifying instances of correct payload
