@@ -169,10 +169,10 @@ quantum_program.items[0].circuit.draw("mpl", idle_wires=False, fold=False)
 An {class}`~.AerExecutor` runs a program on a local Aer simulator, injecting Pauli-Lindblad
 noise at the barriers Samplomatic places around each twirled gate.
 
-Rather than hand-picking a few generators, give *every one* of the model's 168 generators an
-independent random rate. The model's generators are already exactly the Paulis to put in a
-{class}`~qiskit.quantum_info.PauliLindbladMap`, so pair each one with a rate and build the map per
-gate directly:
+Unlike the hand-picked noise of the {doc}`protocol guide <learning_protocol>`, give *every one* of
+the model's 168 generators an independent random rate. The model's generators are already exactly
+the Paulis to put in a {class}`~qiskit.quantum_info.PauliLindbladMap`, so pair each one with a rate
+and build the map per gate directly:
 
 ```{code-cell} python
 import numpy as np
