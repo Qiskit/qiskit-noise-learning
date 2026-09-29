@@ -19,8 +19,8 @@ from qiskit_ibm_runtime.results import QuantumProgramResult
 from samplomatic import Twirl
 
 from qiskit_noise_learning.circuit_generator import ExecutorCircuitGenerator, ExecutorDataMapper
+from qiskit_noise_learning.circuit_generator.executor.data_mapper_serialization import dump, load
 from qiskit_noise_learning.experiment_builder import Experiment
-from qiskit_noise_learning.circuit_generator.executor.data_mapper_serialization import dump
 from qiskit_noise_learning.gate_sets import QiskitGateSet
 from qiskit_noise_learning.sequences import (
     ApplyGate,
@@ -822,7 +822,7 @@ def test_collect_complex_mapping():
 
 
 def test_generate_records_the_experiment_execution_parameters():
-    """Test that generate records the experiment's execution parameters on the data mapper."""
+    """Test that generate records the experiment's execution parameters in the passthrough data."""
     gateset, seq = _cz_gateset_and_sequence()
     experiment = Experiment(
         instruction_sequences=[seq],
@@ -831,7 +831,8 @@ def test_generate_records_the_experiment_execution_parameters():
         randomizations=2,
     )
 
-    _, data_mapper = ExecutorCircuitGenerator(gateset).generate(experiment)
+    program = ExecutorCircuitGenerator(gateset).generate(experiment)
+    data_mapper = load(program.passthrough_data)
 
     assert data_mapper.num_randomizations == 2
     assert data_mapper.randomization_multipliers == [1]
