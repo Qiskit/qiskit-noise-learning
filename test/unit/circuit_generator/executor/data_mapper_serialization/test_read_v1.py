@@ -78,13 +78,16 @@ NO_MODEL = FrozenPayload(
     no fragment depth, so it stands for the sequence at any depth. One program item holds it, and
     measures one qubit into a register named "meas".
 
-    There is no model, so no gate set and no qubit count; there are no paths and no relations.
+    There is no model, so no gate set and no qubit count; there are no paths and no relations, and
+    neither a randomization multiplier nor a shot count was recorded.
     """,
     payload={
         "version": 1,
         # No model and no paths, so nothing in the payload fixes a qubit count.
         "num_qubits": 0,
         "num_randomizations": 2,
+        "randomization_multipliers": None,
+        "shots": None,
         # Sorted, so M comes before P. Every "gates" array below indexes into this.
         "gate_names": ["M", "P"],
         "layout": {
@@ -127,11 +130,16 @@ PATHS_AND_RELATIONS = FrozenPayload(
 
     One relation records that this path is traversed by this sequence. There is still no model, so
     the qubit count comes from the Paulis: one.
+
+    The sequence carries a randomization multiplier of three, so it is randomized three times as
+    often as the base count of two, and every randomization takes 64 shots.
     """,
     payload={
         "version": 1,
         "num_qubits": 1,
         "num_randomizations": 2,
+        "randomization_multipliers": u32(3),
+        "shots": 64,
         "gate_names": ["M", "P"],
         "layout": {
             "item_sequence_idxs": u32(0),
@@ -208,12 +216,15 @@ WITH_MODEL = FrozenPayload(
     The preparation's noise is modelled after it and the other two before, which are the defaults
     for a pure preparation, a pure measurement and a unitary.
 
-    One program item measures both qubits into a register named "meas". There are no paths.
+    One program item measures both qubits into a register named "meas". There are no paths. The
+    sequence is randomized the base number of times, and every randomization takes 128 shots.
     """,
     payload={
         "version": 1,
         "num_qubits": 2,
         "num_randomizations": 2,
+        "randomization_multipliers": u32(1),
+        "shots": 128,
         # The sequence names P and M; the gate set adds U.
         "gate_names": ["M", "P", "U"],
         "layout": {
@@ -295,6 +306,8 @@ PAULI_PERMUTATIONS = FrozenPayload(
         # Neither a model nor a path, so no qubit count is recorded.
         "num_qubits": 0,
         "num_randomizations": 2,
+        "randomization_multipliers": None,
+        "shots": None,
         "gate_names": ["M", "P"],
         "layout": {
             "item_sequence_idxs": u32(0),
@@ -375,6 +388,8 @@ def _expected_paths_and_relations():
     )
     return ExecutorDataMapper(
         **_layout(),
+        randomization_multipliers=[3],
+        shots=64,
         instruction_sequences=[_spam_sequence(2)],
         paths=[
             Path(
@@ -433,6 +448,8 @@ def _expected_with_model():
         item_creg_names=[["meas"]],
         item_clbit_qubit_idxs=[{"meas": np.array([0, 1])}],
         num_randomizations=2,
+        randomization_multipliers=[1],
+        shots=128,
         instruction_sequences=[_spam_sequence(2)],
         fidelity_model=PauliLindbladModel(
             _two_qubit_gate_set(),

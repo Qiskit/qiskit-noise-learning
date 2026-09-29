@@ -42,6 +42,7 @@ MAPPER_SHAPES = [
     "no_optionals",
     "unbound_sequence",
     "empty_not_absent",
+    "execution_parameters",
     "two_registers_in_one_item",
 ]
 """The keys of :func:`example_mappers`, for parametrizing a test over every shape."""
@@ -109,6 +110,7 @@ def example_mappers(gate_set_cz, make_cz_path, built_experiment_mapper):
         "no_optionals": ExecutorDataMapper(**layout, instruction_sequences=[sequence]),
         "unbound_sequence": ExecutorDataMapper(**layout, instruction_sequences=[sequence.unbind()]),
         "empty_not_absent": ExecutorDataMapper(**{**full, "paths": [], "relations": set()}),
+        "execution_parameters": ExecutorDataMapper(**full, randomization_multipliers=[3], shots=64),
         "two_registers_in_one_item": ExecutorDataMapper(
             item_sequence_indices=[[0]],
             item_creg_names=[["meas_0", "meas_1"]],
@@ -138,6 +140,8 @@ def as_comparable(mapper):
     """
     return {
         "num_randomizations": mapper.num_randomizations,
+        "randomization_multipliers": mapper.randomization_multipliers,
+        "shots": mapper.shots,
         "item_sequence_indices": [[int(i) for i in row] for row in mapper.item_sequence_indices],
         "item_creg_names": [list(names) for names in mapper.item_creg_names],
         "item_clbit_qubit_idxs": [
