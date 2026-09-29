@@ -52,6 +52,10 @@ reflect any changes.
 
 Lastly, any supported version should have unit tests verifying instances of correct payload
 deserialization, where correctness is defined in terms of an expected deserialization.
+
+Alongside the versioned payload, :func:`dump` records the version of this package that wrote it
+under ``"library_version"``. That entry belongs to no payload version, so :func:`load` ignores it,
+no ``read`` function may depend on it, and it falls outside the correctness above.
 """
 
 from .payload import PayloadVersionError, dump, load
