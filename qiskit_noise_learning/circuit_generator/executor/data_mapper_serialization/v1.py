@@ -62,6 +62,12 @@ class Payload(TypedDict):
     num_randomizations: int
     """How many randomizations were used per experiment."""
 
+    randomization_multipliers: NDArray[IDX] | None
+    """The randomization multiplier of every instruction sequence, or ``None`` if unspecified."""
+
+    shots: int | None
+    """How many shots were used per randomization, or ``None`` if unspecified."""
+
     gate_names: list[str]
     """Every gate name the payload refers to by position, sorted."""
 
@@ -354,6 +360,12 @@ def write(mapper: ExecutorDataMapper) -> Payload:
         "version": VERSION,
         "num_qubits": _num_qubits(mapper),
         "num_randomizations": int(mapper.num_randomizations),
+        "randomization_multipliers": (
+            None
+            if mapper.randomization_multipliers is None
+            else np.array(mapper.randomization_multipliers, dtype=IDX)
+        ),
+        "shots": None if mapper.shots is None else int(mapper.shots),
         "gate_names": gate_names,
         "layout": _write_layout(mapper),
         "sequences": {
@@ -395,9 +407,14 @@ def read(payload: Payload) -> ExecutorDataMapper:
         fidelity_indices = [fidelity_table[n] for n in paths_payload["fidelity_idxs"].tolist()]
         paths = _rebuild_sequences(Path, fidelity_indices, paths_payload["structure"])
 
+    multipliers = payload["randomization_multipliers"]
+    shots = payload["shots"]
+
     return ExecutorDataMapper(
         instruction_sequences=sequences,
         num_randomizations=int(payload["num_randomizations"]),
+        randomization_multipliers=None if multipliers is None else multipliers.tolist(),
+        shots=None if shots is None else int(shots),
         paths=paths,
         relations=_read_relations(payload["relations"]),
         fidelity_model=_read_model(payload["model"]),
