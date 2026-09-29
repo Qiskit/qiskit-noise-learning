@@ -17,6 +17,7 @@ version is not tested here.
 
 import pytest
 
+from qiskit_noise_learning import __version__
 from qiskit_noise_learning.circuit_generator.executor.data_mapper_serialization import (
     PayloadVersionError,
     dump,
@@ -36,6 +37,16 @@ def test_dump_occupies_one_entry(example_mappers):
 def test_dump_writes_the_current_version(example_mappers):
     """What is dumped is written at the version this release writes."""
     assert dump(example_mappers["full"])[payload.PAYLOAD_KEY]["version"] == payload.CURRENT_VERSION
+
+
+def test_dump_records_the_writing_install(example_mappers):
+    """A dumped mapper names the package version that wrote it, which no version of the format owns.
+
+    It is never read back, so loading has to be indifferent to it.
+    """
+    dumped = dump(example_mappers["full"])
+    assert dumped[payload.PAYLOAD_KEY]["library_version"] == __version__
+    assert as_comparable(load(dumped)) == as_comparable(example_mappers["full"])
 
 
 def test_a_dumped_mapper_loads_alongside_other_entries(example_mappers):
