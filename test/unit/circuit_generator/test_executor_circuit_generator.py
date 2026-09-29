@@ -431,6 +431,22 @@ def test_generate_samplex_item_custom_prefixes():
         np.testing.assert_array_equal(custom_item.samplex_arguments[custom_key], value)
 
 
+def test_generate_samplex_item_rejects_right_dressed_twirl():
+    """Only left-dressed box twirls are supported; a right-dressed twirl raises."""
+    gateset, _ = _cz_gateset_and_sequence()
+    right_dressed = QuantumCircuit(2)
+    with right_dressed.box([Twirl(dressing="right")]):
+        right_dressed.cz(0, 1)
+        right_dressed.noop(range(2))
+    gateset.add_box_as_gate(right_dressed[0], name="R0")
+
+    seq = InstructionSequence(
+        [ApplyGate("P")], [ApplyGate("R0")], [ApplyGate("M")], fragment_depth=1
+    )
+    with pytest.raises(ValueError, match="left-dressed"):
+        ExecutorCircuitGenerator(gateset).generate_samplex_item([seq], num_randomizations=1)
+
+
 def test_partition():
     """Test `ExecutorCircuitGenerator.partition()` groups the positions of same-gates sequences."""
     perm = PartialPauliPermutation.from_sets([{("X", "Y")}])

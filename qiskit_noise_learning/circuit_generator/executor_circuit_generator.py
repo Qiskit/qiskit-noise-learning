@@ -20,7 +20,7 @@ from qiskit_ibm_runtime.quantum_program import QuantumProgram
 from qiskit_ibm_runtime.quantum_program.quantum_program import SamplexItem
 from qiskit_ibm_runtime.results import QuantumProgramResult
 from samplomatic import build
-from samplomatic.annotations import InjectLocalClifford, Tag, Twirl
+from samplomatic.annotations import DressingMode, InjectLocalClifford, Tag, Twirl
 
 from qiskit_noise_learning.analysis.fit import Fit
 from qiskit_noise_learning.data import RawData
@@ -239,6 +239,10 @@ class ExecutorCircuitGenerator(
     ) -> tuple[SamplexItem, list[str], dict[str, np.ndarray[int]]]:
         """Generate a samplex item from instruction sequences with the same structure.
 
+        Every twirled box must be left-dressed: the accumulated :class:`PartialPauliPermutation`
+        is emitted as each box's left-dressing local Clifford, so a right-dressed twirl is not
+        supported and raises.
+
         Args:
             instruction_sequences: The similar instruction sequences to generate.
             num_randomizations: The number of randomizations per sequence.
@@ -253,6 +257,7 @@ class ExecutorCircuitGenerator(
             ValueError: If ``instruction_sequences`` is empty.
             ValueError: If any of the instruction sequences is not complete.
             ValueError: If any of the instruction sequences have different structure.
+            ValueError: If a twirled box is not left-dressed.
         """
         if (num_sequences := len(instruction_sequences)) == 0:
             raise ValueError("At least one instruction sequence is expected to generate circuits.")
@@ -301,6 +306,13 @@ class ExecutorCircuitGenerator(
                 annotations = []
                 for annotation in gate.annotations:
                     if isinstance(annotation, Twirl):
+                        if annotation.dressing != DressingMode.LEFT:
+                            raise ValueError(
+                                "ExecutorCircuitGenerator only supports left-dressed box twirls: "
+                                "the permutation accumulation and local-Clifford injection assume "
+                                f"left-dressing, but gate '{instr.gate_name}' has a "
+                                f"{annotation.dressing.value}-dressed twirl."
+                            )
                         annotations.append(annotation)
                         annotations.append(InjectLocalClifford(ref, annotation.decomposition))
                     if isinstance(annotation, Tag):
