@@ -274,7 +274,7 @@ class ExecutorCircuitGenerator(
         samplex_arguments = {}
 
         # The first instruction must prepare all gate-set qubits. If it does nothing else, its box
-        # is omitted, folding preparation noise into the first gate's left-dressing.
+        # is omitted.
         first_sequence = iter(instruction_sequences[0])
         first_inst = next(first_sequence)
         first_gate = (
