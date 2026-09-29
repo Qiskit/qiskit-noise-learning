@@ -50,9 +50,9 @@ class ExecutorCircuitGenerator(
             of the existing circuit (e.g. re-order qubits or rename measurements).
 
     Pure preparation gates (those with ``prep_idxs`` and no operations) at the beginning of an
-    instruction sequenceare kept in the instruction sequence are not explicitly included as a box
-    in the template circuit. Instead, any single-qubit gates (e.g. basis rotation) associated with
-    preparation are absorbed into the subsequent box's left-dressing.
+    instruction sequence are not explicitly included as a box in the template circuit. Instead,
+    any single-qubit gates (e.g. basis rotation) associated with preparation are absorbed into
+    the subsequent box's left-dressing.
     """
 
     def __init__(
