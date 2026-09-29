@@ -15,6 +15,7 @@
 from collections.abc import Callable
 from typing import Any
 
+from ...._version import __version__
 from ..executor_data_mapper import ExecutorDataMapper
 from . import v1
 
@@ -41,13 +42,18 @@ def dump(mapper: ExecutorDataMapper) -> dict[str, Any]:
     Its values are only the types passthrough data accepts: arrays, strings, integers,
     booleans, ``None``, and lists and dictionaries of those.
 
+    Alongside the serialized mapper, the entry records the version of this package that wrote it
+    under ``"library_version"``. That belongs to no format version and is never read back, so
+    :func:`load` ignores it and it carries no promise; it is there to identify the install behind a
+    payload that turns out to be wrong.
+
     Args:
         mapper: The data mapper to serialize.
 
     Returns:
         The passthrough data entry carrying the mapper, at :data:`CURRENT_VERSION`.
     """
-    return {PAYLOAD_KEY: v1.write(mapper)}
+    return {PAYLOAD_KEY: {**v1.write(mapper), "library_version": __version__}}
 
 
 def load(passthrough_data: dict[str, Any]) -> ExecutorDataMapper:
