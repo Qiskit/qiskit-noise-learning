@@ -384,6 +384,49 @@ def test_clbit_qubit_idxs_matches_creg_bit_order():
         np.testing.assert_array_equal(qubit_idxs, bit_qubits[name])
 
 
+def test_generate_samplex_item_custom_prefixes():
+    """Test that `generate_samplex_item()` honours both name prefixes for every sequence.
+
+    Renaming a prefix should rename the samplex argument keys and creg names, and change nothing
+    else: the argument contents are compared against the defaults for more than one sequence, so
+    that the per-sequence pass is covered too.
+    """
+    gateset, _ = _cz_gateset_and_sequence()
+
+    # more than one sequence, each contributing a distinct local Clifford
+    sequences = [
+        InstructionSequence(
+            [ApplyGate("P"), PartialPauliPermutation([idx, idx])],
+            [ApplyGate("L0"), PartialPauliPermutation([1, 2])],
+            [ApplyGate("M")],
+            fragment_depth=1,
+        )
+        for idx in range(4)
+    ]
+
+    item, creg_names, clbit_qubit_idxs = ExecutorCircuitGenerator(gateset).generate_samplex_item(
+        sequences, num_randomizations=2
+    )
+    custom = ExecutorCircuitGenerator(
+        gateset, creg_prefix="readout", local_clifford_ref_prefix="lc"
+    ).generate_samplex_item(sequences, num_randomizations=2)
+    custom_item, custom_creg_names, custom_clbit_qubit_idxs = custom
+
+    assert creg_names == ["meas0"]
+    assert custom_creg_names == ["readout0"]
+    assert list(clbit_qubit_idxs) == ["meas0"]
+    assert list(custom_clbit_qubit_idxs) == ["readout0"]
+
+    refs = ["local_cliffords.c0", "local_cliffords.c1", "local_cliffords.c2"]
+    custom_refs = ["local_cliffords.lc0", "local_cliffords.lc1", "local_cliffords.lc2"]
+    assert sorted(item.samplex_arguments) == refs
+    assert sorted(custom_item.samplex_arguments) == custom_refs
+
+    for key, value in item.samplex_arguments.items():
+        custom_key = key.replace("local_cliffords.c", "local_cliffords.lc")
+        np.testing.assert_array_equal(custom_item.samplex_arguments[custom_key], value)
+
+
 def test_partition():
     """Test `ExecutorCircuitGenerator.partition()` groups the positions of same-gates sequences."""
     perm = PartialPauliPermutation.from_sets([{("X", "Y")}])

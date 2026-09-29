@@ -313,7 +313,7 @@ class ExecutorCircuitGenerator(
                 )
 
             current_permutation = PartialPauliPermutation([0] * self.gate_set.num_qubits)
-            ref_iter = (f"c{idx}" for idx in count())
+            ref_iter = (f"{self._local_clifford_ref_prefix}{ref_idx}" for ref_idx in count())
             for instr in following_sequence:
                 if isinstance(instr, PartialPauliPermutation):
                     current_permutation = instr.compose(current_permutation)
