@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from itertools import count
+from itertools import chain, count
 
 import numpy as np
 import xarray as xr
@@ -20,7 +20,7 @@ from qiskit_ibm_runtime.quantum_program import QuantumProgram
 from qiskit_ibm_runtime.quantum_program.quantum_program import SamplexItem
 from qiskit_ibm_runtime.results import QuantumProgramResult
 from samplomatic import build
-from samplomatic.annotations import InjectLocalClifford, Tag, Twirl
+from samplomatic.annotations import DressingMode, InjectLocalClifford, Tag, Twirl
 
 from qiskit_noise_learning.analysis.fit import Fit
 from qiskit_noise_learning.data import RawData
@@ -48,6 +48,11 @@ class ExecutorCircuitGenerator(
         pass_manager: An optional ``PassManager`` to apply to all template circuits produced by
             :meth:`ExecutorCircuitGenerator.generate`. Pass managers should not modify the details
             of the existing circuit (e.g. re-order qubits or rename measurements).
+
+    Pure preparation gates (those with ``prep_idxs`` and no operations) at the beginning of an
+    instruction sequence are not explicitly included as a box in the template circuit. Instead,
+    any single-qubit gates (e.g. basis rotation) associated with preparation are absorbed into
+    the subsequent box's left-dressing.
     """
 
     def __init__(
@@ -234,6 +239,10 @@ class ExecutorCircuitGenerator(
     ) -> tuple[SamplexItem, list[str], dict[str, np.ndarray[int]]]:
         """Generate a samplex item from instruction sequences with the same structure.
 
+        Every twirled box must be left-dressed: the accumulated :class:`PartialPauliPermutation`
+        is emitted as each box's left-dressing local Clifford, so a right-dressed twirl is not
+        supported and raises.
+
         Args:
             instruction_sequences: The similar instruction sequences to generate.
             num_randomizations: The number of randomizations per sequence.
@@ -248,6 +257,7 @@ class ExecutorCircuitGenerator(
             ValueError: If ``instruction_sequences`` is empty.
             ValueError: If any of the instruction sequences is not complete.
             ValueError: If any of the instruction sequences have different structure.
+            ValueError: If a twirled box is not left-dressed.
         """
         if (num_sequences := len(instruction_sequences)) == 0:
             raise ValueError("At least one instruction sequence is expected to generate circuits.")
@@ -259,11 +269,28 @@ class ExecutorCircuitGenerator(
         creg_names = []
         clbit_qubit_idxs = dict()
 
-        gateset_idxs = list(self.gate_set.qubit_subset)
-        gateset_idxs.sort()
+        gateset_idxs = sorted(self.gate_set.qubit_subset)
 
-        first_sequence = instruction_sequences[0]
         samplex_arguments = {}
+
+        # The first instruction must prepare all gate-set qubits. If it does nothing else, its box
+        # is omitted.
+        first_sequence = iter(instruction_sequences[0])
+        first_inst = next(first_sequence)
+        first_gate = (
+            self.gate_set[first_inst.gate_name] if isinstance(first_inst, ApplyGate) else None
+        )
+        if first_gate is None or first_gate.prep_idxs != self.gate_set.qubit_subset:
+            raise ValueError(
+                "Each instruction sequence must begin with a preparation box preparing all "
+                "gate-set qubits."
+            )
+        if first_gate.circuit.size() != 0:
+            first_sequence = chain([first_inst], first_sequence)
+            skip_first_gate = False
+        else:
+            skip_first_gate = True
+
         current_permutation = PartialPauliPermutation([0] * self.gate_set.num_qubits)
         for instr in first_sequence:
             if isinstance(instr, PartialPauliPermutation):
@@ -279,6 +306,13 @@ class ExecutorCircuitGenerator(
                 annotations = []
                 for annotation in gate.annotations:
                     if isinstance(annotation, Twirl):
+                        if annotation.dressing != DressingMode.LEFT:
+                            raise ValueError(
+                                "ExecutorCircuitGenerator only supports left-dressed box twirls: "
+                                "the permutation accumulation and local-Clifford injection assume "
+                                f"left-dressing, but gate '{instr.gate_name}' has a "
+                                f"{annotation.dressing.value}-dressed twirl."
+                            )
                         annotations.append(annotation)
                         annotations.append(InjectLocalClifford(ref, annotation.decomposition))
                     if isinstance(annotation, Tag):
@@ -287,17 +321,14 @@ class ExecutorCircuitGenerator(
                 if num_meas := len(gate.clbit_meas_idxs):
                     creg_names.append(next(creg_iter))
                     clbit_qubit_idxs[creg_names[-1]] = np.array(gate.clbit_meas_idxs, dtype=int)
-
                     creg = ClassicalRegister(num_meas, creg_names[-1])
                     boxed_circuit.add_register(creg)
                     body.add_register(creg)
-                    body.compose(gate.circuit, qubits=body.qubits, clbits=creg, inplace=True)
-                    box = BoxOp(body, annotations=annotations)
-                    boxed_circuit.append(CircuitInstruction(box, gate.qubit_idxs, creg))
                 else:
-                    body.compose(gate.circuit, qubits=body.qubits, inplace=True)
-                    box = BoxOp(body, annotations=annotations)
-                    boxed_circuit.append(CircuitInstruction(box, gate.qubit_idxs, []))
+                    creg = []
+                body.compose(gate.circuit, qubits=body.qubits, clbits=creg, inplace=True)
+                box = BoxOp(body, annotations=annotations)
+                boxed_circuit.append(CircuitInstruction(box, gate.qubit_idxs, creg))
 
                 this_arg = np.empty((num_sequences, 1, gate.num_qubits), dtype=np.uint8)
                 this_arg[0, 0] = TO_SAMPLOMATIC_C1[
@@ -307,17 +338,21 @@ class ExecutorCircuitGenerator(
                 samplex_arguments[f"local_cliffords.{ref}"] = this_arg
 
         for idx, following_sequence in enumerate(instruction_sequences[1:]):
-            if first_sequence.gate_key != following_sequence.gate_key:
+            if instruction_sequences[0].gate_key != following_sequence.gate_key:
                 raise ValueError(
                     "Instruction sequences require the same gates to be generated together."
                 )
 
             current_permutation = PartialPauliPermutation([0] * self.gate_set.num_qubits)
             ref_iter = (f"{self._local_clifford_ref_prefix}{ref_idx}" for ref_idx in count())
-            for instr in following_sequence:
+            for instr_idx, instr in enumerate(following_sequence):
                 if isinstance(instr, PartialPauliPermutation):
                     current_permutation = instr.compose(current_permutation)
                 elif isinstance(instr, ApplyGate):
+                    gate = self.gate_set[instr.gate_name]
+                    if instr_idx == 0 and skip_first_gate:
+                        # Skip identically to the first loop so local-Clifford refs stay aligned.
+                        continue
                     samplex_arguments[f"local_cliffords.{next(ref_iter)}"][idx + 1, 0] = (
                         TO_SAMPLOMATIC_C1[
                             current_permutation.partial_permutation_indices[gateset_idxs]
