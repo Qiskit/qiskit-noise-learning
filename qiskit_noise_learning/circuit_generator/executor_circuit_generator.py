@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from itertools import count
+from itertools import chain, count
 
 import numpy as np
 import xarray as xr
@@ -267,8 +267,23 @@ class ExecutorCircuitGenerator(
         gateset_idxs = list(self.gate_set.qubit_subset)
         gateset_idxs.sort()
 
-        first_sequence = instruction_sequences[0]
         samplex_arguments = {}
+
+        # The first instruction must prepare all gate-set qubits. If it does nothing else, its box
+        # is omitted, folding preparation noise into the first gate's left-dressing.
+        first_sequence = iter(instruction_sequences[0])
+        first_inst = next(first_sequence)
+        first_gate = (
+            self.gate_set[first_inst.gate_name] if isinstance(first_inst, ApplyGate) else None
+        )
+        if first_gate is None or first_gate.prep_idxs != self.gate_set.qubit_subset:
+            raise ValueError(
+                "Each instruction sequence must begin with a preparation box preparing all "
+                "gate-set qubits."
+            )
+        if first_gate.circuit.size() != 0:
+            first_sequence = chain([first_inst], first_sequence)
+
         current_permutation = PartialPauliPermutation([0] * self.gate_set.num_qubits)
         for instr in first_sequence:
             if isinstance(instr, PartialPauliPermutation):
@@ -277,12 +292,6 @@ class ExecutorCircuitGenerator(
                 current_permutation = instr.compose(current_permutation)
             elif isinstance(instr, ApplyGate):
                 gate = self.gate_set[instr.gate_name]
-
-                if gate.prep_idxs and gate.circuit.size() == 0:
-                    # Do not emit the preparation box: no ref is consumed and the accumulated
-                    # permutation is not reset, so it folds into the first real gate box's
-                    # left-dressing, which becomes the preparation-noise site.
-                    continue
 
                 body = QuantumCircuit([boxed_circuit.qubits[idx] for idx in gate.qubit_idxs])
                 ref = next(ref_iter)
@@ -318,7 +327,7 @@ class ExecutorCircuitGenerator(
                 samplex_arguments[f"local_cliffords.{ref}"] = this_arg
 
         for idx, following_sequence in enumerate(instruction_sequences[1:]):
-            if first_sequence.gate_key != following_sequence.gate_key:
+            if instruction_sequences[0].gate_key != following_sequence.gate_key:
                 raise ValueError(
                     "Instruction sequences require the same gates to be generated together."
                 )
