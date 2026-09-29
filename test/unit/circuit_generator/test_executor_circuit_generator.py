@@ -420,8 +420,9 @@ def test_generate_samplex_item_custom_prefixes():
     assert list(clbit_qubit_idxs) == ["meas0"]
     assert list(custom_clbit_qubit_idxs) == ["readout0"]
 
-    refs = ["local_cliffords.c0", "local_cliffords.c1", "local_cliffords.c2"]
-    custom_refs = ["local_cliffords.lc0", "local_cliffords.lc1", "local_cliffords.lc2"]
+    # The leading full-width preparation box "P" is not emitted, so only "L0" and "M" get refs.
+    refs = ["local_cliffords.c0", "local_cliffords.c1"]
+    custom_refs = ["local_cliffords.lc0", "local_cliffords.lc1"]
     assert sorted(item.samplex_arguments) == refs
     assert sorted(custom_item.samplex_arguments) == custom_refs
 
