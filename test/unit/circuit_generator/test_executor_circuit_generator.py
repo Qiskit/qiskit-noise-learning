@@ -969,7 +969,8 @@ def test_generate_with_pass_manager_unmeasured_creg_raises():
 
 def test_prep_box_is_not_emitted_and_leading_permutation_folds():
     """The pure-preparation box is never emitted; a permutation following it folds into the first
-    real gate box, whose dressing becomes the preparation-noise site."""
+    real gate box dressing.
+    """
     gateset = gateset_full()  # QiskitGateSet(10): "P", "M", "L0", "L1"
     perm = PartialPauliPermutation([1] + [0] * 9)
     seq = InstructionSequence(
