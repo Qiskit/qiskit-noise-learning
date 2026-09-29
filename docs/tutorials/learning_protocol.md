@@ -12,15 +12,14 @@ kernelspec:
 
 # Learn the noise model of a gate
 
-This guide demonstrates learning a noise model for a unitary gate with the standard learning
-protocol, a pair of functions with execution in between: {func}`~.prepare_learning_program` builds
-the experiment, you submit the program yourself, and {func}`~.process_learning_results` turns the
-results back into a noise model.
+This tutorial demonstrates learning a noise model for a unitary gate with a standard learning
+protocol accessible through the high-level protocol functions {func}`~.prepare_learning_program` and
+{func}`~.process_learning_results`.
 
 1. Define the gate
 2. Set up local simulation
-3. Prepare the program
-4. Run the program
+3. Prepare the quantum program
+4. Run the quantum program
 5. Read the results
 
 :::{admonition} Running on real hardware
@@ -120,12 +119,10 @@ executor = AerExecutor(
 Skip this step entirely.
 :::
 
-## 3. Prepare the program
+## 3. Prepare the quantum program
 
-{func}`~.prepare_learning_program` builds the whole experiment for the instructions handed to it: it
-fits a 2-local Pauli-Lindblad model per gate, and its remaining arguments control the shape of the
-experiment &mdash; how deep the twirled gate is repeated, and how many randomizations and shots are
-spent at each depth.
+Use {func}`~.prepare_learning_program` to build the quantum program containin gthe learning
+experiments.
 
 ```{code-cell} python
 from qiskit_noise_learning.protocols import prepare_learning_program
@@ -141,15 +138,10 @@ program = prepare_learning_program(
 print(f"Number of template circuits: {len(program.items)}")
 ```
 
-What comes back is an ordinary {class}`~qiskit_ibm_runtime.quantum_program.QuantumProgram`: one
-template circuit per fragment depth, carrying alongside them everything needed to interpret their
-own results.
+## 4. Run the quantum program
 
-## 4. Run the program
-
-Submitting is yours to do. Here that means handing the program to the simulated executor from
-step 2; against a real device it means an {class}`~qiskit_ibm_runtime.Executor` in `backend`'s
-execution mode.
+Submit the quantum program to your backend of choice. Here, we use the simulated executor; to
+simulate against a real device use {class}`~qiskit_ibm_runtime.Executor`.
 
 ```{code-cell} python
 results = executor.run(program).result()
@@ -167,10 +159,7 @@ results = Executor(mode=backend).run(program).result()
 
 ## 5. Read the results
 
-{func}`~.process_learning_results` analyzes those results into a {class}`~.Fit`, which holds the
-data at every level the analysis passed through. It needs nothing but the results themselves
-&mdash; the program's passthrough data is what carries the experiment across execution, so there is
-no need to keep anything from step 3 alive.
+Process the results with {func}`~.process_learning_results`, obstaining a {class}`~.Fit` object.
 
 ```{code-cell} python
 from qiskit_noise_learning.protocols import process_learning_results
@@ -188,10 +177,7 @@ fit.plot_qubit_pair_decays(
 )
 ```
 
-To read out the learned noise, take the Pauli-Lindblad part of the fitted model &mdash;
-{func}`~.split_pauli_lindblad_model` separates it from the SPAM maps composed around it &mdash; and
-convert the fitted parameters into one {class}`~qiskit.quantum_info.PauliLindbladMap` per gate,
-keyed by the name from the `InjectNoise` annotation.
+Read out the learned noise, keyed by the name from the `InjectNoise` annotation.
 
 ```{code-cell} python
 from qiskit_noise_learning.models import split_pauli_lindblad_model
@@ -199,12 +185,4 @@ from qiskit_noise_learning.models import split_pauli_lindblad_model
 pauli_lindblad_model = split_pauli_lindblad_model(fit.model).model
 learned = pauli_lindblad_model.to_pauli_lindblad_maps(fit.model_data)["cz_gate"]
 learned.num_terms
-```
-
-The protocol fits a 2-local model, so the map carries a term for every Pauli supported on a
-connected pair of the gate's qubits &mdash; 144 of them, of which only 24 were given a nonzero rate
-in step 2. The map is expressed in the backend's own qubit indexing rather than that of the gate:
-
-```{code-cell} python
-learned.num_qubits
 ```
