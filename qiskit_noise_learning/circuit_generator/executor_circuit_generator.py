@@ -282,6 +282,9 @@ class ExecutorCircuitGenerator(
             )
         if first_gate.circuit.size() != 0:
             first_sequence = chain([first_inst], first_sequence)
+            skip_first_gate = False
+        else:
+            skip_first_gate = True
 
         current_permutation = PartialPauliPermutation([0] * self.gate_set.num_qubits)
         for instr in first_sequence:
@@ -330,12 +333,12 @@ class ExecutorCircuitGenerator(
 
             current_permutation = PartialPauliPermutation([0] * self.gate_set.num_qubits)
             ref_iter = (f"{self._local_clifford_ref_prefix}{ref_idx}" for ref_idx in count())
-            for instr in following_sequence:
+            for instr_idx, instr in enumerate(following_sequence):
                 if isinstance(instr, PartialPauliPermutation):
                     current_permutation = instr.compose(current_permutation)
                 elif isinstance(instr, ApplyGate):
                     gate = self.gate_set[instr.gate_name]
-                    if gate.prep_idxs and gate.circuit.size() == 0:
+                    if instr_idx == 0 and skip_first_gate:
                         # Skip identically to the first loop so local-Clifford refs stay aligned.
                         continue
                     samplex_arguments[f"local_cliffords.{next(ref_iter)}"][idx + 1, 0] = (
