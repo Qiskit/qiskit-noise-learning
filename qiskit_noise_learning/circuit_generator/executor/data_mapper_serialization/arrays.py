@@ -20,7 +20,7 @@ from numpy.typing import DTypeLike, NDArray
 from qiskit.quantum_info import QubitSparsePauli
 
 IDX: TypeAlias = np.uint32
-"""The dtype every indexing."""
+"""The dtype for index data."""
 
 Row: TypeAlias = Sequence[int] | NDArray[Any]
 """One row handed to :func:`pack_ragged`, either a sequence of indices or an array of them."""
