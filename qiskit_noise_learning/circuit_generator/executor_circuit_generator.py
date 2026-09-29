@@ -49,10 +49,10 @@ class ExecutorCircuitGenerator(
             :meth:`ExecutorCircuitGenerator.generate`. Pass managers should not modify the details
             of the existing circuit (e.g. re-order qubits or rename measurements).
 
-    Pure preparation gates (those with ``prep_idxs`` and no operations) are kept in the instruction
-    sequence, but not explicitly included as a box in the template circuit. Instead, the
-    single-qubit gates (noise + basis rotation) associated with preparation are absorbed into the
-    first box's left-dressing.
+    Pure preparation gates (those with ``prep_idxs`` and no operations) at the beginning of an
+    instruction sequenceare kept in the instruction sequence are not explicitly included as a box
+    in the template circuit. Instead, any single-qubit gates (e.g. basis rotation) associated with
+    preparation are absorbed into the subsequent box's left-dressing.
     """
 
     def __init__(
