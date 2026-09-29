@@ -264,8 +264,7 @@ class ExecutorCircuitGenerator(
         creg_names = []
         clbit_qubit_idxs = dict()
 
-        gateset_idxs = list(self.gate_set.qubit_subset)
-        gateset_idxs.sort()
+        gateset_idxs = sorted(self.gate_set.qubit_subset)
 
         samplex_arguments = {}
 
@@ -307,17 +306,14 @@ class ExecutorCircuitGenerator(
                 if num_meas := len(gate.clbit_meas_idxs):
                     creg_names.append(next(creg_iter))
                     clbit_qubit_idxs[creg_names[-1]] = np.array(gate.clbit_meas_idxs, dtype=int)
-
                     creg = ClassicalRegister(num_meas, creg_names[-1])
                     boxed_circuit.add_register(creg)
                     body.add_register(creg)
-                    body.compose(gate.circuit, qubits=body.qubits, clbits=creg, inplace=True)
-                    box = BoxOp(body, annotations=annotations)
-                    boxed_circuit.append(CircuitInstruction(box, gate.qubit_idxs, creg))
                 else:
-                    body.compose(gate.circuit, qubits=body.qubits, inplace=True)
-                    box = BoxOp(body, annotations=annotations)
-                    boxed_circuit.append(CircuitInstruction(box, gate.qubit_idxs, []))
+                    creg = []
+                body.compose(gate.circuit, qubits=body.qubits, clbits=creg, inplace=True)
+                box = BoxOp(body, annotations=annotations)
+                boxed_circuit.append(CircuitInstruction(box, gate.qubit_idxs, creg))
 
                 this_arg = np.empty((num_sequences, 1, gate.num_qubits), dtype=np.uint8)
                 this_arg[0, 0] = TO_SAMPLOMATIC_C1[
