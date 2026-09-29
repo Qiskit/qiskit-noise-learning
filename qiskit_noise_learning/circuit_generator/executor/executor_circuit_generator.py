@@ -190,6 +190,8 @@ class ExecutorCircuitGenerator(
             item_clbit_qubit_idxs=data_mapper.item_clbit_qubit_idxs,
             instruction_sequences=sequences,
             num_randomizations=num_randomizations,
+            randomization_multipliers=experiment.randomization_multipliers,
+            shots=experiment.shots,
             fidelity_model=experiment.fidelity_model,
             paths=experiment.paths,
             relations=experiment.relations,
