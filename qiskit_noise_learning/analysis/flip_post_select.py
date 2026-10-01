@@ -24,14 +24,15 @@ class FlipPostSelect(AnalysisStage):
     """Apply a mask to raw data based on bit-flip failures across classical registers.
 
     This post-selection stage identifies groups of one or two cregs, marks the *failed bits* of each
-    group, and masks shots based on the structure of the failures. What counts as a failure depends
-    on the size of the group:
+    group, and masks shots based on the structure of the failures. Both rules read the *outcome* of
+    a bit, ``data ^ measurement_flips``, which is the measured value with the flip introduced by
+    measurement twirling undone. What counts as a failure depends on the size of the group:
 
-    * Two cregs ``(base, ps)``: bit ``j`` failed if it holds the same value in both, i.e. it did
+    * Two cregs ``(base, ps)``: bit ``j`` failed if its outcome is the same in both, i.e. it did
       not flip between the two measurements.
-    * One creg ``(base,)``: bit ``j`` failed if it is True. This is the natural rule when a creg
-      is expected to read out all-zeros, and coincides with the two-creg rule for a ``ps`` register
-      of all ones.
+    * One creg ``(base,)``: bit ``j`` failed if its outcome is True. This is the natural rule when a
+      creg is expected to read out all-zeros, and coincides with the two-creg rule for a ``ps``
+      register of all ones.
 
     Given the failed bits, the mode determines which shots are discarded:
 
@@ -117,9 +118,8 @@ def _failed_bits(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return the failed bits of the creg group ``names``, and the qubits those bits measure.
 
-    The ``outcomes`` argument is the measured bits already corrected for their measurement flips,
-    so that a ``True`` entry means the bit deviated from its expected value. Both rules below are
-    stated in those terms, which is what makes them flip-correct.
+    The ``outcomes`` argument is the measured bits with their measurement twirling flips already
+    undone.
 
     The returned array has shape ``(randomization, shot, bit)``, and entry ``j`` of the returned
     qubit indices is the physical qubit measured into bit ``j``. Note that the one-creg branch
