@@ -14,25 +14,25 @@ from qiskit_noise_learning.experiment_builder.experiment import Experiment
 from qiskit_noise_learning.experiment_builder.stages import AddPaths
 
 
-class TestAddPaths:
-    def test_adds_paths_from_iterators(self, gate_set_cz, make_cz_path):
-        path_ix = make_cz_path("IX")
-        path_xi = make_cz_path("XI")
-        exp = Experiment(fidelity_model=gate_set_cz)
+def test_adds_paths_from_iterators(gate_set_cz, make_cz_path):
+    path_ix = make_cz_path("IX")
+    path_xi = make_cz_path("XI")
+    exp = Experiment(fidelity_model=gate_set_cz)
 
-        result = AddPaths([path_ix, path_xi]).run(exp)
+    result = AddPaths([path_ix, path_xi]).run(exp)
 
-        assert result.paths == [path_ix, path_xi]
+    assert result.paths == [path_ix, path_xi]
 
-    def test_drops_duplicate_paths(self, gate_set_cz, make_cz_path):
-        path_ix = make_cz_path("IX")
-        path_xi = make_cz_path("XI")
-        path_yy = make_cz_path("YY")
-        exp = Experiment(fidelity_model=gate_set_cz)
 
-        # The second stage repeats path_xi, which the first stage already added, and the first stage
-        # repeats path_ix as a distinct but equal object.
-        pipeline = AddPaths([path_ix, make_cz_path("IX"), path_xi]) + AddPaths([path_xi, path_yy])
-        result = pipeline.run(exp)
+def test_drops_duplicate_paths(gate_set_cz, make_cz_path):
+    path_ix = make_cz_path("IX")
+    path_xi = make_cz_path("XI")
+    path_yy = make_cz_path("YY")
+    exp = Experiment(fidelity_model=gate_set_cz)
 
-        assert result.paths == [path_ix, path_xi, path_yy]
+    # The second stage repeats path_xi, which the first stage already added, and the first stage
+    # repeats path_ix as a distinct but equal object.
+    pipeline = AddPaths([path_ix, make_cz_path("IX"), path_xi]) + AddPaths([path_xi, path_yy])
+    result = pipeline.run(exp)
+
+    assert result.paths == [path_ix, path_xi, path_yy]

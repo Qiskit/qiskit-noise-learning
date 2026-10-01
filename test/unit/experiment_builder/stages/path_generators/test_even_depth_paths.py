@@ -17,25 +17,25 @@ from qiskit_noise_learning.experiment_builder.experiment import Experiment
 from qiskit_noise_learning.experiment_builder.stages import EvenDepthPaths
 
 
-class TestEvenDepthPaths:
-    def test_generates_even_depth_paths(self, gate_set_cz):
-        exp = Experiment(fidelity_model=gate_set_cz)
-        stage = EvenDepthPaths(
-            prep_gate=gate_set_cz["P"],
-            meas_gate=gate_set_cz["M"],
-            gates=[gate_set_cz["CZ"]],
-            input_paulis={"CZ": QubitSparsePauliList(["IZ", "IX", "IY", "XX"])},
-        )
-        result = stage.run(exp)
+def test_generates_even_depth_paths(gate_set_cz):
+    exp = Experiment(fidelity_model=gate_set_cz)
+    stage = EvenDepthPaths(
+        prep_gate=gate_set_cz["P"],
+        meas_gate=gate_set_cz["M"],
+        gates=[gate_set_cz["CZ"]],
+        input_paulis={"CZ": QubitSparsePauliList(["IZ", "IX", "IY", "XX"])},
+    )
+    result = stage.run(exp)
 
-        assert len(result.paths) == 6
-        assert all(p.is_unbound for p in result.paths)
+    assert len(result.paths) == 6
+    assert all(p.is_unbound for p in result.paths)
 
-    def test_requires_fidelity_model_when_input_paulis_not_provided(self, gate_set_cz):
-        stage = EvenDepthPaths(
-            prep_gate=gate_set_cz["P"],
-            meas_gate=gate_set_cz["M"],
-            gates=[gate_set_cz["CZ"]],
-        )
-        with pytest.raises(ValueError, match="requires 'fidelity_model'"):
-            stage.run(Experiment())
+
+def test_requires_fidelity_model_when_input_paulis_not_provided(gate_set_cz):
+    stage = EvenDepthPaths(
+        prep_gate=gate_set_cz["P"],
+        meas_gate=gate_set_cz["M"],
+        gates=[gate_set_cz["CZ"]],
+    )
+    with pytest.raises(ValueError, match="requires 'fidelity_model'"):
+        stage.run(Experiment())

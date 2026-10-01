@@ -17,21 +17,21 @@ from qiskit_noise_learning.experiment_builder.experiment import Experiment
 from qiskit_noise_learning.experiment_builder.stages import Depth1Paths
 
 
-class TestDepth1Paths:
-    def test_generates_depth1_paths(self, gate_set_cz):
-        exp = Experiment(fidelity_model=gate_set_cz)
-        stage = Depth1Paths(
-            prep_gate=gate_set_cz["P"],
-            meas_gate=gate_set_cz["M"],
-            gates=[gate_set_cz["CZ"]],
-            input_paulis={"CZ": QubitSparsePauliList(["IZ", "IX", "XX"])},
-        )
-        result = stage.run(exp)
+def test_generates_depth1_paths(gate_set_cz):
+    exp = Experiment(fidelity_model=gate_set_cz)
+    stage = Depth1Paths(
+        prep_gate=gate_set_cz["P"],
+        meas_gate=gate_set_cz["M"],
+        gates=[gate_set_cz["CZ"]],
+        input_paulis={"CZ": QubitSparsePauliList(["IZ", "IX", "XX"])},
+    )
+    result = stage.run(exp)
 
-        assert len(result.paths) == 3
-        assert all(p.fragment_depth == 0 for p in result.paths)
+    assert len(result.paths) == 3
+    assert all(p.fragment_depth == 0 for p in result.paths)
 
-    def test_requires_fidelity_model_when_gates_not_provided(self):
-        stage = Depth1Paths()
-        with pytest.raises(ValueError, match="requires 'fidelity_model'"):
-            stage.run(Experiment())
+
+def test_requires_fidelity_model_when_gates_not_provided():
+    stage = Depth1Paths()
+    with pytest.raises(ValueError, match="requires 'fidelity_model'"):
+        stage.run(Experiment())
