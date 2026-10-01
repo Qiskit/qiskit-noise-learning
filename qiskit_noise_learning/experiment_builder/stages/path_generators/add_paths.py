@@ -29,6 +29,9 @@ class AddPaths(ExperimentBuilderStage):
     Subclasses should override :meth:`_generate_paths` to yield paths computed from the
     experiment's fidelity model or other data.
 
+    A path equal to one already in the experiment, or to one added earlier by this stage, is
+    dropped, so that the experiment's paths remain distinct.
+
     Args:
         path_iterators: One or more iterators of :class:`~.Path` instances.
     """
@@ -39,9 +42,13 @@ class AddPaths(ExperimentBuilderStage):
         self._path_iterators = path_iterators
 
     def _run(self, experiment: Experiment) -> Experiment:
-        existing_paths = list(experiment.paths) if experiment.paths is not None else []
-        existing_paths.extend(self._generate_paths(experiment))
-        return experiment.replace(validate=False, paths=existing_paths)
+        paths = list(experiment.paths) if experiment.paths is not None else []
+        seen = set(paths)
+        for path in self._generate_paths(experiment):
+            if path not in seen:
+                seen.add(path)
+                paths.append(path)
+        return experiment.replace(validate=False, paths=paths)
 
     def _generate_paths(self, experiment: Experiment) -> Iterator[Path]:
         """Yield paths to add to the experiment.
