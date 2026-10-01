@@ -68,5 +68,8 @@ class ApplyGate(Instruction):
     def __eq__(self, other: Self) -> bool:
         return isinstance(other, ApplyGate) and self.gate_name == other.gate_name
 
+    def __hash__(self) -> int:
+        return hash(self._gate_name)
+
     def __repr__(self) -> str:
         return f"ApplyGate('{self.gate_name}')"

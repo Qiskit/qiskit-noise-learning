@@ -1199,3 +1199,13 @@ def test_bind_at(gate_set_1q):
     unbound = bound.unbind()
     assert unbound.fragment_depth is None
     assert unbound == path
+
+
+def test_equal_paths_hash_equally(make_cz_path):
+    """Paths remain usable as mapping keys, which the analysis stages rely on."""
+    one = make_cz_path("IX")
+    same = make_cz_path("IX")
+    other = make_cz_path("XI")
+
+    assert one == same and hash(one) == hash(same)
+    assert len({one, same, other}) == 2

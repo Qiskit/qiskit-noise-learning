@@ -332,3 +332,22 @@ def test_compose_errors():
     perm1 = PartialPauliPermutation.from_sets([{("Y", "Z")}])
     with pytest.raises(ValueError, match="Cannot compose incompatible"):
         perm1.compose(perm0)
+
+
+def test_equal_permutations_hash_equally():
+    """Permutations specifying the same mapping are interchangeable as mapping keys."""
+    one = PartialPauliPermutation.from_sets([{("X", "Y")}, {("Y", "Z")}])
+    same = PartialPauliPermutation.from_sets([{("X", "Y")}, {("Y", "Z")}])
+    other = PartialPauliPermutation.from_sets([{("X", "Y")}, {("X", "Z")}])
+
+    assert one == same and hash(one) == hash(same)
+    assert len({one, same, other}) == 2
+
+
+def test_hash_ignores_the_dtype_of_the_index_array():
+    """The constructor normalizes the indices, so an int64 input is the same key as an int8 one."""
+    indices = [0, 1, 2]
+    as_int8 = PartialPauliPermutation(np.array(indices, dtype=np.int8))
+    as_int64 = PartialPauliPermutation(np.array(indices, dtype=np.int64))
+
+    assert as_int8 == as_int64 and hash(as_int8) == hash(as_int64)

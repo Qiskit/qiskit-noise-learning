@@ -685,6 +685,11 @@ class PartialPauliPermutation(Instruction):
             and (self.partial_permutation_indices == other.partial_permutation_indices).all()
         )
 
+    def __hash__(self) -> int:
+        if not hasattr(self, "_hash"):
+            self._hash = hash(self._partial_permutation_indices.tobytes())
+        return self._hash
+
     def __repr__(self):
         s = "PartialPauliPermutation(\n"
         s += f"    num_qubits={self.num_qubits}\n"
