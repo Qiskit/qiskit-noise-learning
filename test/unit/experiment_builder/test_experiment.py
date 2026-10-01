@@ -266,9 +266,11 @@ class TestExperimentAdd:
     def test_add_relation_offsetting(self, gate_set_cz, make_cz_path):
         unbound_path_ix = make_cz_path("IX")
         unbound_path_xi = make_cz_path("XI")
+        unbound_path_yy = make_cz_path("YY")
         model = IdentityFidelityModel(gate_set_cz)
         seq_ix = unbound_path_ix.to_instruction_sequence()
         seq_xi = unbound_path_xi.to_instruction_sequence()
+        seq_yy = unbound_path_yy.to_instruction_sequence()
         exp1 = Experiment(
             fidelity_model=model,
             paths=[unbound_path_ix, unbound_path_xi],
@@ -278,13 +280,42 @@ class TestExperimentAdd:
         )
         exp2 = Experiment(
             fidelity_model=model,
-            paths=[unbound_path_ix],
-            instruction_sequences=[seq_ix],
+            paths=[unbound_path_yy],
+            instruction_sequences=[seq_yy],
             relations={(0, 0)},
             randomization_multipliers=[1],
         )
         result = exp1 + exp2
         assert result.relations == {(0, 0), (1, 1), (2, 2)}
+
+    def test_add_drops_duplicate_paths(self, gate_set_cz, make_cz_path):
+        unbound_path_ix = make_cz_path("IX")
+        unbound_path_xi = make_cz_path("XI")
+        model = IdentityFidelityModel(gate_set_cz)
+        seq_ix = unbound_path_ix.to_instruction_sequence()
+        seq_xi = unbound_path_xi.to_instruction_sequence()
+        exp1 = Experiment(
+            fidelity_model=model,
+            paths=[unbound_path_ix],
+            instruction_sequences=[seq_ix],
+            relations={(0, 0)},
+            randomization_multipliers=[1],
+        )
+        exp2 = Experiment(
+            fidelity_model=model,
+            paths=[make_cz_path("IX"), unbound_path_xi],
+            instruction_sequences=[seq_ix, seq_xi],
+            relations={(0, 0), (1, 1)},
+            randomization_multipliers=[1, 1],
+        )
+        result = exp1 + exp2
+
+        # exp2's first path is equal to exp1's, so it collapses onto index 0, and its second path
+        # lands at index 1 rather than 2. Instruction sequences are not de-duplicated.
+        assert result.paths == [unbound_path_ix, unbound_path_xi]
+        assert result.instruction_sequences == [seq_ix, seq_ix, seq_xi]
+        assert result.relations == {(0, 0), (0, 1), (1, 2)}
+        assert result.randomization_multipliers == [1, 1, 1]
 
     def test_add_not_implemented_for_non_experiment(self, gate_set_cz):
         exp = Experiment(fidelity_model=gate_set_cz)

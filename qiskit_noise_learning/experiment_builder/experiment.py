@@ -283,8 +283,9 @@ class Experiment:
         Scalar fields (``fidelity_model``, ``shots``, ``randomizations``) must match or both
         be ``None``. List fields (``paths``, ``instruction_sequences``,
         ``randomization_multipliers``) are concatenated, with ``None`` treated as empty (unless
-        both are ``None``, in which case the result is ``None``). Relation indices from
-        ``other`` are offset to account for the concatenation.
+        both are ``None``, in which case the result is ``None``). A path equal to an earlier one is
+        dropped, so that the composed paths remain distinct. Relation indices are remapped onto the
+        concatenated lists.
 
         Raises:
             TypeError: If ``other`` is not an :class:`Experiment`.
@@ -304,7 +305,6 @@ class Experiment:
                 )
 
         # Concatenate list fields (None treated as empty unless both None)
-        paths = _optional_concat(self._paths, other._paths)
         instruction_sequences = _optional_concat(
             self._instruction_sequences, other._instruction_sequences
         )
@@ -312,17 +312,30 @@ class Experiment:
             self._randomization_multipliers, other._randomization_multipliers
         )
 
-        # Offset and merge relations
+        # Concatenate the paths, dropping duplicates, recording where each side's paths landed so
+        # that the relations can be remapped onto the result.
+        paths = None
+        self_path_idxs: dict[int, int] = {}
+        other_path_idxs: dict[int, int] = {}
+        if self._paths is not None or other._paths is not None:
+            paths = []
+            positions: dict[Path, int] = {}
+            for source, idx_map in ((self._paths, self_path_idxs), (other._paths, other_path_idxs)):
+                for old_idx, path in enumerate(source or []):
+                    if path not in positions:
+                        positions[path] = len(paths)
+                        paths.append(path)
+                    idx_map[old_idx] = positions[path]
+
+        # Remap and merge relations
         relations = None
         if self._relations is not None or other._relations is not None:
-            relations = set(self._relations) if self._relations else set()
-            if other._relations is not None:
-                n_paths_offset = len(self._paths) if self._paths else 0
-                n_seqs_offset = (
-                    len(self._instruction_sequences) if self._instruction_sequences else 0
-                )
-                for path_idx, seq_idx in other._relations:
-                    relations.add((path_idx + n_paths_offset, seq_idx + n_seqs_offset))
+            relations = {
+                (self_path_idxs[path_idx], seq_idx) for path_idx, seq_idx in self._relations or ()
+            }
+            n_seqs_offset = len(self._instruction_sequences) if self._instruction_sequences else 0
+            for path_idx, seq_idx in other._relations or ():
+                relations.add((other_path_idxs[path_idx], seq_idx + n_seqs_offset))
 
         return Experiment(
             fidelity_model=self._fidelity_model,
