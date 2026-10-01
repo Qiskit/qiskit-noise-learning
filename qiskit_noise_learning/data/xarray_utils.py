@@ -33,35 +33,6 @@ def time_bound(times: np.ndarray, kind: str) -> np.datetime64:
     return np.min(valid) if kind == "min" else np.max(valid)
 
 
-def filter_time(datatree: xr.DataTree, lb: np.datetime64, ub: np.datetime64) -> xr.DataTree:
-    r"""Return a new data tree containing only data within the given time-window.
-
-    This function only filters data on ``Dataset``\s within the datatree containing both a
-    ``time_lbs`` and ``time_ubs`` data variables or coordinates.
-
-    Args:
-        lb: The time lower bound.
-        ub: The time upper bound.
-
-    Returns:
-        Data only within the time bounds, inclusive.
-    """
-
-    def _dataset_func(dataset: xr.Dataset, lb: np.datetime64, ub: np.datetime64):
-        if ("time_lbs" not in dataset.keys()) or ("time_ubs" not in dataset.keys()):
-            return dataset
-
-        return dataset.where((dataset["time_lbs"] >= lb) & (dataset["time_ubs"] <= ub))
-
-    return datatree.map_over_datasets(
-        _dataset_func,
-        kwargs={
-            "lb": np.datetime64(lb),
-            "ub": np.datetime64(ub),
-        },
-    )
-
-
 def ragged_concat(datasets: list[xr.Dataset], concat_dim: str, ragged_dim: str):
     """Concatenate two datasets along a given dimension with handling for a ragged dimension.
 

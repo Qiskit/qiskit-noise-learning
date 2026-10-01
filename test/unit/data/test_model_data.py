@@ -28,18 +28,3 @@ def test_from_arrays():
     assert ds["parameter_values"].sel(parameter_index="r0").item() == 0.1
     assert ds["parameter_values"].sel(parameter_index="r1").item() == 0.2
     assert ds["covariance"].shape == (2, 2)
-
-
-def test_filter_time():
-    """Test that filter_time keeps only parameters within the time window."""
-    md = ModelData.from_arrays(
-        parameter_indices=["r0", "r1"],
-        parameter_values=np.array([0.1, 0.2]),
-        covariance=np.eye(2) * 0.01,
-        time_lbs=np.array(["2026-01-01", "2026-01-05"], dtype="datetime64[us]"),
-        time_ubs=np.array(["2026-01-02", "2026-01-06"], dtype="datetime64[us]"),
-    )
-    filtered = md.filter_time(lb=np.datetime64("2026-01-04"), ub=np.datetime64("2026-01-07"))
-    vals = filtered.dataset["parameter_values"].values
-    assert np.isnan(vals[0])
-    assert vals[1] == 0.2

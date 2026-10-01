@@ -18,7 +18,6 @@ import xarray as xr
 from qiskit_noise_learning.sequences import Path
 
 from .leveled_data import LeveledData
-from .xarray_utils import filter_time
 
 
 class AggregatedObservableData(LeveledData):
@@ -123,17 +122,3 @@ class AggregatedObservableData(LeveledData):
             A new instance containing both data sets.
         """
         return AggregatedObservableData(xr.concat([self.dataset, other.dataset], dim="observable"))
-
-    def filter_time(self, lb: np.datetime64, ub: np.datetime64) -> Self:
-        """Filter to data gathered within the time bounds.
-
-        Args:
-            lb: The time lower bound (inclusive).
-            ub: The time upper bound (inclusive).
-
-        Returns:
-            The time filtered version of self.
-        """
-        return AggregatedObservableData(
-            filter_time(xr.DataTree(self.dataset), lb=lb, ub=ub).dataset
-        )
