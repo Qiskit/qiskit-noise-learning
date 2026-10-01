@@ -473,7 +473,9 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
                 will not typically be true for k-local maps. Lastly, note that this may introduce
                 negative rates that were not there before; in which case a warning is raised.
             restrict_to_qubit_idxs: Restrict the returned Pauli-Lindblad maps to only the qubits
-                each gate is defined on.
+                each gate is defined on. Qubit index ``idx`` in the returned map corresponds to
+                physical qubit ``sorted(gate.qubit_idxs)[idx]``. If ``False``, every returned map
+                acts on all ``gate_set.num_qubits`` qubits, indexed by physical qubit index.
 
         Returns:
             A dictionary from gate names to corresponding noise maps.
@@ -521,7 +523,7 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
         if restrict_to_qubit_idxs:
             return {
                 gate_name: PauliLindbladMap.from_terms(generators).keep_qubits(
-                    self.gate_set[gate_name].qubit_idxs
+                    sorted(self.gate_set[gate_name].qubit_idxs)
                 )
                 for gate_name, generators in noise_maps.items()
             }

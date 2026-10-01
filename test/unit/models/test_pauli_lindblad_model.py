@@ -15,7 +15,7 @@ from itertools import combinations, product
 
 import numpy as np
 import pytest
-from qiskit.circuit.library import CZGate
+from qiskit.circuit.library import CZGate, XGate
 from qiskit.quantum_info import Clifford, QubitSparsePauli, QubitSparsePauliList
 from qiskit.transpiler import CouplingMap
 
@@ -934,6 +934,120 @@ def test_symmetrize_spam_warns_only_on_new_negative_rates(gate_set_cz):
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         model.to_pauli_lindblad_maps(model_data, True, symmetrize_spam=True)
+
+
+# --------------------------------------------------------------------------------------------------
+# to_pauli_lindblad_maps, restrict_to_qubit_idxs argument
+# --------------------------------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def sparse_model():
+    """A model on a 5-qubit device whose gates act on the non-contiguous subset ``{1, 3, 4}``.
+
+    ``CZ`` is declared on ``(4, 1)``, so its qubit indices are neither sorted nor contiguous, and
+    ``L`` acts on the single qubit ``3``. Every rate is distinct, so that permuting qubits changes a
+    fidelity. Returns the model together with fit data for it.
+    """
+    gate_set = ModelGateSet(5, qubit_subset=[1, 3, 4])
+    gate_set.add_gate(ModelGate("CZ", [((4, 1), Clifford(CZGate()))], qubit_idxs=(4, 1)))
+    gate_set.add_gate(ModelGate("L", [((3,), Clifford(XGate()))]))
+    gate_set.add_gate(ModelGate("P", qubit_idxs=[1, 3, 4], prep_idxs=[1, 3, 4]))
+    gate_set.add_gate(ModelGate("M", qubit_idxs=[1, 3, 4], meas_idxs=[1, 3, 4]))
+
+    rates = [
+        ("CZ", "X", [1], 1e-2),
+        ("CZ", "Z", [4], 2e-2),
+        ("CZ", "XY", [1, 4], 3e-2),
+        ("L", "Y", [3], 4e-2),
+        ("P", "X", [1], 5e-3),
+        ("P", "X", [3], 6e-3),
+        ("P", "X", [4], 7e-3),
+        ("M", "X", [1], 8e-3),
+        ("M", "X", [3], 9e-3),
+        ("M", "XX", [1, 3], 1e-3),
+    ]
+
+    generators = {name: [] for name in gate_set}
+    parameter_indices = []
+    for name, label, support, _ in rates:
+        pauli = QubitSparsePauli.from_sparse_label((label, support), num_qubits=5)
+        generators[name].append(pauli)
+        parameter_indices.append(GeneratorIndex(name, pauli))
+
+    model_data = ModelData.from_arrays(
+        parameter_indices=parameter_indices,
+        parameter_values=np.array([rate for *_, rate in rates]),
+        covariance=np.eye(len(rates)),
+        time_lbs=np.empty(len(rates), dtype="datetime64[us]"),
+        time_ubs=np.empty(len(rates), dtype="datetime64[us]"),
+    )
+    model = PauliLindbladModel(
+        gate_set,
+        {
+            name: QubitSparsePauliList.from_qubit_sparse_paulis(paulis)
+            for name, paulis in generators.items()
+        },
+    )
+    return model, model_data
+
+
+def test_restrict_to_qubit_idxs_relabels_in_sorted_order(sparse_model):
+    """Qubit ``idx`` of a restricted map is physical qubit ``sorted(gate.qubit_idxs)[idx]``."""
+    model, model_data = sparse_model
+
+    full = model.to_pauli_lindblad_maps(model_data, include_spam=True)
+    restricted = model.to_pauli_lindblad_maps(
+        model_data, include_spam=True, restrict_to_qubit_idxs=True
+    )
+
+    # left alone, the maps act on the whole device register, at physical qubit indices
+    assert all(noise_map.num_qubits == 5 for noise_map in full.values())
+    assert full["CZ"].to_sparse_list() == [("X", [1], 1e-2), ("Z", [4], 2e-2), ("XY", [1, 4], 3e-2)]
+
+    assert {name: noise_map.num_qubits for name, noise_map in restricted.items()} == {
+        "CZ": 2,
+        "L": 1,
+        "P": 3,
+        "M": 3,
+    }
+
+    # CZ is declared on (4, 1), so sorting sends physical 1 -> 0 and 4 -> 1; were the declaration
+    # order used instead, these supports would come back reversed
+    assert restricted["CZ"].to_sparse_list() == [
+        ("X", [0], 1e-2),
+        ("Z", [1], 2e-2),
+        ("XY", [0, 1], 3e-2),
+    ]
+    assert restricted["L"].to_sparse_list() == [("Y", [0], 4e-2)]
+
+    # the SPAM gates act on 1, 3, 4, which become 0, 1, 2
+    assert restricted["P"].to_sparse_list() == [
+        ("X", [0], 5e-3),
+        ("X", [1], 6e-3),
+        ("X", [2], 7e-3),
+    ]
+    assert restricted["M"].to_sparse_list() == [
+        ("X", [0], 8e-3),
+        ("X", [1], 9e-3),
+        ("XX", [0, 1], 1e-3),
+    ]
+
+
+def test_restrict_to_qubit_idxs_with_symmetrize_spam(sparse_model):
+    """Symmetrized SPAM maps, whose generators are not the ones fit, are relabelled the same way."""
+    model, model_data = sparse_model
+    kwargs = {"include_spam": True, "symmetrize_spam": True}
+
+    full = model.to_pauli_lindblad_maps(model_data, **kwargs)["M"]
+    restricted = model.to_pauli_lindblad_maps(model_data, **kwargs, restrict_to_qubit_idxs=True)
+    restricted = restricted["M"]
+
+    assert restricted.num_qubits == 3
+    assert restricted.to_sparse_list() == [
+        (label, [[1, 3, 4].index(qubit) for qubit in support], rate)
+        for label, support, rate in full.to_sparse_list()
+    ]
 
 
 def test_rate_space_dim(generators_cz):
