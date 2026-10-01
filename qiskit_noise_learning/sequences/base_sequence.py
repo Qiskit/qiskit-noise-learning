@@ -154,3 +154,15 @@ class BaseSequence(ABC, Generic[T]):
             and self.end_fragment == other.end_fragment
             and self.fragment_depth == other.fragment_depth
         )
+
+    def __hash__(self) -> int:
+        if not hasattr(self, "_hash"):
+            self._hash = hash(
+                (
+                    tuple(self.start_fragment),
+                    tuple(self.repeatable_fragment),
+                    tuple(self.end_fragment),
+                    self.fragment_depth,
+                )
+            )
+        return self._hash

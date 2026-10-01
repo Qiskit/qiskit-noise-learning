@@ -453,3 +453,19 @@ def test_bind_at():
     unbound = bound.unbind()
     assert unbound.fragment_depth is None
     assert unbound == seq
+
+
+def test_equal_sequences_hash_equally():
+    """Sequences comparing equal are interchangeable as mapping keys, so a set deduplicates them."""
+    sequence = _sequence([_PERMUTATION, ApplyGate("P")])
+    same = _sequence([_PERMUTATION, ApplyGate("P")])
+
+    assert sequence == same and hash(sequence) == hash(same)
+    assert len({sequence, same}) == 1
+
+
+def test_binding_depth_gives_a_distinct_key():
+    """Binding changes equality, so bound sequences must not collapse onto the unbound one."""
+    unbound = _sequence([ApplyGate("P")])
+
+    assert len({unbound, unbound.bind_at(1), unbound.bind_at(2)}) == 3
