@@ -111,20 +111,24 @@ class FlipPostSelect(AnalysisStage):
 
 def _failed_bits(
     names: Sequence[str],
-    data: np.ndarray,
+    outcomes: np.ndarray,
     boundaries: Mapping[str, tuple[int, int]],
     clbit_qubit_idxs: Mapping[str, np.ndarray],
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return the failed bits of the creg group ``names``, and the qubits those bits measure.
 
+    The ``outcomes`` argument is the measured bits already corrected for their measurement flips,
+    so that a ``True`` entry means the bit deviated from its expected value. Both rules below are
+    stated in those terms, which is what makes them flip-correct.
+
     The returned array has shape ``(randomization, shot, bit)``, and entry ``j`` of the returned
     qubit indices is the physical qubit measured into bit ``j``. Note that the one-creg branch
-    returns a view into ``data`` rather than a fresh array.
+    returns a view into ``outcomes`` rather than a fresh array.
     """
     if len(names) == 1:
         (name,) = names
         start, end = boundaries[name]
-        return data[:, :, start:end], clbit_qubit_idxs[name]
+        return outcomes[:, :, start:end], clbit_qubit_idxs[name]
 
     if len(names) == 2:
         base_name, ps_name = names
@@ -139,8 +143,8 @@ def _failed_bits(
         base_start, base_end = boundaries[base_name]
         ps_start, ps_end = boundaries[ps_name]
 
-        base_bits = data[:, :, base_start:base_end]
-        ps_bits = data[:, :, ps_start:ps_end]
+        base_bits = outcomes[:, :, base_start:base_end]
+        ps_bits = outcomes[:, :, ps_start:ps_end]
 
         return base_bits == ps_bits, base_qubits
 
