@@ -82,14 +82,16 @@ class FlipPostSelect(AnalysisStage):
         def _dataset_masker(dataset: xr.Dataset) -> xr.Dataset:
             if "data" not in dataset:
                 return dataset
-            data = dataset["data"].values
+            outcomes = (
+                dataset["data"].values ^ dataset["measurement_flips"].values[:, np.newaxis, :]
+            )
             mask = dataset["data_mask"].values.copy()
             boundaries = dataset.attrs["creg_bit_boundaries"]
             creg_names = dataset.attrs["creg_names"]
             clbit_qubit_idxs = dataset.attrs["clbit_qubit_idxs"]
 
             for names in self._creg_identifier(creg_names):
-                failed, qubit_idxs = _failed_bits(names, data, boundaries, clbit_qubit_idxs)
+                failed, qubit_idxs = _failed_bits(names, outcomes, boundaries, clbit_qubit_idxs)
 
                 if self._mode == "node":
                     mask |= failed.any(axis=-1)
