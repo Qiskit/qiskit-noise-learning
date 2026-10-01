@@ -18,7 +18,7 @@ import xarray as xr
 from qiskit_noise_learning.sequences import InstructionSequence
 
 from .leveled_data import LeveledData
-from .xarray_utils import filter_time, ragged_concat
+from .xarray_utils import ragged_concat
 
 
 def _clbit_qubit_idxs_equal(map1: dict[str, np.ndarray], map2: dict[str, np.ndarray]) -> bool:
@@ -204,15 +204,3 @@ class RawData(LeveledData):
             ):
                 return key
         return None
-
-    def filter_time(self, lb: np.datetime64, ub: np.datetime64) -> Self:
-        """Filter to data gathered within the time bounds.
-
-        Args:
-            lb: The time lower bound (inclusive).
-            ub: The time upper bound (inclusive).
-
-        Returns:
-            The time filtered version of self.
-        """
-        return RawData(filter_time(self.datatree, lb=lb, ub=ub))

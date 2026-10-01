@@ -17,7 +17,6 @@ import numpy as np
 import xarray as xr
 
 from .leveled_data import LeveledData
-from .xarray_utils import filter_time
 
 ParameterIndex = TypeVar("ParameterIndex", bound=Hashable)
 
@@ -86,15 +85,3 @@ class ModelData(LeveledData, Generic[ParameterIndex]):
     def metadata(self) -> dict[str, Any]:
         """Metadata describing the model parameter fit."""
         return dict(self._dataset.attrs)
-
-    def filter_time(self, lb: np.datetime64, ub: np.datetime64) -> Self:
-        """Filter to data gathered within the time bounds.
-
-        Args:
-            lb: The time lower bound (inclusive).
-            ub: The time upper bound (inclusive).
-
-        Returns:
-            The time filtered version of self.
-        """
-        return ModelData(filter_time(xr.DataTree(self.dataset), lb=lb, ub=ub).dataset)

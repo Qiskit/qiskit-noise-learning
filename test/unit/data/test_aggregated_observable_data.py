@@ -32,21 +32,3 @@ def test_from_arrays(make_cz_path):
     assert ds["fragment_depth"].values[0] == -1
     assert float(ds["estimate_values"].values[0]) == 0.8
     assert float(ds["estimate_std"].values[0]) == 0.01
-
-
-def test_filter_time(make_cz_path):
-    """Test that filter_time keeps only data within the time window."""
-    p0 = make_cz_path("IX")
-    p1 = make_cz_path("XI")
-    avg = AggregatedObservableData.from_arrays(
-        unbound_paths=[p0, p1],
-        fragment_depths=[-1, -1],
-        estimate_values=np.array([0.8, 0.7]),
-        estimate_std=np.array([0.01, 0.02]),
-        time_lbs=np.array(["2026-01-01", "2026-01-05"], dtype="datetime64[us]"),
-        time_ubs=np.array(["2026-01-02", "2026-01-06"], dtype="datetime64[us]"),
-    )
-    filtered = avg.filter_time(lb=np.datetime64("2026-01-04"), ub=np.datetime64("2026-01-07"))
-    vals = filtered.dataset["estimate_values"].values
-    assert np.isnan(vals[0])
-    assert vals[1] == 0.7
