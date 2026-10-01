@@ -41,18 +41,24 @@ def make_fit():
 
 @pytest.fixture()
 def make_raw_data(make_instruction_sequence):
-    """Return a builder ``(creg_names, clbit_qubit_idxs, data) -> RawData`` (1 sequence)."""
+    """Return a builder ``(creg_names, clbit_qubit_idxs, data, measurement_flips=None) -> RawData``.
 
-    def _make(creg_names, clbit_qubit_idxs, data):
+    The result holds a single instruction sequence. ``measurement_flips`` defaults to all-zeros,
+    which is the case in which the measured bits and their outcomes coincide.
+    """
+
+    def _make(creg_names, clbit_qubit_idxs, data, measurement_flips=None):
         seq = make_instruction_sequence(name="p0", fragment_depth=1)
         num_rand = data.shape[0]
         num_bits = data.shape[2]
+        if measurement_flips is None:
+            measurement_flips = np.zeros((num_rand, num_bits), dtype=bool)
         return RawData.from_arrays(
             creg_names=creg_names,
             clbit_qubit_idxs=clbit_qubit_idxs,
             instruction_sequences=[seq],
             data=[data],
-            measurement_flips=[np.zeros((num_rand, num_bits), dtype=bool)],
+            measurement_flips=[measurement_flips],
             time_lbs=[np.array(["2026-01-01"] * num_rand, dtype="datetime64[us]")],
             time_ubs=[np.array(["2026-01-02"] * num_rand, dtype="datetime64[us]")],
         )
