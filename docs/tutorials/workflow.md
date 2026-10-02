@@ -12,8 +12,8 @@ kernelspec:
 
 # Build a learning experiment
 
-This guide demonstrates how to build a standard learning experiment from scratch, and use it to learn a
-model from simulated noisy data.
+This tutorial demonstrates how to build a standard learning experiment from scratch, and use it to
+learn a model from simulated noisy data.
 
 1. Define a gate set on a ring of qubits
 2. Choose a 2-local Pauli-Lindblad model
@@ -26,8 +26,8 @@ model from simulated noisy data.
 :::{admonition} Running on real hardware
 :class: note
 
-The circuits below are simulated locally, so this walkthrough needs no IBM Quantum&reg; credentials. Three
-changes take it to a real device, each flagged again where it applies:
+The circuits below are simulated locally, so this walkthrough needs no IBM Quantum&reg; credentials.
+Three changes take it to a real device, each flagged again where it applies:
 
 * **Step 1**: replace {class}`~qiskit_ibm_runtime.fake_provider.FakeMarrakesh` with a real backend.
 * **Step 5**: skip it.
@@ -38,9 +38,9 @@ changes take it to a real device, each flagged again where it applies:
 
 Build a {class}`~.QiskitGateSet` from a backend {class}`~qiskit.transpiler.Target` and a subset of
 its qubits &mdash; here a twelve-qubit ring of
-{class}`~qiskit_ibm_runtime.fake_provider.FakeMarrakesh` &mdash; then add one gate to it: a layer of six
-`CZ` gates covering that ring. By default the gate set is initialized with a preparation gate `P`
-and a measurement gate `M`.
+{class}`~qiskit_ibm_runtime.fake_provider.FakeMarrakesh` &mdash; then add one gate to it: a layer of
+six `CZ` gates covering that ring. By default the gate set is initialized with a preparation gate
+`P` and a measurement gate `M`.
 
 ```{code-cell} python
 from qiskit_ibm_runtime.fake_provider import FakeMarrakesh
@@ -82,8 +82,8 @@ gate_set.draw()
 
 Decide which Pauli-Lindblad generators the noise is allowed to have with a
 {class}`~.PauliLindbladModel`. Build that generator set from the gate set's connectivity with
-{meth}`~.PauliLindbladModel.k_local` &mdash; here every 2-local Pauli on connected qubit pairs of the
-unitary gate, and single-qubit Paulis for preparation and measurement.
+{meth}`~.PauliLindbladModel.k_local` &mdash; here every 2-local Pauli on connected qubit pairs of
+the unitary gate, and single-qubit Paulis for preparation and measurement.
 
 ```{code-cell} python
 from qiskit_noise_learning.models import PauliLindbladModel
@@ -169,10 +169,10 @@ quantum_program.items[0].circuit.draw("mpl", idle_wires=False, fold=False)
 An {class}`~.AerExecutor` runs a program on a local Aer simulator, injecting Pauli-Lindblad
 noise at the barriers Samplomatic places around each twirled gate.
 
-Unlike the hand-picked noise of the {class}`~.NoiseLearner` guide, give *every one* of the
-model's 168 generators an independent random rate. The model's generators are already exactly the
-Paulis to put in a {class}`~qiskit.quantum_info.PauliLindbladMap`, so pair each one with a rate and
-build the map per gate directly:
+Unlike the hand-picked noise of the {doc}`protocol guide <learning_protocol>`, give *every one* of
+the model's 168 generators an independent random rate. The model's generators are already exactly
+the Paulis to put in a {class}`~qiskit.quantum_info.PauliLindbladMap`, so pair each one with a rate
+and build the map per gate directly:
 
 ```{code-cell} python
 import numpy as np

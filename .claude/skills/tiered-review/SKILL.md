@@ -34,7 +34,7 @@ building and running learning experiments, analyzing the data, and solving for m
 Two public API tiers:
 - **Low-level**: User composes core objects directly, useful for research applications.
 - **High-level**: Preset configurations of low-level workflows accessible through the
-  `NoiseLearner` interface.
+  `protocols` subpackage.
 
 ## Arguments
 
@@ -110,7 +110,7 @@ Judge strategy and design choices harshly, but do not comment on code details.
 
 Report to chat. Do not edit files.
 
-Anchors: `noise_learner/noise_learner.py`, `models/fidelity_model.py`,
+Anchors: `protocols/prepare_learning_program.py`, `models/fidelity_model.py`,
 `gate_sets/gate_set.py`, `sequences/path.py`, `README`.
 
 ### Tier 2 — `architecture` (chat only)
@@ -205,6 +205,6 @@ re-running the *current* tier rather than advancing.
 | `circuit_generator/` | Management of internal experiment representation to job submission inputs, and job result data into internal data representations (another bridge between this package and qiskit). |
 | `analysis/` | Stage-based data analysis tools, ultimately generating estimates of model parameters. |
 | `data/` | Data containers the analysis tools act on. |
-| `noise_learner/` | High-level interface providing curated configurations of the other subpackages. |
+| `protocols/` | High-level interface providing curated configurations of the other subpackages. |
 | `visualizations/` | Visualization tools. |
 | `utils/` | Miscellaneous helpers that don't belong to a specific subpackage. |
