@@ -50,6 +50,18 @@ def gate_set_1q_order_3():
     return mgs
 
 
+@pytest.fixture()
+def gate_set_3q_weight_3_conjugate():
+    """A 3-qubit gate set whose gate "G" maps ``IXI`` to ``YYZ``, which anticommutes with it."""
+    circuit = QuantumCircuit(3)
+    circuit.cz(0, 1)
+    circuit.cx(1, 2)
+    circuit.cz(1, 2)
+    mgs = ModelGateSet(3)
+    mgs.add_gate(ModelGate("G", [((0, 1, 2), Clifford(circuit))]))
+    return mgs
+
+
 def _pp(gate_set: ModelGateSet, in_pauli: str, out_pauli: str, gate_name: str = "LL") -> Path:
     """Build an unbound Path with a 2-entry repeatable fragment that loops in_pauli↔out_pauli.
 
@@ -215,6 +227,31 @@ def test_recovers_known_rates_symmetric_fidelities(two_qubit_anticomm_fit, optim
     rates_by_label = {g.to_pauli().to_label(): r for g, r in zip(nm.generators(), nm.rates)}
     assert rates_by_label["XI"] == pytest.approx(0.1, abs=tol)
     assert rates_by_label["ZI"] == pytest.approx(0.05, abs=tol)
+
+
+def test_fits_a_design_with_a_single_generator(gate_set_3q_weight_3_conjugate):
+    gate = gate_set_3q_weight_3_conjugate["G"]
+    in_pauli = QubitSparsePauli("IXI")
+    out_pauli = gate.clifford_propagate(in_pauli)
+    path = Path(
+        start_fragment=[],
+        repeatable_fragment=[
+            FidelityIndex.from_transition(gate=gate, in_pauli=in_pauli, out_pauli=out_pauli),
+            FidelityIndex.from_transition(gate=gate, in_pauli=out_pauli, out_pauli=in_pauli),
+        ],
+        end_fragment=[],
+    )
+    fidelity = 0.9
+
+    noise_map = fit_noise_model_legacy(
+        _make_aggregated_observable_data([path], np.array([fidelity]))
+    )
+
+    rates_by_label = {
+        g.to_pauli().to_label(): r for g, r in zip(noise_map.generators(), noise_map.rates)
+    }
+    assert list(rates_by_label) == ["IXI"]
+    assert rates_by_label["IXI"] == pytest.approx(-np.log(fidelity) / 4)
 
 
 def test_returns_pauli_lindblad_map(two_qubit_anticomm_fit):

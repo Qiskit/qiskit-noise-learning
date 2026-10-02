@@ -186,11 +186,13 @@ def fit_noise_model_legacy(
 
     sparse_model_paulis = basis_paulis.copy()
     # Form the non-commuting array (``M`` as in the PEC paper)
-    nc_array_basis = np.logical_not([p.commutes(sparse_model_paulis) for p in basis_paulis]).astype(
-        int
-    )
-    nc_array_conj_basis = np.logical_not(
-        [p.commutes(sparse_model_paulis) for p in conjugated_basis_paulis]
+    # Against a one-element PauliList, Pauli.commutes returns a scalar rather than a length-1
+    # array, so promote to 2D to keep a single-generator fit well-shaped.
+    nc_array_basis = np.atleast_2d(
+        np.logical_not([p.commutes(sparse_model_paulis) for p in basis_paulis])
+    ).astype(int)
+    nc_array_conj_basis = np.atleast_2d(
+        np.logical_not([p.commutes(sparse_model_paulis) for p in conjugated_basis_paulis])
     ).astype(int)
     nc_array = nc_array_basis + nc_array_conj_basis
 
