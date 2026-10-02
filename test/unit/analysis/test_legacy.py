@@ -254,6 +254,25 @@ def test_fits_a_design_with_a_single_generator(gate_set_3q_weight_3_conjugate):
     assert rates_by_label["IXI"] == pytest.approx(-np.log(fidelity) / 4)
 
 
+@pytest.mark.parametrize("fidelity", [0.0, -0.1])
+def test_rejects_non_positive_fidelities(gate_set_2q_identity, fidelity):
+    pps = [_pp(gate_set_2q_identity, "XI", "XI"), _pp(gate_set_2q_identity, "ZI", "ZI")]
+    ad = _make_aggregated_observable_data(pps, np.array([fidelity, 0.8]))
+
+    with pytest.raises(ValueError, match="Pair fidelities must be positive"):
+        fit_noise_model_legacy(ad)
+
+
+def test_accepts_fidelity_above_one(gate_set_2q_identity):
+    """A fidelity above 1 is ordinary shot noise; the non-negativity constraint absorbs it."""
+    pps = [_pp(gate_set_2q_identity, "XI", "XI"), _pp(gate_set_2q_identity, "ZI", "ZI")]
+    ad = _make_aggregated_observable_data(pps, np.array([1.01, 0.8]))
+
+    noise_map = fit_noise_model_legacy(ad)
+
+    assert all(rate >= 0 for rate in noise_map.rates)
+
+
 def test_returns_pauli_lindblad_map(two_qubit_anticomm_fit):
     nm = fit_noise_model_legacy(two_qubit_anticomm_fit.aggregated_observable_data)
     assert isinstance(nm, PauliLindbladMap)

@@ -164,8 +164,9 @@ def fit_noise_model_legacy(
         the fitted coefficients.
 
     Raises:
-        ValueError: If *noise_assumption* or *optimizer_name* is not recognized, or if
-            ``optimizer_name="nnls"`` and ``constrained=False``.
+        ValueError: If *noise_assumption* or *optimizer_name* is not recognized, if
+            ``optimizer_name="nnls"`` and ``constrained=False``, or if any pair fidelity is not
+            positive.
         MissingOptionalLibraryError: If ``optimizer_name="cvxpy"`` and ``cvxpy`` is not
             installed.
     """
@@ -175,6 +176,19 @@ def fit_noise_model_legacy(
         fid_ps_1.to_pauli_list().to_labels(), fid_ps_2.to_pauli_list().to_labels(), fid_pair_data
     )
     pauli_fidelities = np.array(list(fidelities_canonical.values()))
+
+    # Both noise assumptions take the logarithm of these. A fidelity above 1 is ordinary shot
+    # noise and the non-negativity constraint absorbs it, but zero has no logarithm and a negative
+    # fidelity has no square root, so neither can be fit.
+    if np.any(pauli_fidelities <= 0):
+        bad = [label for label, f in fidelities_canonical.items() if f <= 0]
+        shown = ", ".join(bad[:10])
+        if len(bad) > 10:
+            shown += f", and {len(bad) - 10} more"
+        raise ValueError(
+            f"Pair fidelities must be positive, but {len(bad)} of {pauli_fidelities.size} are not, "
+            f"for Pauli(s): {shown}."
+        )
     basis_paulis = PauliList(list(fidelities_canonical.keys()))
     conjugated_basis_paulis = PauliList(
         make_conj_pauli_list(
@@ -201,7 +215,7 @@ def fit_noise_model_legacy(
         # assumption lets us compute the layer fidelities:
         layer_fidelities = np.tile(np.sqrt(pauli_fidelities), 2)
         nc_array_shaped = np.concatenate([nc_array_basis, nc_array_conj_basis])
-        fit_vector = -np.log(np.abs(layer_fidelities)) / 2
+        fit_vector = -np.log(layer_fidelities) / 2
     elif noise_assumption == "symmetric_generators":
         # identify which generators are conjugate pairs:
         conjugated_generators = conjugated_basis_paulis.copy()
@@ -226,7 +240,7 @@ def fit_noise_model_legacy(
         nc_array_shaped = nc_array.copy()
         nc_array_shaped[:, conj_pairs[:, 0]] += nc_array_shaped[:, conj_pairs[:, 1]]
         nc_array_shaped = np.delete(nc_array_shaped, conj_pairs[:, 1], axis=1)
-        fit_vector = -np.log(np.abs(pauli_fidelities)) / 2
+        fit_vector = -np.log(pauli_fidelities) / 2
     else:
         raise ValueError(f"Noise assumption {noise_assumption} not recognized")
 
