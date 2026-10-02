@@ -10,5 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from . import data, experiment_builder, gate_sets, protocols, sequences
-from ._version import __version__
+"""Pre-packaged noise learning procedures."""
+
+from .prepare_learning_program import prepare_learning_program
+from .process_learning_results import process_learning_results
