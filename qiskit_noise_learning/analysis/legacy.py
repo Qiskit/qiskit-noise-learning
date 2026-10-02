@@ -172,11 +172,19 @@ def fit_noise_model_legacy(
 
     Raises:
         ValueError: If *noise_assumption* or *optimizer_name* is not recognized, if
-            ``optimizer_name="nnls"`` and ``constrained=False``, or if any pair fidelity is not
-            positive.
+            ``optimizer_name="nnls"`` and ``constrained=False``, if any observable is not a decay
+            row, or if any pair fidelity is not positive.
         MissingOptionalLibraryError: If ``optimizer_name="cvxpy"`` and ``cvxpy`` is not
             installed.
     """
+    fragment_depths = aggregated_data.dataset["fragment_depth"].data
+    if np.any(fragment_depths != -1):
+        depths = ", ".join(str(d) for d in sorted(set(fragment_depths[fragment_depths != -1])))
+        raise ValueError(
+            "Gate observables can only contain exponential decay data, but a fixed depth "
+            f"observable was found, at fragment depth(s) {depths}."
+        )
+
     fid_ps_1, fid_ps_2 = get_fid_pairs(aggregated_data.dataset.estimate_values.unbound_path.data)
     fid_pair_data = aggregated_data.dataset.estimate_values
     fidelities_canonical = make_canonical_fid_dict(
@@ -324,9 +332,10 @@ class LegacySolve(AnalysisStage):
     Unestimated generators in the fit's model are omitted; their rates are not assumed to be zero.
     Model predictions requiring those missing parameters must be handled separately.
 
-    If any layer violates the legacy-learner assumptions (wrong repeatable-fragment length,
-    single-qubit Cliffords required, or inconsistent conjugate fidelities), the entire solve
-    raises.  There is no per-layer skip or warning.
+    If any layer violates the legacy-learner assumptions (an observable that is not a decay row,
+    wrong repeatable-fragment length, a repeatable fragment spanning two gates, single-qubit
+    Cliffords required, or inconsistent conjugate fidelities), the entire solve raises.  There is
+    no per-layer skip or warning.
 
     Layer order in the output :class:`~.ModelData` follows first-seen order in the observable
     dataset, which is deterministic for a given :class:`~.AggregatedObservableData`.
@@ -364,10 +373,8 @@ class LegacySolve(AnalysisStage):
             ]
             layer_rates = list(noise_map.rates)
 
-            decay_mask = layer_data.dataset["fragment_depth"].data == -1
-            decay_ds = layer_data.dataset.sel({"observable": decay_mask})
-            time_lb = time_bound(decay_ds["time_lbs"].data, "min")
-            time_ub = time_bound(decay_ds["time_ubs"].data, "max")
+            time_lb = time_bound(layer_data.dataset["time_lbs"].data, "min")
+            time_ub = time_bound(layer_data.dataset["time_ubs"].data, "max")
 
             all_labels.extend(layer_labels)
             all_rates.extend(layer_rates)

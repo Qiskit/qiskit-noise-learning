@@ -88,11 +88,13 @@ def _pp(gate_set: ModelGateSet, in_pauli: str, out_pauli: str, gate_name: str = 
     )
 
 
-def _make_aggregated_observable_data(pps: list, fidelities: np.ndarray) -> AggregatedObservableData:
+def _make_aggregated_observable_data(
+    pps: list, fidelities: np.ndarray, fragment_depth: int = -1
+) -> AggregatedObservableData:
     n = len(pps)
     return AggregatedObservableData.from_arrays(
         unbound_paths=pps,
-        fragment_depths=[-1] * n,
+        fragment_depths=[fragment_depth] * n,
         estimate_values=fidelities,
         estimate_std=np.full(n, 0.001),
         time_lbs=np.empty(n, dtype="datetime64[us]"),
@@ -176,6 +178,18 @@ def test_get_fid_pairs_raises_on_fragment_that_does_not_close(gate_set_1q_order_
 
     with pytest.raises(ValueError, match="single qubit Cliffords"):
         get_fid_pairs([chains_but_does_not_close])
+
+
+@pytest.mark.parametrize("fragment_depth", [0, 2])
+def test_legacy_solve_rejects_gate_rows_that_are_not_decays(gate_set_2q_identity, fragment_depth):
+    pps = [_pp(gate_set_2q_identity, "XI", "XI"), _pp(gate_set_2q_identity, "ZI", "ZI")]
+    fit = Fit()
+    fit[AggregatedObservableData] = _make_aggregated_observable_data(
+        pps, np.array([0.9, 0.8]), fragment_depth=fragment_depth
+    )
+
+    with pytest.raises(ValueError, match="exponential decay data"):
+        LegacySolve().run(fit)
 
 
 def test_legacy_solve_raises_on_mixed_gate_fragment(gate_set_two_layers):
