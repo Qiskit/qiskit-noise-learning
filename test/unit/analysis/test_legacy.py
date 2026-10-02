@@ -503,7 +503,24 @@ def test_spam_rate_is_clipped_at_zero(gate_set_spam):
     fit = Fit()
     fit[AggregatedObservableData] = _spam_data([_spam_path(gate_set_spam, (0,))], np.array([1.02]))
 
-    assert _fitted_rates(LegacySolve().run(fit).model_data) == {("M", "IX"): 0.0}
+    model_data = LegacySolve().run(fit).model_data
+
+    assert _fitted_rates(model_data) == {("M", "IX"): 0.0}
+    # on the non-negativity boundary, where ModelSolve likewise reports no variance
+    assert model_data.dataset["covariance"].data.tolist() == [[0.0]]
+
+
+def test_spam_covariance_is_propagated(gate_set_spam):
+    """Each SPAM rate comes from one row, so its variance is that row's uncertainty propagated."""
+    fidelity = 0.97
+    data = _spam_data([_spam_path(gate_set_spam, (0,))], np.array([fidelity]))
+    fidelity_std = float(data.dataset["estimate_std"].data[0])
+    fit = Fit()
+    fit[AggregatedObservableData] = data
+
+    covariance = LegacySolve().run(fit).model_data.dataset["covariance"].data
+
+    np.testing.assert_allclose(covariance, [[(fidelity_std / (2 * fidelity)) ** 2]])
 
 
 def test_spam_rows_do_not_change_the_gate_fit(gate_set_spam):

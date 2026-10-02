@@ -313,7 +313,9 @@ def fit_noise_model_legacy(
     return noise_map_pecr
 
 
-def _spam_fit(path: Path, fidelity: float) -> tuple[GeneratorIndex, float]:
+def _spam_fit(
+    path: Path, fidelity: float, fidelity_std: float
+) -> tuple[GeneratorIndex, float, float]:
     r"""Fit the measurement generator rate a depth-0 SPAM path determines.
 
     A SPAM path measures :math:`F_P(Z_S) F_M(Z_S)`, one product of two unknowns, and this attributes
@@ -321,12 +323,18 @@ def _spam_fit(path: Path, fidelity: float) -> tuple[GeneratorIndex, float]:
     :math:`X` generator on the measured qubit, clipped at zero as the layer fit's non-negativity
     constraint would.
 
+    The rate comes from a single row, so its variance is that row's uncertainty propagated through
+    the same expression, :math:`(\sigma_F / 2 F)^2`. A rate clipped to zero sits on the
+    non-negativity boundary, where :class:`~.ModelSolve` reports no variance, so it reports none
+    either.
+
     Args:
         path: An unbound path with an empty repeatable fragment.
         fidelity: The path's measured fidelity.
+        fidelity_std: The uncertainty on *fidelity*.
 
     Returns:
-        The generator index and its rate.
+        The generator index, its rate, and the variance of that rate.
 
     Raises:
         ValueError: If the path does not have exactly one start and one end fragment entry, if its
@@ -352,7 +360,11 @@ def _spam_fit(path: Path, fidelity: float) -> tuple[GeneratorIndex, float]:
         ("X", [qubit]), num_qubits=measurement.pauli.num_qubits
     )
     index = GeneratorIndex(gate_name=measurement.gate_name, generator=generator)
-    return index, max(-np.log(fidelity) / 2, 0.0)
+
+    rate = -np.log(fidelity) / 2
+    if rate < 0:
+        return index, 0.0, 0.0
+    return index, rate, (fidelity_std / (2 * fidelity)) ** 2
 
 
 def _row_gate_name(path: Path) -> str:
@@ -406,6 +418,8 @@ class LegacySolve(AnalysisStage):
         all_rates: list[float] = []
         all_time_lbs: list[np.datetime64] = []
         all_time_ubs: list[np.datetime64] = []
+        # The gate fit is unweighted and reports no uncertainty; SPAM rates propagate theirs.
+        all_variances: list[float] = []
 
         for name in dict.fromkeys(gate_names):
             mask = gate_names == name
@@ -431,22 +445,25 @@ class LegacySolve(AnalysisStage):
             all_rates.extend(layer_rates)
             all_time_lbs.extend([time_lb] * len(layer_labels))
             all_time_ubs.extend([time_ub] * len(layer_labels))
+            all_variances.extend([0.0] * len(layer_labels))
 
         spam_ds = dataset.sel({"observable": spam_mask})
-        for path, fidelity, time_lb, time_ub in zip(
+        for path, fidelity, fidelity_std, time_lb, time_ub in zip(
             spam_ds["unbound_path"].data,
             spam_ds["estimate_values"].data,
+            spam_ds["estimate_std"].data,
             spam_ds["time_lbs"].data,
             spam_ds["time_ubs"].data,
         ):
-            index, rate = _spam_fit(path, float(fidelity))
+            index, rate, variance = _spam_fit(path, float(fidelity), float(fidelity_std))
             all_labels.append(index)
             all_rates.append(rate)
             all_time_lbs.append(time_lb)
             all_time_ubs.append(time_ub)
+            all_variances.append(variance)
 
         x = np.array(all_rates)
-        cov_x = np.zeros((len(x), len(x)))
+        cov_x = np.diag(all_variances)
         fit[ModelData] = ModelData.from_arrays(
             parameter_indices=all_labels,
             parameter_values=x,
