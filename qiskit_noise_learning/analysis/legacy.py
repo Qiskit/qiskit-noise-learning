@@ -55,10 +55,9 @@ def get_fid_pairs(unbound_paths) -> tuple[QubitSparsePauliList, QubitSparsePauli
                 "Expected each unbound path's repeatable_fragment to have exactly 2 entries, "
                 f"but got {len(fragment)}."
             )
-        if (
-            path.repeatable_fragment[0].transition[1] != path.repeatable_fragment[1].transition[0]
-        ) or (
-            path.repeatable_fragment[1].transition[0] != path.repeatable_fragment[0].transition[1]
+        # Ensure single qubit Cliffords are not needed to repeat
+        if (fragment[0].transition[1] != fragment[1].transition[0]) or (
+            fragment[1].transition[1] != fragment[0].transition[0]
         ):
             raise ValueError(
                 "Encountered path whose repeatable fragment requires single qubit Cliffords to "

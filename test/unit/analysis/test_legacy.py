@@ -39,6 +39,17 @@ def gate_set_2q_identity():
     return mgs
 
 
+@pytest.fixture()
+def gate_set_1q_order_3():
+    """A 1-qubit gate set with one gate "C3" cycling the Paulis, X → Z → Y → X."""
+    circuit = QuantumCircuit(1)
+    circuit.h(0)
+    circuit.s(0)
+    mgs = ModelGateSet(1)
+    mgs.add_gate(ModelGate("C3", [((0,), Clifford(circuit))]))
+    return mgs
+
+
 def _pp(gate_set: ModelGateSet, in_pauli: str, out_pauli: str, gate_name: str = "LL") -> Path:
     """Build an unbound Path with a 2-entry repeatable fragment that loops in_pauli↔out_pauli.
 
@@ -134,6 +145,25 @@ def test_get_fid_pairs_returns_two_qubit_sparse_pauli_lists(gate_set_2q_identity
     )
     assert fid_ps_1.to_pauli_list().to_labels() == ["XI", "ZI"]
     assert fid_ps_2.to_pauli_list().to_labels() == ["XI", "ZI"]
+
+
+def test_get_fid_pairs_raises_on_fragment_that_does_not_close(gate_set_1q_order_3):
+    # A case where the path is valid but single qubit Cliffords are necessary
+    gate = gate_set_1q_order_3["C3"]
+    x = QubitSparsePauli("X")
+    cx = gate.clifford_propagate(x)
+    ccx = gate.clifford_propagate(cx)
+    chains_but_does_not_close = Path(
+        start_fragment=[],
+        repeatable_fragment=[
+            FidelityIndex.from_transition(gate=gate, in_pauli=x, out_pauli=cx),
+            FidelityIndex.from_transition(gate=gate, in_pauli=cx, out_pauli=ccx),
+        ],
+        end_fragment=[],
+    )
+
+    with pytest.raises(ValueError, match="single qubit Cliffords"):
+        get_fid_pairs([chains_but_does_not_close])
 
 
 def test_get_fid_pairs_raises_on_wrong_fragment_length(gate_set_2q_identity):
