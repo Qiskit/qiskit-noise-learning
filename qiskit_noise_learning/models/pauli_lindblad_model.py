@@ -452,6 +452,7 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
         model_data: ModelData,
         include_spam: bool = False,
         symmetrize_spam: bool = False,
+        restrict_to_qubit_idxs: bool = False,
     ) -> dict[str, PauliLindbladMap]:
         r"""Return a dictionary of :class:`PauliLindbladMap` for each gate in the model.
 
@@ -471,6 +472,10 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
                 the qubit subsets specified by the generators is closed under taking subsets, which
                 will not typically be true for k-local maps. Lastly, note that this may introduce
                 negative rates that were not there before; in which case a warning is raised.
+            restrict_to_qubit_idxs: Restrict the returned Pauli-Lindblad maps to only the qubits
+                each gate is defined on. Qubit index ``idx`` in the returned map corresponds to
+                physical qubit ``sorted(gate.qubit_idxs)[idx]``. If ``False``, every returned map
+                acts on all ``gate_set.num_qubits`` qubits, indexed by physical qubit index.
 
         Returns:
             A dictionary from gate names to corresponding noise maps.
@@ -515,10 +520,18 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
                 symmetrized, self.gate_set.num_qubits
             )
 
-        return {
-            gate_name: PauliLindbladMap.from_terms(generators)
-            for gate_name, generators in noise_maps.items()
-        }
+        if restrict_to_qubit_idxs:
+            return {
+                gate_name: PauliLindbladMap.from_terms(generators).keep_qubits(
+                    sorted(self.gate_set[gate_name].qubit_idxs)
+                )
+                for gate_name, generators in noise_maps.items()
+            }
+        else:
+            return {
+                gate_name: PauliLindbladMap.from_terms(generators)
+                for gate_name, generators in noise_maps.items()
+            }
 
 
 def _validate_gate_set_form(gate_set: ModelGateSet) -> tuple[list[str], list[str]]:
