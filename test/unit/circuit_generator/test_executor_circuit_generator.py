@@ -19,6 +19,7 @@ from qiskit_ibm_runtime.results import QuantumProgramResult
 from samplomatic import Twirl
 
 from qiskit_noise_learning.circuit_generator import ExecutorCircuitGenerator, ExecutorDataMapper
+from qiskit_noise_learning.circuit_generator.executor.data_mapper_serialization import dump, load
 from qiskit_noise_learning.experiment_builder import Experiment
 from qiskit_noise_learning.gate_sets import QiskitGateSet
 from qiskit_noise_learning.sequences import (
@@ -28,13 +29,14 @@ from qiskit_noise_learning.sequences import (
 )
 
 
-def make_result(items, chunk_timing=None):
+def make_result(items, data_mapper, chunk_timing=None):
     """Create mock ``QuantumProgramResult`` for use with ``ExecutorCircuitGenerator.collect``.
 
     Args:
         items: A list of dicts mapping creg names (and optionally "measurement_flips.<creg>")
             to 4D arrays with shape (num_d_idxs, num_randomizations, num_shots, num_qubits).
             The first axis is indexed by d_idx in collect.
+        data_mapper: The data mapper the result carries, as a generated program's result does.
         chunk_timing: Optional list of (start, stop, parts) tuples, where parts is a list of
             (idx_item, size) tuples. If None, a single chunk is generated with dummy timestamps
             that produces the correct number of time entries per item.
@@ -71,6 +73,7 @@ def make_result(items, chunk_timing=None):
     class _Result:
         def __init__(self):
             self.metadata = SimpleNamespace(chunk_timing=chunk_timing)
+            self.passthrough_data = dump(data_mapper)
 
         def __len__(self):
             return len(items)
@@ -565,15 +568,14 @@ def test_collect_empty():
         instruction_sequences=[],
         num_randomizations=0,
     )
-    result = QuantumProgramResult([])
-    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    result = QuantumProgramResult([], passthrough_data=dump(data_mapper))
+    fit = ExecutorCircuitGenerator.collect(result)
     assert len(fit.raw_data.datatree) == 0
 
 
 def test_collect_single_sequence_no_measurement_flips():
     """Test `ExecutorCircuitGenerator.collect()` with a single sequence and no measurement flips."""
     creg_data = np.array([[[[1, 0, 1]]]], dtype=np.uint8)
-    result = make_result([{"meas0": creg_data}])
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0]],
         item_creg_names=[["meas0"]],
@@ -581,8 +583,8 @@ def test_collect_single_sequence_no_measurement_flips():
         instruction_sequences=[InstructionSequence([], [], [], fragment_depth=0)],
         num_randomizations=1,
     )
-
-    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    result = make_result([{"meas0": creg_data}], data_mapper)
+    fit = ExecutorCircuitGenerator.collect(result)
     raw_data = fit.raw_data
     dataset = raw_data.datatree["0"]
     np.testing.assert_array_equal(
@@ -601,7 +603,6 @@ def test_collect_empty_chunk_timing():
     chunks. Time bounds must fall back to NaT rather than zero-length arrays.
     """
     creg_data = np.array([[[[1, 0, 1]], [[0, 1, 1]]]], dtype=np.uint8)  # 2 randomizations
-    result = make_result([{"meas0": creg_data}], chunk_timing=[])
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0]],
         item_creg_names=[["meas0"]],
@@ -609,8 +610,9 @@ def test_collect_empty_chunk_timing():
         instruction_sequences=[InstructionSequence([], [], [], fragment_depth=0)],
         num_randomizations=2,
     )
+    result = make_result([{"meas0": creg_data}], data_mapper, chunk_timing=[])
 
-    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    fit = ExecutorCircuitGenerator.collect(result)
     dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(dataset["data"].values, creg_data[0])
     assert dataset["time_lbs"].shape == (2,)
@@ -622,7 +624,6 @@ def test_collect_single_sequence_with_measurement_flips():
     """Test `ExecutorCircuitGenerator.collect()` with measurement flips present."""
     creg_data = np.array([[[[1, 0, 1]]]], dtype=np.uint8)
     flip_data = np.array([[[[1, 1, 0]]]], dtype=np.uint8)
-    result = make_result([{"meas0": creg_data, "measurement_flips.meas0": flip_data}])
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0]],
         item_creg_names=[["meas0"]],
@@ -630,8 +631,8 @@ def test_collect_single_sequence_with_measurement_flips():
         instruction_sequences=[InstructionSequence([], [], [], fragment_depth=0)],
         num_randomizations=1,
     )
-
-    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    result = make_result([{"meas0": creg_data, "measurement_flips.meas0": flip_data}], data_mapper)
+    fit = ExecutorCircuitGenerator.collect(result)
     dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(dataset["data"].values, creg_data.reshape(1, 1, 3))
     np.testing.assert_array_equal(dataset["measurement_flips"].values, flip_data.reshape(1, 3))
@@ -642,7 +643,6 @@ def test_collect_single_sequence_with_measurement_flips():
 def test_collect_multiple_sequences_same_item():
     """Test `ExecutorCircuitGenerator.collect()` with multiple sequences in the same item."""
     creg_data = np.array([[[[1, 0]]], [[[0, 1]]]], dtype=np.uint8)
-    result = make_result([{"meas0": creg_data}])
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0, 1]],
         item_creg_names=[["meas0"]],
@@ -653,8 +653,8 @@ def test_collect_multiple_sequences_same_item():
         ],
         num_randomizations=1,
     )
-
-    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    result = make_result([{"meas0": creg_data}], data_mapper)
+    fit = ExecutorCircuitGenerator.collect(result)
     dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
         dataset["unbound_instruction_sequence"].data, [InstructionSequence([], [], [])] * 2
@@ -670,12 +670,6 @@ def test_collect_multiple_sequences_different_items():
     data0 = np.array([[[[1, 1]]]], dtype=np.uint8)
     data1 = np.array([[[[0, 0]]]], dtype=np.uint8)
     flips1 = np.array([[[[1, 0]]]], dtype=bool)
-    result = make_result(
-        [
-            {"meas0": data0},
-            {"meas0": data1, "measurement_flips.meas0": flips1},
-        ]
-    )
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0], [1]],
         item_creg_names=[["meas0"], ["meas0"]],
@@ -686,8 +680,14 @@ def test_collect_multiple_sequences_different_items():
         ],
         num_randomizations=1,
     )
-
-    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    result = make_result(
+        [
+            {"meas0": data0},
+            {"meas0": data1, "measurement_flips.meas0": flips1},
+        ],
+        data_mapper,
+    )
+    fit = ExecutorCircuitGenerator.collect(result)
     dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
         dataset["unbound_instruction_sequence"].data, [InstructionSequence([], [], [])] * 2
@@ -707,15 +707,6 @@ def test_collect_multiple_cregs():
     creg0_data = np.array([[[[1, 0]]]], dtype=np.uint8)
     creg1_data = np.array([[[[0, 1, 1]]]], dtype=np.uint8)
     creg0_flips = np.array([[[[1, 1]]]], dtype=bool)
-    result = make_result(
-        [
-            {
-                "meas0": creg0_data,
-                "meas1": creg1_data,
-                "measurement_flips.meas0": creg0_flips,
-            }
-        ]
-    )
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0]],
         item_creg_names=[["meas0", "meas1"]],
@@ -723,8 +714,17 @@ def test_collect_multiple_cregs():
         instruction_sequences=[InstructionSequence([], [], [], fragment_depth=0)],
         num_randomizations=1,
     )
-
-    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    result = make_result(
+        [
+            {
+                "meas0": creg0_data,
+                "meas1": creg1_data,
+                "measurement_flips.meas0": creg0_flips,
+            }
+        ],
+        data_mapper,
+    )
+    fit = ExecutorCircuitGenerator.collect(result)
 
     dataset = fit.raw_data.datatree["0"].dataset
     np.testing.assert_array_equal(
@@ -748,21 +748,6 @@ def test_collect_complex_mapping():
     Items 0 and 1 share the same creg structure (["meas0"] only) so they merge into one leaf.
     Item 2 has a different structure (["meas0", "meas1"]) so it gets its own leaf.
     """
-    result = make_result(
-        [
-            {
-                "meas0": np.array([[[[1, 0]]], [[[0, 1]]]], dtype=np.uint8),
-                "measurement_flips.meas0": np.array([[[[1, 1]]], [[[0, 0]]]], dtype=bool),
-            },
-            {
-                "meas0": np.array([[[[1, 1, 1]]]], dtype=np.uint8),
-            },
-            {
-                "meas0": np.array([[[[0, 0, 0]]]], dtype=np.uint8),
-                "meas1": np.array([[[[1]]]], dtype=np.uint8),
-            },
-        ]
-    )
     data_mapper = ExecutorDataMapper(
         item_sequence_indices=[[0, 2], [1], [3]],
         item_creg_names=[["meas0"], ["meas0"], ["meas0", "meas1"]],
@@ -777,8 +762,23 @@ def test_collect_complex_mapping():
         ],
         num_randomizations=1,
     )
-
-    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    result = make_result(
+        [
+            {
+                "meas0": np.array([[[[1, 0]]], [[[0, 1]]]], dtype=np.uint8),
+                "measurement_flips.meas0": np.array([[[[1, 1]]], [[[0, 0]]]], dtype=bool),
+            },
+            {
+                "meas0": np.array([[[[1, 1, 1]]]], dtype=np.uint8),
+            },
+            {
+                "meas0": np.array([[[[0, 0, 0]]]], dtype=np.uint8),
+                "meas1": np.array([[[[1]]]], dtype=np.uint8),
+            },
+        ],
+        data_mapper,
+    )
+    fit = ExecutorCircuitGenerator.collect(result)
     raw_data = fit.raw_data
 
     # Item 0 has meas0 with 2 bits — leaf "0"
@@ -822,7 +822,7 @@ def test_collect_complex_mapping():
 
 
 def test_generate_records_the_experiment_execution_parameters():
-    """Test that generate records the experiment's execution parameters on the data mapper."""
+    """Test that generate records the experiment's execution parameters in the passthrough data."""
     gateset, seq = _cz_gateset_and_sequence()
     experiment = Experiment(
         instruction_sequences=[seq],
@@ -831,7 +831,8 @@ def test_generate_records_the_experiment_execution_parameters():
         randomizations=2,
     )
 
-    _, data_mapper = ExecutorCircuitGenerator(gateset).generate(experiment)
+    program = ExecutorCircuitGenerator(gateset).generate(experiment)
+    data_mapper = load(program.passthrough_data)
 
     assert data_mapper.num_randomizations == 2
     assert data_mapper.randomization_multipliers == [1]
@@ -873,8 +874,8 @@ def test_generate_and_collect_with_pass_manager():
     num_shots = 3
     meas0_data = np.ones((1, num_randomizations, num_shots, 2), dtype=np.uint8)
     pass_meas_data = np.zeros((1, num_randomizations, num_shots, 1), dtype=np.uint8)
-    result = make_result([{"meas0": meas0_data, "pass_meas": pass_meas_data}])
-    fit = ExecutorCircuitGenerator.collect(result, data_mapper)
+    result = make_result([{"meas0": meas0_data, "pass_meas": pass_meas_data}], data_mapper)
+    fit = ExecutorCircuitGenerator.collect(result)
 
     dataset = fit.raw_data.datatree["0"].dataset
     assert dataset.attrs["creg_names"] == ["meas0", "pass_meas"]
