@@ -10,6 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Circuit generator."""
+"""Circuit generation and result mapping for the runtime executor."""
 
-from .executor import ExecutorCircuitGenerator, ExecutorDataMapper
+from .executor_circuit_generator import ExecutorCircuitGenerator
+from .executor_data_mapper import ExecutorDataMapper

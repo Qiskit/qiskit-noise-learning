@@ -19,6 +19,7 @@ from qiskit_ibm_runtime.results import QuantumProgramResult
 from samplomatic import Twirl
 
 from qiskit_noise_learning.circuit_generator import ExecutorCircuitGenerator, ExecutorDataMapper
+from qiskit_noise_learning.experiment_builder import Experiment
 from qiskit_noise_learning.gate_sets import QiskitGateSet
 from qiskit_noise_learning.sequences import (
     ApplyGate,
@@ -818,6 +819,23 @@ def test_collect_complex_mapping():
         dataset["measurement_flips"].values, np.array([[False, False, False, False]])
     )
     assert dataset.attrs["creg_bit_boundaries"] == {"meas0": (0, 3), "meas1": (3, 4)}
+
+
+def test_generate_records_the_experiment_execution_parameters():
+    """Test that generate records the experiment's execution parameters on the data mapper."""
+    gateset, seq = _cz_gateset_and_sequence()
+    experiment = Experiment(
+        instruction_sequences=[seq],
+        randomization_multipliers=[1],
+        shots=64,
+        randomizations=2,
+    )
+
+    _, data_mapper = ExecutorCircuitGenerator(gateset).generate(experiment)
+
+    assert data_mapper.num_randomizations == 2
+    assert data_mapper.randomization_multipliers == [1]
+    assert data_mapper.shots == 64
 
 
 def test_generate_and_collect_with_pass_manager():

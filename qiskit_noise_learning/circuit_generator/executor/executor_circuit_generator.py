@@ -25,9 +25,9 @@ from samplomatic.annotations import DressingMode, InjectLocalClifford, Tag, Twir
 from qiskit_noise_learning.analysis.fit import Fit
 from qiskit_noise_learning.data import RawData
 
-from ..gate_sets import QiskitGateSet
-from ..sequences import ApplyGate, InstructionSequence, PartialPauliPermutation
-from .circuit_generator import CircuitGenerator
+from ...gate_sets import QiskitGateSet
+from ...sequences import ApplyGate, InstructionSequence, PartialPauliPermutation
+from ..circuit_generator import CircuitGenerator
 from .executor_data_mapper import ExecutorDataMapper
 
 TO_SAMPLOMATIC_C1 = np.array([0, 7, 9, 13, 18, 22], dtype=np.uint8)
@@ -190,6 +190,8 @@ class ExecutorCircuitGenerator(
             item_clbit_qubit_idxs=data_mapper.item_clbit_qubit_idxs,
             instruction_sequences=sequences,
             num_randomizations=num_randomizations,
+            randomization_multipliers=experiment.randomization_multipliers,
+            shots=experiment.shots,
             fidelity_model=experiment.fidelity_model,
             paths=experiment.paths,
             relations=experiment.relations,
