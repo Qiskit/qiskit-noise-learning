@@ -29,7 +29,12 @@ from scipy.sparse import csr_array
 from qiskit_noise_learning.analysis import AnalysisStage, Fit
 from qiskit_noise_learning.data import AggregatedObservableData, ModelData
 from qiskit_noise_learning.data.xarray_utils import time_bound
-from qiskit_noise_learning.models import GeneratorIndex
+from qiskit_noise_learning.math import LinearMap
+from qiskit_noise_learning.models import (
+    GeneratorIndex,
+    contains_pauli_lindblad_model,
+    split_pauli_lindblad_model,
+)
 from qiskit_noise_learning.sequences import Path
 
 from ..optionals import HAS_CVXPY
@@ -313,6 +318,88 @@ def fit_noise_model_legacy(
     return noise_map_pecr
 
 
+def _generator_key(generator: QubitSparsePauli) -> tuple:
+    """A hashable stand-in for a generator, which is not itself hashable."""
+    return tuple(generator.paulis), tuple(generator.indices), generator.num_qubits
+
+
+def _validate_fitted_generators(model: LinearMap, indices: list[GeneratorIndex]) -> None:
+    """Check that every generator this stage fit is one the model declares.
+
+    A model that does not contain a :class:`~.PauliLindbladModel` has no generators to compare
+    against and is left alone.
+
+    Args:
+        model: The fidelity model to check.
+        indices: The generator indices this stage fit.
+
+    Raises:
+        ValueError: If any fitted generator is absent from the model.
+    """
+    if not contains_pauli_lindblad_model(model):
+        return
+    declared = {
+        (name, _generator_key(generator))
+        for name, generators in split_pauli_lindblad_model(model).model.generators.items()
+        for generator in generators
+    }
+
+    undeclared = [
+        index
+        for index in indices
+        if (index.gate_name, _generator_key(index.generator)) not in declared
+    ]
+    if undeclared:
+        shown = ", ".join(f"{index.gate_name} {index.generator}" for index in undeclared[:5])
+        if len(undeclared) > 5:
+            shown += f", and {len(undeclared) - 5} more"
+        raise ValueError(
+            f"The observables determine {len(undeclared)} generator(s) that the model does not "
+            f"have, so fitting them would report a model wider than the one given: {shown}."
+        )
+
+
+def _validate_spam_model(model: LinearMap, paths: list[Path]) -> None:
+    r"""Check a model against the assumptions :func:`_spam_fit` makes about the noise it fits.
+
+    Requires the preparation gate has no generators, and the measurement gate only has 1-local
+    X generators.
+
+    Args:
+        model: The fidelity model to check.
+        paths: The SPAM paths being fit.
+
+    Raises:
+        ValueError: If a preparation gate has any generators, or if a measurement gate has a
+            generator on more than one qubit.
+    """
+    if not contains_pauli_lindblad_model(model):
+        return
+    generators = split_pauli_lindblad_model(model).model.generators
+
+    for path in paths:
+        prep_name = path.start_fragment[0].gate_name
+        if len(generators.get(prep_name, ())) > 0:
+            raise ValueError(
+                f"SPAM observables attribute all of their noise to the measurement, so gate "
+                f"'{prep_name}' must have no generators, but the model gives it "
+                f"{len(generators[prep_name])}."
+            )
+
+        measurement = path.end_fragment[0]
+        meas_generators = generators.get(measurement.gate_name)
+        if meas_generators is None:
+            continue
+
+        wide = [g for g in meas_generators if len(g.indices) != 1]
+        if wide:
+            raise ValueError(
+                f"SPAM observables are fit one qubit at a time, so gate "
+                f"'{measurement.gate_name}' must only have single-qubit generators, but the model "
+                f"gives it {len(wide)} on more than one qubit."
+            )
+
+
 def _spam_fit(
     path: Path, fidelity: float, fidelity_std: float
 ) -> tuple[GeneratorIndex, float, float]:
@@ -448,6 +535,9 @@ class LegacySolve(AnalysisStage):
             all_variances.extend([0.0] * len(layer_labels))
 
         spam_ds = dataset.sel({"observable": spam_mask})
+        if spam_mask.any() and fit.model is not None:
+            _validate_spam_model(fit.model, list(spam_ds["unbound_path"].data))
+
         for path, fidelity, fidelity_std, time_lb, time_ub in zip(
             spam_ds["unbound_path"].data,
             spam_ds["estimate_values"].data,
@@ -461,6 +551,9 @@ class LegacySolve(AnalysisStage):
             all_time_lbs.append(time_lb)
             all_time_ubs.append(time_ub)
             all_variances.append(variance)
+
+        if fit.model is not None:
+            _validate_fitted_generators(fit.model, all_labels)
 
         x = np.array(all_rates)
         cov_x = np.diag(all_variances)

@@ -451,6 +451,18 @@ def gate_set_spam(gate_set_2q_identity):
     return gate_set_2q_identity
 
 
+def _spam_model(gate_set: ModelGateSet, **overrides: list[str]) -> PauliLindbladModel:
+    """A model declaring exactly what the SPAM fit assumes, unless an override says otherwise."""
+    labels = {"LL": ["XI", "ZI"], "P": [], "M": ["XI", "IX"]} | overrides
+    return PauliLindbladModel(
+        gate_set,
+        generators={
+            name: QubitSparsePauliList(these) if these else QubitSparsePauliList.empty(2)
+            for name, these in labels.items()
+        },
+    )
+
+
 def _spam_path(gate_set: ModelGateSet, qubits: tuple[int, ...]) -> Path:
     """A path preparing and measuring ``Z`` on ``qubits``, as SPAMPaths generates.
 
@@ -484,11 +496,13 @@ def _spam_data(paths: list, fidelities: np.ndarray) -> AggregatedObservableData:
     return _make_aggregated_observable_data(paths, fidelities, fragment_depth=0)
 
 
-def test_spam_rates_are_recovered_without_a_model(gate_set_spam):
-    """Planted fidelities come back exactly on a Fit carrying no model, pinning a model-free fit."""
+@pytest.mark.parametrize("with_model", [False, True])
+def test_spam_rates_are_recovered(gate_set_spam, with_model):
+    """Planted fidelities come back exactly whether or not a model is present: the fit is
+    model-free, and a model declaring what it fits is accepted unchanged."""
     planted = {0: 1.3e-2, 1: 7.0e-3}
     paths = [_spam_path(gate_set_spam, (qubit,)) for qubit in planted]
-    fit = Fit()
+    fit = Fit(model=_spam_model(gate_set_spam) if with_model else None)
     fit[AggregatedObservableData] = _spam_data(
         paths, np.array([np.exp(-2 * rate) for rate in planted.values()])
     )
@@ -555,6 +569,29 @@ def test_spam_rows_do_not_change_the_gate_fit(gate_set_spam):
 def test_legacy_solve_rejects_invalid_spam_rows(gate_set_spam, make_path, fidelity, match):
     fit = Fit()
     fit[AggregatedObservableData] = _spam_data([make_path(gate_set_spam)], np.array([fidelity]))
+
+    with pytest.raises(ValueError, match=match):
+        LegacySolve().run(fit)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "match"),
+    [
+        # a 2-local M makes -log(F)/2 the sum of X_i and X_iX_j, not the rate of X_i
+        ({"M": ["XI", "IX", "XX"]}, "only have single-qubit generators"),
+        # preparation noise would be folded into the measurement rate
+        ({"P": ["IX"]}, "must have no generators"),
+        # the generators fit come from the data, so a narrower model would be silently widened
+        ({"M": ["XI"]}, "model does not have"),
+        ({"LL": ["XI"]}, "model does not have"),
+    ],
+)
+def test_legacy_solve_rejects_models_it_cannot_fit(gate_set_spam, overrides, match):
+    gate_paths = [_pp(gate_set_spam, pauli, pauli) for pauli in ("XI", "ZI")]
+    fit = Fit(model=_spam_model(gate_set_spam, **overrides))
+    fit[AggregatedObservableData] = _make_aggregated_observable_data(
+        gate_paths, np.array([0.9, 0.8])
+    ).merge(_spam_data([_spam_path(gate_set_spam, (0,))], np.array([0.97])))
 
     with pytest.raises(ValueError, match=match):
         LegacySolve().run(fit)
