@@ -178,6 +178,25 @@ def test_get_fid_pairs_raises_on_fragment_that_does_not_close(gate_set_1q_order_
         get_fid_pairs([chains_but_does_not_close])
 
 
+def test_legacy_solve_raises_on_mixed_gate_fragment(gate_set_two_layers):
+    pauli = QubitSparsePauli("XI")
+    mixed = Path(
+        start_fragment=[],
+        repeatable_fragment=[
+            FidelityIndex.from_transition(
+                gate=gate_set_two_layers[name], in_pauli=pauli, out_pauli=pauli
+            )
+            for name in ("LL", "MM")
+        ],
+        end_fragment=[],
+    )
+    fit = Fit()
+    fit[AggregatedObservableData] = _make_aggregated_observable_data([mixed], np.array([0.9]))
+
+    with pytest.raises(ValueError, match="same gate"):
+        LegacySolve().run(fit)
+
+
 def test_get_fid_pairs_raises_on_wrong_fragment_length(gate_set_2q_identity):
     fi = FidelityIndex.from_transition(
         gate=gate_set_2q_identity["LL"],

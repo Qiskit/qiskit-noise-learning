@@ -44,7 +44,9 @@ def get_fid_pairs(unbound_paths) -> tuple[QubitSparsePauliList, QubitSparsePauli
         respectively, the first and second Pauli of each repeatable fragment.
 
     Raises:
-        ValueError: If any unbound path's ``repeatable_fragment`` does not have exactly 2 entries.
+        ValueError: If any unbound path's ``repeatable_fragment`` does not have exactly 2 entries,
+            if its two entries are for different gates, or if traversing it would require
+            single-qubit Cliffords.
     """
     fid_pairs = []
 
@@ -54,6 +56,11 @@ def get_fid_pairs(unbound_paths) -> tuple[QubitSparsePauliList, QubitSparsePauli
             raise ValueError(
                 "Expected each unbound path's repeatable_fragment to have exactly 2 entries, "
                 f"but got {len(fragment)}."
+            )
+        if fragment[0].gate_name != fragment[1].gate_name:
+            raise ValueError(
+                "Expected both entries of a repeatable fragment to be for the same gate, but got "
+                f"'{fragment[0].gate_name}' and '{fragment[1].gate_name}'."
             )
         # Ensure single qubit Cliffords are not needed to repeat
         if (fragment[0].transition[1] != fragment[1].transition[0]) or (
