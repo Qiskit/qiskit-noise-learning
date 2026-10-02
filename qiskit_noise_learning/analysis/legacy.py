@@ -18,7 +18,12 @@ from typing import Any, Literal
 import numpy as np
 import scipy.optimize as opt
 from numpy.typing import ArrayLike
-from qiskit.quantum_info import PauliLindbladMap, PauliList, QubitSparsePauliList
+from qiskit.quantum_info import (
+    PauliLindbladMap,
+    PauliList,
+    QubitSparsePauli,
+    QubitSparsePauliList,
+)
 from scipy.sparse import csr_array
 
 from qiskit_noise_learning.analysis import AnalysisStage, Fit
@@ -308,6 +313,48 @@ def fit_noise_model_legacy(
     return noise_map_pecr
 
 
+def _spam_fit(path: Path, fidelity: float) -> tuple[GeneratorIndex, float]:
+    r"""Fit the measurement generator rate a depth-0 SPAM path determines.
+
+    A SPAM path measures :math:`F_P(Z_S) F_M(Z_S)`, one product of two unknowns, and this attributes
+    all of it to the measurement gate: the rate is :math:`-\ln(F) / 2` for the single-qubit
+    :math:`X` generator on the measured qubit, clipped at zero as the layer fit's non-negativity
+    constraint would.
+
+    Args:
+        path: An unbound path with an empty repeatable fragment.
+        fidelity: The path's measured fidelity.
+
+    Returns:
+        The generator index and its rate.
+
+    Raises:
+        ValueError: If the path does not have exactly one start and one end fragment entry, if its
+            measurement does not act on exactly one qubit, or if *fidelity* is not positive.
+    """
+    if len(path.start_fragment) != 1 or len(path.end_fragment) != 1:
+        raise ValueError(
+            "SPAM observables must come from a path with one preparation and one measurement, but "
+            f"got {len(path.start_fragment)} and {len(path.end_fragment)}."
+        )
+
+    measurement = path.end_fragment[0]
+    if len(measurement.in_z_idxs) != 1:
+        raise ValueError(
+            "SPAM observables are fit one qubit at a time, but an observable on "
+            f"{len(measurement.in_z_idxs)} qubits was found."
+        )
+    if fidelity <= 0:
+        raise ValueError(f"SPAM fidelities must be positive, but got {fidelity}.")
+
+    (qubit,) = measurement.in_z_idxs
+    generator = QubitSparsePauli.from_sparse_label(
+        ("X", [qubit]), num_qubits=measurement.pauli.num_qubits
+    )
+    index = GeneratorIndex(gate_name=measurement.gate_name, generator=generator)
+    return index, max(-np.log(fidelity) / 2, 0.0)
+
+
 def _row_gate_name(path: Path) -> str:
     if len(path.repeatable_fragment) == 0:
         raise ValueError(
@@ -349,7 +396,11 @@ class LegacySolve(AnalysisStage):
         dataset = aggregated_data.dataset
 
         paths = dataset["unbound_path"].data
-        gate_names = np.array([_row_gate_name(p) for p in paths], dtype=object)
+        # A path with no repeatable fragment has no decay and no layer: it is a SPAM observable.
+        spam_mask = np.array([len(path.repeatable_fragment) == 0 for path in paths], dtype=bool)
+        layer_ds = dataset.sel({"observable": ~spam_mask})
+        layer_paths = layer_ds["unbound_path"].data
+        gate_names = np.array([_row_gate_name(path) for path in layer_paths], dtype=object)
 
         all_labels: list[GeneratorIndex] = []
         all_rates: list[float] = []
@@ -358,7 +409,7 @@ class LegacySolve(AnalysisStage):
 
         for name in dict.fromkeys(gate_names):
             mask = gate_names == name
-            layer_data = AggregatedObservableData(dataset.sel({"observable": mask}))
+            layer_data = AggregatedObservableData(layer_ds.sel({"observable": mask}))
 
             noise_map = fit_noise_model_legacy(
                 layer_data,
@@ -380,6 +431,19 @@ class LegacySolve(AnalysisStage):
             all_rates.extend(layer_rates)
             all_time_lbs.extend([time_lb] * len(layer_labels))
             all_time_ubs.extend([time_ub] * len(layer_labels))
+
+        spam_ds = dataset.sel({"observable": spam_mask})
+        for path, fidelity, time_lb, time_ub in zip(
+            spam_ds["unbound_path"].data,
+            spam_ds["estimate_values"].data,
+            spam_ds["time_lbs"].data,
+            spam_ds["time_ubs"].data,
+        ):
+            index, rate = _spam_fit(path, float(fidelity))
+            all_labels.append(index)
+            all_rates.append(rate)
+            all_time_lbs.append(time_lb)
+            all_time_ubs.append(time_ub)
 
         x = np.array(all_rates)
         cov_x = np.zeros((len(x), len(x)))

@@ -88,6 +88,17 @@ def _pp(gate_set: ModelGateSet, in_pauli: str, out_pauli: str, gate_name: str = 
     )
 
 
+def _fitted_rates(model_data: ModelData) -> dict[tuple[str, str], float]:
+    """The fitted rates, keyed by gate name and generator label."""
+    return {
+        (index.gate_name, index.generator.to_pauli().to_label()): float(rate)
+        for index, rate in zip(
+            model_data.dataset["parameter_index"].data,
+            model_data.dataset["parameter_values"].data,
+        )
+    }
+
+
 def _make_aggregated_observable_data(
     pps: list, fidelities: np.ndarray, fragment_depth: int = -1
 ) -> AggregatedObservableData:
@@ -180,12 +191,11 @@ def test_get_fid_pairs_raises_on_fragment_that_does_not_close(gate_set_1q_order_
         get_fid_pairs([chains_but_does_not_close])
 
 
-@pytest.mark.parametrize("fragment_depth", [0, 2])
-def test_legacy_solve_rejects_gate_rows_that_are_not_decays(gate_set_2q_identity, fragment_depth):
+def test_legacy_solve_rejects_gate_rows_that_are_not_decays(gate_set_2q_identity):
     pps = [_pp(gate_set_2q_identity, "XI", "XI"), _pp(gate_set_2q_identity, "ZI", "ZI")]
     fit = Fit()
     fit[AggregatedObservableData] = _make_aggregated_observable_data(
-        pps, np.array([0.9, 0.8]), fragment_depth=fragment_depth
+        pps, np.array([0.9, 0.8]), fragment_depth=2
     )
 
     with pytest.raises(ValueError, match="exponential decay data"):
@@ -394,10 +404,7 @@ def test_legacy_solve_recovers_layer_rates(gate_set_two_layers, gate_names):
     md = LegacySolve().run(fit).model_data
     assert isinstance(md, ModelData)
     indices = md.dataset["parameter_index"].values
-    rates = {
-        (idx.gate_name, idx.generator.to_pauli().to_label()): float(value)
-        for idx, value in zip(indices, md.dataset["parameter_values"].values)
-    }
+    rates = _fitted_rates(md)
     assert rates == pytest.approx(expected_rates, abs=1e-6)
     assert [idx.gate_name for idx in indices] == [name for name in gate_names for _ in range(2)]
     # LegacySolve reports zero covariance for all returned parameters.
@@ -427,11 +434,110 @@ def test_legacy_solve_omits_unestimated_generators(two_qubit_anticomm_fit, gate_
     assert actual.identical(expected)
 
 
-@pytest.mark.parametrize("fragment_length", [0, 3])
-def test_legacy_solve_rejects_invalid_fragments(gate_set_2q_identity, fragment_length):
+def test_legacy_solve_rejects_invalid_fragments(gate_set_2q_identity):
     fi = _pp(gate_set_2q_identity, "XI", "XI").repeatable_fragment[0]
-    path = Path(start_fragment=[], repeatable_fragment=[fi] * fragment_length, end_fragment=[])
+    path = Path(start_fragment=[], repeatable_fragment=[fi] * 3, end_fragment=[])
     fit = Fit()
     fit[AggregatedObservableData] = _make_aggregated_observable_data([path], np.array([0.9]))
     with pytest.raises(ValueError, match="repeatable_fragment"):
+        LegacySolve().run(fit)
+
+
+@pytest.fixture()
+def gate_set_spam(gate_set_2q_identity):
+    """The 2-qubit layer gate set, plus a preparation and a measurement on both qubits."""
+    gate_set_2q_identity.add_gate(ModelGate("P", qubit_idxs=[0, 1], prep_idxs=[0, 1]))
+    gate_set_2q_identity.add_gate(ModelGate("M", qubit_idxs=[0, 1], meas_idxs=[0, 1]))
+    return gate_set_2q_identity
+
+
+def _spam_path(gate_set: ModelGateSet, qubits: tuple[int, ...]) -> Path:
+    """A path preparing and measuring ``Z`` on ``qubits``, as SPAMPaths generates.
+
+    Left unbound: the aggregated data's coordinate holds the unbound path, with the depth of 0 in
+    its own column, which is what the analysis pipeline writes for a bound SPAM path.
+    """
+    identity = QubitSparsePauli.identity(gate_set.num_qubits)
+    return Path(
+        start_fragment=[
+            FidelityIndex.from_gate(
+                gate=gate_set["P"],
+                pauli=identity,
+                in_z_idxs=frozenset(),
+                out_z_idxs=frozenset(qubits),
+            )
+        ],
+        repeatable_fragment=[],
+        end_fragment=[
+            FidelityIndex.from_gate(
+                gate=gate_set["M"],
+                pauli=identity,
+                in_z_idxs=frozenset(qubits),
+                out_z_idxs=frozenset(),
+            )
+        ],
+    )
+
+
+def _spam_data(paths: list, fidelities: np.ndarray) -> AggregatedObservableData:
+    """Aggregated data for bound SPAM rows, which carry their real fragment depth of 0."""
+    return _make_aggregated_observable_data(paths, fidelities, fragment_depth=0)
+
+
+def test_spam_rates_are_recovered_without_a_model(gate_set_spam):
+    """Planted fidelities come back exactly on a Fit carrying no model, pinning a model-free fit."""
+    planted = {0: 1.3e-2, 1: 7.0e-3}
+    paths = [_spam_path(gate_set_spam, (qubit,)) for qubit in planted]
+    fit = Fit()
+    fit[AggregatedObservableData] = _spam_data(
+        paths, np.array([np.exp(-2 * rate) for rate in planted.values()])
+    )
+
+    rates = _fitted_rates(LegacySolve().run(fit).model_data)
+
+    assert rates == pytest.approx({("M", "IX"): 1.3e-2, ("M", "XI"): 7.0e-3})
+
+
+def test_spam_rate_is_clipped_at_zero(gate_set_spam):
+    """A fidelity above 1 is shot noise, and would otherwise give a negative rate."""
+    fit = Fit()
+    fit[AggregatedObservableData] = _spam_data([_spam_path(gate_set_spam, (0,))], np.array([1.02]))
+
+    assert _fitted_rates(LegacySolve().run(fit).model_data) == {("M", "IX"): 0.0}
+
+
+def test_spam_rows_do_not_change_the_gate_fit(gate_set_spam):
+    """Adding SPAM rows must leave every gate rate bit-identical: the blocks are independent."""
+    paths = [_pp(gate_set_spam, pauli, pauli) for pauli in ("XI", "ZI")]
+    fidelities = np.array([0.9, 0.8])
+    without_spam = Fit()
+    without_spam[AggregatedObservableData] = _make_aggregated_observable_data(paths, fidelities)
+    with_spam = Fit()
+    with_spam[AggregatedObservableData] = _make_aggregated_observable_data(paths, fidelities).merge(
+        _spam_data([_spam_path(gate_set_spam, (0,))], np.array([0.97]))
+    )
+
+    expected = _fitted_rates(LegacySolve().run(without_spam).model_data)
+    actual = _fitted_rates(LegacySolve().run(with_spam).model_data)
+
+    assert {key: rate for key, rate in actual.items() if key[0] == "LL"} == expected
+
+
+@pytest.mark.parametrize(
+    ("make_path", "fidelity", "match"),
+    [
+        (lambda gate_set: _spam_path(gate_set, (0, 1)), 0.95, "one qubit at a time"),
+        (
+            lambda _: Path(start_fragment=[], repeatable_fragment=[], end_fragment=[]),
+            0.9,
+            "one preparation and one measurement",
+        ),
+        (lambda gate_set: _spam_path(gate_set, (0,)), 0.0, "SPAM fidelities must be positive"),
+    ],
+)
+def test_legacy_solve_rejects_invalid_spam_rows(gate_set_spam, make_path, fidelity, match):
+    fit = Fit()
+    fit[AggregatedObservableData] = _spam_data([make_path(gate_set_spam)], np.array([fidelity]))
+
+    with pytest.raises(ValueError, match=match):
         LegacySolve().run(fit)
