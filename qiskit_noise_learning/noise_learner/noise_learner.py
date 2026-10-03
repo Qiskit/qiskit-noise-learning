@@ -23,6 +23,7 @@ from qiskit_ibm_runtime.quantum_program import QuantumProgram
 from samplomatic import InjectNoise
 from samplomatic.utils import get_annotation
 
+from ..aer_executor import AerExecutor
 from ..analysis import (
     AnalysisPipeline,
     ComputeObservables,
@@ -139,6 +140,12 @@ class NoiseLearner:
 
         program, data_mapper = self._generate(instructions)
         executor = self._executor if self._executor is not None else Executor(mode=self._backend)
+
+        if isinstance(executor, AerExecutor):
+            noise_site = self._derive_noise_site(instructions)
+            if noise_site is not None:
+                executor.noise_site = noise_site
+
         job = executor.run(program)
         return NoiseLearnerJob(job, data_mapper, self._analyzer)
 
@@ -186,3 +193,25 @@ class NoiseLearner:
         # Generate circuits
         circuit_gen = ExecutorCircuitGenerator(gate_set)
         return circuit_gen.generate(experiment)
+
+    def _derive_noise_site(self, instructions: Sequence[CircuitInstruction]) -> str | None:
+        """Return the unique ``noise_site`` from all :class:`~samplomatic.InjectNoise` annotations.
+
+        Returns:
+            ``"before"`` or ``"after"`` if all annotated boxes agree, or ``None`` if no box
+            carries an :class:`~samplomatic.InjectNoise` annotation.
+
+        Raises:
+            ValueError: If boxes carry conflicting ``noise_site`` values.
+        """
+        sites: set[str] = set()
+        for instr in instructions:
+            inject_noise = get_annotation(instr.operation, InjectNoise)
+            if inject_noise is not None:
+                sites.add(inject_noise.site.value)
+        if len(sites) > 1:
+            raise ValueError(
+                f"All boxes must agree on noise_site, but found: {sorted(sites)}. "
+                "Set each box's InjectNoise annotation to the same site."
+            )
+        return next(iter(sites)) if sites else None
