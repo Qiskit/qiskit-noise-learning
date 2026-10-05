@@ -486,12 +486,10 @@ class LegacySolve(AnalysisStage):
     - For the unitary gates a more restricted design matrix, constructed under the equality of
       fidelities with conjugate Paulis, is constructed and solved. Any fidelities of weight > 2 are
       not considered.
-    - For SPAM, each path measures the product of the preparation and measurement fidelities
-      on a single-qubit :math:`Z` operator. Preparation being assumed perfect, the whole
-      product is attributed to measurement: the rate of the corresponding single-qubit
-      :math:`X` generator is calculated directly as :math:`-\ln(F)/2` for a measured fidelity
-      :math:`F`, clipped at zero, with its variance propagated from that fidelity's
-      uncertainty.
+    - For SPAM, as preparation is assumed perfect, all noise is attributed to measurement: the rate
+      of the corresponding single-qubit :math:`X` generator is calculated directly as
+      :math:`-\ln(F)/2` for a measured fidelity :math:`F`, clipped at zero, with its variance
+      propagated from that fidelity's uncertainty.
 
     In both cases, the set of returned generators fit and returned is constructed based on what
     Paulis appear in the fidelities encountered in the paths.
