@@ -39,6 +39,29 @@ def gate_set_2q_identity():
     return mgs
 
 
+@pytest.fixture()
+def gate_set_1q_order_3():
+    """A 1-qubit gate set with one gate "C3" cycling the Paulis, X → Z → Y → X."""
+    circuit = QuantumCircuit(1)
+    circuit.h(0)
+    circuit.s(0)
+    mgs = ModelGateSet(1)
+    mgs.add_gate(ModelGate("C3", [((0,), Clifford(circuit))]))
+    return mgs
+
+
+@pytest.fixture()
+def gate_set_3q_weight_3_conjugate():
+    """A 3-qubit gate set whose gate "G" maps ``IXI`` to ``YYZ``, which anticommutes with it."""
+    circuit = QuantumCircuit(3)
+    circuit.cz(0, 1)
+    circuit.cx(1, 2)
+    circuit.cz(1, 2)
+    mgs = ModelGateSet(3)
+    mgs.add_gate(ModelGate("G", [((0, 1, 2), Clifford(circuit))]))
+    return mgs
+
+
 def _pp(gate_set: ModelGateSet, in_pauli: str, out_pauli: str, gate_name: str = "LL") -> Path:
     """Build an unbound Path with a 2-entry repeatable fragment that loops in_pauli↔out_pauli.
 
@@ -65,11 +88,24 @@ def _pp(gate_set: ModelGateSet, in_pauli: str, out_pauli: str, gate_name: str = 
     )
 
 
-def _make_aggregated_observable_data(pps: list, fidelities: np.ndarray) -> AggregatedObservableData:
+def _fitted_rates(model_data: ModelData) -> dict[tuple[str, str], float]:
+    """The fitted rates, keyed by gate name and generator label."""
+    return {
+        (index.gate_name, index.generator.to_pauli().to_label()): float(rate)
+        for index, rate in zip(
+            model_data.dataset["parameter_index"].data,
+            model_data.dataset["parameter_values"].data,
+        )
+    }
+
+
+def _make_aggregated_observable_data(
+    pps: list, fidelities: np.ndarray, fragment_depth: int = -1
+) -> AggregatedObservableData:
     n = len(pps)
     return AggregatedObservableData.from_arrays(
         unbound_paths=pps,
-        fragment_depths=[-1] * n,
+        fragment_depths=[fragment_depth] * n,
         estimate_values=fidelities,
         estimate_std=np.full(n, 0.001),
         time_lbs=np.empty(n, dtype="datetime64[us]"),
@@ -136,6 +172,55 @@ def test_get_fid_pairs_returns_two_qubit_sparse_pauli_lists(gate_set_2q_identity
     assert fid_ps_2.to_pauli_list().to_labels() == ["XI", "ZI"]
 
 
+def test_get_fid_pairs_raises_on_fragment_that_does_not_close(gate_set_1q_order_3):
+    # A case where the path is valid but single qubit Cliffords are necessary
+    gate = gate_set_1q_order_3["C3"]
+    x = QubitSparsePauli("X")
+    cx = gate.clifford_propagate(x)
+    ccx = gate.clifford_propagate(cx)
+    chains_but_does_not_close = Path(
+        start_fragment=[],
+        repeatable_fragment=[
+            FidelityIndex.from_transition(gate=gate, in_pauli=x, out_pauli=cx),
+            FidelityIndex.from_transition(gate=gate, in_pauli=cx, out_pauli=ccx),
+        ],
+        end_fragment=[],
+    )
+
+    with pytest.raises(ValueError, match="single qubit Cliffords"):
+        get_fid_pairs([chains_but_does_not_close])
+
+
+def test_legacy_solve_rejects_gate_rows_that_are_not_decays(gate_set_2q_identity):
+    pps = [_pp(gate_set_2q_identity, "XI", "XI"), _pp(gate_set_2q_identity, "ZI", "ZI")]
+    fit = Fit()
+    fit[AggregatedObservableData] = _make_aggregated_observable_data(
+        pps, np.array([0.9, 0.8]), fragment_depth=2
+    )
+
+    with pytest.raises(ValueError, match="exponential decay data"):
+        LegacySolve().run(fit)
+
+
+def test_legacy_solve_raises_on_mixed_gate_fragment(gate_set_two_layers):
+    pauli = QubitSparsePauli("XI")
+    mixed = Path(
+        start_fragment=[],
+        repeatable_fragment=[
+            FidelityIndex.from_transition(
+                gate=gate_set_two_layers[name], in_pauli=pauli, out_pauli=pauli
+            )
+            for name in ("LL", "MM")
+        ],
+        end_fragment=[],
+    )
+    fit = Fit()
+    fit[AggregatedObservableData] = _make_aggregated_observable_data([mixed], np.array([0.9]))
+
+    with pytest.raises(ValueError, match="same gate"):
+        LegacySolve().run(fit)
+
+
 def test_get_fid_pairs_raises_on_wrong_fragment_length(gate_set_2q_identity):
     fi = FidelityIndex.from_transition(
         gate=gate_set_2q_identity["LL"],
@@ -185,6 +270,50 @@ def test_recovers_known_rates_symmetric_fidelities(two_qubit_anticomm_fit, optim
     rates_by_label = {g.to_pauli().to_label(): r for g, r in zip(nm.generators(), nm.rates)}
     assert rates_by_label["XI"] == pytest.approx(0.1, abs=tol)
     assert rates_by_label["ZI"] == pytest.approx(0.05, abs=tol)
+
+
+def test_fits_a_design_with_a_single_generator(gate_set_3q_weight_3_conjugate):
+    gate = gate_set_3q_weight_3_conjugate["G"]
+    in_pauli = QubitSparsePauli("IXI")
+    out_pauli = gate.clifford_propagate(in_pauli)
+    path = Path(
+        start_fragment=[],
+        repeatable_fragment=[
+            FidelityIndex.from_transition(gate=gate, in_pauli=in_pauli, out_pauli=out_pauli),
+            FidelityIndex.from_transition(gate=gate, in_pauli=out_pauli, out_pauli=in_pauli),
+        ],
+        end_fragment=[],
+    )
+    fidelity = 0.9
+
+    noise_map = fit_noise_model_legacy(
+        _make_aggregated_observable_data([path], np.array([fidelity]))
+    )
+
+    rates_by_label = {
+        g.to_pauli().to_label(): r for g, r in zip(noise_map.generators(), noise_map.rates)
+    }
+    assert list(rates_by_label) == ["IXI"]
+    assert rates_by_label["IXI"] == pytest.approx(-np.log(fidelity) / 4)
+
+
+@pytest.mark.parametrize("fidelity", [0.0, -0.1])
+def test_rejects_non_positive_fidelities(gate_set_2q_identity, fidelity):
+    pps = [_pp(gate_set_2q_identity, "XI", "XI"), _pp(gate_set_2q_identity, "ZI", "ZI")]
+    ad = _make_aggregated_observable_data(pps, np.array([fidelity, 0.8]))
+
+    with pytest.raises(ValueError, match="Pair fidelities must be positive"):
+        fit_noise_model_legacy(ad)
+
+
+def test_accepts_fidelity_above_one(gate_set_2q_identity):
+    """A fidelity above 1 is ordinary shot noise; the non-negativity constraint absorbs it."""
+    pps = [_pp(gate_set_2q_identity, "XI", "XI"), _pp(gate_set_2q_identity, "ZI", "ZI")]
+    ad = _make_aggregated_observable_data(pps, np.array([1.01, 0.8]))
+
+    noise_map = fit_noise_model_legacy(ad)
+
+    assert all(rate >= 0 for rate in noise_map.rates)
 
 
 def test_returns_pauli_lindblad_map(two_qubit_anticomm_fit):
@@ -275,10 +404,7 @@ def test_legacy_solve_recovers_layer_rates(gate_set_two_layers, gate_names):
     md = LegacySolve().run(fit).model_data
     assert isinstance(md, ModelData)
     indices = md.dataset["parameter_index"].values
-    rates = {
-        (idx.gate_name, idx.generator.to_pauli().to_label()): float(value)
-        for idx, value in zip(indices, md.dataset["parameter_values"].values)
-    }
+    rates = _fitted_rates(md)
     assert rates == pytest.approx(expected_rates, abs=1e-6)
     assert [idx.gate_name for idx in indices] == [name for name in gate_names for _ in range(2)]
     # LegacySolve reports zero covariance for all returned parameters.
@@ -308,11 +434,164 @@ def test_legacy_solve_omits_unestimated_generators(two_qubit_anticomm_fit, gate_
     assert actual.identical(expected)
 
 
-@pytest.mark.parametrize("fragment_length", [0, 3])
-def test_legacy_solve_rejects_invalid_fragments(gate_set_2q_identity, fragment_length):
+def test_legacy_solve_rejects_invalid_fragments(gate_set_2q_identity):
     fi = _pp(gate_set_2q_identity, "XI", "XI").repeatable_fragment[0]
-    path = Path(start_fragment=[], repeatable_fragment=[fi] * fragment_length, end_fragment=[])
+    path = Path(start_fragment=[], repeatable_fragment=[fi] * 3, end_fragment=[])
     fit = Fit()
     fit[AggregatedObservableData] = _make_aggregated_observable_data([path], np.array([0.9]))
     with pytest.raises(ValueError, match="repeatable_fragment"):
+        LegacySolve().run(fit)
+
+
+@pytest.fixture()
+def gate_set_spam(gate_set_2q_identity):
+    """The 2-qubit layer gate set, plus a preparation and a measurement on both qubits."""
+    gate_set_2q_identity.add_gate(ModelGate("P", qubit_idxs=[0, 1], prep_idxs=[0, 1]))
+    gate_set_2q_identity.add_gate(ModelGate("M", qubit_idxs=[0, 1], meas_idxs=[0, 1]))
+    return gate_set_2q_identity
+
+
+def _spam_model(gate_set: ModelGateSet, **overrides: list[str]) -> PauliLindbladModel:
+    """A model declaring exactly what the SPAM fit assumes, unless an override says otherwise."""
+    labels = {"LL": ["XI", "ZI"], "P": [], "M": ["XI", "IX"]} | overrides
+    return PauliLindbladModel(
+        gate_set,
+        generators={
+            name: QubitSparsePauliList(these) if these else QubitSparsePauliList.empty(2)
+            for name, these in labels.items()
+        },
+    )
+
+
+def _spam_path(gate_set: ModelGateSet, qubits: tuple[int, ...]) -> Path:
+    """A path preparing and measuring ``Z`` on ``qubits``, as SPAMPaths generates.
+
+    Left unbound: the aggregated data's coordinate holds the unbound path, with the depth of 0 in
+    its own column, which is what the analysis pipeline writes for a bound SPAM path.
+    """
+    identity = QubitSparsePauli.identity(gate_set.num_qubits)
+    return Path(
+        start_fragment=[
+            FidelityIndex.from_gate(
+                gate=gate_set["P"],
+                pauli=identity,
+                in_z_idxs=frozenset(),
+                out_z_idxs=frozenset(qubits),
+            )
+        ],
+        repeatable_fragment=[],
+        end_fragment=[
+            FidelityIndex.from_gate(
+                gate=gate_set["M"],
+                pauli=identity,
+                in_z_idxs=frozenset(qubits),
+                out_z_idxs=frozenset(),
+            )
+        ],
+    )
+
+
+def _spam_data(paths: list, fidelities: np.ndarray) -> AggregatedObservableData:
+    """Aggregated data for bound SPAM rows, which carry their real fragment depth of 0."""
+    return _make_aggregated_observable_data(paths, fidelities, fragment_depth=0)
+
+
+@pytest.mark.parametrize("with_model", [False, True])
+def test_spam_rates_are_recovered(gate_set_spam, with_model):
+    """Planted fidelities come back exactly whether or not a model is present: the fit is
+    model-free, and a model declaring what it fits is accepted unchanged."""
+    planted = {0: 1.3e-2, 1: 7.0e-3}
+    paths = [_spam_path(gate_set_spam, (qubit,)) for qubit in planted]
+    fit = Fit(model=_spam_model(gate_set_spam) if with_model else None)
+    fit[AggregatedObservableData] = _spam_data(
+        paths, np.array([np.exp(-2 * rate) for rate in planted.values()])
+    )
+
+    rates = _fitted_rates(LegacySolve().run(fit).model_data)
+
+    assert rates == pytest.approx({("M", "IX"): 1.3e-2, ("M", "XI"): 7.0e-3})
+
+
+def test_spam_rate_is_clipped_at_zero(gate_set_spam):
+    """A fidelity above 1 is shot noise, and would otherwise give a negative rate."""
+    fit = Fit()
+    fit[AggregatedObservableData] = _spam_data([_spam_path(gate_set_spam, (0,))], np.array([1.02]))
+
+    model_data = LegacySolve().run(fit).model_data
+
+    assert _fitted_rates(model_data) == {("M", "IX"): 0.0}
+    # on the non-negativity boundary, where ModelSolve likewise reports no variance
+    assert model_data.dataset["covariance"].data.tolist() == [[0.0]]
+
+
+def test_spam_covariance_is_propagated(gate_set_spam):
+    """Each SPAM rate comes from one row, so its variance is that row's uncertainty propagated."""
+    fidelity = 0.97
+    data = _spam_data([_spam_path(gate_set_spam, (0,))], np.array([fidelity]))
+    fidelity_std = float(data.dataset["estimate_std"].data[0])
+    fit = Fit()
+    fit[AggregatedObservableData] = data
+
+    covariance = LegacySolve().run(fit).model_data.dataset["covariance"].data
+
+    np.testing.assert_allclose(covariance, [[(fidelity_std / (2 * fidelity)) ** 2]])
+
+
+def test_spam_rows_do_not_change_the_gate_fit(gate_set_spam):
+    """Adding SPAM rows must leave every gate rate bit-identical: the blocks are independent."""
+    paths = [_pp(gate_set_spam, pauli, pauli) for pauli in ("XI", "ZI")]
+    fidelities = np.array([0.9, 0.8])
+    without_spam = Fit()
+    without_spam[AggregatedObservableData] = _make_aggregated_observable_data(paths, fidelities)
+    with_spam = Fit()
+    with_spam[AggregatedObservableData] = _make_aggregated_observable_data(paths, fidelities).merge(
+        _spam_data([_spam_path(gate_set_spam, (0,))], np.array([0.97]))
+    )
+
+    expected = _fitted_rates(LegacySolve().run(without_spam).model_data)
+    actual = _fitted_rates(LegacySolve().run(with_spam).model_data)
+
+    assert {key: rate for key, rate in actual.items() if key[0] == "LL"} == expected
+
+
+@pytest.mark.parametrize(
+    ("make_path", "fidelity", "match"),
+    [
+        (lambda gate_set: _spam_path(gate_set, (0, 1)), 0.95, "one qubit at a time"),
+        (
+            lambda _: Path(start_fragment=[], repeatable_fragment=[], end_fragment=[]),
+            0.9,
+            "one preparation and one measurement",
+        ),
+        (lambda gate_set: _spam_path(gate_set, (0,)), 0.0, "SPAM fidelities must be positive"),
+    ],
+)
+def test_legacy_solve_rejects_invalid_spam_rows(gate_set_spam, make_path, fidelity, match):
+    fit = Fit()
+    fit[AggregatedObservableData] = _spam_data([make_path(gate_set_spam)], np.array([fidelity]))
+
+    with pytest.raises(ValueError, match=match):
+        LegacySolve().run(fit)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "match"),
+    [
+        # a 2-local M makes -log(F)/2 the sum of X_i and X_iX_j, not the rate of X_i
+        ({"M": ["XI", "IX", "XX"]}, "only have single-qubit generators"),
+        # preparation noise would be folded into the measurement rate
+        ({"P": ["IX"]}, "must have no generators"),
+        # the generators fit come from the data, so a narrower model would be silently widened
+        ({"M": ["XI"]}, "model does not have"),
+        ({"LL": ["XI"]}, "model does not have"),
+    ],
+)
+def test_legacy_solve_rejects_models_it_cannot_fit(gate_set_spam, overrides, match):
+    gate_paths = [_pp(gate_set_spam, pauli, pauli) for pauli in ("XI", "ZI")]
+    fit = Fit(model=_spam_model(gate_set_spam, **overrides))
+    fit[AggregatedObservableData] = _make_aggregated_observable_data(
+        gate_paths, np.array([0.9, 0.8])
+    ).merge(_spam_data([_spam_path(gate_set_spam, (0,))], np.array([0.97])))
+
+    with pytest.raises(ValueError, match=match):
         LegacySolve().run(fit)
