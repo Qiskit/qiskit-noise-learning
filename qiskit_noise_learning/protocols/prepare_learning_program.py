@@ -27,9 +27,11 @@ from ..experiment_builder import (
     CompleteSequences,
     EvenDepthVanillaPaths,
     Experiment,
+    GenerateInstructionSequences,
     IdentifyRelations,
     MergeInstructionSequences,
     RankReducePaths,
+    SPAMPaths,
     VanillaInstructionSequences,
 )
 from ..gate_sets import QiskitGateSet
@@ -51,7 +53,8 @@ def prepare_learning_program(
     The experiment is setup to learn a 2-local Pauli-Lindblad model for each layer defined in
     ``instructions`` via the "vanilla" learning protocol, with paths generated via
     :class:`~.EvenDepthVanillaPaths` and instruction sequences generated via
-    :class:`~.VanillaInstructionSequences`.
+    :class:`~.VanillaInstructionSequences`, as well as a SPAM noise model with perfect preparation
+    and a 1-local measurement noise model.
 
     Each instruction becomes one gate of the model. A box carrying a noise injection annotation
     takes that annotation's reference as its gate name, and any other box is named automatically.
@@ -120,13 +123,15 @@ def prepare_learning_program(
         inject_noise = get_annotation(instr.operation, InjectNoise)
         gate_set.add_box_as_gate(instr, name=None if inject_noise is None else inject_noise.ref)
 
-    fidelity_model = PauliLindbladModel.k_local(gate_set, k=2)
+    fidelity_model = PauliLindbladModel.k_local(gate_set, k=2, gate_k={"M": 1, "P": 0})
 
     builder = (
         EvenDepthVanillaPaths()
         + RankReducePaths()
         + VanillaInstructionSequences()
         + IdentifyRelations()
+        + SPAMPaths()
+        + GenerateInstructionSequences()
         + MergeInstructionSequences()
         + CompleteSequences()
         + BindFragmentDepths(fragment_depths)

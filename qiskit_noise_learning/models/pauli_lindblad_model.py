@@ -258,7 +258,8 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
                 map is drawn from ``gate_set.model_gate_set.coupling_map``, or if it is ``None``,
                 defaults to the complete coupling map.
             k: The default degree of locality of the model. Applies to all gates not specified
-                in ``gate_k``. Defaults to ``2``.
+                in ``gate_k``. Defaults to ``2``. A value of ``0`` gives no generators, i.e. the
+                gate is modelled as noiseless.
             gate_k: A dictionary mapping gate names to per-gate locality values that override
                 ``k`` for the specified gates.
             qubit_partitions: A dictionary indicating a qubit partition for each gate. Any
@@ -279,6 +280,7 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
 
         Raises:
             ValueError: If any ``k`` value exceeds ``len(gate_set.qubit_subset)``.
+            ValueError: If any ``k`` value is negative.
             ValueError: If ``gate_k`` contains names not in the gate set.
             ValueError: Name not in ``gate_set`` is used in any other dictionary.
             ValueError: Any partition is ill-formed.
@@ -293,6 +295,8 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
                 f"k:`{k}` must be less than or equal to the number of qubits: "
                 f"`{len(gate_set.qubit_subset)}`."
             )
+        if k < 0:
+            raise ValueError(f"k:`{k}` must be non-negative.")
 
         # validate gate_k
         gate_k = gate_k or {}
@@ -308,6 +312,8 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
                     f"k:`{k_val}` for gate '{name}' must be less than or equal to the number of "
                     f"qubits: `{len(gate_set.qubit_subset)}`."
                 )
+            if k_val < 0:
+                raise ValueError(f"k:`{k_val}` for gate '{name}' must be non-negative.")
 
         # default coupling map
         coupling_map = gate_set.coupling_map or CouplingMap.from_full(gate_set.num_qubits)
@@ -423,7 +429,8 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
             gate_set: The gate set being modelled. Must contain only Clifford, pure preparation, and
                 pure measurement layers. To be converted to a :class:`ModelGateSet`.
             k: The default degree of locality of the model. Applies to all gates not specified
-                in ``gate_k``. Defaults to ``2``.
+                in ``gate_k``. Defaults to ``2``. A value of ``0`` gives no generators, i.e. the
+                gate is modelled as noiseless.
             gate_k: A dictionary mapping gate names to per-gate locality values that override
                 ``k`` for the specified gates.
             paulis: A dictionary indicating the single-qubit Paulis to use in the k-local
@@ -694,6 +701,9 @@ def _k_local_paulis(
 
     This function assumes the inputs are well-formed.
     """
+
+    if k < 1:
+        return QubitSparsePauliList.empty(num_qubits)
 
     # initialize with 1-local operators
     paulis = []

@@ -77,6 +77,14 @@ def test_learning_protocol_recovers_injected_noise():
     assert rates.pop(("ZZ", (17, 27))) == pytest.approx(injected_rate, rel=0.1)
     assert max(rates.values()) < 0.075 * injected_rate, "weight leaked onto uninjected generators"
 
+    with_spam = split_pauli_lindblad_model(fit.model).model.to_pauli_lindblad_maps(
+        fit.model_data, include_spam=True
+    )
+    assert set(with_spam) == {"layer", "M"}
+    assert {(pauli, tuple(indices)) for pauli, indices, _ in with_spam["M"].to_sparse_list()} == {
+        ("X", (qubit,)) for qubit in PAIR
+    }
+
 
 class _AddFlipCheck(TransformationPass):
     """Re-measure each qubit of the pair after an ``X``, into a ``_ps``-suffixed register.

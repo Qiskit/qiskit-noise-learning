@@ -14,6 +14,7 @@
 
 import pytest
 from qiskit.circuit import QuantumCircuit
+from qiskit.quantum_info import QubitSparsePauli
 from qiskit_ibm_runtime.fake_provider.backends.fez import FakeFez
 from qiskit_ibm_runtime.quantum_program import QuantumProgram
 from samplomatic import InjectNoise, Twirl
@@ -37,6 +38,13 @@ def _boxed_cz(backend, pair=PAIR, name=None):
     with circuit.box(annotations):
         circuit.cz(*pair)
     return circuit[0]
+
+
+def _split_paths(paths):
+    """Partition paths into the layer decays and the depth-0 SPAM paths."""
+    spam = [path for path in paths if len(path.repeatable_fragment) == 0]
+    layer = [path for path in paths if len(path.repeatable_fragment) > 0]
+    return layer, spam
 
 
 def test_rejects_non_box_instruction(backend):
@@ -63,7 +71,11 @@ def test_rejects_invalid_quantities(backend, kwargs, match):
 
 
 def test_program_shape(backend):
-    """Shots are per randomization, and each fragment depth becomes its own program item."""
+    """Shots are per randomization, and each fragment depth becomes its own program item.
+
+    The depth-0 SPAM sequence has no repeatable fragment to bind, so it contributes the one
+    remaining item.
+    """
     depths = [2, 8, 32]
     program = prepare_learning_program(
         backend,
@@ -75,7 +87,7 @@ def test_program_shape(backend):
 
     assert isinstance(program, QuantumProgram)
     assert program.shots == 16
-    assert len(program.items) == len(depths)
+    assert len(program.items) == len(depths) + 1
 
 
 def test_defaults(backend):
@@ -84,7 +96,7 @@ def test_defaults(backend):
 
     assert program.shots == 128
     assert load(program.passthrough_data).num_randomizations == 32
-    assert len(program.items) == 6
+    assert len(program.items) == 7
 
 
 def test_passthrough_carries_the_experiment(backend):
@@ -102,7 +114,10 @@ def test_passthrough_carries_the_experiment(backend):
     assert mapper.paths
     assert mapper.instruction_sequences
     assert mapper.relations
-    assert all(len(path.repeatable_fragment) == 2 for path in mapper.paths)
+
+    layer_paths, spam_paths = _split_paths(mapper.paths)
+    assert all(len(path.repeatable_fragment) == 2 for path in layer_paths)
+    assert len(spam_paths) == len(PAIR)
 
 
 @pytest.mark.parametrize(("name", "expected"), [("layer", "layer"), (None, "L0")])
@@ -133,3 +148,21 @@ def test_paths_are_rank_reduced(backend):
     experiment = Experiment(fidelity_model=mapper.fidelity_model, paths=mapper.paths)
 
     assert len(mapper.paths) == experiment.design_matrix.rank
+
+
+def test_measurement_carries_all_spam_noise(backend):
+    """Depth-0 data cannot separate preparation from measurement, so only ``M`` is modelled."""
+    program = prepare_learning_program(
+        backend,
+        [_boxed_cz(backend, name="layer")],
+        num_randomizations=2,
+        shots_per_randomization=8,
+        fragment_depths=[2],
+    )
+    generators = load(program.passthrough_data).fidelity_model.generators
+
+    assert len(generators["P"]) == 0
+    # One single-qubit X generator per qubit of the subset, as LegacySolve requires.
+    assert {
+        (tuple(generator.indices), tuple(generator.paulis)) for generator in generators["M"]
+    } == {((qubit,), (QubitSparsePauli.Pauli.X,)) for qubit in PAIR}

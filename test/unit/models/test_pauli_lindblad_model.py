@@ -579,6 +579,32 @@ def test_k_partition_local_per_gate_k_errors(gate_set_cz):
         PauliLindbladModel.k_partition_local(gate_set=gate_set_cz, gate_k={"CZ": 3})
 
 
+def test_k_partition_local_zero_k(gate_set_cz):
+    """``k=0`` means the gate is modelled as noiseless, and leaves the other gates alone."""
+    pauli_lindblad_model = PauliLindbladModel.k_partition_local(
+        gate_set=gate_set_cz, k=1, gate_k={"P": 0}
+    )
+
+    assert len(pauli_lindblad_model.generators["P"]) == 0
+    assert pauli_lindblad_model.generators["P"].num_qubits == 2
+    assert len(pauli_lindblad_model.generators["M"]) == 2
+    # CZ's default partition groups both qubits, so its 1-local terms are all two-qubit Paulis.
+    assert len(pauli_lindblad_model.generators["CZ"]) == 15
+
+    # k=0 for every gate at once.
+    all_zero = PauliLindbladModel.k_partition_local(gate_set=gate_set_cz, k=0)
+    assert all(len(generators) == 0 for generators in all_zero.generators.values())
+
+
+def test_k_partition_local_negative_k_errors(gate_set_cz):
+    """A negative k is out of range rather than another spelling of "noiseless"."""
+    with pytest.raises(ValueError, match="k:`-1` must be non-negative"):
+        PauliLindbladModel.k_partition_local(gate_set=gate_set_cz, k=-1)
+
+    with pytest.raises(ValueError, match="k:`-1` for gate 'CZ' must be non-negative"):
+        PauliLindbladModel.k_partition_local(gate_set=gate_set_cz, gate_k={"CZ": -1})
+
+
 def test_k_local(two_q_pauli_str, pauli_str, gate_set_cz):
     pauli_lindblad_model = PauliLindbladModel.k_local(gate_set=gate_set_cz, k=2)
 
@@ -751,6 +777,31 @@ def test_k_local_per_gate_k(two_q_pauli_str, pauli_str, gate_set_cz):
         assert len(generator_list) == len(expected_generators[name])
         for generator in generator_list:
             assert generator in expected_generators[name]
+
+
+def test_k_local_zero_k(two_q_pauli_str, gate_set_cz):
+    """``k=0`` means the gate is modelled as noiseless, and leaves the other gates alone."""
+    pauli_lindblad_model = PauliLindbladModel.k_local(gate_set=gate_set_cz, k=2, gate_k={"P": 0})
+
+    expected_generators = {
+        "CZ": QubitSparsePauliList(two_q_pauli_str),
+        "P": QubitSparsePauliList.empty(2),
+        "M": QubitSparsePauliList(["IX", "XI", "XX"]),
+    }
+
+    for name, generator_list in pauli_lindblad_model.generators.items():
+        assert len(generator_list) == len(expected_generators[name])
+        for generator in generator_list:
+            assert generator in expected_generators[name]
+
+
+def test_k_local_negative_k_errors(gate_set_cz):
+    """A negative k is out of range rather than another spelling of "noiseless"."""
+    with pytest.raises(ValueError, match="must be non-negative"):
+        PauliLindbladModel.k_local(gate_set=gate_set_cz, k=-1)
+
+    with pytest.raises(ValueError, match="must be non-negative"):
+        PauliLindbladModel.k_local(gate_set=gate_set_cz, gate_k={"CZ": -1})
 
 
 def test_to_pauli_lindblad_maps(gate_set_cz, generators_cz):
