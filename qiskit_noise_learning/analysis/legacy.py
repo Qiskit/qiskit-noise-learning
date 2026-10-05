@@ -467,94 +467,40 @@ def _row_gate_name(path: Path) -> str:
 class LegacySolve(AnalysisStage):
     r"""Solves for the :class:`~.ModelData` using the legacy pair-fidelity method.
 
-    Observable rows are partitioned by the shape of their path. A row whose path has a repeatable
-    fragment is a **gate observable**, carrying the fitted decay of one gate; these are grouped by
-    gate name and each group fitted by :func:`~.fit_noise_model_legacy`. A row whose path has no
-    repeatable fragment is a **SPAM observable**, carrying a preparation and a measurement only;
-    these are fitted in closed form, one qubit at a time. Both halves are concatenated into a single
-    :class:`~.ModelData`.
+    **This class is more specialized than other model solvers.** Where the others are set up to work
+    for general models and path sets, this stage has the following restrictions and limitations:
 
-    The two halves are independent: a gate observable's own SPAM error went into the decay's
-    prefactor, which the curve fit discards, so it constrains no SPAM rate, and a SPAM observable
-    traverses no gate.
+    - It assumes the gate set consists of pure preparation, measurement, and self-inverse unitary
+      gates.
+    - It assumes the model is a :class:`~.PauliLindbladModel` for which the unitary gate noise is
+      2-local, the measurement noise is 1-local, and preparation is assumed to be perfect.
+      Furthermore, for a given gate, the fidelities of "conjugate Paulis" (Paulis that are mapped to
+      each other under the gate) are assumed to be equal in the fitting process.
+    - It accepts only :class:`~.EvenDepthVanillaPaths` and :class:`~.SPAMPaths` paths to analyze.
+    - The unitary gate model fitting is based exclusively on exponential decay data, and so
+      this stage must run after :class:`~.CurveFitObservables`.
 
-    **Assumptions on the paths**
+    The fitting process proceeds by analyzing decay curves for each unitary gate independently, and
+    likewise for any SPAM experiments.
 
-    Gate observables must be decay rows, that is, carry ``fragment_depth == -1`` as
-    :class:`~.CurveFitObservables` marks them; a single fragment depth's observable is not a pair
-    fidelity. Each repeatable fragment must have exactly two entries, both for the same gate, and
-    must both chain and close under repetition, so that traversing it needs no single-qubit
-    Cliffords. SPAM observables must have exactly one preparation and one measurement entry, and
-    measure exactly one qubit. Every fidelity must be positive, having a logarithm taken.
+    - For the unitary gates a more restricted design matrix, constructed under the equality of
+      fidelities with conjugate Paulis, is constructed and solved. Any fidelities of weight > 2 are
+      not considered.
+    - For SPAM, each path measures the product of the preparation and measurement fidelities
+      on a single-qubit :math:`Z` operator. Preparation being assumed perfect, the whole
+      product is attributed to measurement: the rate of the corresponding single-qubit
+      :math:`X` generator is calculated directly as :math:`-\ln(F)/2` for a measured fidelity
+      :math:`F`, clipped at zero, with its variance propagated from that fidelity's
+      uncertainty.
 
-    Where one Pauli appears in several rows, every one of those rows must carry a **bit-identical**
-    fidelity; this is exact equality, not a tolerance.
+    In both cases, the set of returned generators fit and returned is constructed based on what
+    Paulis appear in the fidelities encountered in the paths.
 
-    Row uncertainties are read for SPAM observables only. The gate fit is unweighted and
-    ``estimate_std`` plays no part in it.
+    Further notes:
 
-    **Assumptions on the model**
-
-    Nothing here is computed from the model: both halves take their generators from the observed
-    paths. The model is only checked, and only when the :class:`~.Fit` carries one, so a fit with no
-    model is still solved. When a model is present:
-
-    - every generator this stage fits must be one the model declares, since a model narrower than
-      the data would otherwise be silently widened,
-    - each measurement gate must have single-qubit generators only, and
-    - each preparation gate must have none.
-
-    The last two are what make the SPAM arithmetic below correct rather than merely non-failing.
-
-    The reverse direction is **not** checked, and is the caller's to reason about: a model may
-    declare generators this stage never fits, such as Paulis above weight two or a measurement
-    generator on a qubit no SPAM observable covers. Their rates are not assumed to be zero, they are
-    simply absent, and anything needing them — predicting a path's decay from the model, and the
-    overlays built on that — raises an :exc:`KeyError` rather than failing here. In practice this
-    stage is consistent with a model that is two-local on the gates, one-local on measurement, and
-    noiseless on preparation.
-
-    **Fitting gate observables**
-
-    The generators fitted are the Paulis of weight below three appearing in the rows' repeatable
-    fragments, which is what makes the fitted set a property of the data rather than of the model.
-    A Pauli of weight three or more is not fitted, but still contributes an equation as a conjugate,
-    so a row is used through whichever of its two Paulis are light enough; a row with neither
-    contributes nothing.
-
-    The method assumes symmetric fidelities: for a row of pair fidelity :math:`f`, the single-layer
-    fidelity of both its Paulis :math:`P` and :math:`\mathrm{conj}(P)` is :math:`\sqrt{f}`. Since a
-    Pauli-Lindblad map gives :math:`F(P) = \exp(-2 \sum_G \lambda_G)` over the generators
-    anticommuting with :math:`P`, each fitted Pauli therefore contributes two equations,
-
-    .. math::
-
-        \sum_{G \text{ anticommuting with } P} \lambda_G = -\ln(f) / 4
-        \qquad
-        \sum_{G \text{ anticommuting with } \mathrm{conj}(P)} \lambda_G = -\ln(f) / 4
-
-    solved together by non-negative least squares. No uncertainty is propagated, so these rates
-    carry zero covariance.
-
-    **Fitting SPAM observables**
-
-    A SPAM observable measures :math:`F_P(Z_S) F_M(Z_S)`, one product of two unknowns, and all of it
-    is attributed to the measurement gate. The rates reported are therefore the *combined*
-    preparation and measurement error, expressed as measurement noise.
-
-    For the single measured qubit :math:`i`, the rate of that gate's :math:`X_i` generator is
-    :math:`-\ln(F) / 2`, clipped at zero as the gate fit's non-negativity constraint would clip it.
-    Each rate comes from one row, so its variance is that row's uncertainty propagated through the
-    same expression, :math:`(\sigma_F / 2 F)^2`; a clipped rate sits on the constraint boundary and
-    reports no variance, as :class:`~.ModelSolve` would.
-
-    **Output**
-
-    Gate parameters come first, in the order their gates are first seen in the observable dataset,
-    followed by the SPAM parameters. The covariance is block diagonal accordingly: zero throughout
-    the gate block, and the propagated variances on the SPAM diagonal.
-
-    Any violated assumption raises, failing the whole solve; there is no per-gate skip or warning.
+    - Unitary gate rates are reported with zero covariance.
+    - When the same Pauli appears in more than one path, the fidelity estimates must be equal,
+      otherwise this solver raises an error.
     """
 
     input_level = AggregatedObservableData
