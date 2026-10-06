@@ -146,14 +146,14 @@ print(f"Design matrix rank: {experiment.design_matrix.rank}")
 ## 4. Generate circuits
 
 Compile the experiment with an {class}`~.ExecutorCircuitGenerator`, generating a
-{class}`~qiskit_ibm_runtime.quantum_program.QuantumProgram` &mdash; one parameterized template circuit
-per fragment depth &mdash; together with a data mapper that records how to interpret results.
+{class}`~qiskit_ibm_runtime.quantum_program.QuantumProgram` &mdash; one parameterized template
+circuit per fragment depth.
 
 ```{code-cell} python
 from qiskit_noise_learning.circuit_generator import ExecutorCircuitGenerator
 
 circuit_generator = ExecutorCircuitGenerator(gate_set)
-quantum_program, data_mapper = circuit_generator.generate(experiment)
+quantum_program = circuit_generator.generate(experiment)
 
 print(f"Number of template circuits: {len(quantum_program.items)}")
 ```
@@ -225,13 +225,12 @@ Skip this step entirely.
 
 ## 6. Run the program
 
-Run the program, then pair the returned bitstrings with the data mapper using
-{meth}`~.ExecutorCircuitGenerator.collect`, which produces a {class}`~.Fit` &mdash; the container the
-analysis stages read from and write to.
+Run the program, then format the results with {meth}`~.ExecutorCircuitGenerator.collect`, to produce
+a {class}`~.Fit` &mdash; the container the analysis stages read from and write to.
 
 ```{code-cell} python
 job = executor.run(quantum_program)
-fit = circuit_generator.collect(job.result(), data_mapper)
+fit = circuit_generator.collect(job.result())
 ```
 
 :::{admonition} Running on real hardware

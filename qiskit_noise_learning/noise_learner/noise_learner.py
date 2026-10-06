@@ -29,7 +29,7 @@ from ..analysis import (
     CurveFitObservables,
     LeastSquaresSolve,
 )
-from ..circuit_generator import ExecutorCircuitGenerator, ExecutorDataMapper
+from ..circuit_generator import ExecutorCircuitGenerator
 from ..experiment_builder import (
     BindFragmentDepths,
     CompleteSequences,
@@ -137,21 +137,19 @@ class NoiseLearner:
             if instr.operation.name != "box":
                 raise ValueError(f"All instructions must be BoxOps, got '{instr.operation.name}'.")
 
-        program, data_mapper = self._generate(instructions)
+        program = self._generate(instructions)
         executor = self._executor if self._executor is not None else Executor(mode=self._backend)
         job = executor.run(program)
-        return NoiseLearnerJob(job, data_mapper, self._analyzer)
+        return NoiseLearnerJob(job, self._analyzer)
 
-    def _generate(
-        self, instructions: Sequence[CircuitInstruction]
-    ) -> tuple[QuantumProgram, ExecutorDataMapper]:
+    def _generate(self, instructions: Sequence[CircuitInstruction]) -> QuantumProgram:
         """Generate a quantum program from the given instructions.
 
         Args:
             instructions: The BoxOp instructions to learn.
 
         Returns:
-            A tuple of the quantum program and data mapper.
+            The quantum program, carrying everything needed to interpret its own results.
         """
         # Build gate set from backend target
         qreg = QuantumRegister(self.backend.num_qubits, name="q")
