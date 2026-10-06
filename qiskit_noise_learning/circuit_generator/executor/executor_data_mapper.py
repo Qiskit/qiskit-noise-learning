@@ -34,6 +34,10 @@ class ExecutorDataMapper:
             qubit index measured into each of their classical bits, in classical bit order.
         instruction_sequences: The instruction sequences associated with the data.
         num_randomizations: The number of randomizations used per experiment.
+        randomization_multipliers: Per-sequence randomization multipliers, parallel to
+            ``instruction_sequences``, so that sequence ``i`` uses ``num_randomizations`` times
+            entry ``i`` randomizations.
+        shots: The number of shots per randomization.
         fidelity_model: The fidelity model used in the experiment.
         paths: The analysis paths.
         relations: Path-to-sequence relations.
@@ -47,6 +51,8 @@ class ExecutorDataMapper:
         item_clbit_qubit_idxs: list[dict[str, np.ndarray[int]]],
         instruction_sequences: list[InstructionSequence],
         num_randomizations: int,
+        randomization_multipliers: list[int] | None = None,
+        shots: int | None = None,
         fidelity_model: FidelityModel | None = None,
         paths: list[Path] | None = None,
         relations: set[tuple[int, int]] | None = None,
@@ -56,6 +62,8 @@ class ExecutorDataMapper:
         self._item_clbit_qubit_idxs = item_clbit_qubit_idxs
         self._instruction_sequences = instruction_sequences
         self._num_randomizations = num_randomizations
+        self._randomization_multipliers = randomization_multipliers
+        self._shots = shots
         self._fidelity_model = fidelity_model
         self._paths = paths
         self._relations = relations
@@ -90,8 +98,25 @@ class ExecutorDataMapper:
 
     @property
     def num_randomizations(self) -> int:
-        """The number of randomizations used per experiment."""
+        """The base number of randomizations used per experiment.
+
+        Where :attr:`randomization_multipliers` is given, sequence ``i`` uses this count times
+        entry ``i`` of those multipliers.
+        """
         return self._num_randomizations
+
+    @property
+    def randomization_multipliers(self) -> list[int] | None:
+        """Per-sequence randomization multipliers, or ``None`` if unspecified.
+
+        Entry ``i`` scales :attr:`num_randomizations` for instruction sequence ``i``.
+        """
+        return self._randomization_multipliers
+
+    @property
+    def shots(self) -> int | None:
+        """The number of shots per randomization, or ``None`` if unspecified."""
+        return self._shots
 
     @property
     def fidelity_model(self) -> FidelityModel | None:

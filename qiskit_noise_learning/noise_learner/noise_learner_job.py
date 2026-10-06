@@ -17,8 +17,7 @@ from typing import Protocol, runtime_checkable
 from qiskit_ibm_runtime.results import QuantumProgramResult
 
 from ..analysis import AnalysisStage
-from ..circuit_generator.executor_circuit_generator import ExecutorCircuitGenerator
-from ..circuit_generator.executor_data_mapper import ExecutorDataMapper
+from ..circuit_generator.executor import ExecutorCircuitGenerator, ExecutorDataMapper
 from .noise_learner_result import NoiseLearnerResult
 
 
