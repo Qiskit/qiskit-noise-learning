@@ -878,22 +878,27 @@ class TestDataScaledDeltas:
             (path0, -1, f_true, 0.0, {"reduced_chi_squared": 1.0}),
             (path1, -1, f_true, 0.05, {"reduced_chi_squared": 1.0}),
         ]
-        imputed = self._solve_two_rows(
-            gate_set_cz,
-            make_aggregated_observable_data,
-            entries,
-            PositivityMinSolve.from_data_scaled_deltas({"CZ": 1.0}),
-        )
+        # Row 0 carries no statistical weight, which raises a warning
+        with pytest.warns(UserWarning, match=r"1 of 2 row.*row_labels: 0\."):
+            imputed = self._solve_two_rows(
+                gate_set_cz,
+                make_aggregated_observable_data,
+                entries,
+                PositivityMinSolve.from_data_scaled_deltas({"CZ": 1.0}),
+            )
         # The only usable row's uncertainty is sigma_b = 0.05 / f_true, so that is the median, and
         # the zero-variance row must behave exactly as if it had been supplied directly rather than
         # as a hard equality at delta = 0.
         median = 0.05 / f_true
-        explicit = self._solve_two_rows(
-            gate_set_cz,
-            make_aggregated_observable_data,
-            entries,
-            PositivityMinSolve.from_constants({"CZ": 1.0}, deltas={path0: median, path1: median}),
-        )
+        with pytest.warns(UserWarning, match=r"1 of 2 row.*row_labels: 0\."):
+            explicit = self._solve_two_rows(
+                gate_set_cz,
+                make_aggregated_observable_data,
+                entries,
+                PositivityMinSolve.from_constants(
+                    {"CZ": 1.0}, deltas={path0: median, path1: median}
+                ),
+            )
 
         assert np.isclose(imputed, explicit, atol=1e-6)
         assert imputed < -np.log(f_true) / 4 - 1e-4
@@ -903,9 +908,11 @@ class TestDataScaledDeltas:
     ):
         """With no positive, finite uncertainty anywhere there is nothing to scale tolerances by."""
         path = make_cz_path("XI")
-        with pytest.raises(ValueError, match="positive, finite uncertainty"):
-            self._solve_single(
-                gate_set_cz,
-                make_aggregated_observable_data,
-                (path, -1, 0.8, 0.0, {"reduced_chi_squared": 1.0}),
-            )
+        # The sole row carries no statistical weight, which raises a warning before the error.
+        with pytest.warns(UserWarning, match=r"1 of 1 row.*row_labels: 0\."):
+            with pytest.raises(ValueError, match="positive, finite uncertainty"):
+                self._solve_single(
+                    gate_set_cz,
+                    make_aggregated_observable_data,
+                    (path, -1, 0.8, 0.0, {"reduced_chi_squared": 1.0}),
+                )
