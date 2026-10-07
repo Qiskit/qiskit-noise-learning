@@ -106,13 +106,17 @@ def prepare_learning_program(
         The program to submit, whose result :func:`~.process_learning_result` consumes.
 
     Raises:
-        ValueError: If any instruction does not contain a ``BoxOp``, if *num_randomizations* or
-            *shots_per_randomization* is less than one, if any entry of *fragment_depths* is
-            negative, if more than one instruction measures, if a measuring instruction also
-            contains other operations or does not measure every qubit that *instructions* act on,
-            if ``backend.target`` does not support an operation of one of the boxes, or if a
-            classical register added by *pass_manager* is not measured into exactly once.
+        ValueError: If *instructions* is empty, if any instruction does not contain a ``BoxOp``, if
+            *num_randomizations* or *shots_per_randomization* is less than one, if any entry of
+            *fragment_depths* is negative, if more than one instruction measures, if a measuring
+            instruction also contains other operations or does not measure every qubit that
+            *instructions* act on, if ``backend.target`` does not support an operation of one of
+            the boxes, or if a classical register added by *pass_manager* is not measured into
+            exactly once.
     """
+    if not instructions:
+        raise ValueError("instructions must contain at least one instruction, but got none.")
+
     for instr in instructions:
         if instr.operation.name != "box":
             raise ValueError(f"All instructions must be BoxOps, got '{instr.operation.name}'.")

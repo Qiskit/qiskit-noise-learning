@@ -17,6 +17,7 @@ from qiskit.circuit import QuantumCircuit
 from qiskit.quantum_info import PauliLindbladMap
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime.fake_provider.backends.fez import FakeFez
+from qiskit_ibm_runtime.results import QuantumProgramResult
 from samplomatic import InjectNoise, Twirl
 
 from qiskit_noise_learning.aer_executor import AerExecutor
@@ -104,3 +105,12 @@ def test_raw_data_stage_runs_ahead_of_the_standard_analysis(result):
     with_stage = process_learning_result(result, raw_data_stage=FlipPostSelect())
 
     assert len(with_stage.history.raw_data) == len(without.history.raw_data) + 1
+
+
+@pytest.mark.parametrize("carries_passthrough_data", [False, True], ids=["bare", "with-payload"])
+def test_rejects_empty_result(result, carries_passthrough_data):
+    passthrough_data = result.passthrough_data if carries_passthrough_data else None
+    empty = QuantumProgramResult([], passthrough_data=passthrough_data)
+
+    with pytest.raises(ValueError, match="holds no program items"):
+        process_learning_result(empty)

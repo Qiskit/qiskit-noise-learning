@@ -53,9 +53,9 @@ def process_learning_result(
 
     Raises:
         TypeError: If *raw_data_stage* is not an analysis stage.
-        ValueError: If *raw_data_stage* does not consume and produce :class:`~.RawData`, if the
-            result's passthrough data was written in an incompatible format version, or if the
-            result violates the solver's assumptions.
+        ValueError: If *raw_data_stage* does not consume and produce :class:`~.RawData`, if
+            *result* holds no program items, if the result's passthrough data was written in an
+            incompatible format version, or if the result violates the solver's assumptions.
     """
     # Validated before the result is touched, so the cheap error does not require deserializing a
     # payload first.
@@ -69,6 +69,9 @@ def process_learning_result(
                 f"raw_data_stage must consume and produce RawData, but {raw_data_stage!r} maps "
                 f"{raw_data_stage.input_level.__name__} to {raw_data_stage.output_level.__name__}."
             )
+
+    if len(result) == 0:
+        raise ValueError("The result holds no program items, so there is no data to analyze.")
 
     fit = ExecutorCircuitGenerator.collect(result)
 

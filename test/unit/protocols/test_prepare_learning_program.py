@@ -67,6 +67,12 @@ def _split_paths(paths):
     return layer, spam
 
 
+def test_rejects_empty_instructions(backend):
+    """There is nothing to learn, and the gate set would be built on zero qubits."""
+    with pytest.raises(ValueError, match="instructions must contain at least one instruction"):
+        prepare_learning_program(backend, [])
+
+
 def test_rejects_non_box_instruction(backend):
     """Only BoxOp instructions describe a layer whose noise can be learned."""
     circuit = QuantumCircuit(backend.num_qubits)
