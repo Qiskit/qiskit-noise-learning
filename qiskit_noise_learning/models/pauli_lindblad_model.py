@@ -90,14 +90,14 @@ class PauliLindbladModel(LinearMap[GeneratorIndex, FidelityIndex]):
             preparation and measurement layers must be built from I and X only.
         noise_site: A dictionary specifying, for each gate name, whether the noise model occurs
             before or after the gate, indicated with strings ``"before"`` and ``"after"``. Any
-            unspecified values for the gate set will be populated with default values: ``"before"``
-            for unitary gates and pure measurement gates, and ``"after"`` for pure preparation. An
+            unspecified values for the gate set will be populated with default values: ``"after"``
+            for unitary gates and pure preparation gates, and ``"before"`` for pure measurement. An
             error will be raised if a value for pure measurement or preparation is specified that
             differs from the default.
 
     Raises:
-        ValueError: If the gate set is not of the required form, or if ``noise_model_before_gate``
-            has any invalid values.
+        ValueError: If the gate set is not of the required form, or if ``noise_site`` has any
+            invalid values.
     """
 
     def __init__(
@@ -667,7 +667,7 @@ def _validate_and_complete_noise_site_dict(
                 if noise_site[name] not in ["before", "after"]:
                     raise ValueError("Noise site can only take values 'before' or 'after'.")
             else:
-                noise_site[name] = "before"
+                noise_site[name] = "after"
 
     return noise_site
 
