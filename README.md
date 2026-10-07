@@ -34,7 +34,7 @@ This library has two levels of interface. The first is the low-level interface w
 directly interacts with objects representing core concepts in noise learning, enabling custom design
 of every aspect of a noise learning protocol. The second is a higher-level interface, the
 `qiskit_noise_learning.protocols` subpackage, whose `prepare_learning_program` and
-`process_learning_results` functions wrap a stock workflow into a single call on each side of
+`process_learning_result` functions wrap a stock workflow into a single call on each side of
 execution.
 
 See the following tutorials for examples:

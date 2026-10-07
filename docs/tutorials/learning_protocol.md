@@ -14,7 +14,7 @@ kernelspec:
 
 This tutorial demonstrates learning a noise model for a unitary gate with a standard learning
 protocol accessible through the high-level protocol functions {func}`~.prepare_learning_program` and
-{func}`~.process_learning_results`.
+{func}`~.process_learning_result`.
 
 1. Define the gate
 2. Set up local simulation
@@ -144,7 +144,7 @@ Submit the quantum program to your backend of choice. Here, we use the simulated
 simulate against a real device use {class}`~qiskit_ibm_runtime.Executor`.
 
 ```{code-cell} python
-results = executor.run(program).result()
+result = executor.run(program).result()
 ```
 
 :::{admonition} Running on real hardware
@@ -153,18 +153,18 @@ results = executor.run(program).result()
 ```python
 from qiskit_ibm_runtime import Executor
 
-results = Executor(mode=backend).run(program).result()
+result = Executor(mode=backend).run(program).result()
 ```
 :::
 
 ## 5. Read the results
 
-Process the results with {func}`~.process_learning_results`, obstaining a {class}`~.Fit` object.
+Process the result with {func}`~.process_learning_result`, obstaining a {class}`~.Fit` object.
 
 ```{code-cell} python
-from qiskit_noise_learning.protocols import process_learning_results
+from qiskit_noise_learning.protocols import process_learning_result
 
-fit = process_learning_results(results)
+fit = process_learning_result(result)
 ```
 
 Use the fit to plot per-qubit-pair fidelity decays: both the data and the exponential fit.
