@@ -12,7 +12,7 @@
 
 """End-to-end test that the learning protocol recovers the noise it was given.
 
-Covers the ``prepare_learning_program`` / ``process_learning_results`` pair together: the program
+Covers the ``prepare_learning_program`` / ``process_learning_result`` pair together: the program
 is built, run against a simulator injecting a known noise map, and analyzed using nothing but the
 results, so the passthrough data is what carries the experiment between the two halves.
 """
@@ -29,7 +29,7 @@ from samplomatic import InjectNoise, Twirl
 from qiskit_noise_learning.aer_executor import AerExecutor
 from qiskit_noise_learning.analysis import FlipPostSelect
 from qiskit_noise_learning.models import split_pauli_lindblad_model
-from qiskit_noise_learning.protocols import prepare_learning_program, process_learning_results
+from qiskit_noise_learning.protocols import prepare_learning_program, process_learning_result
 
 PAIR = (17, 27)
 INJECTED_RATE = 5e-3
@@ -66,7 +66,7 @@ def test_learning_protocol_recovers_injected_noise():
         shots_per_randomization=64,
         fragment_depths=[2, 8, 32],
     )
-    fit = process_learning_results(executor.run(program).result())
+    fit = process_learning_result(executor.run(program).result())
 
     learned = split_pauli_lindblad_model(fit.model).model.to_pauli_lindblad_maps(fit.model_data)
     assert set(learned) == {"layer"}
@@ -125,7 +125,7 @@ def test_post_selection_hooks_compose():
         fragment_depths=[2, 8, 32],
         pass_manager=PassManager([_AddFlipCheck()]),
     )
-    fit = process_learning_results(executor.run(program).result(), raw_data_stage=FlipPostSelect())
+    fit = process_learning_result(executor.run(program).result(), raw_data_stage=FlipPostSelect())
 
     learned = split_pauli_lindblad_model(fit.model).model.to_pauli_lindblad_maps(fit.model_data)
     rates = {

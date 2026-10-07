@@ -12,4 +12,4 @@ Functions
    :toctree: generated
 
    prepare_learning_program
-   process_learning_results
+   process_learning_result

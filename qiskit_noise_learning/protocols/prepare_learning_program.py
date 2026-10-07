@@ -90,7 +90,7 @@ def prepare_learning_program(
         pass_manager: An optional pass manager to apply to every template circuit generated.
 
     Returns:
-        The program to submit, whose results :func:`~.process_learning_results` consumes.
+        The program to submit, whose result :func:`~.process_learning_result` consumes.
 
     Raises:
         ValueError: If any instruction does not contain a ``BoxOp``, if *num_randomizations* or

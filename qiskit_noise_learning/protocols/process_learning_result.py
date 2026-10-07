@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Analysis of noise learning results."""
+"""Analysis of a noise learning result."""
 
 from qiskit_ibm_runtime.results import QuantumProgramResult
 
@@ -26,24 +26,24 @@ from ..circuit_generator import ExecutorCircuitGenerator
 from ..data import RawData
 
 
-def process_learning_results(
-    results: QuantumProgramResult,
+def process_learning_result(
+    result: QuantumProgramResult,
     raw_data_stage: AnalysisStage | None = None,
 ) -> Fit:
-    """Analyze the results of a program built by :func:`~.prepare_learning_program`.
+    """Analyze the result of a program built by :func:`~.prepare_learning_program`.
 
     Applies the standard "vanilla" learning program analysis using curve fitting and
     :class:`~.LegacySolve` fit the model.
 
     Example::
 
-        fit = process_learning_results(job.result())
+        fit = process_learning_result(job.result())
         noise_maps = split_pauli_lindblad_model(fit.model).model.to_pauli_lindblad_maps(
             fit.model_data
         )
 
     Args:
-        results: The results of a program built by :func:`~.prepare_learning_program`.
+        result: The result of a program built by :func:`~.prepare_learning_program`.
         raw_data_stage: An optional analysis stage to run on the raw data ahead of the standard
             analysis, typically to post-select on registers that a pass manager added during
             preparation. It must consume and produce :class:`~.RawData`.
@@ -54,10 +54,10 @@ def process_learning_results(
     Raises:
         TypeError: If *raw_data_stage* is not an analysis stage.
         ValueError: If *raw_data_stage* does not consume and produce :class:`~.RawData`, if the
-            results' passthrough data was written in an incompatible format version, or if the
-            results violate the solver's assumptions.
+            result's passthrough data was written in an incompatible format version, or if the
+            result violates the solver's assumptions.
     """
-    # Validated before the results are touched, so the cheap error does not require deserializing a
+    # Validated before the result is touched, so the cheap error does not require deserializing a
     # payload first.
     if raw_data_stage is not None:
         if not isinstance(raw_data_stage, AnalysisStage):
@@ -70,7 +70,7 @@ def process_learning_results(
                 f"{raw_data_stage.input_level.__name__} to {raw_data_stage.output_level.__name__}."
             )
 
-    fit = ExecutorCircuitGenerator.collect(results)
+    fit = ExecutorCircuitGenerator.collect(result)
 
     stages: list[AnalysisStage] = [ComputeObservables(), CurveFitObservables(), LegacySolve()]
     if raw_data_stage is not None:

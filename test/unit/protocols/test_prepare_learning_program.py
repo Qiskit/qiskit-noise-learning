@@ -100,7 +100,7 @@ def test_defaults(backend):
 
 
 def test_passthrough_carries_the_experiment(backend):
-    """Everything process_learning_results needs travels in the program itself."""
+    """Everything process_learning_result needs travels in the program itself."""
     program = prepare_learning_program(
         backend,
         [_boxed_cz(backend, name="layer")],

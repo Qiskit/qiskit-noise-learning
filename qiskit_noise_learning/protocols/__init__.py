@@ -13,4 +13,4 @@
 """Pre-packaged noise learning procedures."""
 
 from .prepare_learning_program import prepare_learning_program
-from .process_learning_results import process_learning_results
+from .process_learning_result import process_learning_result
