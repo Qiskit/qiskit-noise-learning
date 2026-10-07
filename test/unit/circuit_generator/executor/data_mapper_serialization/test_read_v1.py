@@ -458,6 +458,7 @@ def _expected_with_model():
                 "P": QubitSparsePauliList.from_list(["IX", "XI"]),
                 "U": QubitSparsePauliList.from_list(["IZ", "ZZ"]),
             },
+            noise_site={"U": "before"},
         ),
     )
 
