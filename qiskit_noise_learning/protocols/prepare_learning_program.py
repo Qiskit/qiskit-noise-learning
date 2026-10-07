@@ -38,6 +38,14 @@ from ..gate_sets import QiskitGateSet
 from ..models import PauliLindbladModel
 
 
+def _measures(box_instr: CircuitInstruction) -> bool:
+    """Whether any operation of a box is a measurement."""
+    return any(
+        len(instr.qubits) == 1 and instr.operation.name.startswith("meas")
+        for instr in box_instr.operation.blocks[0]
+    )
+
+
 def prepare_learning_program(
     backend: BackendV2,
     instructions: Sequence[CircuitInstruction],
@@ -61,6 +69,10 @@ def prepare_learning_program(
     The learned model comes back keyed by those names, so annotate the boxes to be identified in the
     result.
 
+    If an all-measurement box is supplied in ``instructions`` (i.e. one that measures every qubit
+    appearing in all supplied instructions), that will be treated as the measurement layer. If no
+    such layer is supplied, a default one will be built with name ``"M"``.
+
     Example::
 
         circuit = QuantumCircuit(backend.num_qubits)
@@ -78,7 +90,8 @@ def prepare_learning_program(
         backend: The backend supplying the compilation target: the gate set, coupling map and qubit
             count that generated circuits are built against.
         instructions: The instructions to learn the noise of. Each instruction should contain a
-            :class:`~qiskit.circuit.BoxOp` operation, and must be self-inverse.
+            :class:`~qiskit.circuit.BoxOp` operation, and must be self-inverse, with the exception
+            of a box that measures all relevant qubits.
         num_randomizations: The number of randomizations to use per learning circuit.
         shots_per_randomization: The number of shots to use per randomization.
         fragment_depths: The fragment depths to use, that is, the number of repetitions of each
@@ -95,8 +108,10 @@ def prepare_learning_program(
     Raises:
         ValueError: If any instruction does not contain a ``BoxOp``, if *num_randomizations* or
             *shots_per_randomization* is less than one, if any entry of *fragment_depths* is
-            negative, if ``backend.target`` does not support an operation of one of the boxes, or if
-            a classical register added by *pass_manager* is not measured into exactly once.
+            negative, if more than one instruction measures, if a measuring instruction also
+            contains other operations or does not measure every qubit that *instructions* act on,
+            if ``backend.target`` does not support an operation of one of the boxes, or if a
+            classical register added by *pass_manager* is not measured into exactly once.
     """
     for instr in instructions:
         if instr.operation.name != "box":
@@ -114,23 +129,42 @@ def prepare_learning_program(
     if any(depth < 0 for depth in fragment_depths):
         raise ValueError(f"fragment_depths must all be non-negative, but got {fragment_depths}.")
 
+    # The experiment should contain exactly 1 or 0 measuring gates
+    meas_instr_idxs = [idx for idx, instr in enumerate(instructions) if _measures(instr)]
+    if len(meas_instr_idxs) > 1:
+        raise ValueError(
+            f"At most one instruction may measure, but instructions {meas_instr_idxs} all do."
+        )
+
     # This register exists only to turn the instructions' qubits into integer indices.
     qreg = QuantumRegister(backend.num_qubits, name="q")
     qubit_subset = {qreg.index(qubit) for instr in instructions for qubit in instr.qubits}
 
-    gate_set = QiskitGateSet(target=backend.target, qubit_subset=sorted(qubit_subset))
-    for instr in instructions:
-        inject_noise = get_annotation(instr.operation, InjectNoise)
-        gate_set.add_box_as_gate(instr, name=None if inject_noise is None else inject_noise.ref)
+    gate_set = QiskitGateSet(
+        target=backend.target, qubit_subset=sorted(qubit_subset), add_default_spam=False
+    )
+    if not meas_instr_idxs:
+        gate_set.add_measurement(name="M")
+    gate_set.add_preparation(name="P")
 
-    fidelity_model = PauliLindbladModel.k_local(gate_set, k=2, gate_k={"M": 1, "P": 0})
+    meas_name = "M"
+    for idx, instr in enumerate(instructions):
+        inject_noise = get_annotation(instr.operation, InjectNoise)
+        name = gate_set.add_box_as_gate(
+            instr, name=None if inject_noise is None else inject_noise.ref
+        )
+        if idx in meas_instr_idxs:
+            meas_name = name
+
+    fidelity_model = PauliLindbladModel.k_local(gate_set, k=2, gate_k={meas_name: 1, "P": 0})
+    meas_gate = fidelity_model.gate_set[meas_name]
 
     builder = (
-        EvenDepthVanillaPaths()
+        EvenDepthVanillaPaths(meas_gate=meas_gate)
         + RankReducePaths()
-        + VanillaInstructionSequences()
+        + VanillaInstructionSequences(meas_gate=meas_gate)
         + IdentifyRelations()
-        + SPAMPaths()
+        + SPAMPaths(meas_gate=meas_gate)
         + GenerateInstructionSequences()
         + MergeInstructionSequences()
         + CompleteSequences()

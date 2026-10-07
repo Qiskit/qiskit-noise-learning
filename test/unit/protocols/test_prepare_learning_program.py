@@ -40,6 +40,26 @@ def _boxed_cz(backend, pair=PAIR, name=None):
     return circuit[0]
 
 
+def _boxed_measure(backend, qubits=PAIR, name=None):
+    """One twirled box measuring the given qubits, optionally named by an InjectNoise annotation."""
+    annotations = [Twirl()] if name is None else [Twirl(), InjectNoise(name)]
+    circuit = QuantumCircuit(backend.num_qubits, len(qubits))
+    with circuit.box(annotations):
+        for clbit, qubit in enumerate(qubits):
+            circuit.measure(qubit, clbit)
+    return circuit[0]
+
+
+def _boxed_cz_and_measure(backend, pair=PAIR):
+    """One twirled box holding a CZ and then a measurement of each of its qubits."""
+    circuit = QuantumCircuit(backend.num_qubits, len(pair))
+    with circuit.box([Twirl()]):
+        circuit.cz(*pair)
+        for clbit, qubit in enumerate(pair):
+            circuit.measure(qubit, clbit)
+    return circuit[0]
+
+
 def _split_paths(paths):
     """Partition paths into the layer decays and the depth-0 SPAM paths."""
     spam = [path for path in paths if len(path.repeatable_fragment) == 0]
@@ -166,3 +186,64 @@ def test_measurement_carries_all_spam_noise(backend):
     assert {
         (tuple(generator.indices), tuple(generator.paulis)) for generator in generators["M"]
     } == {((qubit,), (QubitSparsePauli.Pauli.X,)) for qubit in PAIR}
+
+
+def test_supplied_measurement_layer_replaces_the_default(backend):
+    """A box that measures becomes the measurement gate, rather than duplicating ``"M"``."""
+    program = prepare_learning_program(
+        backend,
+        [_boxed_cz(backend), _boxed_measure(backend)],
+        num_randomizations=2,
+        shots_per_randomization=8,
+        fragment_depths=[2],
+    )
+    model = load(program.passthrough_data).fidelity_model
+
+    assert set(model.gate_set) == {"L0", "L1", "P"}
+    assert model.gate_set["L1"].meas_idxs == frozenset(PAIR)
+    # The 1-local measurement model applies to the supplied box, not to a synthesized "M".
+    assert {
+        (tuple(generator.indices), tuple(generator.paulis)) for generator in model.generators["L1"]
+    } == {((qubit,), (QubitSparsePauli.Pauli.X,)) for qubit in PAIR}
+    assert len(program.items) == 2
+
+
+def test_supplied_measurement_layer_is_named_by_its_annotation(backend):
+    """It is named like any other box, so its noise can be keyed by a reference of your choosing."""
+    program = prepare_learning_program(
+        backend,
+        [_boxed_cz(backend, name="layer"), _boxed_measure(backend, name="readout")],
+        num_randomizations=2,
+        shots_per_randomization=8,
+        fragment_depths=[2],
+    )
+    gate_names = set(load(program.passthrough_data).fidelity_model.gate_set)
+
+    assert gate_names == {"layer", "readout", "P"}
+
+
+@pytest.mark.parametrize(
+    ("build_instructions", "match"),
+    [
+        (
+            lambda backend: [
+                _boxed_cz(backend),
+                _boxed_measure(backend),
+                _boxed_measure(backend, PAIR[::-1]),
+            ],
+            "At most one instruction may measure",
+        ),
+        (lambda backend: [_boxed_cz_and_measure(backend)], "non-trivial unitary part"),
+        (
+            lambda backend: [_boxed_cz(backend), _boxed_measure(backend, PAIR[:1])],
+            "does not measure all qubits",
+        ),
+    ],
+    ids=["two-measuring-boxes", "measurement-mixed-with-a-gate", "measures-part-of-the-subset"],
+)
+def test_rejects_measurement_layers_that_cannot_be_the_measurement_gate(
+    backend, build_instructions, match
+):
+    """Rejected outright, rather than quietly added as a layer that no path probes."""
+    with pytest.raises(ValueError, match=match):
+        prepare_learning_program(backend, build_instructions(backend))

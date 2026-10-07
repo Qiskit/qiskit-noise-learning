@@ -132,3 +132,50 @@ def test_post_selection_hooks_compose():
         (pauli, tuple(indices)): rate for pauli, indices, rate in learned["layer"].to_sparse_list()
     }
     assert rates[("ZZ", PAIR)] == pytest.approx(INJECTED_RATE, rel=0.1)
+
+
+def test_recovery_with_a_supplied_measurement_layer():
+    """The protocol still recovers the layer when the caller supplies the measurement box."""
+    backend = FakeFez()
+    layer = _make_annotated_layer(backend)
+    measurement = QuantumCircuit(backend.num_qubits, len(PAIR))
+    with measurement.box([Twirl(), InjectNoise("readout")]):
+        # Reversed, so that the supplied order is what the analysis reads outcomes back in.
+        for clbit, qubit in enumerate(reversed(PAIR)):
+            measurement.measure(qubit, clbit)
+
+    executor = AerExecutor(
+        AerSimulator(method="stabilizer"),
+        noise_dict={
+            "layer": PauliLindbladMap.from_list([("ZZ", INJECTED_RATE)]),
+            "P": PauliLindbladMap.from_list([("XI", 1e-3), ("IX", 1e-3)]),
+            "readout": PauliLindbladMap.from_list([("XI", 1e-3), ("IX", 1e-3)]),
+        },
+        root_seed=7,
+    )
+
+    program = prepare_learning_program(
+        backend,
+        [layer[0], measurement[0]],
+        num_randomizations=16,
+        shots_per_randomization=64,
+        fragment_depths=[2, 8, 32],
+    )
+    fit = process_learning_result(executor.run(program).result())
+
+    model = split_pauli_lindblad_model(fit.model).model
+    learned = model.to_pauli_lindblad_maps(fit.model_data)
+    assert set(learned) == {"layer"}
+
+    rates = {
+        (pauli, tuple(indices)): rate for pauli, indices, rate in learned["layer"].to_sparse_list()
+    }
+    assert rates.pop(("ZZ", PAIR)) == pytest.approx(INJECTED_RATE, rel=0.1)
+    assert max(rates.values()) < 0.075 * INJECTED_RATE, "weight leaked onto uninjected generators"
+
+    # The SPAM noise is carried by the supplied box, under the name its annotation gave it.
+    with_spam = model.to_pauli_lindblad_maps(fit.model_data, include_spam=True)
+    assert set(with_spam) == {"layer", "readout"}
+    assert {
+        (pauli, tuple(indices)) for pauli, indices, _ in with_spam["readout"].to_sparse_list()
+    } == {("X", (qubit,)) for qubit in PAIR}
