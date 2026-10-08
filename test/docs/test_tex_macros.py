@@ -12,10 +12,9 @@
 
 """Tests for the TeX macro expansion the documentation build applies to every math node.
 
-The published documentation site drops the macro definitions that ``sphinx.ext.mathjax`` writes
-outside the page body, so the build has to substitute them into the math itself. These tests cover
-the substitution rules, including the ones that keep ordinary TeX from being mistaken for a macro
-use.
+These cover the substitution rules, including the ones that keep ordinary TeX from being mistaken
+for a macro use. The module under test is deliberately free of Sphinx and docutils imports, so
+these run without the ``docs`` extra installed.
 """
 
 import sys
@@ -25,7 +24,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "docs" / "_ext"))
 
-from expand_math_macros import MacroError, expand  # noqa: E402
+from tex_macros import MacroError, expand  # noqa: E402
 
 # The macros the documentation actually defines, in the shape ``docs/conf.py`` gives them.
 MACROS = {
