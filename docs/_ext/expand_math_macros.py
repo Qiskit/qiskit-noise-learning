@@ -1,11 +1,5 @@
 """Expand TeX macros in math nodes so the built HTML carries no macro definitions.
 
-The published documentation site does not build this project's HTML; it ingests it. The
-ingestion extracts the ``role="main"`` element and nothing else, which drops the
-``window.MathJax`` configuration block that ``sphinx.ext.mathjax`` writes the macro
-definitions into. Math itself is taken verbatim out of the ``span.math``/``div.math``
-markup, so a macro that survives into the content arrives at the reader undefined.
-
 This extension rewrites every math node to its fully expanded form at build time, leaving
 HTML that reads as if each symbol had been written out by hand. Macros are defined once in
 the ``math_macros`` configuration value, in the same shape ``mathjax4_config`` used:

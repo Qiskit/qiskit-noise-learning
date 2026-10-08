@@ -1,19 +1,9 @@
 """Give every document that cites something its own "References" section.
 
-A single ``bibliography`` directive serving the whole site makes each other page's
-citation a cross-document link, and the published site has no central bibliography to
-point at. The alternative -- a bibliography on every page -- cannot be written by hand,
-because citations also belong in docstrings, and the autodoc pages those render onto are
-generated and cannot carry a directive.
-
-So this extension appends a References section to every document's source, then drops it
-again from the documents that turn out to cite nothing. The removal happens while the
-document is read, before Sphinx collects the page's table of contents, so an uncited page
-is left with no trace of the section.
-
-The section is a real heading rather than a rubric: the ingestion promotes only
-``Methods``, ``Methods Defined Here`` and ``Attributes`` rubrics to headings, and renders
-every other rubric as bold text.
+This extension appends a References section to every document's source, then drops it again from the
+documents that turn out to cite nothing. The removal happens while the document is read, before
+Sphinx collects the page's table of contents, so an uncited page is left with no trace of the
+section.
 """
 
 from pathlib import Path
