@@ -12,6 +12,7 @@ the ``math_macros`` configuration value, in the same shape ``mathjax4_config`` u
 either ``name: body`` or ``name: [body, number_of_arguments]``.
 """
 
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -22,10 +23,12 @@ from sphinx.util import logging
 
 logger = logging.getLogger(__name__)
 
-# Expansion repeats until nothing changes, because a macro's arguments are spliced in
-# unexpanded and only rewritten on the following pass. A handful of passes covers any
-# nesting depth the documentation uses; exceeding this means a macro expands to itself.
+# A macro's arguments are spliced in unexpanded and only rewritten on the pass after, so
+# expansion repeats until nothing changes. Exceeding this many passes means a macro
+# expands to itself, whether directly or by way of others.
 MAX_PASSES = 16
+
+_ARGUMENT = re.compile(r"#([1-9])")
 
 
 class MacroError(ValueError):
@@ -37,82 +40,77 @@ def expand(tex: str, macros: Mapping[str, Any]) -> str:
 
     Args:
         tex: TeX source, as it appears in the body of a math node.
-        macros: Macro definitions, each either a body string or a ``[body, n_args]``
-            pair, matching the shape of MathJax's own ``macros`` configuration.
+        macros: Macro definitions, each either a body or a ``[body, n_args]`` pair,
+            matching the shape of MathJax's own ``macros`` configuration.
 
     Returns:
         The source with all defined macros expanded, including inside the arguments of
         other macros.
 
     Raises:
-        MacroError: A macro is used without enough arguments, or expansion does not
-            terminate.
+        MacroError: A macro is used without enough arguments, a definition refers to an
+            argument it does not take, or expansion does not terminate.
     """
-    definitions = _definitions(macros)
     result = tex
     for _ in range(MAX_PASSES):
-        result, changed = _expand_once(result, definitions)
+        result, changed = _expand_once(result, macros)
         if not changed:
             return result
     raise MacroError(f"macro expansion did not terminate after {MAX_PASSES} passes: {tex!r}")
 
 
-def _definitions(macros: Mapping[str, Any]) -> dict[str, tuple[str, int]]:
-    """Normalize the configured macros to ``{name: (body, n_args)}``."""
-    definitions = {}
-    for name, definition in macros.items():
-        if isinstance(definition, str):
-            definitions[name] = (definition, 0)
-        elif isinstance(definition, Sequence) and len(definition) == 2:
-            body, n_args = definition
-            definitions[name] = (str(body), int(n_args))
-        else:
-            raise MacroError(f"macro {name!r} is neither a body nor a [body, n_args] pair")
-    return definitions
-
-
-def _expand_once(tex: str, definitions: Mapping[str, tuple[str, int]]) -> tuple[str, bool]:
+def _expand_once(tex: str, macros: Mapping[str, Any]) -> tuple[str, bool]:
     """Expand every macro use in ``tex`` once, returning the result and whether it changed.
 
-    The scan walks the source rather than matching a pattern, so that an escape sequence
-    consumes both of its characters. That is what keeps the ``Z`` in a line break
-    followed by ``\\Z`` from reading as the ``\\Z`` macro.
+    The scan reads a token at a time rather than matching a pattern, so that an escape
+    sequence consumes both of its characters. That is what keeps the ``Z`` of a ``\\\\``
+    line break followed by ``Z`` from reading as the ``\\Z`` macro.
     """
     out: list[str] = []
     changed = False
-    i, end = 0, len(tex)
-    while i < end:
+    i = 0
+    while i < len(tex):
         if tex[i] != "\\":
             out.append(tex[i])
             i += 1
             continue
-        name_start = i + 1
-        if name_start >= end or not tex[name_start].isalpha():
-            # An escape sequence such as ``\\``, ``\{`` or ``\%``: both characters are
-            # literal, and the second one never starts a macro name.
-            out.append(tex[i : name_start + 1])
-            i = name_start + 1
+        token, i = _read_token(tex, i)
+        # A control sequence runs to the end of its letters, so ``\Phi`` is a token of its
+        # own rather than a use of ``\P``. An escape such as ``\\`` or ``\%`` names no
+        # macro either, so both fall through to being copied unchanged.
+        name = token[1:]
+        if name not in macros:
+            out.append(token)
             continue
-        name_end = name_start
-        while name_end < end and tex[name_end].isalpha():
-            name_end += 1
-        # A macro name runs to the end of the letters, so ``\Ztest`` is its own name and
-        # not a use of ``\Z``.
-        name = tex[name_start:name_end]
-        if name not in definitions:
-            out.append(tex[i:name_end])
-            i = name_end
-            continue
-        body, n_args = definitions[name]
-        args, i = _read_args(tex, name_end, n_args, name)
-        out.append(_substitute(body, args))
+        definition = macros[name]
+        body, n_args = (definition, 0) if isinstance(definition, str) else definition
+        args, i = _read_args(tex, i, n_args, name)
+        out.append(_substitute(body, args, name))
         changed = True
     return "".join(out), changed
 
 
+def _read_token(tex: str, i: int) -> tuple[str, int]:
+    """Read the single TeX token at ``i``, returning it and the position after it.
+
+    A token is a control sequence -- a backslash and the letters following it, or a
+    backslash escaping one other character -- or else a single character.
+    """
+    if tex[i] != "\\":
+        return tex[i], i + 1
+    end = i + 1
+    while end < len(tex) and tex[end].isalpha():
+        end += 1
+    if end == i + 1:
+        # No letters followed, so the backslash escapes the single character after it --
+        # or nothing at all, at the very end of the source.
+        end = min(end + 1, len(tex))
+    return tex[i:end], end
+
+
 def _read_args(tex: str, start: int, n_args: int, name: str) -> tuple[list[str], int]:
     """Read ``n_args`` arguments of ``\\name`` from ``start``, returning them and the end."""
-    args: list[str] = []
+    args = []
     i = start
     for _ in range(n_args):
         while i < len(tex) and tex[i].isspace():
@@ -121,15 +119,9 @@ def _read_args(tex: str, start: int, n_args: int, name: str) -> tuple[list[str],
             raise MacroError(f"macro {name!r} takes {n_args} argument(s) but ran out of input")
         if tex[i] == "{":
             arg, i = _read_group(tex, i, name)
-        elif tex[i] == "\\":
-            # A single-token argument given as a control sequence, as in ``\ket\psi``.
-            token_end = i + 1
-            while token_end < len(tex) and tex[token_end].isalpha():
-                token_end += 1
-            arg = tex[i : max(token_end, i + 2)]
-            i = max(token_end, i + 2)
         else:
-            arg, i = tex[i], i + 1
+            # An unbraced argument is one token, as in ``\ket m`` or ``\ket\psi``.
+            arg, i = _read_token(tex, i)
         args.append(arg)
     return args, i
 
@@ -153,28 +145,16 @@ def _read_group(tex: str, start: int, name: str) -> tuple[str, int]:
     raise MacroError(f"macro {name!r} has an unclosed argument group")
 
 
-def _substitute(body: str, args: Sequence[str]) -> str:
+def _substitute(body: str, args: Sequence[str], name: str) -> str:
     """Return ``body`` with ``#1``, ``#2``, ... replaced by ``args``."""
-    out: list[str] = []
-    i = 0
-    while i < len(body):
-        if body[i] == "\\":
-            out.append(body[i : i + 2])
-            i += 2
-            continue
-        if body[i] == "#" and i + 1 < len(body):
-            following = body[i + 1]
-            if following == "#":
-                out.append("#")
-                i += 2
-                continue
-            if following.isdigit() and following != "0" and int(following) <= len(args):
-                out.append(args[int(following) - 1])
-                i += 2
-                continue
-        out.append(body[i])
-        i += 1
-    return "".join(out)
+
+    def replace(match: re.Match) -> str:
+        index = int(match[1])
+        if index > len(args):
+            raise MacroError(f"macro {name!r} refers to argument #{index} but takes {len(args)}")
+        return args[index - 1]
+
+    return _ARGUMENT.sub(replace, body)
 
 
 class ExpandMathMacros(SphinxPostTransform):
@@ -189,12 +169,13 @@ class ExpandMathMacros(SphinxPostTransform):
         for node in list(self.document.findall(nodes.math)) + list(
             self.document.findall(nodes.math_block)
         ):
+            tex = node.astext()
             try:
-                expanded = expand(node.astext(), macros)
+                expanded = expand(tex, macros)
             except MacroError as exc:
                 logger.warning(str(exc), location=node, type="math", subtype="macro")
                 continue
-            if expanded != node.astext():
+            if expanded != tex:
                 node.children = [nodes.Text(expanded)]
 
 

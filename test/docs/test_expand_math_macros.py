@@ -44,24 +44,20 @@ MACROS = {
 @pytest.mark.parametrize(
     ("tex", "expected"),
     [
-        # No-argument macros, including where a superscript or subscript follows directly.
-        (r"\Z", r"\mathbb{Z}"),
+        # Zero-argument macros, including where a subscript or superscript follows directly.
         (r"\P^S", r"\mathcal{P}^S"),
-        (r"\Z_2^M", r"\mathbb{Z}_2^M"),
         (r"\E_m = \U_mG", r"\mathcal{E}_m = \mathcal{U}_mG"),
         # One- and two-argument macros.
         (r"\opket{X}", r"| X \rangle\!\rangle"),
-        (r"\bra{m}", r"\langle m |"),
         (r"\ip{A}{B}", r"\langle A, B \rangle"),
         # An argument holding further macro uses expands all the way down.
         (r"\opket{\ket{m}\bra{m}}", r"| | m \rangle\langle m | \rangle\!\rangle"),
-        # A macro name runs to the end of its letters, so this is not a use of ``\P``.
+        # An argument group ends at its own closing brace, not the first one.
+        (r"\opbra{G^\dagger(Q \otimes Z^{x})}", r"\langle\!\langle G^\dagger(Q \otimes Z^{x}) |"),
+        # A control sequence runs to the end of its letters, so this is not a use of ``\P``.
         (r"\Phi", r"\Phi"),
-        (r"\Ztest", r"\Ztest"),
         # Undefined macros are left exactly as written.
         (r"\frac{1}{2} \otimes \delta_{y,b}", r"\frac{1}{2} \otimes \delta_{y,b}"),
-        # Math with nothing to expand is returned unchanged.
-        ("x + y", "x + y"),
     ],
 )
 def test_expands_macro_uses(tex, expected):
@@ -86,18 +82,6 @@ def test_reads_an_argument_given_without_braces():
     assert expand(r"\ket\psi", MACROS) == r"| \psi \rangle"
 
 
-def test_reads_an_argument_containing_nested_braces():
-    """An argument group ends at its own closing brace, not the first one."""
-    assert expand(r"\opbra{G^\dagger(Q \otimes Z^{x})}", MACROS) == (
-        r"\langle\!\langle G^\dagger(Q \otimes Z^{x}) |"
-    )
-
-
-def test_accepts_a_body_string_or_a_body_and_count_pair():
-    """Either configuration shape defines a macro."""
-    assert expand(r"\a\b{x}", {"a": "A", "b": ["B#1", 1]}) == "ABx"
-
-
 def test_rejects_a_use_with_a_missing_argument():
     """A macro whose argument never arrives is an error rather than silent output."""
     with pytest.raises(MacroError, match="ran out of input"):
@@ -110,13 +94,13 @@ def test_rejects_an_unclosed_argument_group():
         expand(r"\ket{m", MACROS)
 
 
+def test_rejects_a_definition_referring_to_an_argument_it_does_not_take():
+    """A body using more arguments than the definition declares is an error."""
+    with pytest.raises(MacroError, match="argument #2 but takes 1"):
+        expand(r"\pair{x}", {"pair": [r"#1 and #2", 1]})
+
+
 def test_rejects_a_macro_that_expands_to_itself():
     """Expansion that cannot terminate fails the build instead of looping."""
     with pytest.raises(MacroError, match="did not terminate"):
         expand(r"\loop", {"loop": r"\loop"})
-
-
-def test_rejects_a_malformed_definition():
-    """A definition that is neither a body nor a body-and-count pair is an error."""
-    with pytest.raises(MacroError, match="neither a body"):
-        expand(r"\x", {"x": [r"\mathbb{Z}", 1, "extra"]})

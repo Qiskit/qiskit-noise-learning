@@ -67,14 +67,12 @@ def prune(app: Sphinx, doctree: nodes.document) -> None:
     injected = list(doctree.findall(bibliography_node))
     if not injected:
         return
-    # The injected directive is the last one in the document, and sits alone under its
-    # own heading.
+    # Appended last, so the injected directive is the final one in the document.
     node = injected[-1]
-    parent = node.parent
-    if isinstance(parent, nodes.section) and len(parent) == 2:
-        parent.parent.remove(parent)
-    else:
-        parent.remove(node)
+    section = node.parent
+    # Take the heading with it, unless the section holds something the author wrote.
+    target = section if isinstance(section, nodes.section) and len(section) == 2 else node
+    target.parent.remove(target)
 
 
 def setup(app: Sphinx) -> dict[str, Any]:
