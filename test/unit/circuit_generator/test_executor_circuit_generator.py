@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import numpy as np
@@ -620,6 +620,41 @@ def test_collect_empty_chunk_timing():
     assert dataset["time_lbs"].shape == (2,)
     assert np.isnat(dataset["time_lbs"].values).all()
     assert np.isnat(dataset["time_ubs"].values).all()
+
+
+# elevate warnings to errors
+@pytest.mark.filterwarnings("error:no explicit representation of timezones:UserWarning")
+@pytest.mark.parametrize(
+    ("start", "expected_start"),
+    [
+        (datetime(2026, 1, 1, 0, 0, tzinfo=UTC), "2026-01-01T00:00:00"),
+        (datetime(2026, 1, 1, 0, 0, tzinfo=timezone(timedelta(hours=-4))), "2026-01-01T04:00:00"),
+        (datetime(2026, 1, 1, 0, 0), "2026-01-01T00:00:00"),
+    ],
+    ids=["aware-utc", "aware-offset", "naive"],
+)
+def test_collect_chunk_timing_times(start, expected_start):
+    """Test conversion of chunk times into time upper and lower bounds."""
+    creg_data = np.array([[[[1, 0, 1]], [[0, 1, 1]]]], dtype=np.uint8)  # 2 randomizations
+    data_mapper = ExecutorDataMapper(
+        item_sequence_indices=[[0]],
+        item_creg_names=[["meas0"]],
+        item_clbit_qubit_idxs=[{"meas0": np.array([0, 1, 2])}],
+        instruction_sequences=[InstructionSequence([], [], [], fragment_depth=0)],
+        num_randomizations=2,
+    )
+    stop = start + timedelta(minutes=1)
+    result = make_result(
+        [{"meas0": creg_data}], data_mapper, chunk_timing=[(start, stop, [(0, 2)])]
+    )
+
+    fit = ExecutorCircuitGenerator.collect(result)
+    dataset = fit.raw_data.datatree["0"].dataset
+
+    expected_lbs = np.full(2, expected_start, dtype="datetime64[us]")
+    assert dataset["time_lbs"].dtype == np.dtype("datetime64[us]")
+    np.testing.assert_array_equal(dataset["time_lbs"].values, expected_lbs)
+    np.testing.assert_array_equal(dataset["time_ubs"].values, expected_lbs + np.timedelta64(1, "m"))
 
 
 def test_collect_single_sequence_with_measurement_flips():
