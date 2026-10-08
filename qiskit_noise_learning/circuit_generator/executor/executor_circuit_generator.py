@@ -99,8 +99,8 @@ class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramRe
                 np.array([], dtype="datetime64[us]") for _ in range(len(result))
             ]
             for chunk_timing in result.metadata.chunk_timing:
-                chunk_start = np.array(chunk_timing.start, dtype="datetime64[us]")
-                chunk_stop = np.array(chunk_timing.stop, dtype="datetime64[us]")
+                chunk_start = _as_utc_datetime64(chunk_timing.start)
+                chunk_stop = _as_utc_datetime64(chunk_timing.stop)
 
                 for part in chunk_timing.parts:
                     program_item_time_lbs[part.idx_item] = np.append(
