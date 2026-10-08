@@ -1,8 +1,5 @@
 """Expand TeX macros in a string, the way MathJax would expand them in a browser.
 
-Macros are given in the shape MathJax's own ``macros`` configuration uses: either
-``name: body`` or ``name: [body, number_of_arguments]``.
-
 This module is plain string handling with no Sphinx or docutils involvement, so it can be
 tested without the documentation toolchain installed.
 """
