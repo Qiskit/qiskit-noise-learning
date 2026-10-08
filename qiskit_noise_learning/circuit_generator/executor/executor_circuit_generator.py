@@ -107,7 +107,7 @@ class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramRe
                         program_item_time_lbs[part.idx_item], [chunk_start] * part.size
                     )
                     program_item_time_ubs[part.idx_item] = np.append(
-                        program_item_time_lbs[part.idx_item], [chunk_stop] * part.size
+                        program_item_time_ubs[part.idx_item], [chunk_stop] * part.size
                     )
         else:
             num_seqs_per_item = max(
