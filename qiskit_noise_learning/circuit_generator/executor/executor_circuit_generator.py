@@ -10,6 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
+from datetime import UTC, datetime
 from itertools import chain, count
 
 import numpy as np
@@ -33,6 +34,21 @@ from .executor_data_mapper import ExecutorDataMapper
 
 TO_SAMPLOMATIC_C1 = np.array([0, 7, 9, 13, 18, 22], dtype=np.uint8)
 """An array elements of :const:`~C1_TO_TABLEAU` to corresponding value in samplomatic."""
+
+
+def _as_utc_datetime64(value: datetime) -> np.datetime64:
+    """Convert a runtime timestamp to a microsecond ``datetime64``, in UTC and without a timezone.
+
+    Args:
+        value: The timestamp to convert. A time-zone aware datetime is converted to UTC; a naive one
+            is taken to be UTC already.
+
+    Returns:
+        The equivalent ``datetime64[us]``.
+    """
+    if value.tzinfo is not None:
+        value = value.astimezone(UTC).replace(tzinfo=None)
+    return np.datetime64(value, "us")
 
 
 class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramResult]):
