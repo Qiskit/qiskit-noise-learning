@@ -61,7 +61,7 @@ qiskit_noise_learning/   # Main package
   gate_sets/
   math/
   models/
-  noise_learner/
+  protocols/
   sequences/
   utils/
   visualizations/

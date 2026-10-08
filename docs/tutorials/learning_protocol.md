@@ -10,24 +10,26 @@ kernelspec:
   name: python3
 ---
 
-# Learn the noise model of a gate with NoiseLearner
+# Learn the noise model of a gate
 
-This guide demonstrates using {class}`~.NoiseLearner` to learn a noise model for a
-unitary gate.
+This tutorial demonstrates learning a noise model for a unitary gate with a standard learning
+protocol accessible through the high-level protocol functions {func}`~.prepare_learning_program` and
+{func}`~.process_learning_result`.
 
 1. Define the gate
 2. Set up local simulation
-3. Run the learner
-4. Read the results
+3. Prepare the quantum program
+4. Run the quantum program
+5. Read the results
 
 :::{admonition} Running on real hardware
 :class: note
 
-The circuits below are simulated locally, so this walkthrough needs no IBM Quantum&reg; credentials. Two
-changes take it to a real device, each flagged again where it applies:
+The circuits below are simulated locally, so this walkthrough needs no IBM Quantum&reg;
+credentials. Two changes take it to a real device, each flagged again where it applies:
 
 * **Step 1**: replace {class}`~qiskit_ibm_runtime.fake_provider.FakeMarrakesh` with a real backend.
-* **Step 2**: skip it, and drop the `executor` argument in step 3.
+* **Step 2**: skip it, and submit through {class}`~qiskit_ibm_runtime.Executor` in step 4.
 :::
 
 ## 1. Define the gate
@@ -117,58 +119,70 @@ executor = AerExecutor(
 Skip this step entirely.
 :::
 
-## 3. Run the learner
+## 3. Prepare the quantum program
 
-{class}`~.LearningOptions` controls the shape of the experiment: how deep the twirled gate is
-repeated, and how many randomizations and shots are spent at each depth. Passing `executor` diverts
-the generated program to the simulator; leave it out and {class}`~.NoiseLearner` submits to
-`backend` through IBM Quantum instead.
+Use {func}`~.prepare_learning_program` to build the quantum program containin gthe learning
+experiments.
 
 ```{code-cell} python
-from qiskit_noise_learning.noise_learner import LearningOptions, NoiseLearner
+from qiskit_noise_learning.protocols import prepare_learning_program
 
-options = LearningOptions(
+program = prepare_learning_program(
+    backend,
+    [circuit[0]],
     fragment_depths=[2, 16, 64, 128],
     num_randomizations=50,
     shots_per_randomization=20,
 )
 
-learner = NoiseLearner(backend, options=options, executor=executor)
+print(f"Number of template circuits: {len(program.items)}")
+```
 
-job = learner.run([circuit[0]])
-result = job.result()
+## 4. Run the quantum program
+
+Submit the quantum program to your backend of choice. Here, we use the simulated executor; to
+simulate against a real device use {class}`~qiskit_ibm_runtime.Executor`.
+
+```{code-cell} python
+result = executor.run(program).result()
 ```
 
 :::{admonition} Running on real hardware
 :class: note
 
 ```python
-learner = NoiseLearner(backend, options=options)
+from qiskit_ibm_runtime import Executor
+
+result = Executor(mode=backend).run(program).result()
 ```
 :::
 
-## 4. Read the results
+## 5. Read the results
 
-Everything the analysis pipeline produced is reachable through {attr}`~.NoiseLearnerResult.fit`.
+Process the result with {func}`~.process_learning_result`, obstaining a {class}`~.Fit` object.
+
+```{code-cell} python
+from qiskit_noise_learning.protocols import process_learning_result
+
+fit = process_learning_result(result)
+```
+
 Use the fit to plot per-qubit-pair fidelity decays: both the data and the exponential fit.
 
 ```{code-cell} python
-result.fit.plot_qubit_pair_decays(
+fit.plot_qubit_pair_decays(
     pairs=cz_pairs,
     observable_type="means",
     exponential_fit=True,
 )
 ```
 
-Extract the learned noise from {meth}`~.NoiseLearnerResult.to_dict`: one
-{class}`~qiskit.quantum_info.PauliLindbladMap` per learned gate, keyed by the name from the
-`InjectNoise` annotation, and expressed in the backend's own qubit indexing rather than that of the gate.
+Read out the learned noise, keyed by the name from the `InjectNoise` annotation.
 
 ```{code-cell} python
-learned = result.to_dict()["cz_gate"]
+from qiskit_noise_learning.models import split_pauli_lindblad_model
+
+pauli_lindblad_model = split_pauli_lindblad_model(fit.model).model
+learned = pauli_lindblad_model.to_pauli_lindblad_maps(fit.model_data)["cz_gate"]
 learned.num_terms
 ```
-
-By default {class}`~.NoiseLearner` fits a 2-local model, so the map carries a term for every Pauli
-supported on a connected pair of the gate's qubits &mdash; 144 of them, of which only 24 were given a
-nonzero rate in step 2.

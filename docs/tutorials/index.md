@@ -3,6 +3,6 @@
 ```{toctree}
 :maxdepth: 1
 
-noise_learner
+learning_protocol
 workflow
 ```
