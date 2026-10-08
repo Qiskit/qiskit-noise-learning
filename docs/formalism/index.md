@@ -222,8 +222,3 @@ result.
 
 See {cite}`zhang_generalized_2025` for development beyond this point: the definition of the PTG,
 paths through the PTG, and the proof that any properly-defined path corresponds to an experiment.
-
-## References
-
-```{bibliography}
-```
