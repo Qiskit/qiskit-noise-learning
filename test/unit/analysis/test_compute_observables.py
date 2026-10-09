@@ -123,6 +123,22 @@ class TestEv:
         ev = compute_expectation_value(bits, flips, shot_mask, bit_mask, signs)
         assert np.isnan(ev).all()
 
+    def test_masked_shots_leave_the_average(self):
+        """Masked shots are excluded from the average, denominator included.
+
+        Two of the four shots would give ``-1`` and are masked, so an average over the two kept
+        shots is ``1``, where dividing by all four shots would give ``0.5``.
+        """
+        bits = np.zeros((1, 4, 1), dtype=bool)
+        bits[0, 2:] = True
+        flips = np.zeros((1, 1), dtype=bool)
+        shot_mask = np.zeros((1, 4), dtype=bool)
+        shot_mask[0, 2:] = True
+        bit_mask = np.array([True])
+        signs = np.ones((1,), dtype=int)
+        ev = compute_expectation_value(bits, flips, shot_mask, bit_mask, signs)
+        assert ev == pytest.approx(np.array([1.0]))
+
     def test_masking_is_per_randomization(self):
         """One fully masked randomization gives nan without affecting others."""
         # randomization 0 is all-zero bits (ev=1 if it were computed), randomization 1 is all-one
