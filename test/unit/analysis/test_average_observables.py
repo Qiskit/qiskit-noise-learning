@@ -22,7 +22,7 @@ from qiskit_noise_learning.data import ObservableData
 def _single_group(path, observable_values, time_lbs=None, time_ubs=None):
     """Observable data whose observables all share one path and fragment depth."""
     observable_values = np.asarray(observable_values, dtype=float)
-    unset = np.full(observable_values.shape, np.datetime64("NaT"), dtype="datetime64[us]")
+    unset = np.full(observable_values.shape, np.datetime64("NaT", "us"), dtype="datetime64[us]")
     return ObservableData.from_arrays(
         unbound_paths=[path] * len(observable_values),
         fragment_depths=[1] * len(observable_values),
