@@ -101,3 +101,11 @@ class TestAverageObservables:
 
         assert dataset["time_lbs"].data[0] == np.datetime64("2026-01-01")
         assert dataset["time_ubs"].data[0] == np.datetime64("2026-01-06")
+
+    def test_absent_requested_path_raises(self, make_cz_path):
+        """A requested path with no observables is a caller error, reported by position."""
+        present, absent = make_cz_path("XI"), make_cz_path("IX")
+        obs = _single_group(present, [[0.2, 0.4]])
+
+        with pytest.raises(ValueError, match=r"1 of 2 requested unbound path\(s\).*: 1\."):
+            average_observables(obs, unique_unbound_paths=[present, absent])
