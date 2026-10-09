@@ -10,6 +10,8 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
+from collections.abc import Iterable
+
 import numpy as np
 
 from qiskit_noise_learning.analysis import AnalysisStage
@@ -34,19 +36,23 @@ class AverageObservables(AnalysisStage):
 
 
 def average_observables(
-    observable_data: ObservableData, unique_unbound_paths: set[Path] | None = None
+    observable_data: ObservableData, unique_unbound_paths: Iterable[Path] | None = None
 ) -> AggregatedObservableData:
     """Compute averaged observables for the paths.
 
+    The returned observables are ordered by ``unique_unbound_paths``, and by ascending fragment
+    depth within each path.
+
     Args:
         observable_data: The observable data.
-        unique_unbound_paths: A set of unbound paths to compute the averaged
-            observables for. Defaults to all unbound paths in the observable data.
+        unique_unbound_paths: The unbound paths to compute the averaged observables for, whose
+            order the output follows. Defaults to all unbound paths in the observable data, in the
+            order they first appear in it.
     """
 
     dataset = observable_data.dataset
     if unique_unbound_paths is None:
-        unique_unbound_paths = set(dataset["unbound_path"].data)
+        unique_unbound_paths = list(dict.fromkeys(dataset["unbound_path"].data))
 
     obs_unbound_paths = []
     obs_fragment_depths = []

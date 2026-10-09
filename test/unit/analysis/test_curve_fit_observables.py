@@ -39,6 +39,32 @@ class TestCurveFitObservables:
         assert np.isclose(ds["metadata"].data[mask][0]["spam_fidelity"], a_true, atol=0.02)
         assert np.isclose(ds["estimate_values"].data[mask][0], f_true, atol=0.02)
 
+    def test_decay_order_follows_first_seen_paths(self, make_cz_path, make_observable_data):
+        """Decay rows are ordered by first appearance of their path in the observable data."""
+        paths = [make_cz_path(label) for label in ("XI", "IX", "XX", "YI", "IY")]
+        obs = make_observable_data([(path, 0.9, 0.8, [1, 2, 3]) for path in paths])
+
+        ds = _run_stage(obs).aggregated_observable_data.dataset
+
+        assert list(ds["unbound_path"].data) == paths
+        assert list(ds["fragment_depth"].data) == [-1] * len(paths)
+
+    def test_single_fragment_depth_order_follows_first_seen_paths(
+        self, make_cz_path, make_observable_data
+    ):
+        """Averaged rows for single-depth paths keep first-seen order, after the decay rows."""
+        decay_paths = [make_cz_path(label) for label in ("XI", "IX")]
+        single_paths = [make_cz_path(label) for label in ("XX", "YI", "IY")]
+        obs = make_observable_data(
+            [(path, 0.9, 0.8, [1, 2, 3]) for path in decay_paths]
+            + [(path, 0.9, 0.8, [1]) for path in single_paths]
+        )
+
+        ds = _run_stage(obs).aggregated_observable_data.dataset
+
+        assert list(ds["unbound_path"].data) == decay_paths + single_paths
+        assert list(ds["fragment_depth"].data) == [-1, -1, 1, 1, 1]
+
     def test_multiple_unbound_paths(self, make_cz_path, make_observable_data):
         """Test fitting multiple unbound paths."""
         pp0, pp1 = make_cz_path("IX"), make_cz_path("XI")
