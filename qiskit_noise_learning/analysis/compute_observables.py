@@ -174,9 +174,9 @@ class ComputeObservables(AnalysisStage):
         observable_array = np.empty((observable_count, max_num_randomizations), dtype=float)
         observable_array[:] = np.nan
         time_lbs = np.empty((observable_count, max_num_randomizations), dtype="datetime64[us]")
-        time_lbs[:] = np.datetime64("NaT")
+        time_lbs[:] = np.datetime64("NaT", "us")
         time_ubs = np.empty((observable_count, max_num_randomizations), dtype="datetime64[us]")
-        time_ubs[:] = np.datetime64("NaT")
+        time_ubs[:] = np.datetime64("NaT", "us")
         unbound_path_coord = np.empty(observable_count, dtype=object)
         fragment_depth_coord = np.empty(observable_count, dtype=int)
 

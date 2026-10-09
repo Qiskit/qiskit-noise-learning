@@ -29,7 +29,7 @@ def time_bound(times: np.ndarray, kind: str) -> np.datetime64:
     flat = times.flatten()
     valid = flat[~np.isnat(flat)]
     if len(valid) == 0:
-        return np.datetime64("NaT")
+        return np.datetime64("NaT", np.datetime_data(times.dtype))
     return np.min(valid) if kind == "min" else np.max(valid)
 
 
