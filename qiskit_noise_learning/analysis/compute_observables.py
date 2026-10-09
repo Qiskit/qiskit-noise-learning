@@ -205,20 +205,12 @@ class ComputeObservables(AnalysisStage):
                     fragment_depth_coord[observable_idx] = fragment_depth
                     observable_idx += 1
 
-        fit[ObservableData] = ObservableData(
-            dataset=xr.Dataset(
-                data_vars={
-                    "observable_values": xr.DataArray(
-                        data=observable_array, dims=["observable", "randomization"]
-                    ),
-                    "time_lbs": xr.DataArray(data=time_lbs, dims=["observable", "randomization"]),
-                    "time_ubs": xr.DataArray(data=time_ubs, dims=["observable", "randomization"]),
-                },
-                coords={
-                    "unbound_path": (("observable",), unbound_path_coord),
-                    "fragment_depth": (("observable",), fragment_depth_coord),
-                },
-            )
+        fit[ObservableData] = ObservableData.from_arrays(
+            unbound_paths=unbound_path_coord,
+            fragment_depths=fragment_depth_coord,
+            observable_values=observable_array,
+            time_lbs=time_lbs,
+            time_ubs=time_ubs,
         )
 
 
