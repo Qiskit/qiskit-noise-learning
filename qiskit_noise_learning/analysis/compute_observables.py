@@ -227,7 +227,7 @@ def compute_expectation_value(
         bits: A record of the measured bits, with dimensions ``(randomization, shots, bits)``.
         flips: Specification of required flips on bits ``(randomization, bits)``.
         shot_mask: A boolean mask on the ``(randomization, shots)`` dimensions, where ``True``
-            marks a shot to exclude, following the ``numpy.ma`` convention.
+            marks a shot to exclude.
         bit_mask: A boolean mask spanning the full ``(bit,)`` dimension of ``bits``, where ``True``
             selects a bit to include, so that the parity of the selected bits gives the observable.
             Note that this is the opposite convention to ``shot_mask``.
@@ -237,13 +237,21 @@ def compute_expectation_value(
         Expectation values with dimension ``(randomization,)``. A randomization whose every shot is
         masked has no data to average, and is returned as ``nan``.
     """
-    corrected_bits = (bits ^ flips[:, np.newaxis, :])[..., bit_mask]
-    broadcasted_shot_mask = np.broadcast_to(shot_mask[:, :, np.newaxis], corrected_bits.shape)
-    masked_arr = np.ma.array(corrected_bits, mask=broadcasted_shot_mask)
-    per_sample = 1 - 2 * np.mod(np.sum(masked_arr, axis=-1), 2)
+    # Selecting the observable's bits before undoing their flips keeps the xor to the handful of
+    # bits the parity needs, rather than the full width of every classical register.
+    selected_bits = bits[..., bit_mask] ^ flips[:, np.newaxis, bit_mask]
+    parities = np.bitwise_xor.reduce(selected_bits, axis=-1)
+    per_shot = np.where(parities, -1.0, 1.0)
 
-    # fill fully-masked randomizations with nan
-    return np.ma.filled(signs * per_sample.mean(axis=-1), np.nan)
+    kept = ~shot_mask
+    num_kept = kept.sum(axis=-1)
+    totals = np.where(kept, per_shot, 0.0).sum(axis=-1)
+
+    # A randomization with no kept shots has nothing to average, and keeps its nan.
+    means = np.full(num_kept.shape, np.nan)
+    np.divide(totals, num_kept, out=means, where=num_kept > 0)
+
+    return signs * means
 
 
 def observable_bit_mask(
