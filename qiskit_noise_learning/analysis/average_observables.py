@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-from collections.abc import Iterable
+from collections.abc import Sequence
 
 import numpy as np
 
@@ -92,7 +92,7 @@ def _group_estimate(observable_values: np.ndarray) -> tuple[float, float]:
 
 
 def average_observables(
-    observable_data: ObservableData, unique_unbound_paths: Iterable[Path] | None = None
+    observable_data: ObservableData, unique_unbound_paths: Sequence[Path] | None = None
 ) -> AggregatedObservableData:
     """Compute averaged observables for the paths.
 
@@ -102,8 +102,12 @@ def average_observables(
     Args:
         observable_data: The observable data.
         unique_unbound_paths: The unbound paths to compute the averaged observables for, whose
-            order the output follows. Defaults to all unbound paths in the observable data, in the
-            order they first appear in it.
+            order the output follows. Every one of them must be present in the observable data.
+            Defaults to all unbound paths in the observable data, in the order they first appear
+            in it.
+
+    Raises:
+        ValueError: If a requested unbound path is not present in the observable data.
     """
 
     dataset = observable_data.dataset
@@ -112,6 +116,20 @@ def average_observables(
     )
     if unique_unbound_paths is None:
         unique_unbound_paths = list(rows_by_path)
+    else:
+        missing = [
+            position
+            for position, unbound_path in enumerate(unique_unbound_paths)
+            if unbound_path not in rows_by_path
+        ]
+        if missing:
+            shown = ", ".join(str(position) for position in missing[:10])
+            if len(missing) > 10:
+                shown += f", and {len(missing) - 10} more"
+            raise ValueError(
+                f"{len(missing)} of {len(unique_unbound_paths)} requested unbound path(s) are not "
+                f"present in the observable data. Positions in unique_unbound_paths: {shown}."
+            )
 
     observable_values = dataset["observable_values"].data
     all_time_lbs = dataset["time_lbs"].data
@@ -124,9 +142,8 @@ def average_observables(
     obs_time_lbs = []
     obs_time_ubs = []
 
-    # A requested path absent from the data contributes no observables, rather than raising.
     for unbound_path in unique_unbound_paths:
-        for fragment_depth, rows in rows_by_path.get(unbound_path, {}).items():
+        for fragment_depth, rows in rows_by_path[unbound_path].items():
             mean, std = _group_estimate(observable_values[rows])
 
             obs_unbound_paths.append(unbound_path)
