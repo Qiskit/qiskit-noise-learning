@@ -49,7 +49,7 @@ class CurveFitObservables(AnalysisStage):
     def _run(self, fit):
         observable_data = fit.observable_data
         dataset = observable_data.dataset
-        unique_unbound_paths = list(set(dataset["unbound_path"].data))
+        unique_unbound_paths = list(dict.fromkeys(dataset["unbound_path"].data))
 
         # Determine which paths should be curve-fit vs averaged
         curve_fit_paths = {p for p in fit.paths if p.is_unbound} if fit.paths else set()
@@ -65,8 +65,8 @@ class CurveFitObservables(AnalysisStage):
         decay_time_lbs_out = []
         decay_time_ubs_out = []
 
-        # for accumulating single-fragment-depth paths
-        single_fragment_depth_paths = set()
+        # for accumulating single-fragment-depth paths, in the order they are encountered
+        single_fragment_depth_paths = []
 
         for path in unique_unbound_paths:
             path_mask = dataset["unbound_path"].data == path
@@ -76,7 +76,7 @@ class CurveFitObservables(AnalysisStage):
 
             if curve_fit_paths:
                 if path not in curve_fit_paths:
-                    single_fragment_depth_paths.add(path)
+                    single_fragment_depth_paths.append(path)
                     continue
                 if len(unique_fragment_depths) <= 1:
                     raise ValueError(
@@ -84,7 +84,7 @@ class CurveFitObservables(AnalysisStage):
                         "fragment depth(s). At least 2 fragment depths are required."
                     )
             elif len(unique_fragment_depths) <= 1:
-                single_fragment_depth_paths.add(path)
+                single_fragment_depth_paths.append(path)
                 continue
 
             fragment_depths_list = []
