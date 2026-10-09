@@ -98,6 +98,19 @@ If you change anything that affects tutorial *output*, remove `docs/_build` befo
 rm -rf docs/_build
 ```
 
+### Citations
+
+References live in `docs/refs.bib`. Cite one with the `cite` role — `` {cite}`key` `` in MyST
+Markdown, or `` :cite:`key` `` in reStructuredText and in docstrings.
+**Do not write a `bibliography` directive.** A "References" section is appended to every page that
+cites something, listing that page's own citations and numbering them in order of first use. Pages
+that cite nothing get no section.
+
+### Math macros
+
+The macros defined in `math_macros` in `docs/conf.py` are available in any math, docstrings
+included; add new ones there.
+
 ## Changelog
 
 We use [Towncrier](https://towncrier.readthedocs.io/) for changelog management. All PRs that make a

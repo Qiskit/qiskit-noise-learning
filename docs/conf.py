@@ -1,6 +1,12 @@
 """Sphinx configuration for the qiskit-noise-learning documentation."""
 
+import sys
+from pathlib import Path
+
 import qiskit_noise_learning
+
+# Local extensions, which reshape the build output for the published documentation site.
+sys.path.insert(0, str(Path(__file__).parent / "_ext"))
 
 # -- Project information -----------------------------------------------------
 
@@ -25,6 +31,10 @@ extensions = [
     "sphinxcontrib.bibtex",
     "sphinx_proof",
     "qiskit_sphinx_theme",
+    # The published site ingests this build's HTML rather than building its own, and
+    # supports neither TeX macros nor a bibliography shared between pages.
+    "expand_math_macros",
+    "auto_references",
 ]
 
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
@@ -87,27 +97,40 @@ nb_output_stderr = "show"
 
 bibtex_bibfiles = ["refs.bib"]
 
+# Number the references in order of first citation, as a paper does.  "unsrt" leaves the label
+# and sorting styles unset, which resolve to pybtex's "number" and "none" plugins.
+bibtex_default_style = "unsrt"
+
+# Every page carries its own bibliography (see the auto_references extension), so a work cited
+# on two pages legitimately appears in two of them.  sphinxcontrib-bibtex reports that as a
+# duplicate, and -W would turn it into a build failure.  A key duplicated *within* one page is a
+# separate subtype, "duplicate_local_citation", and still fails.
+suppress_warnings = ["bibtex.duplicate_citation", "bibtex.duplicate_label"]
+
 # -- Math --------------------------------------------------------------------
 
-mathjax4_config = {
-    "tex": {
-        "macros": {
-            # No-argument macros.
-            "Z": r"\mathbb{Z}",
-            "E": r"\mathcal{E}",
-            "P": r"\mathcal{P}",
-            "U": r"\mathcal{U}",
-            # Macros with arguments: [replacement, number-of-args].
-            "ip": [r"\langle #1, #2 \rangle", 2],
-            "bra": [r"\langle #1 |", 1],
-            "ket": [r"| #1 \rangle", 1],
-            "opbra": [r"\langle\!\langle #1 |", 1],
-            "opket": [r"| #1 \rangle\!\rangle", 1],
-        }
-    },
+# Expanded into the math itself by the expand_math_macros extension, so no definitions reach
+# the HTML.  Deliberately not also declared to MathJax: a local build then renders exactly what
+# the published page will, so anything the expansion misses is visible here as a MathJax error
+# rather than only after the site ingests the build.
+math_macros = {
+    # No-argument macros.
+    "Z": r"\mathbb{Z}",
+    "E": r"\mathcal{E}",
+    "P": r"\mathcal{P}",
+    "U": r"\mathcal{U}",
+    # Macros with arguments: [replacement, number-of-args].
+    "ip": [r"\langle #1, #2 \rangle", 2],
+    "bra": [r"\langle #1 |", 1],
+    "ket": [r"| #1 \rangle", 1],
+    "opbra": [r"\langle\!\langle #1 |", 1],
+    "opket": [r"| #1 \rangle\!\rangle", 1],
 }
 
 # -- HTML output -------------------------------------------------------------
 
 html_theme = "qiskit-ecosystem"
 html_title = f"{project} {release}"
+# sphinx-proof registers a "Proof Index" domain index (prf-prf.html) that isn't linked
+# from anywhere in the addon nav this suppresses the page generation for the docs website
+html_domain_indices = ["py-modindex"]
