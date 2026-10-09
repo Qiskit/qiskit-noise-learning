@@ -35,6 +35,62 @@ class AverageObservables(AnalysisStage):
         fit[AggregatedObservableData] = average_observables(fit.observable_data)
 
 
+def _group_rows_by_path_and_depth(
+    unbound_paths: np.ndarray, fragment_depths: np.ndarray
+) -> dict[Path, dict[int, np.ndarray]]:
+    """Group observable row indices by unbound path, and then by fragment depth.
+
+    A single pass over the label columns, replacing a boolean-mask dataset selection per path. The
+    paths are keyed in the order they first appear and each path's fragment depths are ascending,
+    which are the two orderings the aggregated output follows.
+
+    Args:
+        unbound_paths: The unbound path of each observable.
+        fragment_depths: The fragment depth of each observable.
+
+    Returns:
+        A mapping from unbound path to a mapping from fragment depth to the indices of the
+        observables having that path and depth.
+    """
+    rows: dict[Path, dict[int, list[int]]] = {}
+    for row, (unbound_path, fragment_depth) in enumerate(zip(unbound_paths, fragment_depths)):
+        rows.setdefault(unbound_path, {}).setdefault(int(fragment_depth), []).append(row)
+
+    return {
+        unbound_path: {
+            fragment_depth: np.array(depth_rows, dtype=int)
+            for fragment_depth, depth_rows in sorted(by_depth.items())
+        }
+        for unbound_path, by_depth in rows.items()
+    }
+
+
+def _group_estimate(observable_values: np.ndarray) -> tuple[float, float]:
+    """Estimate one group of observables, pooling their randomizations.
+
+    Args:
+        observable_values: Values of every observable and randomization in the group. Entries of
+            ``nan`` are padding of the ragged randomization dimension, and are excluded.
+
+    Returns:
+        The mean of the usable values, and its standard deviation. A single usable value has no
+        sample spread, so its uncertainty is read from the mean as a binomial proportion, and a
+        group with no usable values gives ``(nan, nan)``.
+    """
+    values = observable_values.flatten()
+    values = values[~np.isnan(values)]
+
+    if values.size == 0:
+        return float("nan"), float("nan")
+
+    mean = float(np.mean(values))
+    if values.size == 1:
+        p = (mean + 1) / 2
+        return mean, float(np.sqrt(p * (1 - p)))
+
+    return mean, float(np.std(values, ddof=1) / np.sqrt(values.size))
+
+
 def average_observables(
     observable_data: ObservableData, unique_unbound_paths: Iterable[Path] | None = None
 ) -> AggregatedObservableData:
@@ -51,8 +107,15 @@ def average_observables(
     """
 
     dataset = observable_data.dataset
+    rows_by_path = _group_rows_by_path_and_depth(
+        dataset["unbound_path"].data, dataset["fragment_depth"].data
+    )
     if unique_unbound_paths is None:
-        unique_unbound_paths = list(dict.fromkeys(dataset["unbound_path"].data))
+        unique_unbound_paths = list(rows_by_path)
+
+    observable_values = dataset["observable_values"].data
+    all_time_lbs = dataset["time_lbs"].data
+    all_time_ubs = dataset["time_ubs"].data
 
     obs_unbound_paths = []
     obs_fragment_depths = []
@@ -61,30 +124,17 @@ def average_observables(
     obs_time_lbs = []
     obs_time_ubs = []
 
+    # A requested path absent from the data contributes no observables, rather than raising.
     for unbound_path in unique_unbound_paths:
-        path_mask = dataset["unbound_path"].data == unbound_path
-        path_dataset = dataset.sel({"observable": path_mask})
-
-        for fragment_depth in sorted(set(path_dataset["fragment_depth"].data)):
-            fragment_depth_mask = path_dataset["fragment_depth"].data == fragment_depth
-            values = path_dataset["observable_values"].data[fragment_depth_mask].flatten()
-            values = values[~np.isnan(values)]
+        for fragment_depth, rows in rows_by_path.get(unbound_path, {}).items():
+            mean, std = _group_estimate(observable_values[rows])
 
             obs_unbound_paths.append(unbound_path)
             obs_fragment_depths.append(fragment_depth)
-            obs_means.append(float(np.nanmean(values)))
-            if values.size <= 1:
-                p = (obs_means[-1] + 1) / 2
-                obs_stds.append(np.sqrt(p * (1 - p)))
-            else:
-                obs_stds.append(float(np.std(values, ddof=1) / np.sqrt(values.size)))
-
-            obs_time_lbs.append(
-                time_bound(path_dataset["time_lbs"].data[fragment_depth_mask], "min")
-            )
-            obs_time_ubs.append(
-                time_bound(path_dataset["time_ubs"].data[fragment_depth_mask], "max")
-            )
+            obs_means.append(mean)
+            obs_stds.append(std)
+            obs_time_lbs.append(time_bound(all_time_lbs[rows], "min"))
+            obs_time_ubs.append(time_bound(all_time_ubs[rows], "max"))
 
     return AggregatedObservableData.from_arrays(
         unbound_paths=np.array(obs_unbound_paths, dtype=object),

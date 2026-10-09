@@ -16,7 +16,11 @@ import numpy as np
 import scipy.optimize as opt
 
 from qiskit_noise_learning.analysis import AnalysisStage
-from qiskit_noise_learning.analysis.average_observables import average_observables
+from qiskit_noise_learning.analysis.average_observables import (
+    _group_estimate,
+    _group_rows_by_path_and_depth,
+    average_observables,
+)
 from qiskit_noise_learning.data import AggregatedObservableData, ObservableData
 from qiskit_noise_learning.data.xarray_utils import time_bound
 
@@ -49,7 +53,12 @@ class CurveFitObservables(AnalysisStage):
     def _run(self, fit):
         observable_data = fit.observable_data
         dataset = observable_data.dataset
-        unique_unbound_paths = list(dict.fromkeys(dataset["unbound_path"].data))
+        rows_by_path = _group_rows_by_path_and_depth(
+            dataset["unbound_path"].data, dataset["fragment_depth"].data
+        )
+        observable_values = dataset["observable_values"].data
+        all_time_lbs = dataset["time_lbs"].data
+        all_time_ubs = dataset["time_ubs"].data
 
         # Determine which paths should be curve-fit vs averaged
         curve_fit_paths = {p for p in fit.paths if p.is_unbound} if fit.paths else set()
@@ -68,11 +77,8 @@ class CurveFitObservables(AnalysisStage):
         # for accumulating single-fragment-depth paths, in the order they are encountered
         single_fragment_depth_paths = []
 
-        for path in unique_unbound_paths:
-            path_mask = dataset["unbound_path"].data == path
-            path_dataset = dataset.sel({"observable": path_mask})
-
-            unique_fragment_depths = sorted(set(path_dataset["fragment_depth"].data))
+        for path, rows_by_depth in rows_by_path.items():
+            unique_fragment_depths = list(rows_by_depth)
 
             if curve_fit_paths:
                 if path not in curve_fit_paths:
@@ -87,27 +93,15 @@ class CurveFitObservables(AnalysisStage):
                 single_fragment_depth_paths.append(path)
                 continue
 
-            fragment_depths_list = []
             means_list = []
             stds_list = []
 
-            for fragment_depth in unique_fragment_depths:
-                fragment_depth_mask = path_dataset["fragment_depth"].data == fragment_depth
-                values = path_dataset["observable_values"].data[fragment_depth_mask].flatten()
-                values = values[~np.isnan(values)]
-
-                mean = float(np.mean(values))
-                if values.size == 1:
-                    p = (mean + 1) / 2
-                    std = np.sqrt(p * (1 - p))
-                else:
-                    std = np.std(values, ddof=1) / np.sqrt(values.size)
-
-                fragment_depths_list.append(fragment_depth)
+            for rows in rows_by_depth.values():
+                mean, std = _group_estimate(observable_values[rows])
                 means_list.append(mean)
                 stds_list.append(std)
 
-            fragment_depths_arr = np.array(fragment_depths_list, dtype=float)
+            fragment_depths_arr = np.array(unique_fragment_depths, dtype=float)
             means_arr = np.array(means_list, dtype=float)
             stds_arr = np.array(stds_list, dtype=float)
 
@@ -127,8 +121,10 @@ class CurveFitObservables(AnalysisStage):
             chi_squareds.append(chisq)
             reduced_chi_squareds.append(reduced_chisq)
 
-            decay_time_lbs_out.append(time_bound(path_dataset["time_lbs"].data, "min"))
-            decay_time_ubs_out.append(time_bound(path_dataset["time_ubs"].data, "max"))
+            # The decay's time bounds span every fragment depth of the path, not just one.
+            path_rows = np.concatenate(list(rows_by_depth.values()))
+            decay_time_lbs_out.append(time_bound(all_time_lbs[path_rows], "min"))
+            decay_time_ubs_out.append(time_bound(all_time_ubs[path_rows], "max"))
 
         decay_data = AggregatedObservableData.from_arrays(
             unbound_paths=decay_paths,
