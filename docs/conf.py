@@ -131,3 +131,6 @@ math_macros = {
 
 html_theme = "qiskit-ecosystem"
 html_title = f"{project} {release}"
+# sphinx-proof registers a "Proof Index" domain index (prf-prf.html) that isn't linked
+# from anywhere in the addon nav this suppresses the page generation for the docs website
+html_domain_indices = ["py-modindex"]
