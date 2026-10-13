@@ -17,8 +17,8 @@ from qiskit.circuit import QuantumCircuit
 from qiskit.quantum_info import PauliLindbladMap
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime.fake_provider.backends.fez import FakeFez
-from qiskit_ibm_runtime.results import QuantumProgramResult
 from samplomatic import InjectNoise, Twirl
+from samplomatic.quantum_program import QuantumProgramResult
 
 from qiskit_noise_learning.aer_executor import AerExecutor
 from qiskit_noise_learning.analysis import (

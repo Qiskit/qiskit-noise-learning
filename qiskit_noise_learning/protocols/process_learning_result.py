@@ -12,7 +12,7 @@
 
 """Analysis of a noise learning result."""
 
-from qiskit_ibm_runtime.results import QuantumProgramResult
+from samplomatic.quantum_program import QuantumProgramResult
 
 from ..analysis import (
     AnalysisPipeline,

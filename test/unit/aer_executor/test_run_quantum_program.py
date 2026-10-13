@@ -21,7 +21,7 @@ from qiskit.primitives.containers.bindings_array import BindingsArray
 from qiskit.quantum_info import PauliList
 from qiskit_aer.noise import PauliLindbladError
 from qiskit_aer.primitives import SamplerV2 as AerSamplerV2
-from qiskit_ibm_runtime.quantum_program import QuantumProgram
+from samplomatic.quantum_program import QuantumProgram
 
 from qiskit_noise_learning.aer_executor.run_quantum_program import run_quantum_program
 

@@ -16,8 +16,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from qiskit import QuantumCircuit
-from qiskit_ibm_runtime.results import QuantumProgramResult
 from samplomatic import Twirl
+from samplomatic.quantum_program import QuantumProgramResult
 
 from qiskit_noise_learning.circuit_generator import ExecutorCircuitGenerator, ExecutorDataMapper
 from qiskit_noise_learning.circuit_generator.executor.data_mapper_serialization import dump, load

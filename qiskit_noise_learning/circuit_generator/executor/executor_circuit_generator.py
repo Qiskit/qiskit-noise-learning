@@ -17,11 +17,9 @@ import numpy as np
 import xarray as xr
 from qiskit.circuit import BoxOp, CircuitInstruction, ClassicalRegister, QuantumCircuit
 from qiskit.transpiler import PassManager
-from qiskit_ibm_runtime.quantum_program import QuantumProgram
-from qiskit_ibm_runtime.quantum_program.quantum_program import SamplexItem
-from qiskit_ibm_runtime.results import QuantumProgramResult
 from samplomatic import build
 from samplomatic.annotations import DressingMode, InjectLocalClifford, Tag, Twirl
+from samplomatic.quantum_program import QuantumProgram, QuantumProgramResult, SamplexItem
 
 from qiskit_noise_learning.analysis.fit import Fit
 from qiskit_noise_learning.data import RawData
@@ -91,14 +89,15 @@ class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramRe
         data_mapper = load(result.passthrough_data)
 
         # extract time bounds on a program item basis
-        if getattr(result.metadata, "chunk_timing", None):
+        chunk_timings = getattr(getattr(result, "metadata", None), "chunk_timing", None)
+        if chunk_timings:
             program_item_time_lbs = [
                 np.array([], dtype="datetime64[us]") for _ in range(len(result))
             ]
             program_item_time_ubs = [
                 np.array([], dtype="datetime64[us]") for _ in range(len(result))
             ]
-            for chunk_timing in result.metadata.chunk_timing:
+            for chunk_timing in chunk_timings:
                 chunk_start = _as_utc_datetime64(chunk_timing.start)
                 chunk_stop = _as_utc_datetime64(chunk_timing.stop)
 
