@@ -35,7 +35,7 @@ class FidelityIndex:
     This list constitutes the "index data" for a generalized fidelity for a given gate, in the sense
     that there is a bijection between all generalized fidelities and the above set of all objects
     satisfying the above description. See Equation :eq:`clifford_mcm_reset_form` of the
-    :doc:`mathematical formalism </formalism/index>` for the decomposition in which these appear.
+    :doc:`mathematical formalism </guides/formalism>` for the decomposition in which these appear.
 
     The exponents :math:`x` and :math:`y` are stored as the sets of qubit indices on which they are
     non-zero, namely :attr:`in_z_idxs` and :attr:`out_z_idxs` -- equivalently, the qubits on which

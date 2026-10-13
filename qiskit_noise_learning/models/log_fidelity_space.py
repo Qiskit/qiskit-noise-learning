@@ -41,7 +41,7 @@ class LogFidelitySpace(IndexedSpace[FidelityIndex]):
         r"""The total number of fidelities of the gate set, excluding the trivial identity ones.
 
         Each gate contributes the count given by Equation :eq:`num_fidelities` of the
-        :doc:`mathematical formalism </formalism/index>`, less one.
+        :doc:`mathematical formalism </guides/formalism>`, less one.
         """
         total = 0
         for gate in self._gate_set.values():

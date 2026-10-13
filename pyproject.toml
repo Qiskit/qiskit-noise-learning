@@ -62,9 +62,7 @@ vis = [
 ]
 
 docs = [
-    # Documentation generator.  9 is the floor for ``mathjax4_config``, which ``docs/conf.py``
-    # defines the formalism pages' macros in; an older Sphinx ignores that setting silently and
-    # builds those pages with undefined macros rather than failing.
+    # Documentation generator. The local extensions under ``docs/_ext`` are written against sphinx 9
     "sphinx>=9",
     "qiskit-sphinx-theme",          # Qiskit ecosystem HTML theme
     "myst-nb>=1.1",                 # Markdown (MyST) source support, plus executable notebooks
