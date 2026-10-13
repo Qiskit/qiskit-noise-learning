@@ -19,12 +19,12 @@ from qiskit.quantum_info import PauliLindbladMap
 from qiskit.transpiler import PassManager
 from qiskit_aer import AerSimulator
 from qiskit_aer.primitives import SamplerV2 as AerSamplerV2
-from qiskit_ibm_runtime.quantum_program.quantum_program import (
+from samplomatic.quantum_program import (
     CircuitItem,
     QuantumProgram,
+    QuantumProgramResult,
     SamplexItem,
 )
-from qiskit_ibm_runtime.results import QuantumProgramResult
 
 from ._seeding import next_seed
 from .broadcast_sample import broadcast_sample
@@ -69,7 +69,6 @@ def run_quantum_program(
     rng = np.random.default_rng(next_seed(seed_sequence))
 
     result_list = []
-    metadata_list = []
 
     for prog_item in program.items:
         # A fresh seed per item, so that items sharing a circuit are still sampled
@@ -102,7 +101,6 @@ def run_quantum_program(
                     )  # type: ignore
                 ]
             ).result()
-            metadata_list.append(sampler_res[0].metadata)
             bit_array = sampler_res[0].data
             data = {key: ba.to_bool_array(order="little") for key, ba in dict(bit_array).items()}
             result_list.append(data)
@@ -128,7 +126,6 @@ def run_quantum_program(
                     )  # type: ignore
                 ]
             ).result()
-            metadata_list.append(sampler_res[0].metadata)
             bit_array = sampler_res[0].data
             bool_arrays = {
                 key: ba.to_bool_array(order="little") for key, ba in dict(bit_array).items()
@@ -141,6 +138,5 @@ def run_quantum_program(
 
     return QuantumProgramResult(
         data=result_list,
-        metadata=dict(enumerate(metadata_list)),
         passthrough_data=program.passthrough_data,
     )

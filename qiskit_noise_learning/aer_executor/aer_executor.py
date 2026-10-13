@@ -17,8 +17,7 @@ import uuid
 import numpy as np
 from qiskit.quantum_info import PauliLindbladMap
 from qiskit_aer import AerSimulator
-from qiskit_ibm_runtime import QuantumProgram
-from qiskit_ibm_runtime.results import QuantumProgramResult
+from samplomatic.quantum_program import QuantumProgram, QuantumProgramResult
 
 from ._seeding import next_seed
 from .run_quantum_program import run_quantum_program
@@ -94,7 +93,7 @@ class AerRuntimeJob:
 class AerExecutor:
     """Local Aer-based executor mimicking the IBM Runtime executor interface.
 
-    Runs a :class:`~qiskit_ibm_runtime.QuantumProgram` eagerly on construction of the
+    Runs a :class:`~samplomatic.quantum_program.QuantumProgram` eagerly on construction of
     returned job — the result is available immediately when :meth:`AerRuntimeJob.result`
     is called.
 

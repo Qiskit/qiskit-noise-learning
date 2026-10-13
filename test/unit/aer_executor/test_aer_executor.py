@@ -22,9 +22,9 @@ from qiskit.primitives.containers.bit_array import BitArray
 from qiskit.quantum_info import PauliLindbladMap
 from qiskit.transpiler import generate_preset_pass_manager
 from qiskit_ibm_runtime.fake_provider.backends.fez import FakeFez
-from qiskit_ibm_runtime.quantum_program import QuantumProgram
 from samplomatic import Tag, Twirl
 from samplomatic.builders.build import build
+from samplomatic.quantum_program import QuantumProgram
 from samplomatic.transpiler import generate_boxing_pass_manager
 
 from qiskit_noise_learning.aer_executor import AerExecutor, AerRuntimeJob

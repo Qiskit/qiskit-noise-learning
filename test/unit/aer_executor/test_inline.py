@@ -16,9 +16,8 @@ import numpy as np
 import pytest
 from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.transpiler import generate_preset_pass_manager
-from qiskit_ibm_runtime.quantum_program import QuantumProgram
-from qiskit_ibm_runtime.quantum_program.quantum_program import CircuitItem
 from samplomatic.builders.build import build
+from samplomatic.quantum_program import CircuitItem, QuantumProgram
 from samplomatic.transpiler import generate_boxing_pass_manager
 
 from qiskit_noise_learning.aer_executor import AerExecutor
@@ -228,7 +227,7 @@ def test_inline_samplexes_omit(fez_backend):
     transpiled = pm.run(qc)
     template_circuit, samplex = build(transpiled)
 
-    from qiskit_ibm_runtime.quantum_program.quantum_program import SamplexItem
+    from samplomatic.quantum_program import SamplexItem
 
     program = QuantumProgram(shots=64)
     program.append_samplex_item(template_circuit, samplex=samplex, shape=(2,))

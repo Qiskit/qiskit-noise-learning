@@ -17,8 +17,8 @@ from collections.abc import Sequence
 from qiskit.circuit import CircuitInstruction, QuantumRegister
 from qiskit.providers import BackendV2
 from qiskit.transpiler import PassManager
-from qiskit_ibm_runtime.quantum_program import QuantumProgram
 from samplomatic import InjectNoise
+from samplomatic.quantum_program import QuantumProgram
 from samplomatic.utils import get_annotation
 
 from ..circuit_generator import ExecutorCircuitGenerator

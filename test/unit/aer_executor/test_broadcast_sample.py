@@ -16,8 +16,8 @@ import numpy as np
 import pytest
 from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.transpiler import generate_preset_pass_manager
-from qiskit_ibm_runtime.quantum_program import QuantumProgram
 from samplomatic.builders.build import build
+from samplomatic.quantum_program import QuantumProgram
 from samplomatic.transpiler import generate_boxing_pass_manager
 
 from qiskit_noise_learning.aer_executor.broadcast_sample import broadcast_sample

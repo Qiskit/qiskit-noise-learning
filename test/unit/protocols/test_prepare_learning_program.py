@@ -16,8 +16,8 @@ import pytest
 from qiskit.circuit import QuantumCircuit
 from qiskit.quantum_info import QubitSparsePauli
 from qiskit_ibm_runtime.fake_provider.backends.fez import FakeFez
-from qiskit_ibm_runtime.quantum_program import QuantumProgram
 from samplomatic import InjectNoise, Twirl
+from samplomatic.quantum_program import QuantumProgram
 
 from qiskit_noise_learning.circuit_generator.executor.data_mapper_serialization import load
 from qiskit_noise_learning.experiment_builder import Experiment

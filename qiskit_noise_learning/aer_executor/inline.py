@@ -13,8 +13,7 @@
 """Functions for resolving SamplexItems into CircuitItems in a QuantumProgram."""
 
 import numpy as np
-from qiskit_ibm_runtime.quantum_program import QuantumProgram
-from qiskit_ibm_runtime.quantum_program.quantum_program import CircuitItem, SamplexItem
+from samplomatic.quantum_program import CircuitItem, QuantumProgram, SamplexItem
 
 from .broadcast_sample import broadcast_sample
 
