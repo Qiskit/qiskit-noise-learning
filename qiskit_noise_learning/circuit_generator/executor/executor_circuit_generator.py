@@ -33,6 +33,9 @@ from .executor_data_mapper import ExecutorDataMapper
 TO_SAMPLOMATIC_C1 = np.array([0, 7, 9, 13, 18, 22], dtype=np.uint8)
 """An array elements of :const:`~C1_TO_TABLEAU` to corresponding value in samplomatic."""
 
+_IDENTITY_PERMUTATION_IDX = 0
+"""The single-qubit partial Pauli permutation index of the identity."""
+
 
 def _as_utc_datetime64(value: datetime) -> np.datetime64:
     """Convert a runtime timestamp to a microsecond ``datetime64``, in UTC and without a timezone.
@@ -66,6 +69,12 @@ class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramRe
     instruction sequence are not explicitly included as a box in the template circuit. Instead,
     any single-qubit gates (e.g. basis rotation) associated with preparation are absorbed into
     the subsequent box's left-dressing.
+
+    Each :class:`~.PartialPauliPermutation` of an instruction sequence is emitted as the
+    left-dressing of the box that follows it. A box dresses only the qubits it acts on, so a
+    permutation must be the identity on every qubit of :attr:`~.GateSet.qubit_subset` that the
+    following gate does not act on. Qubits outside that subset take no part in the experiment,
+    and a permutation acting on them is ignored.
     """
 
     def __init__(
@@ -251,6 +260,33 @@ class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramRe
             num_randomizations=num_randomizations,
         )
 
+    def _validate_dressing_qubits(
+        self, permutation: PartialPauliPermutation, gate_name: str, qubit_idxs: tuple[int, ...]
+    ) -> None:
+        """Check that a gate's box can carry the single-qubit Clifford layer accumulated before it.
+
+        Args:
+            permutation: The single-qubit Clifford layer accumulated since the previous box.
+            gate_name: The name of the gate.
+            qubit_idxs: The qubits the gate acts on.
+
+        Raises:
+            ValueError: If the layer is non-identity on a qubit not in the gate's box.
+        """
+        indices = permutation.partial_permutation_indices
+        uncovered = sorted(
+            qubit
+            for qubit in self.gate_set.qubit_subset.difference(qubit_idxs)
+            if indices[qubit] != _IDENTITY_PERMUTATION_IDX
+        )
+        if uncovered:
+            raise ValueError(
+                f"Cannot dress gate '{gate_name}', which acts on qubits "
+                f"{sorted(qubit_idxs)}: the single-qubit Clifford layer preceding it is "
+                f"non-identity on qubits {uncovered}. A single-qubit Clifford is emitted as "
+                "the left-dressing of a box, so only a gate's own qubits can carry one."
+            )
+
     def generate_samplex_item(
         self,
         instruction_sequences: list[InstructionSequence],
@@ -277,6 +313,8 @@ class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramRe
             ValueError: If any of the instruction sequences is not complete.
             ValueError: If any of the instruction sequences have different structure.
             ValueError: If a twirled box is not left-dressed.
+            ValueError: If the single-qubit Clifford layer preceding a box is non-identity on a
+                gate-set qubit that the box's gate does not act on.
         """
         if (num_sequences := len(instruction_sequences)) == 0:
             raise ValueError("At least one instruction sequence is expected to generate circuits.")
@@ -316,6 +354,9 @@ class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramRe
                 current_permutation = instr.compose(current_permutation)
             elif isinstance(instr, ApplyGate):
                 gate = self.gate_set[instr.gate_name]
+                self._validate_dressing_qubits(
+                    current_permutation, instr.gate_name, gate.qubit_idxs
+                )
 
                 body = QuantumCircuit([boxed_circuit.qubits[idx] for idx in gate.qubit_idxs])
                 ref = next(ref_iter)
@@ -370,6 +411,9 @@ class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramRe
                     if instr_idx == 0 and skip_first_gate:
                         # Skip identically to the first loop so local-Clifford refs stay aligned.
                         continue
+                    self._validate_dressing_qubits(
+                        current_permutation, instr.gate_name, gate.qubit_idxs
+                    )
                     samplex_arguments[f"local_cliffords.{next(ref_iter)}"][idx + 1, 0] = (
                         TO_SAMPLOMATIC_C1[
                             current_permutation.partial_permutation_indices[sorted(gate.qubit_idxs)]
