@@ -32,9 +32,6 @@ _IDENTITY_PERMUTATION_SET = frozenset({("Z", "Z"), ("X", "X"), ("Y", "Y")})
 class VanillaInstructionSequences(AddInstructionSequences):
     """Generate vanilla instruction sequences for each target gate.
 
-    For each gate, generates 9 instruction sequences sufficient to measure any single- and
-    two-qubit Pauli fidelity on a triangle-free coupling map.
-
     Args:
         prep_gate: The preparation gate. If ``None``, defaults to the gate named ``"P"``.
         meas_gate: The measurement gate. If ``None``, defaults to the gate named ``"M"``.
@@ -103,14 +100,14 @@ def _generate_vanilla_instruction_sequences(
         One instruction sequence per Pauli pair.
     """
     num_qubits = len(coupling_map.graph.nodes())
-    qubit_color = _two_color(coupling_map.graph, gate.qubit_idxs)
+    qubit_parity = _distance_parities(coupling_map.graph, gate.qubit_idxs)
     repeatable_fragment = [ApplyGate(gate.name), ApplyGate(gate.name)]
 
     ret = []
     for pauli_0, pauli_1 in product(["X", "Y", "Z"], repeat=2):
         sets = [_IDENTITY_PERMUTATION_SET] * num_qubits
-        for qubit, color in qubit_color.items():
-            sets[qubit] = frozenset({("Z", pauli_0 if color == 0 else pauli_1)})
+        for qubit, parity in qubit_parity.items():
+            sets[qubit] = frozenset({("Z", pauli_0 if parity == 0 else pauli_1)})
 
         permutation = PartialPauliPermutation.from_sets(sets)
         ret.append(
@@ -123,28 +120,27 @@ def _generate_vanilla_instruction_sequences(
     return ret
 
 
-def _two_color(graph: PyGraph, qubits: Iterable[int]) -> dict[int, int]:
-    """Two-color the subgraph of a connectivity graph induced on some qubits.
+def _distance_parities(graph: PyGraph, qubits: Iterable[int]) -> dict[int, int]:
+    """Split qubits in two by the parity of their distance within an induced subgraph.
 
-    Each qubit's color is the parity of its distance, within the induced subgraph, to the
-    lowest-indexed qubit of its connected component. The color of a qubit is therefore fixed by
-    ``graph`` and ``qubits`` alone, independently of the order either is given in.
+    Each qubit is assigned the parity of its distance, within the subgraph of ``graph`` induced on
+    ``qubits``, to the lowest-indexed qubit of its connected component. A qubit's parity is
+    therefore fixed by ``graph`` and ``qubits`` alone, independently of the order either is given
+    in.
 
-    Neighbouring qubits are given different colors exactly when the induced subgraph is bipartite.
-    Coloring the induced subgraph rather than the whole graph succeeds in some cases where coloring
-    the whole graph does not, because a subgraph of a non-bipartite graph may still be bipartite.
+    This corresponds to a graph coloring exactly when the graph is bipartite.
 
     Args:
         graph: The connectivity graph.
-        qubits: The qubits whose induced subgraph is to be colored.
+        qubits: The qubits whose induced subgraph is to be split.
 
     Returns:
-        The color, ``0`` or ``1``, of each qubit of ``qubits``.
+        The parity, ``0`` or ``1``, of each qubit of ``qubits``.
     """
     qubits = set(qubits)
     edges = [(q0, q1) for q0, q1 in graph.edge_list() if q0 in qubits and q1 in qubits]
 
-    qubit_color = {}
+    qubit_parity = {}
     visited = set()
 
     for start_q in sorted(qubits):
@@ -153,10 +149,10 @@ def _two_color(graph: PyGraph, qubits: Iterable[int]) -> dict[int, int]:
 
         queue = [(start_q, 0)]
         visited.add(start_q)
-        qubit_color[start_q] = 0
+        qubit_parity[start_q] = 0
 
         while queue:
-            q, color = queue.pop(0)
+            q, parity = queue.pop(0)
 
             for q0, q1 in edges:
                 neighbor = None
@@ -167,7 +163,7 @@ def _two_color(graph: PyGraph, qubits: Iterable[int]) -> dict[int, int]:
 
                 if neighbor is not None:
                     visited.add(neighbor)
-                    qubit_color[neighbor] = 1 - color
-                    queue.append((neighbor, 1 - color))
+                    qubit_parity[neighbor] = 1 - parity
+                    queue.append((neighbor, 1 - parity))
 
-    return qubit_color
+    return qubit_parity

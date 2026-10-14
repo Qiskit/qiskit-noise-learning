@@ -71,7 +71,7 @@ class TestVanillaInstructionSequences:
             stage.run(Experiment())
 
     def test_generates_9_bases_on_ring(self):
-        """On a triangle-free ring, 9 vanilla sequences should be generated per gate."""
+        """On a ring, 9 vanilla sequences should be generated per gate."""
         num_qubits = 11
         coupling_map = CouplingMap([(idx, (idx + 1) % num_qubits) for idx in range(num_qubits)])
         gate_edges = [(idx, idx + 1) for idx in range(0, 10, 2)]
@@ -94,11 +94,7 @@ class TestVanillaInstructionSequences:
         ids=["bipartite_device", "non_bipartite_device"],
     )
     def test_bases_are_confined_to_the_gates_qubits(self, coupling_map, support):
-        """Rotations reach only the gate's qubits, and still cover every pair on its edge.
-
-        The second case's device is not bipartite, so coloring it as a whole would give the
-        gate's two qubits the same color and leave its edge seeing only three pairs.
-        """
+        """Rotations reach only the gate's qubits, and still cover every pair on its edge."""
         permutations = _permutations(5, coupling_map, [support], support)
 
         assert len(permutations) == 9
@@ -119,7 +115,7 @@ class TestVanillaInstructionSequences:
         )
 
         # distance parity from qubit 0 along the line
-        color = {0: 0, 1: 1, 2: 0, 3: 1, 4: 0}
+        parity = {0: 0, 1: 1, 2: 0, 3: 1, 4: 0}
         observed = set()
         for permutation in permutations:
             sets = permutation.to_sets()
@@ -127,8 +123,8 @@ class TestVanillaInstructionSequences:
             # Z maps to a single Pauli on every qubit, including where that Pauli is Z itself
             assert sets == [frozenset({("Z", target)}) for target in targets]
 
-            pauli_0 = {targets[q] for q, c in color.items() if c == 0}
-            pauli_1 = {targets[q] for q, c in color.items() if c == 1}
+            pauli_0 = {targets[q] for q, p in parity.items() if p == 0}
+            pauli_1 = {targets[q] for q, p in parity.items() if p == 1}
             assert len(pauli_0) == 1 and len(pauli_1) == 1
             observed.add((pauli_0.pop(), pauli_1.pop()))
 
