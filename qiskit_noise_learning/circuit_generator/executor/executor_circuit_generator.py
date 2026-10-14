@@ -288,8 +288,6 @@ class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramRe
         creg_names = []
         clbit_qubit_idxs = dict()
 
-        gateset_idxs = sorted(self.gate_set.qubit_subset)
-
         samplex_arguments = {}
 
         # The first instruction must prepare all gate-set qubits. If it does nothing else, its box
@@ -351,7 +349,7 @@ class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramRe
 
                 this_arg = np.empty((num_sequences, 1, gate.num_qubits), dtype=np.uint8)
                 this_arg[0, 0] = TO_SAMPLOMATIC_C1[
-                    current_permutation.partial_permutation_indices[gateset_idxs]
+                    current_permutation.partial_permutation_indices[sorted(gate.qubit_idxs)]
                 ]
                 current_permutation = PartialPauliPermutation([0] * self.gate_set.num_qubits)
                 samplex_arguments[f"local_cliffords.{ref}"] = this_arg
@@ -374,7 +372,7 @@ class ExecutorCircuitGenerator(CircuitGenerator[QuantumProgram, QuantumProgramRe
                         continue
                     samplex_arguments[f"local_cliffords.{next(ref_iter)}"][idx + 1, 0] = (
                         TO_SAMPLOMATIC_C1[
-                            current_permutation.partial_permutation_indices[gateset_idxs]
+                            current_permutation.partial_permutation_indices[sorted(gate.qubit_idxs)]
                         ]
                     )
                     current_permutation = PartialPauliPermutation([0] * self.gate_set.num_qubits)
