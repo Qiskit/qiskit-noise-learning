@@ -12,9 +12,9 @@
 
 """VanillaInstructionSequences stage."""
 
+from collections.abc import Iterable
 from itertools import product
 
-from qiskit.quantum_info import QubitSparsePauli
 from qiskit.transpiler import CouplingMap
 from rustworkx import PyGraph
 
@@ -25,12 +25,12 @@ from ...experiment import Experiment
 from ..utils import default_meas_gate, default_prep_gate, default_unitary_gates
 from .add_instruction_sequences import AddInstructionSequences
 
+_IDENTITY_PERMUTATION_SET = frozenset({("Z", "Z"), ("X", "X"), ("Y", "Y")})
+"""The single-qubit partial Pauli permutation set of the identity."""
+
 
 class VanillaInstructionSequences(AddInstructionSequences):
     """Generate vanilla instruction sequences for each target gate.
-
-    For each gate, generates 9 instruction sequences sufficient to measure any single- and
-    two-qubit Pauli fidelity on a triangle-free coupling map.
 
     Args:
         prep_gate: The preparation gate. If ``None``, defaults to the gate named ``"P"``.
@@ -88,12 +88,28 @@ class VanillaInstructionSequences(AddInstructionSequences):
 def _generate_vanilla_instruction_sequences(
     prep_gate: ModelGate, meas_gate: ModelGate, gate: ModelGate, coupling_map: CouplingMap
 ) -> list[InstructionSequence]:
-    ret = []
-    all_zs = QubitSparsePauli.from_label("Z" * len(coupling_map.graph.nodes()))
+    """Generate the 9 vanilla instruction sequences for a single gate.
+
+    Args:
+        prep_gate: The preparation gate.
+        meas_gate: The measurement gate.
+        gate: The gate to generate sequences for.
+        coupling_map: The coupling map.
+
+    Returns:
+        One instruction sequence per Pauli pair.
+    """
+    num_qubits = len(coupling_map.graph.nodes())
+    qubit_parity = _distance_parities(coupling_map.graph, gate.qubit_idxs)
     repeatable_fragment = [ApplyGate(gate.name), ApplyGate(gate.name)]
-    for basis in _generate_bases(coupling_map.graph):
-        basis = QubitSparsePauli.from_label(basis)
-        permutation = PartialPauliPermutation.from_qubit_sparse_paulis(all_zs, basis)
+
+    ret = []
+    for pauli_0, pauli_1 in product(["X", "Y", "Z"], repeat=2):
+        sets = [_IDENTITY_PERMUTATION_SET] * num_qubits
+        for qubit, parity in qubit_parity.items():
+            sets[qubit] = frozenset({("Z", pauli_0 if parity == 0 else pauli_1)})
+
+        permutation = PartialPauliPermutation.from_sets(sets)
         ret.append(
             InstructionSequence(
                 [ApplyGate(prep_gate.name), permutation],
@@ -104,47 +120,50 @@ def _generate_vanilla_instruction_sequences(
     return ret
 
 
-def _generate_bases(graph: PyGraph) -> list[str]:
-    """Generate the 9 basis strings for measuring single- and two-qubit Pauli fidelities.
+def _distance_parities(graph: PyGraph, qubits: Iterable[int]) -> dict[int, int]:
+    """Split qubits in two by the parity of their distance within an induced subgraph.
 
-    For triangle-free topologies, 9 bases are always sufficient to measure all 9 non-identity
-    Pauli pair combinations on every edge.
+    Each qubit is assigned the parity of its distance, within the subgraph of ``graph`` induced on
+    ``qubits``, to the lowest-indexed qubit of its connected component. A qubit's parity is
+    therefore fixed by ``graph`` and ``qubits`` alone, independently of the order either is given
+    in.
+
+    This corresponds to a graph coloring exactly when the graph is bipartite.
+
+    Args:
+        graph: The connectivity graph.
+        qubits: The qubits whose induced subgraph is to be split.
+
+    Returns:
+        The parity, ``0`` or ``1``, of each qubit of ``qubits``.
     """
-    qubit_color = {}
+    qubits = set(qubits)
+    edges = [(q0, q1) for q0, q1 in graph.edge_list() if q0 in qubits and q1 in qubits]
+
+    qubit_parity = {}
     visited = set()
 
-    for start_q in graph.node_indices():
+    for start_q in sorted(qubits):
         if start_q in visited:
             continue
 
         queue = [(start_q, 0)]
         visited.add(start_q)
-        qubit_color[start_q] = 0
+        qubit_parity[start_q] = 0
 
         while queue:
-            q, color = queue.pop(0)
+            q, parity = queue.pop(0)
 
-            for q1, q2 in graph.edge_list():
+            for q0, q1 in edges:
                 neighbor = None
-                if q1 == q and q2 not in visited:
-                    neighbor = q2
-                elif q2 == q and q1 not in visited:
+                if q0 == q and q1 not in visited:
                     neighbor = q1
+                elif q1 == q and q0 not in visited:
+                    neighbor = q0
 
-                if neighbor:
+                if neighbor is not None:
                     visited.add(neighbor)
-                    qubit_color[neighbor] = 1 - color
-                    queue.append((neighbor, 1 - color))
+                    qubit_parity[neighbor] = 1 - parity
+                    queue.append((neighbor, 1 - parity))
 
-    generated_bases = []
-    all_pauli_pairs = list(product(["X", "Y", "Z"], repeat=2))
-
-    for p0, p1 in all_pauli_pairs:
-        basis_list = []
-        for q in graph.node_indices():
-            color = qubit_color[q]
-            basis_list.append(p0 if color == 0 else p1)
-        basis = "".join(basis_list[::-1])
-        generated_bases.append(basis)
-
-    return generated_bases
+    return qubit_parity
