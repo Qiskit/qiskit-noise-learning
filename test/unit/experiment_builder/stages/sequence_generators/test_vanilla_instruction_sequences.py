@@ -107,7 +107,7 @@ class TestVanillaInstructionSequences:
 
         assert pairs == set(product("XYZ", repeat=2))
 
-    def test_bases_two_color_the_gates_support(self):
+    def test_bases_split_the_gates_support_by_parity(self):
         """Each qubit maps Z to one of the pair, chosen by its distance parity in the support."""
         num_qubits = 5
         permutations = _permutations(
