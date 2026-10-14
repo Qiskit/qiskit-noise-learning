@@ -154,6 +154,22 @@ def _failed_bits(
 
 
 def suffix_creg_identifier(suffix: str = "ps") -> Callable[[list[str]], Iterator[tuple[str, ...]]]:
+    """Return a creg identifier that pairs each creg named ``"*_<suffix>"`` with ``"*"``.
+
+    The returned callable is suitable as the ``creg_identifier`` argument of
+    :class:`~.FlipPostSelect`, and is the default that class uses. Given the names of the cregs
+    present in a dataset, it yields one tuple for every name ending in ``"_<suffix>"``: the pair
+    ``(base, name)`` when the corresponding ``base`` name is also present, and the singleton
+    ``(name,)`` when it is not. Names that do not end in ``"_<suffix>"`` are not post-selected on.
+
+    Args:
+        suffix: The creg name suffix marking a post-selection register, without its leading
+            underscore.
+
+    Returns:
+        A callable mapping a list of creg names to an iterator over groups of creg names.
+    """
+
     def creg_identifier(creg_names):
         suffix_tag = f"_{suffix}"
         for name in creg_names:

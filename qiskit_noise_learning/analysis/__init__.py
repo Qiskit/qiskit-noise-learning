@@ -17,7 +17,7 @@ from .average_observables import AverageObservables
 from .compute_observables import ComputeObservables
 from .curve_fit_observables import CurveFitObservables
 from .fit import Fit
-from .flip_post_select import FlipPostSelect
+from .flip_post_select import FlipPostSelect, suffix_creg_identifier
 from .legacy import LegacySolve
 from .model_solve import LeastSquaresSolve, LinearSystemData, PositivityMinSolve
 from .symmetrize import SymmetrizeFidelities, SymmetrizeGenerators
