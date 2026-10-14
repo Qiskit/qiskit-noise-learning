@@ -21,6 +21,9 @@ from samplomatic.quantum_program import QuantumProgramResult
 
 from qiskit_noise_learning.circuit_generator import ExecutorCircuitGenerator, ExecutorDataMapper
 from qiskit_noise_learning.circuit_generator.executor.data_mapper_serialization import dump, load
+from qiskit_noise_learning.circuit_generator.executor.executor_circuit_generator import (
+    TO_SAMPLOMATIC_C1,
+)
 from qiskit_noise_learning.experiment_builder import Experiment
 from qiskit_noise_learning.gate_sets import QiskitGateSet
 from qiskit_noise_learning.sequences import (
@@ -451,6 +454,82 @@ def test_generate_samplex_item_rejects_right_dressed_twirl():
     )
     with pytest.raises(ValueError, match="left-dressed"):
         ExecutorCircuitGenerator(gateset).generate_samplex_item([seq], num_randomizations=1)
+
+
+def _gateset_with_narrow_gate():
+    """A 5-qubit gate set whose gate ``"N0"`` acts on only two of the five qubits."""
+    gateset = QiskitGateSet(5)
+    narrow = QuantumCircuit(5)
+    with narrow.box([Twirl()]):
+        narrow.cz(0, 1)
+    gateset.add_box_as_gate(narrow[0], name="N0")
+    return gateset
+
+
+def _dressed_sequence(gate_name, permutation):
+    """A prepare-gate-measure sequence whose gate is left-dressed by ``permutation``."""
+    return InstructionSequence(
+        [ApplyGate("P"), permutation], [ApplyGate(gate_name)], [ApplyGate("M")], fragment_depth=1
+    )
+
+
+def test_generate_samplex_item_gate_narrower_than_qubit_subset():
+    """A gate acting on fewer qubits than the gate set is dressed on its own qubits only."""
+    gateset = _gateset_with_narrow_gate()
+
+    # non-identity on the gate's qubits, identity on the three qubits it does not act on
+    seq = _dressed_sequence("N0", PartialPauliPermutation([1, 2, 0, 0, 0]))
+    samplex_item, _, _ = ExecutorCircuitGenerator(gateset).generate_samplex_item(
+        [seq], num_randomizations=1
+    )
+
+    # the narrow box is dressed on its own two qubits, the full-width measurement on all five
+    np.testing.assert_array_equal(
+        samplex_item.samplex_arguments["local_cliffords.c0"][0, 0], TO_SAMPLOMATIC_C1[[1, 2]]
+    )
+    assert samplex_item.samplex_arguments["local_cliffords.c1"].shape == (1, 1, 5)
+
+
+def test_generate_samplex_item_dresses_in_ascending_qubit_order():
+    """A box is dressed in ascending physical qubit order, not in the order of its own qubits."""
+    gateset = QiskitGateSet(5)
+    wide = QuantumCircuit(5)
+    with wide.box([Twirl()]):
+        wide.cz(3, 4)
+        wide.noop(2, 0, 1)
+    gateset.add_box_as_gate(wide[0], name="W0")
+    # samplomatic indexes a box's local-Clifford argument by physical qubit order, so the
+    # out-of-order box qubits must not reorder the dressing
+    assert gateset["W0"].qubit_idxs == (3, 4, 2, 0, 1)
+
+    # a distinct permutation per qubit, so any reordering of the dressing is visible
+    seq = _dressed_sequence("W0", PartialPauliPermutation([0, 1, 2, 3, 4]))
+    samplex_item, _, _ = ExecutorCircuitGenerator(gateset).generate_samplex_item(
+        [seq], num_randomizations=1
+    )
+
+    np.testing.assert_array_equal(
+        samplex_item.samplex_arguments["local_cliffords.c0"][0, 0],
+        TO_SAMPLOMATIC_C1[[0, 1, 2, 3, 4]],
+    )
+
+
+@pytest.mark.parametrize("offending_idx", [0, 1], ids=["first_sequence", "later_sequence"])
+def test_generate_samplex_item_rejects_dressing_a_gate_does_not_cover(offending_idx):
+    """A permutation acting outside the following gate's qubits has nowhere to be emitted.
+
+    The first sequence and the ones following it are dressed by separate loops, so the
+    permutation is offered in each position in turn.
+    """
+    gateset = _gateset_with_narrow_gate()
+
+    permutations = [PartialPauliPermutation([1, 2, 0, 0, 0]) for _ in range(2)]
+    # non-identity on qubit 2, which "N0" does not act on
+    permutations[offending_idx] = PartialPauliPermutation([1, 2, 3, 0, 0])
+    seqs = [_dressed_sequence("N0", permutation) for permutation in permutations]
+
+    with pytest.raises(ValueError, match=r"Cannot dress gate 'N0'.*non-identity on qubits \[2\]"):
+        ExecutorCircuitGenerator(gateset).generate_samplex_item(seqs, num_randomizations=1)
 
 
 def test_partition():
