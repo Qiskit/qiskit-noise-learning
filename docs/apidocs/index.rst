@@ -6,7 +6,6 @@ API reference
 .. toctree::
    :maxdepth: 1
 
-   aer_executor
    analysis
    circuit_generator
    data

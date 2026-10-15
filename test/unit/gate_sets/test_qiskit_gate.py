@@ -289,3 +289,53 @@ def test_model_gate_raises():
         qc.reset(2)
         qc.x(2)
         QiskitGate("L0", circuit=qc, qubit_idxs=range(4)).model_gate
+
+
+def test_to_instruction():
+    circuit = QuantumCircuit(2)
+    circuit.cz(0, 1)
+    gate = QiskitGate("L0", circuit, [17, 27])
+
+    instruction = gate.to_instruction()
+
+    assert instruction.operation.name == "box"
+    # The box spans the gate's own qubits, not the physical ones it is defined on.
+    assert len(instruction.qubits) == 2
+    assert instruction.operation.annotations == gate.annotations
+    assert [inner.operation.name for inner in instruction.operation.body.data] == ["cz"]
+
+
+def test_to_instruction_carries_a_tag_naming_the_gate():
+    """The Tag is what ties a noise map to the layer, so it must always be there."""
+    gate = QiskitGate("L0", QuantumCircuit(1), [3])
+
+    tags = [a for a in gate.to_instruction().operation.annotations if isinstance(a, Tag)]
+
+    assert [tag.ref for tag in tags] == ["L0"]
+
+
+def test_to_instruction_of_a_measurement_keeps_its_clbits():
+    """A measurement body needs its classical bits, or the box cannot be rebuilt at all."""
+    circuit = QuantumCircuit(2, 2)
+    circuit.measure(0, 1)
+    circuit.measure(1, 0)
+    gate = QiskitGate("M", circuit, [17, 27])
+
+    instruction = gate.to_instruction()
+    body = instruction.operation.body
+
+    assert len(instruction.clbits) == 2
+    assert [
+        (body.find_bit(inner.qubits[0]).index, body.find_bit(inner.clbits[0]).index)
+        for inner in body.data
+    ] == [(0, 1), (1, 0)]
+
+
+def test_to_instruction_of_an_empty_gate():
+    """A preparation gate has an empty body; its box is still well formed."""
+    gate = QiskitGate("P", QuantumCircuit(3), [0, 1, 2], prep_idxs=[0, 1, 2])
+
+    instruction = gate.to_instruction()
+
+    assert len(instruction.qubits) == 3
+    assert list(instruction.operation.body.data) == []
