@@ -14,7 +14,7 @@
 
 from samplomatic.quantum_program import QuantumProgramResult
 
-from ..analysis import (
+from ...analysis import (
     AnalysisPipeline,
     AnalysisStage,
     ComputeObservables,
@@ -22,28 +22,28 @@ from ..analysis import (
     Fit,
     LegacySolve,
 )
-from ..circuit_generator import ExecutorCircuitGenerator
-from ..data import RawData
+from ...circuit_generator import ExecutorCircuitGenerator
+from ...data import RawData
 
 
-def process_learning_result(
+def process_vanilla_result(
     result: QuantumProgramResult,
     raw_data_stage: AnalysisStage | None = None,
 ) -> Fit:
-    """Analyze the result of a program built by :func:`~.prepare_learning_program`.
+    """Analyze the result of a program built by :func:`~.prepare_vanilla_program`.
 
     Applies the standard "vanilla" learning program analysis using curve fitting and
     :class:`~.LegacySolve` fit the model.
 
     Example::
 
-        fit = process_learning_result(job.result())
+        fit = process_vanilla_result(job.result())
         noise_maps = split_pauli_lindblad_model(fit.model).model.to_pauli_lindblad_maps(
             fit.model_data
         )
 
     Args:
-        result: The result of a program built by :func:`~.prepare_learning_program`.
+        result: The result of a program built by :func:`~.prepare_vanilla_program`.
         raw_data_stage: An optional analysis stage to run on the raw data ahead of the standard
             analysis, typically to post-select on registers that a pass manager added during
             preparation. It must consume and produce :class:`~.RawData`.

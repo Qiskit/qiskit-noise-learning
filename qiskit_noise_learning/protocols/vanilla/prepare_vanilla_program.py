@@ -21,8 +21,8 @@ from samplomatic import InjectNoise
 from samplomatic.quantum_program import QuantumProgram
 from samplomatic.utils import get_annotation
 
-from ..circuit_generator import ExecutorCircuitGenerator
-from ..experiment_builder import (
+from ...circuit_generator import ExecutorCircuitGenerator
+from ...experiment_builder import (
     BindFragmentDepths,
     CompleteSequences,
     EvenDepthVanillaPaths,
@@ -34,8 +34,10 @@ from ..experiment_builder import (
     SPAMPaths,
     VanillaInstructionSequences,
 )
-from ..gate_sets import QiskitGateSet
-from ..models import PauliLindbladModel
+from ...gate_sets import QiskitGateSet
+from ...models import PauliLindbladModel
+from .vanilla_data import VanillaData
+from .vanilla_data_serialization import dump
 
 
 def _measures(box_instr: CircuitInstruction) -> bool:
@@ -46,7 +48,7 @@ def _measures(box_instr: CircuitInstruction) -> bool:
     )
 
 
-def prepare_learning_program(
+def prepare_vanilla_program(
     backend: BackendV2,
     instructions: Sequence[CircuitInstruction],
     num_randomizations: int = 32,
@@ -73,13 +75,16 @@ def prepare_learning_program(
     appearing in all supplied instructions), that will be treated as the measurement layer. If no
     such layer is supplied, a default one will be built with name ``"M"``.
 
+    The program records which gate each instruction became, in the order the instructions were
+    given, for :func:`~.process_vanilla_result` to report the learned noise against.
+
     Example::
 
         circuit = QuantumCircuit(backend.num_qubits)
         with circuit.box([Twirl(), InjectNoise("layer")]):
             circuit.cz(17, 27)
 
-        program = prepare_learning_program(backend, [circuit[0]])
+        program = prepare_vanilla_program(backend, [circuit[0]])
 
     .. note::
 
@@ -103,7 +108,7 @@ def prepare_learning_program(
         pass_manager: An optional pass manager to apply to every template circuit generated.
 
     Returns:
-        The program to submit, whose result :func:`~.process_learning_result` consumes.
+        The program to submit, whose result :func:`~.process_vanilla_result` consumes.
 
     Raises:
         ValueError: If *instructions* is empty, if any instruction does not contain a ``BoxOp``, if
@@ -152,11 +157,13 @@ def prepare_learning_program(
     gate_set.add_preparation(name="P")
 
     meas_name = "M"
+    gate_names = []
     for idx, instr in enumerate(instructions):
         inject_noise = get_annotation(instr.operation, InjectNoise)
         name = gate_set.add_box_as_gate(
             instr, name=None if inject_noise is None else inject_noise.ref
         )
+        gate_names.append(name)
         if idx in meas_instr_idxs:
             meas_name = name
 
@@ -182,9 +189,11 @@ def prepare_learning_program(
         )
     )
 
-    return ExecutorCircuitGenerator(
+    program = ExecutorCircuitGenerator(
         gate_set,
         creg_prefix=creg_prefix,
         local_clifford_ref_prefix=local_clifford_ref_prefix,
         pass_manager=pass_manager,
     ).generate(experiment)
+    dump(program.passthrough_data, VanillaData(gate_names=gate_names))
+    return program

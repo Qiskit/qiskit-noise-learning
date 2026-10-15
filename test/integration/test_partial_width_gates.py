@@ -20,7 +20,7 @@ from qiskit_ibm_runtime.fake_provider import FakeManilaV2
 from samplomatic import Twirl
 
 from qiskit_noise_learning.data import RawData
-from qiskit_noise_learning.protocols import prepare_learning_program, process_learning_result
+from qiskit_noise_learning.protocols import prepare_vanilla_program, process_vanilla_result
 
 
 def _instructions(num_qubits):
@@ -40,7 +40,7 @@ def test_narrow_gate_layer_simulates_without_noise():
     Ensures everything can build and is well-formed.
     """
     backend = FakeManilaV2()
-    program = prepare_learning_program(
+    program = prepare_vanilla_program(
         backend,
         _instructions(backend.num_qubits),
         num_randomizations=8,
@@ -51,7 +51,7 @@ def test_narrow_gate_layer_simulates_without_noise():
         mode=AerSimulator(method="stabilizer"),
         options={"simulator": {"seed_simulator": 11}},
     )
-    fit = process_learning_result(executor.run(program).result())
+    fit = process_vanilla_result(executor.run(program).result())
 
     for name, child in fit[RawData].datatree.children.items():
         data = np.asarray(child.dataset["data"])

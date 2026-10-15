@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Tests for process_learning_result."""
+"""Tests for process_vanilla_result."""
 
 import pytest
 from qiskit.circuit import QuantumCircuit
@@ -33,7 +33,7 @@ from qiskit_noise_learning.data import (
     ObservableData,
     RawData,
 )
-from qiskit_noise_learning.protocols import prepare_learning_program, process_learning_result
+from qiskit_noise_learning.protocols import prepare_vanilla_program, process_vanilla_result
 
 PAIR = (17, 27)
 
@@ -46,7 +46,7 @@ def result():
     with circuit.box([Twirl(), Tag("layer"), InjectNoise("layer")]):
         circuit.cz(*PAIR)
 
-    program = prepare_learning_program(
+    program = prepare_vanilla_program(
         backend,
         [circuit[0]],
         num_randomizations=4,
@@ -69,7 +69,7 @@ def result():
 def test_rejects_raw_data_stage_that_is_not_a_stage():
     """Caught here rather than as an AttributeError from inside pipeline construction."""
     with pytest.raises(TypeError, match="must be an AnalysisStage"):
-        process_learning_result(object(), raw_data_stage=object())
+        process_vanilla_result(object(), raw_data_stage=object())
 
 
 @pytest.mark.parametrize(
@@ -83,12 +83,12 @@ def test_rejects_raw_data_stage_that_is_not_a_stage():
 )
 def test_rejects_raw_data_stage_with_wrong_levels(stage):
     with pytest.raises(ValueError, match="must consume and produce RawData"):
-        process_learning_result(object(), raw_data_stage=stage)
+        process_vanilla_result(object(), raw_data_stage=stage)
 
 
 def test_populates_every_analysis_level(result):
     """The prepared program's result carries enough to run the whole analysis."""
-    fit = process_learning_result(result)
+    fit = process_vanilla_result(result)
 
     assert isinstance(fit.raw_data, RawData)
     assert isinstance(fit.observable_data, ObservableData)
@@ -102,8 +102,8 @@ def test_populates_every_analysis_level(result):
 
 def test_raw_data_stage_runs_ahead_of_the_standard_analysis(result):
     """A supplied stage writes RawData once more than the collection alone does."""
-    without = process_learning_result(result)
-    with_stage = process_learning_result(result, raw_data_stage=FlipPostSelect())
+    without = process_vanilla_result(result)
+    with_stage = process_vanilla_result(result, raw_data_stage=FlipPostSelect())
 
     assert len(with_stage.history.raw_data) == len(without.history.raw_data) + 1
 
@@ -114,4 +114,4 @@ def test_rejects_empty_result(result, carries_passthrough_data):
     empty = QuantumProgramResult([], passthrough_data=passthrough_data)
 
     with pytest.raises(ValueError, match="holds no program items"):
-        process_learning_result(empty)
+        process_vanilla_result(empty)

@@ -24,7 +24,7 @@ from samplomatic import InjectNoise, Tag, Twirl
 
 from qiskit_noise_learning.analysis import FlipPostSelect
 from qiskit_noise_learning.models import split_pauli_lindblad_model
-from qiskit_noise_learning.protocols import prepare_learning_program, process_learning_result
+from qiskit_noise_learning.protocols import prepare_vanilla_program, process_vanilla_result
 
 # backend and qubits
 BACKEND = FakeFez()
@@ -76,7 +76,7 @@ def _run_protocol(cz_layer, measurement, pass_manager=None, raw_data_stage=None)
     )
     # 64 x 256 rather than something smaller because the readout rates need it: at 16 x 64 they
     # swing by as much as 20%, too loose to catch readout noise being dropped on the floor.
-    program = prepare_learning_program(
+    program = prepare_vanilla_program(
         BACKEND,
         [cz_layer, measurement],
         num_randomizations=64,
@@ -84,7 +84,7 @@ def _run_protocol(cz_layer, measurement, pass_manager=None, raw_data_stage=None)
         fragment_depths=[2, 8, 32],
         pass_manager=pass_manager,
     )
-    return process_learning_result(executor.run(program).result(), raw_data_stage=raw_data_stage)
+    return process_vanilla_result(executor.run(program).result(), raw_data_stage=raw_data_stage)
 
 
 def _assert_recovers_injected_noise(fit):

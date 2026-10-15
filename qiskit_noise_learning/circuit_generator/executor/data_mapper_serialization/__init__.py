@@ -53,9 +53,18 @@ reflect any changes.
 Lastly, any supported version should have unit tests verifying instances of correct payload
 deserialization, where correctness is defined in terms of an expected deserialization.
 
-Alongside the versioned payload, :func:`dump` records the version of this package that wrote it
-under ``"library_version"``. That entry belongs to no payload version, so :func:`load` ignores it,
-no ``read`` function may depend on it, and it falls outside the correctness above.
+Two further entries sit under the reserved key without belonging to any payload version, so
+:func:`load` ignores both, no ``read`` function may depend on either, and both fall outside the
+correctness above:
+
+* ``"library_version"``, which :func:`dump` records as the version of this package that wrote the
+  payload. It is never read back; it is there to identify the install behind a payload that turns
+  out to be wrong.
+* ``"protocol"``, declared here as :data:`PROTOCOL_KEY` but written and read by
+  :mod:`qiskit_noise_learning.protocols`. It holds one entry per protocol, each carrying that
+  protocol's own independently versioned format, so protocols share no format with each other or
+  with this one. **The key is reserved across payload versions:** a new payload version owns the
+  rest of this dictionary, but must leave this entry alone.
 """
 
-from .payload import PayloadVersionError, dump, load
+from .payload import PAYLOAD_KEY, PROTOCOL_KEY, PayloadVersionError, dump, load
