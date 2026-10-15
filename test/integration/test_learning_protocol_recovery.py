@@ -24,7 +24,7 @@ from qiskit.quantum_info import PauliLindbladMap
 from qiskit.transpiler import PassManager, TransformationPass
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime.fake_provider.backends.fez import FakeFez
-from samplomatic import InjectNoise, Twirl
+from samplomatic import InjectNoise, Tag, Twirl
 
 from qiskit_noise_learning.aer_executor import AerExecutor
 from qiskit_noise_learning.analysis import FlipPostSelect
@@ -36,9 +36,13 @@ INJECTED_RATE = 5e-3
 
 
 def _make_annotated_layer(backend, pair=(17, 27)):
-    """Build a circuit holding one twirled, noise-injectable box of a single CZ."""
+    """Build a circuit holding one twirled, noise-injectable box of a single CZ.
+
+    The ``Tag`` names the layer for the simulator, which matches it against the barrier labels of
+    the generated template circuits; the ``InjectNoise`` names the gate in the learned model.
+    """
     circuit = QuantumCircuit(backend.num_qubits)
-    with circuit.box([Twirl(), InjectNoise("layer")]):
+    with circuit.box([Twirl(), Tag("layer"), InjectNoise("layer")]):
         circuit.cz(*pair)
     return circuit
 
@@ -139,7 +143,7 @@ def test_recovery_with_a_supplied_measurement_layer():
     backend = FakeFez()
     layer = _make_annotated_layer(backend)
     measurement = QuantumCircuit(backend.num_qubits, len(PAIR))
-    with measurement.box([Twirl(), InjectNoise("readout")]):
+    with measurement.box([Twirl(), Tag("readout"), InjectNoise("readout")]):
         # Reversed, so that the supplied order is what the analysis reads outcomes back in.
         for clbit, qubit in enumerate(reversed(PAIR)):
             measurement.measure(qubit, clbit)

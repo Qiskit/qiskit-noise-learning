@@ -17,7 +17,7 @@ from qiskit.circuit import QuantumCircuit
 from qiskit.quantum_info import PauliLindbladMap
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime.fake_provider.backends.fez import FakeFez
-from samplomatic import InjectNoise, Twirl
+from samplomatic import InjectNoise, Tag, Twirl
 from samplomatic.quantum_program import QuantumProgramResult
 
 from qiskit_noise_learning.aer_executor import AerExecutor
@@ -43,7 +43,7 @@ def result():
     """Result of a small real learning program, so the pair is exercised end to end."""
     backend = FakeFez()
     circuit = QuantumCircuit(backend.num_qubits)
-    with circuit.box([Twirl(), InjectNoise("layer")]):
+    with circuit.box([Twirl(), Tag("layer"), InjectNoise("layer")]):
         circuit.cz(*PAIR)
 
     program = prepare_learning_program(
