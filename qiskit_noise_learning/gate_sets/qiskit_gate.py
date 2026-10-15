@@ -179,6 +179,17 @@ class QiskitGate(Gate):
         for instr in self._circuit:
             yield tuple(map(self._qubit_map.get, instr.qubits)), instr.operation
 
+    def to_instruction(self) -> CircuitInstruction:
+        """Return this gate as a boxed instruction defined on ``self.qubit_idxs``."""
+        circuit = QuantumCircuit(self.num_qubits, self.circuit.num_clbits)
+        circuit.box(
+            self.circuit,
+            range(self.num_qubits),
+            range(self.circuit.num_clbits),
+            annotations=self.annotations,
+        )
+        return circuit[0]
+
     @cached_property
     def model_gate(self) -> ModelGate:
         """The model for this gate."""

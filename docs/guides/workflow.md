@@ -27,11 +27,10 @@ learn a model from simulated noisy data.
 :class: note
 
 The circuits below are simulated locally, so this walkthrough needs no IBM Quantum&reg; credentials.
-Three changes take it to a real device, each flagged again where it applies:
+To alternatively run it on a real device:
 
 * **Step 1**: replace {class}`~qiskit_ibm_runtime.fake_provider.FakeMarrakesh` with a real backend.
-* **Step 5**: skip it.
-* **Step 6**: submit through {class}`~qiskit_ibm_runtime.Executor`.
+* **Step 5**: pass that backend as the executor's mode, and drop the simulator options.
 :::
 
 ## 1. Define a gate set on a ring of qubits
@@ -166,13 +165,8 @@ quantum_program.items[0].circuit.draw("mpl", idle_wires=False, fold=False)
 
 ## 5. Set up local simulation
 
-An {class}`~.AerExecutor` runs a program on a local Aer simulator, injecting Pauli-Lindblad
-noise at the barriers Samplomatic places around each twirled gate.
-
-Unlike the hand-picked noise of the {doc}`protocol guide <learning_protocol>`, give *every one* of
-the model's 168 generators an independent random rate. The model's generators are already exactly
-the Paulis to put in a {class}`~qiskit.quantum_info.PauliLindbladMap`, so pair each one with a rate
-and build the map per gate directly:
+To define the noise model for simulation, we use the generators already in the model with random
+rates to construct a {class}`~qiskit.quantum_info.PauliLindbladMap`.
 
 ```{code-cell} python
 import numpy as np
@@ -188,13 +182,14 @@ true_maps = {
         ]
     )
     for name, generators in model.generators.items()
+    if name != "P"
 }
 {name: noise_map.num_qubits for name, noise_map in true_maps.items()}
 ```
 
 Those maps are as wide as the device, since the model is expressed in `backend`'s qubit indexing,
-but {class}`~.AerExecutor` wants each map to be as wide as the gate it applies to, with Pauli
-indices running over the gate's qubits in ascending physical order. Narrow them with
+but the simulator wants each map to be as wide as the gate it applies to, with Pauli indices
+running over the gate's qubits in ascending physical order. Narrow them with
 {meth}`~qiskit.quantum_info.PauliLindbladMap.keep_qubits`, which traces out everything off the ring:
 
 ```{code-cell} python
@@ -204,23 +199,35 @@ noise_dict = {
 {name: noise_map.num_qubits for name, noise_map in noise_dict.items()}
 ```
 
-Instantiate {class}`~.AerExecutor` with the stabilizer method. Set `root_seed` to make the simulated
-data reproducible.
+The simulator names a layer's noise by the box instruction the layer was built from, which
+{meth}`~.QiskitGate.to_instruction` returns for any gate in the gate set. Pair each box with its
+map, use the stabilizer simulation method, and set `seed_simulator` to make the simulated data
+reproducible:
 
 ```{code-cell} python
 from qiskit_aer import AerSimulator
+from qiskit_ibm_runtime import Executor
 
-from qiskit_noise_learning.aer_executor import AerExecutor
-
-executor = AerExecutor(
-    AerSimulator(method="stabilizer"), noise_dict=noise_dict, root_seed=42
+executor = Executor(
+    mode=AerSimulator(method="stabilizer"),
+    options={
+        "simulator": {
+            "layer_noise_model": [
+                (gate_set[name].to_instruction(), noise_map)
+                for name, noise_map in noise_dict.items()
+            ],
+            "seed_simulator": 42,
+        }
+    },
 )
 ```
 
 :::{admonition} Running on real hardware
 :class: note
 
-Skip this step entirely.
+```python
+executor = Executor(mode=backend)
+```
 :::
 
 ## 6. Run the program
@@ -228,20 +235,12 @@ Skip this step entirely.
 Run the program, then format the results with {meth}`~.ExecutorCircuitGenerator.collect`, to produce
 a {class}`~.Fit` &mdash; the container the analysis stages read from and write to.
 
+This step is the same whether the executor is pointed at a simulator or at a real device.
+
 ```{code-cell} python
 job = executor.run(quantum_program)
 fit = circuit_generator.collect(job.result())
 ```
-
-:::{admonition} Running on real hardware
-:class: note
-
-```python
-from qiskit_ibm_runtime import Executor
-
-executor = Executor(mode=backend)
-```
-:::
 
 ## 7. Analyze the data
 
