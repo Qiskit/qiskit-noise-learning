@@ -15,10 +15,10 @@
 import numpy as np
 from qiskit.circuit import QuantumCircuit
 from qiskit_aer import AerSimulator
+from qiskit_ibm_runtime import Executor
 from qiskit_ibm_runtime.fake_provider import FakeManilaV2
 from samplomatic import Twirl
 
-from qiskit_noise_learning.aer_executor import AerExecutor
 from qiskit_noise_learning.data import RawData
 from qiskit_noise_learning.protocols import prepare_learning_program, process_learning_result
 
@@ -47,8 +47,9 @@ def test_narrow_gate_layer_simulates_without_noise():
         shots_per_randomization=32,
         fragment_depths=[2, 4],
     )
-    executor = AerExecutor(
-        AerSimulator(method="stabilizer"), noise_dict={}, warn_absent=False, root_seed=11
+    executor = Executor(
+        mode=AerSimulator(method="stabilizer"),
+        options={"simulator": {"seed_simulator": 11}},
     )
     fit = process_learning_result(executor.run(program).result())
 

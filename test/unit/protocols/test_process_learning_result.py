@@ -16,11 +16,11 @@ import pytest
 from qiskit.circuit import QuantumCircuit
 from qiskit.quantum_info import PauliLindbladMap
 from qiskit_aer import AerSimulator
+from qiskit_ibm_runtime import Executor
 from qiskit_ibm_runtime.fake_provider.backends.fez import FakeFez
 from samplomatic import InjectNoise, Tag, Twirl
 from samplomatic.quantum_program import QuantumProgramResult
 
-from qiskit_noise_learning.aer_executor import AerExecutor
 from qiskit_noise_learning.analysis import (
     ComputeObservables,
     CurveFitObservables,
@@ -53,14 +53,15 @@ def result():
         shots_per_randomization=16,
         fragment_depths=[2, 8],
     )
-    executor = AerExecutor(
-        AerSimulator(method="stabilizer"),
-        noise_dict={
-            "layer": PauliLindbladMap.from_list([("ZZ", 5e-3)]),
-            "P": PauliLindbladMap.from_list([("XI", 1e-3), ("IX", 1e-3)]),
-            "M": PauliLindbladMap.from_list([("XI", 1e-3), ("IX", 1e-3)]),
+    executor = Executor(
+        mode=AerSimulator(method="stabilizer"),
+        options={
+            "simulator": {
+                "layer_noise_model": [(circuit[0], PauliLindbladMap.from_list([("ZZ", 5e-3)]))],
+                "seed_simulator": 7,
+                "warn_absent": False,
+            }
         },
-        root_seed=7,
     )
     return executor.run(program).result()
 

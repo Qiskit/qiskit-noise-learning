@@ -10,12 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""End-to-end test that the learning protocol recovers the noise it was given.
-
-Covers the ``prepare_learning_program`` / ``process_learning_result`` pair together: the program
-is built, run against a simulator injecting a known noise map, and analyzed using nothing but the
-results, so the passthrough data is what carries the experiment between the two halves.
-"""
+"""End-to-end tests for protocol functions."""
 
 import pytest
 from qiskit.circuit import ClassicalRegister, QuantumCircuit
@@ -23,79 +18,114 @@ from qiskit.circuit.library import Measure, XGate
 from qiskit.quantum_info import PauliLindbladMap
 from qiskit.transpiler import PassManager, TransformationPass
 from qiskit_aer import AerSimulator
+from qiskit_ibm_runtime import Executor
 from qiskit_ibm_runtime.fake_provider.backends.fez import FakeFez
 from samplomatic import InjectNoise, Tag, Twirl
 
-from qiskit_noise_learning.aer_executor import AerExecutor
 from qiskit_noise_learning.analysis import FlipPostSelect
 from qiskit_noise_learning.models import split_pauli_lindblad_model
 from qiskit_noise_learning.protocols import prepare_learning_program, process_learning_result
 
+# backend and qubits
+BACKEND = FakeFez()
 PAIR = (17, 27)
-INJECTED_RATE = 5e-3
+
+# rates for CZ layer
+ZZ_RATE, Z17_RATE, Z27_RATE = 5e-3, 2e-3, 3e-3
+
+# rates for measurement
+X17_RATE, X27_RATE = 3e-2, 2e-2
+
+# noise maps
+LAYER_NOISE = PauliLindbladMap.from_sparse_list(
+    [("ZZ", (0, 1), ZZ_RATE), ("Z", (0,), Z17_RATE), ("Z", (1,), Z27_RATE)], 2
+)
+READOUT_NOISE = PauliLindbladMap.from_sparse_list([("X", (0,), X17_RATE), ("X", (1,), X27_RATE)], 2)
 
 
-def _make_annotated_layer(backend, pair=(17, 27)):
-    """Build a circuit holding one twirled, noise-injectable box of a single CZ.
-
-    The ``Tag`` names the layer for the simulator, which matches it against the barrier labels of
-    the generated template circuits; the ``InjectNoise`` names the gate in the learned model.
-    """
-    circuit = QuantumCircuit(backend.num_qubits)
+@pytest.fixture(scope="module")
+def cz_layer():
+    """The boxed CZ whose noise is being learned."""
+    circuit = QuantumCircuit(BACKEND.num_qubits)
     with circuit.box([Twirl(), Tag("layer"), InjectNoise("layer")]):
-        circuit.cz(*pair)
-    return circuit
+        circuit.cz(*PAIR)
+    return circuit[0]
 
 
-def test_learning_protocol_recovers_injected_noise():
-    """The protocol pair learns back the noise that was injected."""
-    backend = FakeFez()
-    circuit = _make_annotated_layer(backend)
+def _measurement_layer(qubits):
+    """A boxed measurement reading ``qubits`` into classical bits in the order given."""
+    circuit = QuantumCircuit(BACKEND.num_qubits, len(qubits))
+    with circuit.box([Twirl(), Tag("readout"), InjectNoise("readout")]):
+        for clbit, qubit in enumerate(qubits):
+            circuit.measure(qubit, clbit)
+    return circuit[0]
 
-    injected_rate = 5e-3
-    executor = AerExecutor(
-        AerSimulator(method="stabilizer"),
-        noise_dict={
-            "layer": PauliLindbladMap.from_list([("ZZ", injected_rate)]),
-            "P": PauliLindbladMap.from_list([("XI", 1e-3), ("IX", 1e-3)]),
-            "M": PauliLindbladMap.from_list([("XI", 1e-3), ("IX", 1e-3)]),
+
+def _run_protocol(cz_layer, measurement, pass_manager=None, raw_data_stage=None):
+    """Build a program for the two layers, simulate it with the injected noise, and fit it."""
+    executor = Executor(
+        mode=AerSimulator(method="stabilizer"),
+        options={
+            "simulator": {
+                "layer_noise_model": [(cz_layer, LAYER_NOISE), (measurement, READOUT_NOISE)],
+                "seed_simulator": 7,
+                # Every program carries a preparation box, whose noise cannot be simulated.
+                "warn_absent": False,
+            }
         },
-        root_seed=7,
     )
-
+    # 64 x 256 rather than something smaller because the readout rates need it: at 16 x 64 they
+    # swing by as much as 20%, too loose to catch readout noise being dropped on the floor.
     program = prepare_learning_program(
-        backend,
-        [circuit[0]],
-        num_randomizations=16,
-        shots_per_randomization=64,
+        BACKEND,
+        [cz_layer, measurement],
+        num_randomizations=64,
+        shots_per_randomization=256,
         fragment_depths=[2, 8, 32],
+        pass_manager=pass_manager,
     )
-    fit = process_learning_result(executor.run(program).result())
+    return process_learning_result(executor.run(program).result(), raw_data_stage=raw_data_stage)
 
-    learned = split_pauli_lindblad_model(fit.model).model.to_pauli_lindblad_maps(fit.model_data)
-    assert set(learned) == {"layer"}
 
+def _assert_recovers_injected_noise(fit):
+    """Assert every injected rate comes back on its own generator, and nowhere else."""
+    model = split_pauli_lindblad_model(fit.model).model
+    maps = model.to_pauli_lindblad_maps(fit.model_data, include_spam=True)
     rates = {
-        (pauli, tuple(indices)): rate for pauli, indices, rate in learned["layer"].to_sparse_list()
+        name: {(pauli, tuple(idxs)): rate for pauli, idxs, rate in noise_map.to_sparse_list()}
+        for name, noise_map in maps.items()
     }
-    assert rates.pop(("ZZ", (17, 27))) == pytest.approx(injected_rate, rel=0.1)
-    assert max(rates.values()) < 0.075 * injected_rate, "weight leaked onto uninjected generators"
+    assert set(rates) == {"layer", "readout"}
 
-    with_spam = split_pauli_lindblad_model(fit.model).model.to_pauli_lindblad_maps(
-        fit.model_data, include_spam=True
-    )
-    assert set(with_spam) == {"layer", "M"}
-    assert {(pauli, tuple(indices)) for pauli, indices, _ in with_spam["M"].to_sparse_list()} == {
-        ("X", (qubit,)) for qubit in PAIR
-    }
+    layer_rates, readout_rates = rates["layer"], rates["readout"]
+    injected = {("ZZ", PAIR): ZZ_RATE, ("Z", (17,)): Z17_RATE, ("Z", (27,)): Z27_RATE}
+    for generator, rate in injected.items():
+        assert layer_rates[generator] == pytest.approx(rate, rel=0.1)
+    assert readout_rates[("X", (17,))] == pytest.approx(X17_RATE, rel=0.1)
+    assert readout_rates[("X", (27,))] == pytest.approx(X27_RATE, rel=0.1)
+
+    leaked = {gen: rate for gen, rate in layer_rates.items() if gen not in injected}
+    assert max(leaked.values()) < 0.1 * min(
+        injected.values()
+    ), f"weight leaked onto uninjected generators: {leaked}"
+
+
+def test_learning_protocol_recovers_injected_noise(cz_layer):
+    """The protocol pair learns back the layer and readout noise that were injected."""
+    fit = _run_protocol(cz_layer, _measurement_layer(PAIR))
+
+    _assert_recovers_injected_noise(fit)
+
+
+def test_recovery_with_a_reversed_measurement_bit_order(cz_layer):
+    """Recovery is unaffected by which classical bit a supplied box measures each qubit into."""
+    fit = _run_protocol(cz_layer, _measurement_layer(tuple(reversed(PAIR))))
+
+    _assert_recovers_injected_noise(fit)
 
 
 class _AddFlipCheck(TransformationPass):
-    """Re-measure each qubit of the pair after an ``X``, into a ``_ps``-suffixed register.
-
-    This is the scheme FlipPostSelect's two-creg rule expects: a healthy bit flips between the
-    two reads, and one that does not is what post-selection discards.
-    """
+    """Re-measure each qubit of the pair after an ``X``, into a ``_ps``-suffixed register."""
 
     def run(self, dag):
         creg = ClassicalRegister(len(PAIR), "meas0_ps")
@@ -106,80 +136,13 @@ class _AddFlipCheck(TransformationPass):
         return dag
 
 
-def test_post_selection_hooks_compose():
+def test_post_selection_hooks_compose(cz_layer):
     """The pass manager and raw-data stage arguments work together across the pair."""
-    backend = FakeFez()
-    circuit = _make_annotated_layer(backend)
-
-    executor = AerExecutor(
-        AerSimulator(method="stabilizer"),
-        noise_dict={
-            "layer": PauliLindbladMap.from_list([("ZZ", INJECTED_RATE)]),
-            "P": PauliLindbladMap.from_list([("XI", 1e-3), ("IX", 1e-3)]),
-            "M": PauliLindbladMap.from_list([("XI", 1e-3), ("IX", 1e-3)]),
-        },
-        root_seed=7,
-    )
-
-    program = prepare_learning_program(
-        backend,
-        [circuit[0]],
-        num_randomizations=16,
-        shots_per_randomization=64,
-        fragment_depths=[2, 8, 32],
+    fit = _run_protocol(
+        cz_layer,
+        _measurement_layer(PAIR),
         pass_manager=PassManager([_AddFlipCheck()]),
-    )
-    fit = process_learning_result(executor.run(program).result(), raw_data_stage=FlipPostSelect())
-
-    learned = split_pauli_lindblad_model(fit.model).model.to_pauli_lindblad_maps(fit.model_data)
-    rates = {
-        (pauli, tuple(indices)): rate for pauli, indices, rate in learned["layer"].to_sparse_list()
-    }
-    assert rates[("ZZ", PAIR)] == pytest.approx(INJECTED_RATE, rel=0.1)
-
-
-def test_recovery_with_a_supplied_measurement_layer():
-    """The protocol still recovers the layer when the caller supplies the measurement box."""
-    backend = FakeFez()
-    layer = _make_annotated_layer(backend)
-    measurement = QuantumCircuit(backend.num_qubits, len(PAIR))
-    with measurement.box([Twirl(), Tag("readout"), InjectNoise("readout")]):
-        # Reversed, so that the supplied order is what the analysis reads outcomes back in.
-        for clbit, qubit in enumerate(reversed(PAIR)):
-            measurement.measure(qubit, clbit)
-
-    executor = AerExecutor(
-        AerSimulator(method="stabilizer"),
-        noise_dict={
-            "layer": PauliLindbladMap.from_list([("ZZ", INJECTED_RATE)]),
-            "P": PauliLindbladMap.from_list([("XI", 1e-3), ("IX", 1e-3)]),
-            "readout": PauliLindbladMap.from_list([("XI", 1e-3), ("IX", 1e-3)]),
-        },
-        root_seed=7,
+        raw_data_stage=FlipPostSelect(),
     )
 
-    program = prepare_learning_program(
-        backend,
-        [layer[0], measurement[0]],
-        num_randomizations=16,
-        shots_per_randomization=64,
-        fragment_depths=[2, 8, 32],
-    )
-    fit = process_learning_result(executor.run(program).result())
-
-    model = split_pauli_lindblad_model(fit.model).model
-    learned = model.to_pauli_lindblad_maps(fit.model_data)
-    assert set(learned) == {"layer"}
-
-    rates = {
-        (pauli, tuple(indices)): rate for pauli, indices, rate in learned["layer"].to_sparse_list()
-    }
-    assert rates.pop(("ZZ", PAIR)) == pytest.approx(INJECTED_RATE, rel=0.1)
-    assert max(rates.values()) < 0.075 * INJECTED_RATE, "weight leaked onto uninjected generators"
-
-    # The SPAM noise is carried by the supplied box, under the name its annotation gave it.
-    with_spam = model.to_pauli_lindblad_maps(fit.model_data, include_spam=True)
-    assert set(with_spam) == {"layer", "readout"}
-    assert {
-        (pauli, tuple(indices)) for pauli, indices, _ in with_spam["readout"].to_sparse_list()
-    } == {("X", (qubit,)) for qubit in PAIR}
+    _assert_recovers_injected_noise(fit)
