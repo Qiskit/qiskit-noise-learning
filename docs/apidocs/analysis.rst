@@ -25,3 +25,12 @@ Classes
    PositivityMinSolve
    SymmetrizeFidelities
    SymmetrizeGenerators
+
+Functions
+---------
+
+.. autosummary::
+   :toctree: generated
+   :nosignatures:
+
+   suffix_creg_identifier
