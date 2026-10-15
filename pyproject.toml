@@ -21,7 +21,6 @@ classifiers = [
 dependencies = [
     "numpy>=2",
     "qiskit>=2.5.0,<3",
-    "qiskit-aer",
     "rustworkx>=0.15",
     "samplomatic>=0.21",
     "scipy>=1.13",
@@ -52,9 +51,10 @@ dev = [
     "pre-commit",             # Pre-commit hooks
     "towncrier",              # Changelog management
     "scipy-doctest",          # SciPy's style of doc-testing
-    # Fake-provider backends that the tests transpile against; the package itself does not
-    # import qiskit-ibm-runtime.
-    "qiskit-ibm-runtime>=0.48",
+    # Local-mode execution and the fake-provider backends the tests transpile against. The package
+    # itself imports neither.
+    "qiskit-ibm-runtime>=0.50",
+    "qiskit-aer",
 ]
 
 vis = [
@@ -74,7 +74,8 @@ docs = [
     # The tutorials run for real at build time, so building the docs needs whatever they plot with:
     "qiskit-noise-learning[vis]",   # matplotlib, for this package's own figures
     "qiskit[visualization]",        # matplotlib/pylatexenc, for QuantumCircuit.draw("mpl")
-    "qiskit-ibm-runtime>=0.48",     # FakeMarrakesh, which the tutorials build their circuits on
+    "qiskit-ibm-runtime>=0.50",     # FakeMarrakesh and local-mode execution, which the tutorials use
+    "qiskit-aer",                   # the simulator the tutorials run their programs on
 ]
 
 cvxpy = [
