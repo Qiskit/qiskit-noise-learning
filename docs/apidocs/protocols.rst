@@ -11,5 +11,5 @@ Functions
 .. autosummary::
    :toctree: generated
 
-   prepare_learning_program
-   process_learning_result
+   prepare_vanilla_program
+   process_vanilla_result

@@ -23,8 +23,7 @@ from qiskit_ibm_runtime.fake_provider.backends.fez import FakeFez
 from samplomatic import InjectNoise, Tag, Twirl
 
 from qiskit_noise_learning.analysis import FlipPostSelect
-from qiskit_noise_learning.models import split_pauli_lindblad_model
-from qiskit_noise_learning.protocols import prepare_learning_program, process_learning_result
+from qiskit_noise_learning.protocols import prepare_vanilla_program, process_vanilla_result
 
 # backend and qubits
 BACKEND = FakeFez()
@@ -76,7 +75,7 @@ def _run_protocol(cz_layer, measurement, pass_manager=None, raw_data_stage=None)
     )
     # 64 x 256 rather than something smaller because the readout rates need it: at 16 x 64 they
     # swing by as much as 20%, too loose to catch readout noise being dropped on the floor.
-    program = prepare_learning_program(
+    program = prepare_vanilla_program(
         BACKEND,
         [cz_layer, measurement],
         num_randomizations=64,
@@ -84,25 +83,23 @@ def _run_protocol(cz_layer, measurement, pass_manager=None, raw_data_stage=None)
         fragment_depths=[2, 8, 32],
         pass_manager=pass_manager,
     )
-    return process_learning_result(executor.run(program).result(), raw_data_stage=raw_data_stage)
+    return process_vanilla_result(executor.run(program).result(), raw_data_stage=raw_data_stage)
 
 
-def _assert_recovers_injected_noise(fit):
-    """Assert every injected rate comes back on its own generator, and nowhere else."""
-    model = split_pauli_lindblad_model(fit.model).model
-    maps = model.to_pauli_lindblad_maps(fit.model_data, include_spam=True)
-    rates = {
-        name: {(pauli, tuple(idxs)): rate for pauli, idxs, rate in noise_map.to_sparse_list()}
-        for name, noise_map in maps.items()
-    }
-    assert set(rates) == {"layer", "readout"}
+def _assert_recovers_injected_noise(processed):
+    """Assert every injected rate comes back correctly."""
+    noise_maps, gate_names, _ = processed
+    assert gate_names == ["layer", "readout"]
+    layer_rates, readout_rates = (
+        {(pauli, tuple(idxs)): rate for pauli, idxs, rate in noise_map.to_sparse_list()}
+        for noise_map in noise_maps
+    )
 
-    layer_rates, readout_rates = rates["layer"], rates["readout"]
-    injected = {("ZZ", PAIR): ZZ_RATE, ("Z", (17,)): Z17_RATE, ("Z", (27,)): Z27_RATE}
+    injected = {("ZZ", (0, 1)): ZZ_RATE, ("Z", (0,)): Z17_RATE, ("Z", (1,)): Z27_RATE}
     for generator, rate in injected.items():
         assert layer_rates[generator] == pytest.approx(rate, rel=0.1)
-    assert readout_rates[("X", (17,))] == pytest.approx(X17_RATE, rel=0.1)
-    assert readout_rates[("X", (27,))] == pytest.approx(X27_RATE, rel=0.1)
+    assert readout_rates[("X", (0,))] == pytest.approx(X17_RATE, rel=0.1)
+    assert readout_rates[("X", (1,))] == pytest.approx(X27_RATE, rel=0.1)
 
     leaked = {gen: rate for gen, rate in layer_rates.items() if gen not in injected}
     assert max(leaked.values()) < 0.1 * min(
@@ -112,16 +109,16 @@ def _assert_recovers_injected_noise(fit):
 
 def test_learning_protocol_recovers_injected_noise(cz_layer):
     """The protocol pair learns back the layer and readout noise that were injected."""
-    fit = _run_protocol(cz_layer, _measurement_layer(PAIR))
+    processed = _run_protocol(cz_layer, _measurement_layer(PAIR))
 
-    _assert_recovers_injected_noise(fit)
+    _assert_recovers_injected_noise(processed)
 
 
 def test_recovery_with_a_reversed_measurement_bit_order(cz_layer):
     """Recovery is unaffected by which classical bit a supplied box measures each qubit into."""
-    fit = _run_protocol(cz_layer, _measurement_layer(tuple(reversed(PAIR))))
+    processed = _run_protocol(cz_layer, _measurement_layer(tuple(reversed(PAIR))))
 
-    _assert_recovers_injected_noise(fit)
+    _assert_recovers_injected_noise(processed)
 
 
 class _AddFlipCheck(TransformationPass):
@@ -138,11 +135,11 @@ class _AddFlipCheck(TransformationPass):
 
 def test_post_selection_hooks_compose(cz_layer):
     """The pass manager and raw-data stage arguments work together across the pair."""
-    fit = _run_protocol(
+    processed = _run_protocol(
         cz_layer,
         _measurement_layer(PAIR),
         pass_manager=PassManager([_AddFlipCheck()]),
         raw_data_stage=FlipPostSelect(),
     )
 
-    _assert_recovers_injected_noise(fit)
+    _assert_recovers_injected_noise(processed)

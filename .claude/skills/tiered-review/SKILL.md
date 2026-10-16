@@ -110,7 +110,7 @@ Judge strategy and design choices harshly, but do not comment on code details.
 
 Report to chat. Do not edit files.
 
-Anchors: `protocols/prepare_learning_program.py`, `models/fidelity_model.py`,
+Anchors: `protocols/prepare_vanilla_program.py`, `models/fidelity_model.py`,
 `gate_sets/gate_set.py`, `sequences/path.py`, `README`.
 
 ### Tier 2 — `architecture` (chat only)

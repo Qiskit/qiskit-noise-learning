@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Tests for prepare_learning_program."""
+"""Tests for prepare_vanilla_program."""
 
 import pytest
 from qiskit.circuit import QuantumCircuit
@@ -19,9 +19,14 @@ from qiskit_ibm_runtime.fake_provider.backends.fez import FakeFez
 from samplomatic import InjectNoise, Twirl
 from samplomatic.quantum_program import QuantumProgram
 
-from qiskit_noise_learning.circuit_generator.executor.data_mapper_serialization import load
+from qiskit_noise_learning.circuit_generator.executor.data_mapper_serialization import (
+    PAYLOAD_KEY,
+    PROTOCOL_KEY,
+    load,
+)
 from qiskit_noise_learning.experiment_builder import Experiment
-from qiskit_noise_learning.protocols import prepare_learning_program
+from qiskit_noise_learning.protocols import prepare_vanilla_program
+from qiskit_noise_learning.protocols.vanilla import VANILLA_KEY, VERSION
 
 PAIR = (17, 27)
 
@@ -70,7 +75,7 @@ def _split_paths(paths):
 def test_rejects_empty_instructions(backend):
     """There is nothing to learn, and the gate set would be built on zero qubits."""
     with pytest.raises(ValueError, match="instructions must contain at least one instruction"):
-        prepare_learning_program(backend, [])
+        prepare_vanilla_program(backend, [])
 
 
 def test_rejects_non_box_instruction(backend):
@@ -79,7 +84,7 @@ def test_rejects_non_box_instruction(backend):
     circuit.cz(*PAIR)
 
     with pytest.raises(ValueError, match="BoxOps"):
-        prepare_learning_program(backend, [circuit[0]])
+        prepare_vanilla_program(backend, [circuit[0]])
 
 
 @pytest.mark.parametrize(
@@ -93,7 +98,7 @@ def test_rejects_non_box_instruction(backend):
 def test_rejects_invalid_quantities(backend, kwargs, match):
     """A negative depth in particular would collide with the decay-row sentinel downstream."""
     with pytest.raises(ValueError, match=match):
-        prepare_learning_program(backend, [_boxed_cz(backend, name="layer")], **kwargs)
+        prepare_vanilla_program(backend, [_boxed_cz(backend, name="layer")], **kwargs)
 
 
 def test_program_shape(backend):
@@ -103,7 +108,7 @@ def test_program_shape(backend):
     remaining item.
     """
     depths = [2, 8, 32]
-    program = prepare_learning_program(
+    program = prepare_vanilla_program(
         backend,
         [_boxed_cz(backend, name="layer")],
         num_randomizations=4,
@@ -118,7 +123,7 @@ def test_program_shape(backend):
 
 def test_defaults(backend):
     """The documented defaults, pinned so a change to them is deliberate."""
-    program = prepare_learning_program(backend, [_boxed_cz(backend, name="layer")])
+    program = prepare_vanilla_program(backend, [_boxed_cz(backend, name="layer")])
 
     assert program.shots == 128
     assert load(program.passthrough_data).num_randomizations == 32
@@ -126,8 +131,8 @@ def test_defaults(backend):
 
 
 def test_passthrough_carries_the_experiment(backend):
-    """Everything process_learning_result needs travels in the program itself."""
-    program = prepare_learning_program(
+    """Everything process_vanilla_result needs travels in the program itself."""
+    program = prepare_vanilla_program(
         backend,
         [_boxed_cz(backend, name="layer")],
         num_randomizations=4,
@@ -146,10 +151,27 @@ def test_passthrough_carries_the_experiment(backend):
     assert len(spam_paths) == len(PAIR)
 
 
+def test_passthrough_records_the_gate_of_every_submitted_instruction(backend):
+    """The submitted order is recorded, because nothing else in the program carries it."""
+    program = prepare_vanilla_program(
+        backend,
+        [_boxed_cz(backend, name="zebra"), _boxed_measure(backend, name="apple")],
+        num_randomizations=2,
+        shots_per_randomization=8,
+        fragment_depths=[2],
+    )
+
+    assert program.passthrough_data[PAYLOAD_KEY][PROTOCOL_KEY] == {
+        VANILLA_KEY: {"version": VERSION, "gate_names": ["zebra", "apple"]}
+    }
+    # The data mapper still loads, and shows the order that would be recovered without the record.
+    assert list(load(program.passthrough_data).fidelity_model.gate_set) == ["P", "apple", "zebra"]
+
+
 @pytest.mark.parametrize(("name", "expected"), [("layer", "layer"), (None, "L0")])
 def test_gate_naming(backend, name, expected):
     """An annotated box is keyed by its reference; an unannotated one is named automatically."""
-    program = prepare_learning_program(
+    program = prepare_vanilla_program(
         backend,
         [_boxed_cz(backend, name=name)],
         num_randomizations=2,
@@ -163,7 +185,7 @@ def test_gate_naming(backend, name, expected):
 
 def test_paths_are_rank_reduced(backend):
     """The path set is linearly independent."""
-    program = prepare_learning_program(
+    program = prepare_vanilla_program(
         backend,
         [_boxed_cz(backend, name="layer")],
         num_randomizations=2,
@@ -178,7 +200,7 @@ def test_paths_are_rank_reduced(backend):
 
 def test_measurement_carries_all_spam_noise(backend):
     """Depth-0 data cannot separate preparation from measurement, so only ``M`` is modelled."""
-    program = prepare_learning_program(
+    program = prepare_vanilla_program(
         backend,
         [_boxed_cz(backend, name="layer")],
         num_randomizations=2,
@@ -196,7 +218,7 @@ def test_measurement_carries_all_spam_noise(backend):
 
 def test_supplied_measurement_layer_replaces_the_default(backend):
     """A box that measures becomes the measurement gate, rather than duplicating ``"M"``."""
-    program = prepare_learning_program(
+    program = prepare_vanilla_program(
         backend,
         [_boxed_cz(backend), _boxed_measure(backend)],
         num_randomizations=2,
@@ -216,7 +238,7 @@ def test_supplied_measurement_layer_replaces_the_default(backend):
 
 def test_supplied_measurement_layer_is_named_by_its_annotation(backend):
     """It is named like any other box, so its noise can be keyed by a reference of your choosing."""
-    program = prepare_learning_program(
+    program = prepare_vanilla_program(
         backend,
         [_boxed_cz(backend, name="layer"), _boxed_measure(backend, name="readout")],
         num_randomizations=2,
@@ -252,4 +274,4 @@ def test_rejects_measurement_layers_that_cannot_be_the_measurement_gate(
 ):
     """Rejected outright, rather than quietly added as a layer that no path probes."""
     with pytest.raises(ValueError, match=match):
-        prepare_learning_program(backend, build_instructions(backend))
+        prepare_vanilla_program(backend, build_instructions(backend))

@@ -22,6 +22,9 @@ from . import v1
 PAYLOAD_KEY = "qiskit_noise_learning"
 """The entry under which a program's passthrough data carries the serialized data mapper."""
 
+PROTOCOL_KEY = "protocol"
+"""Reserved entry for protocol specification."""
+
 CURRENT_VERSION = v1.VERSION
 """The format version :func:`dump` writes."""
 

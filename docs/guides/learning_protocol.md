@@ -13,8 +13,8 @@ kernelspec:
 # Learn the noise model of a gate
 
 This tutorial demonstrates learning a noise model for a unitary gate with a standard learning
-protocol accessible through the high-level protocol functions {func}`~.prepare_learning_program` and
-{func}`~.process_learning_result`.
+protocol accessible through the high-level protocol functions {func}`~.prepare_vanilla_program` and
+{func}`~.process_vanilla_result`.
 
 1. Define the gate
 2. Set up local simulation
@@ -131,13 +131,13 @@ executor = Executor(mode=backend)
 
 ## 3. Prepare the quantum program
 
-Use {func}`~.prepare_learning_program` to build the quantum program containing the learning
+Use {func}`~.prepare_vanilla_program` to build the quantum program containing the learning
 experiments.
 
 ```{code-cell} python
-from qiskit_noise_learning.protocols import prepare_learning_program
+from qiskit_noise_learning.protocols import prepare_vanilla_program
 
-program = prepare_learning_program(
+program = prepare_vanilla_program(
     backend,
     [circuit[0], measurement[0]],
     fragment_depths=[2, 16, 64, 128],
@@ -159,15 +159,15 @@ result = executor.run(program).result()
 
 ## 5. Read the results
 
-Process the result with {func}`~.process_learning_result`, obtaining a {class}`~.Fit` object.
+Process the result with {func}`~.process_vanilla_result`.
 
 ```{code-cell} python
-from qiskit_noise_learning.protocols import process_learning_result
+from qiskit_noise_learning.protocols import process_vanilla_result
 
-fit = process_learning_result(result)
+noise_maps, gate_names, fit = process_vanilla_result(result)
 ```
 
-Use the fit to plot per-qubit-pair fidelity decays: both the data and the exponential fit.
+Plot per-qubit-pair fidelity decays: both the data and the exponential fit.
 
 ```{code-cell} python
 fit.plot_qubit_pair_decays(
@@ -175,14 +175,4 @@ fit.plot_qubit_pair_decays(
     observable_type="means",
     exponential_fit=True,
 )
-```
-
-Read out the learned noise, keyed by the name from the `InjectNoise` annotation.
-
-```{code-cell} python
-from qiskit_noise_learning.models import split_pauli_lindblad_model
-
-pauli_lindblad_model = split_pauli_lindblad_model(fit.model).model
-learned = pauli_lindblad_model.to_pauli_lindblad_maps(fit.model_data)["cz_gate"]
-learned.num_terms
 ```
