@@ -58,7 +58,7 @@ def prepare_vanilla_program(
     local_clifford_ref_prefix: str = "c",
     pass_manager: PassManager | None = None,
 ) -> QuantumProgram:
-    """Build the quantum program of a standard noise learning experiment.
+    """Build the quantum program containing the vanilla learning experiment.
 
     The experiment is setup to learn a 2-local Pauli-Lindblad model for each layer defined in
     ``instructions`` via the "vanilla" learning protocol, with paths generated via

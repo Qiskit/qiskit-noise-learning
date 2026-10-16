@@ -25,13 +25,13 @@ from ...circuit_generator import ExecutorCircuitGenerator
 from ...data import RawData
 from ...models import split_pauli_lindblad_model
 from .vanilla_data_serialization import load
-from .vanilla_results import VanillaResults
+from .vanilla_fit import VanillaFit
 
 
 def process_vanilla_result(
     result: QuantumProgramResult,
     raw_data_stage: AnalysisStage | None = None,
-) -> VanillaResults:
+) -> VanillaFit:
     """Analyze the result of a program built by :func:`~.prepare_vanilla_program`.
 
     Applies the standard "vanilla" learning program analysis using curve fitting and
@@ -39,8 +39,8 @@ def process_vanilla_result(
 
     Example::
 
-        results = process_vanilla_result(job.result())
-        results.noise_maps[0]
+        learned = process_vanilla_result(job.result())
+        learned.noise_maps[0]
 
     Args:
         result: The result of a program built by :func:`~.prepare_vanilla_program`.
@@ -96,7 +96,7 @@ def process_vanilla_result(
             "report for the instruction(s) they were built from."
         )
 
-    return VanillaResults(
+    return VanillaFit(
         noise_maps=[noise_maps[name] for name in gate_names],
         gate_names=gate_names,
         fit=fit,

@@ -14,4 +14,4 @@
 
 from .prepare_vanilla_program import prepare_vanilla_program
 from .process_vanilla_result import process_vanilla_result
-from .vanilla_results import VanillaResults
+from .vanilla_fit import VanillaFit

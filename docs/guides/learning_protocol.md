@@ -165,16 +165,16 @@ instruction the program was built from, in the order they were given.
 ```{code-cell} python
 from qiskit_noise_learning.protocols import process_vanilla_result
 
-results = process_vanilla_result(result)
-results.gate_names
+learned = process_vanilla_result(result)
+learned.gate_names
 ```
 
 Those are the names the boxes were keyed by: the reference from each `InjectNoise` annotation.
 `noise_maps[0]` is therefore the noise of the `CZ` layer and `noise_maps[1]` the readout noise.
 
 ```{code-cell} python
-learned = results.noise_maps[0]
-learned.num_terms
+cz_learned = learned.noise_maps[0]
+cz_learned.num_terms
 ```
 
 Each map acts on the qubits of its own instruction, its qubit `j` being the `j`-th of those in
@@ -191,14 +191,14 @@ def rates(noise_map):
 
 a, b = cz_pairs[0]
 term = ("ZZ", (local[a], local[b]))
-rates(cz_noise)[term], rates(learned)[term]
+rates(cz_noise)[term], rates(cz_learned)[term]
 ```
 
 The fit the noise was read out of comes back alongside it, holding the data at every level of the
 analysis. Use it to plot per-qubit-pair fidelity decays: both the data and the exponential fit.
 
 ```{code-cell} python
-results.fit.plot_qubit_pair_decays(
+learned.fit.plot_qubit_pair_decays(
     pairs=cz_pairs,
     observable_type="means",
     exponential_fit=True,
