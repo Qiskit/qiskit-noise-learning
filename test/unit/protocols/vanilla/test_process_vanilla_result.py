@@ -14,7 +14,7 @@
 
 import pytest
 from qiskit.circuit import QuantumCircuit
-from qiskit.quantum_info import PauliLindbladMap
+from qiskit.quantum_info import PauliLindbladMap, QubitSparsePauli
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import Executor
 from qiskit_ibm_runtime.fake_provider.backends.fez import FakeFez
@@ -66,6 +66,41 @@ def result():
     return executor.run(program).result()
 
 
+@pytest.fixture(scope="module")
+def result_with_a_measurement_box():
+    """Result of a program whose submitted instructions include the measurement layer."""
+    backend = FakeFez()
+    circuit = QuantumCircuit(backend.num_qubits)
+    with circuit.box([Twirl(), Tag("layer"), InjectNoise("layer")]):
+        circuit.cz(*PAIR)
+    measurement = QuantumCircuit(backend.num_qubits, len(PAIR))
+    with measurement.box([Twirl(), Tag("readout"), InjectNoise("readout")]):
+        for clbit, qubit in enumerate(PAIR):
+            measurement.measure(qubit, clbit)
+
+    program = prepare_vanilla_program(
+        backend,
+        [circuit[0], measurement[0]],
+        num_randomizations=4,
+        shots_per_randomization=16,
+        fragment_depths=[2, 8],
+    )
+    executor = Executor(
+        mode=AerSimulator(method="stabilizer"),
+        options={
+            "simulator": {
+                "layer_noise_model": [
+                    (circuit[0], PauliLindbladMap.from_list([("ZZ", 5e-3)])),
+                    (measurement[0], PauliLindbladMap.from_list([("XI", 2e-2)])),
+                ],
+                "seed_simulator": 7,
+                "warn_absent": False,
+            }
+        },
+    )
+    return executor.run(program).result()
+
+
 def test_rejects_raw_data_stage_that_is_not_a_stage():
     """Caught here rather than as an AttributeError from inside pipeline construction."""
     with pytest.raises(TypeError, match="must be an AnalysisStage"):
@@ -88,7 +123,7 @@ def test_rejects_raw_data_stage_with_wrong_levels(stage):
 
 def test_populates_every_analysis_level(result):
     """The prepared program's result carries enough to run the whole analysis."""
-    fit = process_vanilla_result(result)
+    fit = process_vanilla_result(result).fit
 
     assert isinstance(fit.raw_data, RawData)
     assert isinstance(fit.observable_data, ObservableData)
@@ -105,7 +140,49 @@ def test_raw_data_stage_runs_ahead_of_the_standard_analysis(result):
     without = process_vanilla_result(result)
     with_stage = process_vanilla_result(result, raw_data_stage=FlipPostSelect())
 
-    assert len(with_stage.history.raw_data) == len(without.history.raw_data) + 1
+    assert len(with_stage.fit.history.raw_data) == len(without.fit.history.raw_data) + 1
+
+
+def test_reports_the_noise_of_the_one_submitted_instruction(result):
+    """One instruction in, one noise map out, keyed by the gate it became."""
+    results = process_vanilla_result(result)
+
+    assert results.gate_names == ["layer"]
+    assert len(results.noise_maps) == 1
+    assert results.noise_maps[0].num_qubits == len(PAIR)
+    assert results.noise_maps[0].rates.sum() > 0
+
+
+def test_reports_a_submitted_measurement_box_at_its_own_position(result_with_a_measurement_box):
+    """A measurement box is one of the instructions, so its readout noise is reported like any."""
+    results = process_vanilla_result(result_with_a_measurement_box)
+
+    assert results.gate_names == ["layer", "readout"]
+    readout = results.noise_maps[1]
+    # All SPAM noise is attributed to the measurement, as X generators on the measured qubits.
+    assert readout.num_qubits == len(PAIR)
+    assert {
+        (tuple(generator.indices), tuple(generator.paulis)) for generator in readout.generators()
+    } == {((idx,), (QubitSparsePauli.Pauli.X,)) for idx in range(len(PAIR))}
+
+
+def test_the_synthesized_measurement_layer_is_not_reported(result):
+    """It is not a submitted instruction, so it is on the fit but not in the lists."""
+    results = process_vanilla_result(result)
+    model_data = results.fit.model_data
+
+    assert "M" not in results.gate_names
+    assert any(index.gate_name == "M" for index in model_data.dataset["parameter_index"].data)
+
+
+def test_rejects_a_result_from_a_program_it_did_not_build(result):
+    """Processing is paired with building, so a result with no protocol data is refused."""
+    stripped = QuantumProgramResult(
+        list(result), passthrough_data={"qiskit_noise_learning": {"version": 1}}
+    )
+
+    with pytest.raises(ValueError, match="prepare_vanilla_program did not build"):
+        process_vanilla_result(stripped)
 
 
 @pytest.mark.parametrize("carries_passthrough_data", [False, True], ids=["bare", "with-payload"])

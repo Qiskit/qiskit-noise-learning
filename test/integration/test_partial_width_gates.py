@@ -51,7 +51,7 @@ def test_narrow_gate_layer_simulates_without_noise():
         mode=AerSimulator(method="stabilizer"),
         options={"simulator": {"seed_simulator": 11}},
     )
-    fit = process_vanilla_result(executor.run(program).result())
+    fit = process_vanilla_result(executor.run(program).result()).fit
 
     for name, child in fit[RawData].datatree.children.items():
         data = np.asarray(child.dataset["data"])

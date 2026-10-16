@@ -159,30 +159,48 @@ result = executor.run(program).result()
 
 ## 5. Read the results
 
-Process the result with {func}`~.process_vanilla_result`, obtaining a {class}`~.Fit` object.
+Process the result with {func}`~.process_vanilla_result`, which reports the noise of each
+instruction the program was built from, in the order they were given.
 
 ```{code-cell} python
 from qiskit_noise_learning.protocols import process_vanilla_result
 
-fit = process_vanilla_result(result)
+results = process_vanilla_result(result)
+results.gate_names
 ```
 
-Use the fit to plot per-qubit-pair fidelity decays: both the data and the exponential fit.
+Those are the names the boxes were keyed by: the reference from each `InjectNoise` annotation.
+`noise_maps[0]` is therefore the noise of the `CZ` layer and `noise_maps[1]` the readout noise.
 
 ```{code-cell} python
-fit.plot_qubit_pair_decays(
+learned = results.noise_maps[0]
+learned.num_terms
+```
+
+Each map acts on the qubits of its own instruction, its qubit `j` being the `j`-th of those in
+ascending physical order --- the same indexing `cz_noise` was defined with above. So the learned
+map can be compared with the injected one term by term:
+
+```{code-cell} python
+def rates(noise_map):
+    return {
+        (pauli, tuple(sorted(idxs))): rate
+        for pauli, idxs, rate in noise_map.to_sparse_list()
+    }
+
+
+a, b = cz_pairs[0]
+term = ("ZZ", (local[a], local[b]))
+rates(cz_noise)[term], rates(learned)[term]
+```
+
+The fit the noise was read out of comes back alongside it, holding the data at every level of the
+analysis. Use it to plot per-qubit-pair fidelity decays: both the data and the exponential fit.
+
+```{code-cell} python
+results.fit.plot_qubit_pair_decays(
     pairs=cz_pairs,
     observable_type="means",
     exponential_fit=True,
 )
-```
-
-Read out the learned noise, keyed by the name from the `InjectNoise` annotation.
-
-```{code-cell} python
-from qiskit_noise_learning.models import split_pauli_lindblad_model
-
-pauli_lindblad_model = split_pauli_lindblad_model(fit.model).model
-learned = pauli_lindblad_model.to_pauli_lindblad_maps(fit.model_data)["cz_gate"]
-learned.num_terms
 ```

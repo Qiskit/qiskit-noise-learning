@@ -19,17 +19,19 @@ from ...analysis import (
     AnalysisStage,
     ComputeObservables,
     CurveFitObservables,
-    Fit,
     LegacySolve,
 )
 from ...circuit_generator import ExecutorCircuitGenerator
 from ...data import RawData
+from ...models import split_pauli_lindblad_model
+from .vanilla_data_serialization import load
+from .vanilla_results import VanillaResults
 
 
 def process_vanilla_result(
     result: QuantumProgramResult,
     raw_data_stage: AnalysisStage | None = None,
-) -> Fit:
+) -> VanillaResults:
     """Analyze the result of a program built by :func:`~.prepare_vanilla_program`.
 
     Applies the standard "vanilla" learning program analysis using curve fitting and
@@ -37,10 +39,8 @@ def process_vanilla_result(
 
     Example::
 
-        fit = process_vanilla_result(job.result())
-        noise_maps = split_pauli_lindblad_model(fit.model).model.to_pauli_lindblad_maps(
-            fit.model_data
-        )
+        results = process_vanilla_result(job.result())
+        results.noise_maps[0]
 
     Args:
         result: The result of a program built by :func:`~.prepare_vanilla_program`.
@@ -49,13 +49,16 @@ def process_vanilla_result(
             preparation. It must consume and produce :class:`~.RawData`.
 
     Returns:
-        The fit, holding the data at every analysis level.
+        The noise learned for each instruction the program was built from, alongside the fit it was
+        read out of.
 
     Raises:
         TypeError: If *raw_data_stage* is not an analysis stage.
         ValueError: If *raw_data_stage* does not consume and produce :class:`~.RawData`, if
-            *result* holds no program items, if the result's passthrough data was written in an
-            incompatible format version, or if the result violates the solver's assumptions.
+            *result* holds no program items, if the result's passthrough data carries no vanilla
+            protocol data or was written in an incompatible format version, if the result violates
+            the solver's assumptions, or if the fitted model gives no noise for one of the gates
+            the program was built from.
     """
     # Validated before the result is touched, so the cheap error does not require deserializing a
     # payload first.
@@ -73,10 +76,28 @@ def process_vanilla_result(
     if len(result) == 0:
         raise ValueError("The result holds no program items, so there is no data to analyze.")
 
+    gate_names = load(result.passthrough_data).gate_names
+
     fit = ExecutorCircuitGenerator.collect(result)
 
     stages: list[AnalysisStage] = [ComputeObservables(), CurveFitObservables(), LegacySolve()]
     if raw_data_stage is not None:
         stages.insert(0, raw_data_stage)
+    fit = AnalysisPipeline(*stages).run(fit)
 
-    return AnalysisPipeline(*stages).run(fit)
+    # The protocol builds the model itself, as a Pauli-Lindblad model, so splitting it out is a
+    # formality that keeps the failure legible if that ever stops being true.
+    noise_maps = split_pauli_lindblad_model(fit.model).model.to_pauli_lindblad_maps(
+        fit.model_data, include_spam=True, restrict_to_qubit_idxs=True
+    )
+    if missing := [name for name in gate_names if name not in noise_maps]:
+        raise ValueError(
+            f"The fitted model gives no noise for the gate(s) {missing}, so there is nothing to "
+            "report for the instruction(s) they were built from."
+        )
+
+    return VanillaResults(
+        noise_maps=[noise_maps[name] for name in gate_names],
+        gate_names=gate_names,
+        fit=fit,
+    )
