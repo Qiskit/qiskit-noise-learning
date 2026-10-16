@@ -58,13 +58,10 @@ Two further entries sit under the reserved key without belonging to any payload 
 correctness above:
 
 * ``"library_version"``, which :func:`dump` records as the version of this package that wrote the
-  payload. It is never read back; it is there to identify the install behind a payload that turns
-  out to be wrong.
+  payload.
 * ``"protocol"``, declared here as :data:`PROTOCOL_KEY` but written and read by
   :mod:`qiskit_noise_learning.protocols`. It holds one entry per protocol, each carrying that
-  protocol's own independently versioned format, so protocols share no format with each other or
-  with this one. **The key is reserved across payload versions:** a new payload version owns the
-  rest of this dictionary, but must leave this entry alone.
+  protocol's own independently versioned format.
 """
 
 from .payload import PAYLOAD_KEY, PROTOCOL_KEY, PayloadVersionError, dump, load

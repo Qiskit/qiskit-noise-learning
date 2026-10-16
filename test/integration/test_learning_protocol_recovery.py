@@ -87,13 +87,7 @@ def _run_protocol(cz_layer, measurement, pass_manager=None, raw_data_stage=None)
 
 
 def _assert_recovers_injected_noise(processed):
-    """Assert every injected rate comes back on its own generator, and nowhere else.
-
-    The rates are read off the reported noise maps, so this also pins their indexing: each map
-    acts on its own instruction's qubits in ascending physical order, making local qubit 0 the
-    physical qubit 17 and local qubit 1 the physical qubit 27 -- whichever order the instruction
-    itself names them in.
-    """
+    """Assert every injected rate comes back correctly."""
     noise_maps, gate_names, _ = processed
     assert gate_names == ["layer", "readout"]
     layer_rates, readout_rates = (
