@@ -123,7 +123,7 @@ def test_rejects_raw_data_stage_with_wrong_levels(stage):
 
 def test_populates_every_analysis_level(result):
     """The prepared program's result carries enough to run the whole analysis."""
-    fit = process_vanilla_result(result).fit
+    _, _, fit = process_vanilla_result(result)
 
     assert isinstance(fit.raw_data, RawData)
     assert isinstance(fit.observable_data, ObservableData)
@@ -137,28 +137,28 @@ def test_populates_every_analysis_level(result):
 
 def test_raw_data_stage_runs_ahead_of_the_standard_analysis(result):
     """A supplied stage writes RawData once more than the collection alone does."""
-    without = process_vanilla_result(result)
-    with_stage = process_vanilla_result(result, raw_data_stage=FlipPostSelect())
+    *_, without = process_vanilla_result(result)
+    *_, with_stage = process_vanilla_result(result, raw_data_stage=FlipPostSelect())
 
-    assert len(with_stage.fit.history.raw_data) == len(without.fit.history.raw_data) + 1
+    assert len(with_stage.history.raw_data) == len(without.history.raw_data) + 1
 
 
 def test_reports_the_noise_of_the_one_submitted_instruction(result):
     """One instruction in, one noise map out, keyed by the gate it became."""
-    learned = process_vanilla_result(result)
+    noise_maps, gate_names, _ = process_vanilla_result(result)
 
-    assert learned.gate_names == ["layer"]
-    assert len(learned.noise_maps) == 1
-    assert learned.noise_maps[0].num_qubits == len(PAIR)
-    assert learned.noise_maps[0].rates.sum() > 0
+    assert gate_names == ["layer"]
+    assert len(noise_maps) == 1
+    assert noise_maps[0].num_qubits == len(PAIR)
+    assert noise_maps[0].rates.sum() > 0
 
 
 def test_reports_a_submitted_measurement_box_at_its_own_position(result_with_a_measurement_box):
     """A measurement box is one of the instructions, so its readout noise is reported like any."""
-    learned = process_vanilla_result(result_with_a_measurement_box)
+    noise_maps, gate_names, _ = process_vanilla_result(result_with_a_measurement_box)
 
-    assert learned.gate_names == ["layer", "readout"]
-    readout = learned.noise_maps[1]
+    assert gate_names == ["layer", "readout"]
+    readout = noise_maps[1]
     # All SPAM noise is attributed to the measurement, as X generators on the measured qubits.
     assert readout.num_qubits == len(PAIR)
     assert {
@@ -168,10 +168,10 @@ def test_reports_a_submitted_measurement_box_at_its_own_position(result_with_a_m
 
 def test_the_synthesized_measurement_layer_is_not_reported(result):
     """It is not a submitted instruction, so it is on the fit but not in the lists."""
-    learned = process_vanilla_result(result)
-    model_data = learned.fit.model_data
+    _, gate_names, fit = process_vanilla_result(result)
+    model_data = fit.model_data
 
-    assert "M" not in learned.gate_names
+    assert "M" not in gate_names
     assert any(index.gate_name == "M" for index in model_data.dataset["parameter_index"].data)
 
 

@@ -86,7 +86,7 @@ def _run_protocol(cz_layer, measurement, pass_manager=None, raw_data_stage=None)
     return process_vanilla_result(executor.run(program).result(), raw_data_stage=raw_data_stage)
 
 
-def _assert_recovers_injected_noise(learned):
+def _assert_recovers_injected_noise(processed):
     """Assert every injected rate comes back on its own generator, and nowhere else.
 
     The rates are read off the reported noise maps, so this also pins their indexing: each map
@@ -94,10 +94,11 @@ def _assert_recovers_injected_noise(learned):
     physical qubit 17 and local qubit 1 the physical qubit 27 -- whichever order the instruction
     itself names them in.
     """
-    assert learned.gate_names == ["layer", "readout"]
+    noise_maps, gate_names, _ = processed
+    assert gate_names == ["layer", "readout"]
     layer_rates, readout_rates = (
         {(pauli, tuple(idxs)): rate for pauli, idxs, rate in noise_map.to_sparse_list()}
-        for noise_map in learned.noise_maps
+        for noise_map in noise_maps
     )
 
     injected = {("ZZ", (0, 1)): ZZ_RATE, ("Z", (0,)): Z17_RATE, ("Z", (1,)): Z27_RATE}
@@ -114,16 +115,16 @@ def _assert_recovers_injected_noise(learned):
 
 def test_learning_protocol_recovers_injected_noise(cz_layer):
     """The protocol pair learns back the layer and readout noise that were injected."""
-    learned = _run_protocol(cz_layer, _measurement_layer(PAIR))
+    processed = _run_protocol(cz_layer, _measurement_layer(PAIR))
 
-    _assert_recovers_injected_noise(learned)
+    _assert_recovers_injected_noise(processed)
 
 
 def test_recovery_with_a_reversed_measurement_bit_order(cz_layer):
     """Recovery is unaffected by which classical bit a supplied box measures each qubit into."""
-    learned = _run_protocol(cz_layer, _measurement_layer(tuple(reversed(PAIR))))
+    processed = _run_protocol(cz_layer, _measurement_layer(tuple(reversed(PAIR))))
 
-    _assert_recovers_injected_noise(learned)
+    _assert_recovers_injected_noise(processed)
 
 
 class _AddFlipCheck(TransformationPass):
@@ -140,11 +141,11 @@ class _AddFlipCheck(TransformationPass):
 
 def test_post_selection_hooks_compose(cz_layer):
     """The pass manager and raw-data stage arguments work together across the pair."""
-    learned = _run_protocol(
+    processed = _run_protocol(
         cz_layer,
         _measurement_layer(PAIR),
         pass_manager=PassManager([_AddFlipCheck()]),
         raw_data_stage=FlipPostSelect(),
     )
 
-    _assert_recovers_injected_noise(learned)
+    _assert_recovers_injected_noise(processed)

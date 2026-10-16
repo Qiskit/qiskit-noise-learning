@@ -12,4 +12,4 @@
 
 """Pre-packaged noise learning procedures."""
 
-from .vanilla import VanillaFit, prepare_vanilla_program, process_vanilla_result
+from .vanilla import prepare_vanilla_program, process_vanilla_result

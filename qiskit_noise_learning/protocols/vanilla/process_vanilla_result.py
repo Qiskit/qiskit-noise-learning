@@ -12,6 +12,7 @@
 
 """Analysis of a noise learning result."""
 
+from qiskit.quantum_info import PauliLindbladMap
 from samplomatic.quantum_program import QuantumProgramResult
 
 from ...analysis import (
@@ -19,19 +20,19 @@ from ...analysis import (
     AnalysisStage,
     ComputeObservables,
     CurveFitObservables,
+    Fit,
     LegacySolve,
 )
 from ...circuit_generator import ExecutorCircuitGenerator
 from ...data import RawData
 from ...models import split_pauli_lindblad_model
 from .vanilla_data_serialization import load
-from .vanilla_fit import VanillaFit
 
 
 def process_vanilla_result(
     result: QuantumProgramResult,
     raw_data_stage: AnalysisStage | None = None,
-) -> VanillaFit:
+) -> tuple[list[PauliLindbladMap], list[str], Fit]:
     """Analyze the result of a program built by :func:`~.prepare_vanilla_program`.
 
     Applies the standard "vanilla" learning program analysis using curve fitting and
@@ -39,8 +40,8 @@ def process_vanilla_result(
 
     Example::
 
-        learned = process_vanilla_result(job.result())
-        learned.noise_maps[0]
+        noise_maps, gate_names, fit = process_vanilla_result(job.result())
+        noise_maps[0]
 
     Args:
         result: The result of a program built by :func:`~.prepare_vanilla_program`.
@@ -49,8 +50,12 @@ def process_vanilla_result(
             preparation. It must consume and produce :class:`~.RawData`.
 
     Returns:
-        The noise learned for each instruction the program was built from, alongside the fit it was
-        read out of.
+        A ``(noise_maps, gate_names, fit)`` tuple, whose first two entries are parallel to the
+        ``instructions`` submitted to :func:`~.prepare_vanilla_program`. I.e. for instruction
+        ``idx``, ``noise_maps[idx]`` is the learned noise map, and ``gate_names[idx]`` is the name
+        assigned to the instruction used in the returned fit. A noise map acts on the qubits of its
+        instruction, its qubit ``j`` being the ``j``-th of the instruction in ascending
+        physical-qubit order.
 
     Raises:
         TypeError: If *raw_data_stage* is not an analysis stage.
@@ -96,8 +101,4 @@ def process_vanilla_result(
             "report for the instruction(s) they were built from."
         )
 
-    return VanillaFit(
-        noise_maps=[noise_maps[name] for name in gate_names],
-        gate_names=gate_names,
-        fit=fit,
-    )
+    return [noise_maps[name] for name in gate_names], gate_names, fit
