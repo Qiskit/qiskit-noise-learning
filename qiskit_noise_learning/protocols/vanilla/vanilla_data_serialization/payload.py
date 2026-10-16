@@ -39,8 +39,8 @@ RETIRED: dict[int, str] = {}
 def dump(passthrough_data: dict[str, Any], data: VanillaData) -> None:
     """Write vanilla protocol data into a program's passthrough data, where :func:`load` reads it.
 
-    This format does not occupy a passthrough entry of its own: it is written inside the entry the
-    serialized data mapper occupies, which must already be there.
+    This function assumes an existing passthrough data dictionary already exists, and adds it to the
+    dictionary as the ``PROTOCOL_KEY`` entry.
 
     Args:
         passthrough_data: The passthrough data of a program the data mapper has been dumped into.

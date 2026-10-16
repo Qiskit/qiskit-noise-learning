@@ -10,17 +10,17 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""The record the vanilla protocol leaves in a program for its analysis counterpart."""
+"""Additional passthrough data for the vanilla protocol."""
 
 from collections.abc import Sequence
 
 
 class VanillaData:
-    """Additional passthrough data needed by the vanilla protocol.
+    """Additional passthrough data for the vanilla protocol.
 
     Args:
-        gate_names: The name of the gate each instruction given to
-            :func:`~.prepare_vanilla_program` became, in the order the instructions were given.
+        gate_names: The assigned names to each instruction supplied to
+            :func:`~.prepare_vanilla_program`, in the order the instructions were given.
     """
 
     def __init__(self, gate_names: Sequence[str]):
