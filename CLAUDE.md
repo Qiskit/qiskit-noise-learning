@@ -47,8 +47,13 @@ Tests include doctests (`--doctest-modules` is set in `pyproject.toml`).
 
 ## CI
 
-- **`test_package.yaml`**: runs on push/PR to `main`; tests Python 3.11, 3.12, 3.13; pre-commit runs on 3.12
-- **`nightly.yml`**: nightly tests against dev Qiskit on 3.11 and 3.13
+- **`test_package.yaml`**: runs on push/PR to `main`, across every supported Python; a single job in
+  the matrix also runs pre-commit
+- **`nightly.yml`**: nightly tests against dev Qiskit, on the lowest and highest supported Python
+- **`docs.yml`**: builds the docs with `-W` on push/PR to `main`
+
+The version matrices live in the workflow files, and the floor is `requires-python` in
+`pyproject.toml`; both move faster than this file, so read them there.
 
 ## Project Structure
 

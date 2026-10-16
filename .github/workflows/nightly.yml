@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.13"]
+        python-version: ["3.11", "3.14"]
 
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +44,7 @@ jobs:
           extremal-python-dependencies pin-dependencies --inplace
           "qiskit @ file:$(echo qiskit/dist/*.whl)"
       - name: Pre-commit checks (linting)
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.14'
         run: |
           pre-commit run --all-files
       - name: Test with pytest
