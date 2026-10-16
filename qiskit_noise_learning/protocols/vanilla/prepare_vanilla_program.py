@@ -22,6 +22,7 @@ from samplomatic.quantum_program import QuantumProgram
 from samplomatic.utils import get_annotation
 
 from ...circuit_generator import ExecutorCircuitGenerator
+from ...circuit_generator.executor.data_mapper_serialization import PAYLOAD_KEY, PROTOCOL_KEY
 from ...experiment_builder import (
     BindFragmentDepths,
     CompleteSequences,
@@ -36,8 +37,12 @@ from ...experiment_builder import (
 )
 from ...gate_sets import QiskitGateSet
 from ...models import PauliLindbladModel
-from .vanilla_data import VanillaData
-from .vanilla_data_serialization import dump
+
+VANILLA_KEY = "vanilla"
+"""Key for protocol passthrough data."""
+
+VERSION = 1
+"""Passthrough data version."""
 
 
 def _measures(box_instr: CircuitInstruction) -> bool:
@@ -195,5 +200,7 @@ def prepare_vanilla_program(
         local_clifford_ref_prefix=local_clifford_ref_prefix,
         pass_manager=pass_manager,
     ).generate(experiment)
-    dump(program.passthrough_data, VanillaData(gate_names=gate_names))
+    program.passthrough_data[PAYLOAD_KEY][PROTOCOL_KEY] = {
+        VANILLA_KEY: {"version": VERSION, "gate_names": gate_names}
+    }
     return program

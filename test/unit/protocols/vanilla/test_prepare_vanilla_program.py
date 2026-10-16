@@ -19,12 +19,14 @@ from qiskit_ibm_runtime.fake_provider.backends.fez import FakeFez
 from samplomatic import InjectNoise, Twirl
 from samplomatic.quantum_program import QuantumProgram
 
-from qiskit_noise_learning.circuit_generator.executor.data_mapper_serialization import load
+from qiskit_noise_learning.circuit_generator.executor.data_mapper_serialization import (
+    PAYLOAD_KEY,
+    PROTOCOL_KEY,
+    load,
+)
 from qiskit_noise_learning.experiment_builder import Experiment
 from qiskit_noise_learning.protocols import prepare_vanilla_program
-from qiskit_noise_learning.protocols.vanilla.vanilla_data_serialization import (
-    load as load_vanilla_data,
-)
+from qiskit_noise_learning.protocols.vanilla.prepare_vanilla_program import VANILLA_KEY, VERSION
 
 PAIR = (17, 27)
 
@@ -159,7 +161,9 @@ def test_passthrough_records_the_gate_of_every_submitted_instruction(backend):
         fragment_depths=[2],
     )
 
-    assert load_vanilla_data(program.passthrough_data).gate_names == ["zebra", "apple"]
+    assert program.passthrough_data[PAYLOAD_KEY][PROTOCOL_KEY] == {
+        VANILLA_KEY: {"version": VERSION, "gate_names": ["zebra", "apple"]}
+    }
     # The data mapper still loads, and shows the order that would be recovered without the record.
     assert list(load(program.passthrough_data).fidelity_model.gate_set) == ["P", "apple", "zebra"]
 

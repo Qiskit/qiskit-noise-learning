@@ -24,9 +24,54 @@ from ...analysis import (
     LegacySolve,
 )
 from ...circuit_generator import ExecutorCircuitGenerator
+from ...circuit_generator.executor.data_mapper_serialization import PAYLOAD_KEY, PROTOCOL_KEY
 from ...data import RawData
 from ...models import split_pauli_lindblad_model
-from .vanilla_data_serialization import load
+from .prepare_vanilla_program import VANILLA_KEY, VERSION
+
+
+def _recorded_gate_names(passthrough_data: dict) -> list[str]:
+    """Retrieve the gate name passthrough data.
+
+    This function also validates the passthrough data.
+
+    Args:
+        passthrough_data: The passthrough data from the result of a program it built.
+
+    Returns:
+        The list of gate names recorded in the passthrough data.
+
+    Raises:
+        ValueError: If the passthrough data carries no protocol data, if the protocol data it
+            carries belongs to a different protocol, or if the passthrough data is from an
+            incompatible version.
+    """
+    # Checked rather than assumed: this data has been through execution, and whoever submitted the
+    # program chose what else went into it.
+    payload = passthrough_data.get(PAYLOAD_KEY) if isinstance(passthrough_data, dict) else None
+    protocols = payload.get(PROTOCOL_KEY) if isinstance(payload, dict) else None
+    if not isinstance(protocols, dict):
+        raise ValueError(
+            f"Found no protocol data to read: the passthrough data has no '{PROTOCOL_KEY}' entry "
+            f"under '{PAYLOAD_KEY}'. This result may come from a program that "
+            "prepare_vanilla_program did not build."
+        )
+
+    record = protocols.get(VANILLA_KEY)
+    if not isinstance(record, dict):
+        raise ValueError(
+            f"This program was built by a different protocol: its protocol data holds "
+            f"{sorted(protocols)} rather than a '{VANILLA_KEY}' entry, so it has to be processed "
+            "by the function pair that built it."
+        )
+
+    if (version := record.get("version")) != VERSION:
+        raise ValueError(
+            f"This protocol data is at version {version!r}, but this release requires "
+            f"version {VERSION}."
+        )
+
+    return [str(name) for name in record["gate_names"]]
 
 
 def process_vanilla_result(
@@ -60,8 +105,8 @@ def process_vanilla_result(
     Raises:
         TypeError: If *raw_data_stage* is not an analysis stage.
         ValueError: If *raw_data_stage* does not consume and produce :class:`~.RawData`, if
-            *result* holds no program items, if the result's passthrough data carries no vanilla
-            protocol data or was written in an incompatible format version, if the result violates
+            *result* holds no program items, if the result's passthrough data carries no
+            vanilla protocol data or carries it at an incompatible version, if the result violates
             the solver's assumptions, or if the fitted model gives no noise for one of the gates
             the program was built from.
     """
@@ -81,7 +126,7 @@ def process_vanilla_result(
     if len(result) == 0:
         raise ValueError("The result holds no program items, so there is no data to analyze.")
 
-    gate_names = load(result.passthrough_data).gate_names
+    gate_names = _recorded_gate_names(result.passthrough_data)
 
     fit = ExecutorCircuitGenerator.collect(result)
 

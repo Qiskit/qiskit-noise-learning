@@ -27,6 +27,10 @@ from qiskit_noise_learning.analysis import (
     FlipPostSelect,
     LegacySolve,
 )
+from qiskit_noise_learning.circuit_generator.executor.data_mapper_serialization import (
+    PAYLOAD_KEY,
+    PROTOCOL_KEY,
+)
 from qiskit_noise_learning.data import (
     AggregatedObservableData,
     ModelData,
@@ -34,6 +38,10 @@ from qiskit_noise_learning.data import (
     RawData,
 )
 from qiskit_noise_learning.protocols import prepare_vanilla_program, process_vanilla_result
+from qiskit_noise_learning.protocols.vanilla.prepare_vanilla_program import (
+    VANILLA_KEY,
+    VERSION,
+)
 
 PAIR = (17, 27)
 
@@ -175,14 +183,46 @@ def test_the_synthesized_measurement_layer_is_not_reported(result):
     assert any(index.gate_name == "M" for index in model_data.dataset["parameter_index"].data)
 
 
-def test_rejects_a_result_from_a_program_it_did_not_build(result):
-    """Processing is paired with building, so a result with no protocol data is refused."""
-    stripped = QuantumProgramResult(
-        list(result), passthrough_data={"qiskit_noise_learning": {"version": 1}}
+def _with_protocol_data(result, protocol_data):
+    """The given result, with the protocol data of its passthrough data replaced.
+
+    ``None`` leaves the entry out altogether, as the result of a program no protocol built has it.
+    """
+    payload = {
+        key: value
+        for key, value in result.passthrough_data[PAYLOAD_KEY].items()
+        if key != PROTOCOL_KEY
+    }
+    if protocol_data is not None:
+        payload[PROTOCOL_KEY] = protocol_data
+    return QuantumProgramResult(
+        list(result), passthrough_data={**result.passthrough_data, PAYLOAD_KEY: payload}
     )
 
-    with pytest.raises(ValueError, match="prepare_vanilla_program did not build"):
-        process_vanilla_result(stripped)
+
+@pytest.mark.parametrize(
+    ("protocol_data", "match"),
+    [
+        pytest.param(None, "prepare_vanilla_program did not build", id="no-protocol-data"),
+        pytest.param(
+            {"gauge_aware": {"version": 1}}, "built by a different protocol", id="another-protocol"
+        ),
+        pytest.param(
+            {VANILLA_KEY: {"version": VERSION + 1, "gate_names": ["layer"]}},
+            f"reads version {VERSION}",
+            id="another-version",
+        ),
+        pytest.param(
+            {VANILLA_KEY: {"gate_names": ["layer"]}},
+            f"reads version {VERSION}",
+            id="no-version",
+        ),
+    ],
+)
+def test_rejects_protocol_data_it_cannot_read(result, protocol_data, match):
+    """Processing is paired with building, so only this protocol's own record is read."""
+    with pytest.raises(ValueError, match=match):
+        process_vanilla_result(_with_protocol_data(result, protocol_data))
 
 
 @pytest.mark.parametrize("carries_passthrough_data", [False, True], ids=["bare", "with-payload"])
