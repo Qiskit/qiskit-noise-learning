@@ -202,16 +202,18 @@ def _with_protocol_data(result, protocol_data):
     [
         pytest.param(None, "prepare_vanilla_program did not build", id="no-protocol-data"),
         pytest.param(
-            {"gauge_aware": {"version": 1}}, "built by a different protocol", id="another-protocol"
+            {"gauge_aware": {"version": VERSION}},
+            "built by a different protocol",
+            id="another-protocol",
         ),
         pytest.param(
-            {VANILLA_KEY: {"version": VERSION + 1, "gate_names": ["layer"]}},
-            f"requires version {VERSION}",
+            {VANILLA_KEY: {"version": f"{VERSION}-dev", "gate_names": ["layer"]}},
+            f"requires version {VERSION!r}",
             id="another-version",
         ),
         pytest.param(
             {VANILLA_KEY: {"gate_names": ["layer"]}},
-            f"requires version {VERSION}",
+            f"requires version {VERSION!r}",
             id="no-version",
         ),
     ],

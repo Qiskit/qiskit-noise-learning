@@ -23,7 +23,6 @@ from qiskit_noise_learning.circuit_generator.executor.data_mapper_serialization 
     dump,
     load,
     payload,
-    v1,
 )
 
 from .conftest import as_comparable
@@ -86,31 +85,24 @@ def test_load_refuses_data_carrying_no_mapper(passthrough_data):
     "entry",
     [
         pytest.param({}, id="version absent"),
-        pytest.param({"version": "one"}, id="version not a number"),
         pytest.param({"version": None}, id="version is None"),
+        pytest.param({"version": 1}, id="version is an integer"),
     ],
 )
-def test_load_refuses_an_entry_without_a_version(entry):
-    """An entry that does not say which format it is in cannot be read."""
-    with pytest.raises(PayloadVersionError, match="integer 'version'"):
+def test_load_refuses_an_entry_without_a_string_version(entry):
+    """An entry that does not say which format it is in, as a string, cannot be read."""
+    with pytest.raises(PayloadVersionError, match="string 'version'"):
         load({payload.PAYLOAD_KEY: entry})
 
 
-def test_load_refuses_a_newer_version_and_says_to_upgrade():
-    """A payload from a later release names the action that would let it be read."""
-    with pytest.raises(PayloadVersionError, match="Upgrade qiskit-noise-learning"):
-        load({payload.PAYLOAD_KEY: {"version": max(payload.READERS) + 1}})
+def test_load_refuses_an_unreadable_version_and_says_to_upgrade():
+    """A version with no reader names the readable ones and the action that may yield a reader."""
+    with pytest.raises(PayloadVersionError, match="upgrade qiskit-noise-learning"):
+        load({payload.PAYLOAD_KEY: {"version": "not a version this release ships"}})
 
 
 def test_load_refuses_a_retired_version_and_names_a_release(monkeypatch):
     """A retired payload names a release to install, rather than only refusing."""
-    monkeypatch.setitem(payload.RETIRED, 0, "0.4.2")
+    monkeypatch.setitem(payload.RETIRED, "0", "0.4.2")
     with pytest.raises(PayloadVersionError, match="Install qiskit-noise-learning 0.4.2"):
-        load({payload.PAYLOAD_KEY: {"version": 0}})
-
-
-def test_load_refuses_a_version_missing_between_two_readable_ones(monkeypatch):
-    """A gap in the readable versions is refused as unrecognized, not as newer or as retired."""
-    monkeypatch.setitem(payload.READERS, max(payload.READERS) + 2, v1.read)
-    with pytest.raises(PayloadVersionError, match="does not recognize"):
-        load({payload.PAYLOAD_KEY: {"version": max(payload.READERS) - 1}})
+        load({payload.PAYLOAD_KEY: {"version": "0"}})

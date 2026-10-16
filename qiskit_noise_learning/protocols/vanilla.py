@@ -51,7 +51,7 @@ from ..models import PauliLindbladModel, split_pauli_lindblad_model
 VANILLA_KEY = "vanilla"
 """Key for protocol passthrough data."""
 
-VERSION = 1
+VERSION = "1"
 """Passthrough data version."""
 
 
@@ -252,7 +252,7 @@ def _recorded_gate_names(passthrough_data: dict) -> list[str]:
     if (version := record.get("version")) != VERSION:
         raise ValueError(
             f"This protocol data is at version {version!r}, but this release requires "
-            f"version {VERSION}."
+            f"version {VERSION!r}."
         )
 
     return [str(name) for name in record["gate_names"]]

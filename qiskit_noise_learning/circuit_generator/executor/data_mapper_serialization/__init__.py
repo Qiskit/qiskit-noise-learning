@@ -15,7 +15,7 @@
 
 The main functions are :func:`dump` and :func:`load`, for serialization and deserialization
 respectively. The serialization format is a dictionary of the form
-``{"qiskit_noise_learning": {"version": k, ...}}``, where ``k`` is an integer specifying the
+``{"qiskit_noise_learning": {"version": k, ...}}``, where ``k`` is a string specifying the
 serialization version, and ``...`` represents other ``str`` to object mappings, which will be
 arrays, strings, integers, booleans, ``None``, or nested containers of lists or dictionaries of
 these. The serialization is intended to be used as executor passthrough data.
@@ -26,9 +26,9 @@ The versioning system policy is as follows:
 * Payload versioning is independent of this library's package versioning.
 * The latest version file also contains a ``write`` function for serialization: as such only the
   latest version ever writes.
-* The current version number, supported previous version numbers for reading, and the retired
-  version numbers, are specified in ``payload.py``. The application of the correct read version, and
-  error raising for unsupported version numbers, is managed by :func:`load`.
+* The current version, supported previous versions for reading, and the retired versions, are
+  specified in ``payload.py``. The application of the correct read version, and error raising for
+  unsupported versions, is managed by :func:`load`.
 
 A new version is defined when the :class:`ExecutorDataMapper` is modified in a way that
 requires a change to the payload format. For example, a new field necessitates a new payload
