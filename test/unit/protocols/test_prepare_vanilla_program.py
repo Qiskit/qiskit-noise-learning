@@ -26,7 +26,7 @@ from qiskit_noise_learning.circuit_generator.executor.data_mapper_serialization 
 )
 from qiskit_noise_learning.experiment_builder import Experiment
 from qiskit_noise_learning.protocols import prepare_vanilla_program
-from qiskit_noise_learning.protocols.vanilla.prepare_vanilla_program import VANILLA_KEY, VERSION
+from qiskit_noise_learning.protocols.vanilla import VANILLA_KEY, VERSION
 
 PAIR = (17, 27)
 

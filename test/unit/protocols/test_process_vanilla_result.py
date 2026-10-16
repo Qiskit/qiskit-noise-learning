@@ -38,10 +38,7 @@ from qiskit_noise_learning.data import (
     RawData,
 )
 from qiskit_noise_learning.protocols import prepare_vanilla_program, process_vanilla_result
-from qiskit_noise_learning.protocols.vanilla.prepare_vanilla_program import (
-    VANILLA_KEY,
-    VERSION,
-)
+from qiskit_noise_learning.protocols.vanilla import VANILLA_KEY, VERSION
 
 PAIR = (17, 27)
 
@@ -209,12 +206,12 @@ def _with_protocol_data(result, protocol_data):
         ),
         pytest.param(
             {VANILLA_KEY: {"version": VERSION + 1, "gate_names": ["layer"]}},
-            f"reads version {VERSION}",
+            f"requires version {VERSION}",
             id="another-version",
         ),
         pytest.param(
             {VANILLA_KEY: {"gate_names": ["layer"]}},
-            f"reads version {VERSION}",
+            f"requires version {VERSION}",
             id="no-version",
         ),
     ],
