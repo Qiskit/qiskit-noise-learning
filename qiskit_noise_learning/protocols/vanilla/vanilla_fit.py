@@ -30,7 +30,9 @@ class VanillaFit:
     for ``instructions[idx]`` is ``noise_maps[idx]`` and ``gate_names[idx]``.
 
     Args:
-        noise_maps: The noise map learned for each submitted instruction.
+        noise_maps: The noise map learned for each submitted instruction. Each map has been
+            restricted to the qubits the map acts on using the ``restrict_to_qubit_idxs = True``
+            option of :meth:`~.PauliLindbladModel.to_pauli_lindblad_maps`.
         gate_names: The name assigned to each instruction used in :attr:`fit`.
         fit: The :class:`~.Fit` object.
     """
