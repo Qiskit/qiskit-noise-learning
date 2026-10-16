@@ -82,7 +82,7 @@ NO_MODEL = FrozenPayload(
     neither a randomization multiplier nor a shot count was recorded.
     """,
     payload={
-        "version": 1,
+        "version": "1",
         # No model and no paths, so nothing in the payload fixes a qubit count.
         "num_qubits": 0,
         "num_randomizations": 2,
@@ -135,7 +135,7 @@ PATHS_AND_RELATIONS = FrozenPayload(
     often as the base count of two, and every randomization takes 64 shots.
     """,
     payload={
-        "version": 1,
+        "version": "1",
         "num_qubits": 1,
         "num_randomizations": 2,
         "randomization_multipliers": u32(3),
@@ -220,7 +220,7 @@ WITH_MODEL = FrozenPayload(
     sequence is randomized the base number of times, and every randomization takes 128 shots.
     """,
     payload={
-        "version": 1,
+        "version": "1",
         "num_qubits": 2,
         "num_randomizations": 2,
         "randomization_multipliers": u32(1),
@@ -302,7 +302,7 @@ PAULI_PERMUTATIONS = FrozenPayload(
     over two qubits.
     """,
     payload={
-        "version": 1,
+        "version": "1",
         # Neither a model nor a path, so no qubit count is recorded.
         "num_qubits": 0,
         "num_randomizations": 2,

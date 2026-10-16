@@ -28,10 +28,10 @@ PROTOCOL_KEY = "protocol"
 CURRENT_VERSION = v1.VERSION
 """The format version :func:`dump` writes."""
 
-READERS: dict[int, Callable[[dict[str, Any]], ExecutorDataMapper]] = {v1.VERSION: v1.read}
+READERS: dict[str, Callable[[dict[str, Any]], ExecutorDataMapper]] = {v1.VERSION: v1.read}
 """Every format version this release can read, and the function that reads it."""
 
-RETIRED: dict[int, str] = {}
+RETIRED: dict[str, str] = {}
 """Format versions no longer readable, against the last release that could read them."""
 
 
@@ -84,29 +84,24 @@ def load(passthrough_data: dict[str, Any]) -> ExecutorDataMapper:
         )
     payload = passthrough_data[PAYLOAD_KEY]
 
-    try:
-        version = int(payload["version"])
-    except (TypeError, KeyError, ValueError):
+    version = payload.get("version") if isinstance(payload, dict) else None
+    if not isinstance(version, str):
         raise PayloadVersionError(
-            f"The '{PAYLOAD_KEY}' passthrough data entry has no integer 'version', so there "
+            f"The '{PAYLOAD_KEY}' passthrough data entry has no string 'version', so there "
             "is no way to tell how to read it."
-        ) from None
+        )
 
     if (reader := READERS.get(version)) is not None:
         return reader(payload)
 
     if version in RETIRED:
         raise PayloadVersionError(
-            f"This data was written in format version {version}, which this release of "
+            f"This data was written in format version {version!r}, which this release of "
             f"qiskit-noise-learning no longer reads. Install qiskit-noise-learning "
             f"{RETIRED[version]} to read it."
         )
-    if version > max(READERS):
-        raise PayloadVersionError(
-            f"This data was written in format version {version}, which is newer than this release "
-            f"of qiskit-noise-learning reads. Upgrade qiskit-noise-learning to read it."
-        )
     raise PayloadVersionError(
-        f"This data was written in format version {version}, which this release of "
-        f"qiskit-noise-learning does not recognize. It reads version(s) {sorted(READERS)}."
+        f"This data was written in format version {version!r}, which this release of "
+        f"qiskit-noise-learning does not read. It reads version(s) {sorted(READERS)}. If this "
+        "data came from a newer release, upgrade qiskit-noise-learning to read it."
     )

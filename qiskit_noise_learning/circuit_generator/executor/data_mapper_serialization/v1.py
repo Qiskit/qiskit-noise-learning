@@ -33,8 +33,8 @@ from ....sequences.instruction import Instruction
 from ..executor_data_mapper import ExecutorDataMapper
 from .arrays import IDX, pack_paulis, pack_ragged, unpack_paulis, unpack_ragged
 
-VERSION = 1
-"""The version number written into payloads by this module."""
+VERSION = "1"
+"""The version string written into payloads by this module."""
 
 _UNBOUND = -1
 """Written in place of an unbound sequence's fragment depth of ``None``."""
@@ -53,7 +53,7 @@ _PAULI_LINDBLAD_MODEL = "pauli_lindblad"
 class Payload(TypedDict):
     """A serialized data mapper."""
 
-    version: int
+    version: str
     """The format version."""
 
     num_qubits: int
