@@ -174,7 +174,7 @@ class QiskitGate(Gate):
     @property
     def constituent_gate_idxs(self) -> Iterator[tuple[int, ...]]:
         for instr in self._circuit:
-            if _is_meas(instr) or _is_prep(instr):
+            if _is_skippable_instruction(instr) or _is_meas(instr) or _is_prep(instr):
                 continue
             yield tuple(map(self._qubit_map.get, instr.qubits))
 
