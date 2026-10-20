@@ -28,7 +28,7 @@ from .utils import (
     split_pauli_lindblad_model,
 )
 
-# Type hint for a fidelity model. The authoritative criterion is structural -- a LinearMap whose
-# output space is a LogFidelitySpace (see is_fidelity_model); this alias is the closest index-level
-# approximation, since LinearMap is generic over index types, not space types.
+#: Type hint for a fidelity model. The authoritative criterion is structural -- a LinearMap whose
+#: output space is a LogFidelitySpace (see is_fidelity_model); this alias is the closest index-level
+#: approximation, since LinearMap is generic over index types, not space types.
 FidelityModel = LinearMap[Hashable, FidelityIndex]
