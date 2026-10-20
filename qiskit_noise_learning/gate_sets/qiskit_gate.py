@@ -42,6 +42,14 @@ def _is_meas(instr: CircuitInstruction) -> bool:
     return len(instr.qubits) == 1 and instr.operation.name.startswith("meas")
 
 
+# instructions that carry no physical action
+_SKIPPABLE_INSTRUCTION_NAMES = frozenset({"barrier", "store"})
+
+
+def _is_skippable_instruction(instr: CircuitInstruction) -> bool:
+    return instr.operation.name in _SKIPPABLE_INSTRUCTION_NAMES
+
+
 class QiskitGate(Gate):
     """Represents a single gate in a :class:`~.QiskitGateSet`.
 
@@ -173,10 +181,14 @@ class QiskitGate(Gate):
     def iter_ops(self) -> Iterable[tuple[tuple[int, ...], Operation]]:
         """Iterate through the operations that compose this gate in circuit order.
 
+        Instructions that carry no physical action, such as barriers, are skipped.
+
         Yields:
             Tuples ``(physical_qubits, operation)`` for each instruction in :attr:`~.circuit`.
         """
         for instr in self._circuit:
+            if _is_skippable_instruction(instr):
+                continue
             yield tuple(map(self._qubit_map.get, instr.qubits)), instr.operation
 
     def to_instruction(self) -> CircuitInstruction:
