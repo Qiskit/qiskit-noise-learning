@@ -43,11 +43,11 @@ def _is_meas(instr: CircuitInstruction) -> bool:
 
 
 # instructions that carry no physical action
-_SKIPPABLE_INSTRUCTION_NAMES = frozenset({"barrier", "store"})
+_NONPHYSICAL_INSTRUCTION_NAMES = frozenset({"barrier", "store"})
 
 
-def _is_skippable_instruction(instr: CircuitInstruction) -> bool:
-    return instr.operation.name in _SKIPPABLE_INSTRUCTION_NAMES
+def _is_nonphysical_instruction(instr: CircuitInstruction) -> bool:
+    return instr.operation.name in _NONPHYSICAL_INSTRUCTION_NAMES
 
 
 class QiskitGate(Gate):
@@ -174,7 +174,7 @@ class QiskitGate(Gate):
     @property
     def constituent_gate_idxs(self) -> Iterator[tuple[int, ...]]:
         for instr in self._circuit:
-            if _is_skippable_instruction(instr) or _is_meas(instr) or _is_prep(instr):
+            if _is_nonphysical_instruction(instr) or _is_meas(instr) or _is_prep(instr):
                 continue
             yield tuple(map(self._qubit_map.get, instr.qubits))
 
@@ -187,7 +187,7 @@ class QiskitGate(Gate):
             Tuples ``(physical_qubits, operation)`` for each instruction in :attr:`~.circuit`.
         """
         for instr in self._circuit:
-            if _is_skippable_instruction(instr):
+            if _is_nonphysical_instruction(instr):
                 continue
             yield tuple(map(self._qubit_map.get, instr.qubits)), instr.operation
 
@@ -211,7 +211,7 @@ class QiskitGate(Gate):
         meas_qubits = set()
 
         for inst in self.circuit:
-            if _is_skippable_instruction(inst):
+            if _is_nonphysical_instruction(inst):
                 continue
             if inst.name.startswith("reset"):
                 if (qubit := inst.qubits[0]) in reset_qubits:
