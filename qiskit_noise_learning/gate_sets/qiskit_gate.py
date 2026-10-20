@@ -211,6 +211,8 @@ class QiskitGate(Gate):
         meas_qubits = set()
 
         for inst in self.circuit:
+            if _is_skippable_instruction(inst):
+                continue
             if inst.name.startswith("reset"):
                 if (qubit := inst.qubits[0]) in reset_qubits:
                     raise ValueError(
