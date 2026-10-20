@@ -82,6 +82,29 @@ def test_construction_with_nonempty_circuit():
     assert sorted(gate.constituent_gate_idxs) == [(8, 2), (9, 8)]
 
 
+def test_nonphysical_instructions_are_ignored():
+    """Barriers carry no physical action, so they are not part of the gate's unitary."""
+    circuit = QuantumCircuit(4, 2)
+    circuit.cx(2, 3)
+    circuit.barrier(0, 1, 2, 3)
+    circuit.measure([0, 1], [0, 1])
+    gate = QiskitGate("L", circuit, [3, 9, 8, 2])
+
+    # the barrier neither contributes a constituent gate nor occupies the qubits it spans
+    assert list(gate.constituent_gate_idxs) == [(8, 2)]
+    assert gate.gate_idxs == {8, 2}
+    assert [op.name for _, op in gate.iter_ops()] == ["cx", "measure", "measure"]
+
+    # and the model is the one the barrier-free circuit would give
+    without_barrier = QuantumCircuit(4, 2)
+    without_barrier.cx(2, 3)
+    without_barrier.measure([0, 1], [0, 1])
+    expected = QiskitGate("L", without_barrier, [3, 9, 8, 2]).model_gate
+    assert list(gate.model_gate.constituent_gate_idxs) == list(expected.constituent_gate_idxs)
+    assert gate.model_gate.clifford == expected.clifford
+    assert gate.model_gate.meas_idxs == expected.meas_idxs
+
+
 def test_constructor_raises():
     with pytest.raises(ValueError, match="`qubit_idxs` .* `circuit.num_qubits`"):
         QiskitGate("L0", QuantumCircuit(2), [0])
