@@ -24,9 +24,7 @@ class FlipPostSelect(AnalysisStage):
     """Apply a mask to raw data based on bit-flip failures across classical registers.
 
     This post-selection stage identifies groups of one or two cregs, marks the *failed bits* of each
-    group, and masks shots based on the structure of the failures. Both rules read the *outcome* of
-    a bit, ``data ^ measurement_flips``, which is the measured value with the flip introduced by
-    measurement twirling undone. What counts as a failure depends on the size of the group:
+    group, and masks shots based on the structure of the failures:
 
     * Two cregs ``(base, ps)``: bit ``j`` failed if its outcome is the same in both, i.e. it did
       not flip between the two measurements.
@@ -46,6 +44,8 @@ class FlipPostSelect(AnalysisStage):
             selecting the corresponding rule above. Defaults to pairing each creg named ``"*_ps"``
             with ``"*"`` when the latter is present, and treating it on its own otherwise.
         mode: Post-selection mode; either ``"node"`` or ``"edge"``.
+        apply_measurement_flips: Whether or not to include measurement flips in the comparison.
+            Defaults to ``False``, i.e. comparing the physical measurement outcomes.
 
     Raises:
         ValueError: If ``mode`` is not ``"node"`` or ``"edge"``.
@@ -55,11 +55,13 @@ class FlipPostSelect(AnalysisStage):
         self,
         creg_identifier: Callable[[list[str]], Iterator[tuple[str, ...]]] | None = None,
         mode: Literal["node", "edge"] = "edge",
+        apply_measurement_flips: bool = False,
     ):
         if mode not in ("node", "edge"):
             raise ValueError(f"The mode must be 'node' or 'edge', but got {mode!r}.")
         self._creg_identifier = creg_identifier or suffix_creg_identifier()
         self._mode = mode
+        self._apply_measurement_flips = apply_measurement_flips
 
     @property
     def input_level(self):
@@ -77,15 +79,19 @@ class FlipPostSelect(AnalysisStage):
     def creg_identifier(self) -> Callable[[list[str]], Iterator[tuple[str, ...]]]:
         return self._creg_identifier
 
+    @property
+    def apply_measurement_flips(self) -> bool:
+        return self._apply_measurement_flips
+
     def _run(self, fit):
         coupling_map = fit.model.gate_set.coupling_map
 
         def _dataset_masker(dataset: xr.Dataset) -> xr.Dataset:
             if "data" not in dataset:
                 return dataset
-            outcomes = (
-                dataset["data"].values ^ dataset["measurement_flips"].values[:, np.newaxis, :]
-            )
+            outcomes = dataset["data"].values
+            if self._apply_measurement_flips:
+                outcomes = outcomes ^ dataset["measurement_flips"].values[:, np.newaxis, :]
             mask = dataset["data_mask"].values.copy()
             boundaries = dataset.attrs["creg_bit_boundaries"]
             creg_names = dataset.attrs["creg_names"]

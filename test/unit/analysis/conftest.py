@@ -44,7 +44,7 @@ def make_raw_data(make_instruction_sequence):
     """Return a builder ``(creg_names, clbit_qubit_idxs, data, measurement_flips=None) -> RawData``.
 
     The result holds a single instruction sequence. ``measurement_flips`` defaults to all-zeros,
-    which is the case in which the measured bits and their outcomes coincide.
+    i.e. to data gathered without measurement twirling.
     """
 
     def _make(creg_names, clbit_qubit_idxs, data, measurement_flips=None):
