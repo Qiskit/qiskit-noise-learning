@@ -16,6 +16,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        # reno derives the release notes from git history and tags, and fails on a shallow clone.
+        fetch-depth: 0
     - name: Set up Python
       uses: actions/setup-python@v5
       with:

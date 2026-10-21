@@ -111,30 +111,40 @@ that cite nothing get no section.
 The macros defined in `math_macros` in `docs/conf.py` are available in any math, docstrings
 included; add new ones there.
 
-## Changelog
+## Release notes
 
-We use [Towncrier](https://towncrier.readthedocs.io/) for changelog management. All PRs that make a
-changelog-worthy change should add a changelog entry, which is just a file in the `changelog.d/`
-directory named `<PR-number>.<type>.md`. The `<type>` is one of `added`, `changed`, `fixed`,
-`deprecated`, `removed`, or `security`, and the file's contents are the changelog entry itself. For
-example, for PR `#42` you might add `changelog.d/42.added.md` containing:
+We use [reno](https://docs.openstack.org/reno/latest/) for release notes. All PRs that make a
+user-visible change should add a note, which is a YAML file under `releasenotes/notes/`:
 
-```markdown
-Added a cool feature.
+```bash
+reno new add-a-cool-feature
 ```
 
-You can create this file however you like; `towncrier create -c "Added a cool feature." 42.added.md`
-is a convenient shortcut for doing so.
+That writes `releasenotes/notes/add-a-cool-feature-<hash>.yaml` pre-filled with a placeholder for
+every available section. Delete the sections you do not need -- they are live, not commented out, so
+a placeholder left behind is published verbatim -- and fill in the rest:
+
+```yaml
+---
+features:
+  - |
+    Added a cool feature.
+```
+
+The section keys are `prelude`, `features`, `issues`, `upgrade`, `deprecations`, `critical`,
+`security`, `fixes` and `other`. A key outside that set is silently ignored rather than reported, so
+check your note renders with `reno report`. `reno lint` checks that the notes parse, and runs in CI.
+
+Notes for a release that has already gone out live in a per-version subdirectory --
+`releasenotes/notes/0.1/`, for example. Leave new notes at the top level of
+`releasenotes/notes/`; they are filed into a subdirectory when the release is cut.
+
+The notes are rendered into the [release notes page](docs/release-notes.rst) of the documentation.
+Because reno groups them by walking git history and tags, building the docs needs the full history:
+in a shallow clone the build fails.
 
 ## Releasing a version
 
-Releases are cut by the core team. To assemble the changelog for a new version `X.Y.Z`, a maintainer
-runs Towncrier to consume the pending fragments in `changelog.d/` and prepend a new section to
-`CHANGELOG.md`:
-
-```bash
-towncrier build --version X.Y.Z
-```
-
-The change is committed on a release branch and merged into `main`, after which a GitHub release is
-created for the tagged version.
+Releases are cut by the core team. reno assembles the notes from the git tags, so there is nothing
+to build or commit -- a maintainer moves the new version's notes into
+`releasenotes/notes/X.Y/`, then creates a GitHub release for the tagged version.
