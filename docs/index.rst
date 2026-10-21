@@ -10,7 +10,7 @@ A Python toolkit for randomization-based quantum noise characterization.
    development. No part of the public interface is yet stable: while the major version is ``0``,
    expect breaking changes between releases and pin your dependency accordingly (for example,
    ``qiskit-noise-learning==0.1.*``). We do not currently issue deprecation warnings, but all
-   changes are recorded in the changelog. See the `deprecation policy
+   changes are recorded in the :doc:`release notes <release-notes>`. See the `deprecation policy
    <https://github.com/Qiskit/qiskit-noise-learning/blob/main/DEPRECATION.md>`_ for details. All
    feedback is appreciated.
 
@@ -34,7 +34,7 @@ Contributing
 ------------
 
 See the `contribution guidelines <https://github.com/Qiskit/qiskit-noise-learning/blob/main/CONTRIBUTING.md>`_ for details on developer setup, testing,
-building the documentation, and the changelog workflow.
+building the documentation, and the release notes workflow.
 
 
 Citing this package
@@ -48,6 +48,7 @@ If you use this package in your research, use the `CITATION.bib <https://github.
    Documentation home <self>
    Installation instructions <install>
    Guides <guides/index>
+   Release notes <release-notes>
    GitHub <https://github.com/Qiskit/qiskit-noise-learning>
 
 

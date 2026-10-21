@@ -1,0 +1,4 @@
+---
+prelude: >
+    This is the first release of Qiskit Noise Learning, which establishes the general framework for
+    building and running noise learning experiments, and analyzing the results.

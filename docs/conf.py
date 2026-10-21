@@ -30,6 +30,10 @@ extensions = [
     "myst_nb",
     "sphinxcontrib.bibtex",
     "sphinx_proof",
+    # Builds the release notes page from the per-release note files under releasenotes/.  This
+    # reads git history and tags to group the notes, so the build needs the full history: a
+    # shallow clone fails outright.
+    "reno.sphinxext",
     "qiskit_sphinx_theme",
     # The published site ingests this build's HTML rather than building its own, and
     # supports neither TeX macros nor a bibliography shared between pages.

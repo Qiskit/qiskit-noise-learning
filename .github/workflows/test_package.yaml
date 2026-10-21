@@ -27,6 +27,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        # reno derives the release notes from git history and tags, and fails on a shallow clone.
+        fetch-depth: 0
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
@@ -43,6 +46,10 @@ jobs:
       if: matrix.python-version == '3.12'
       run: |
         pre-commit run --all-files
+    - name: Check the release notes parse
+      if: matrix.python-version == '3.12'
+      run: |
+        reno lint
     - name: Test with pytest
       run: |
         python -m pytest

@@ -1,0 +1,7 @@
+---
+encoding: utf8
+default_branch: main
+unreleased_version_title: "Upcoming release"
+# ``earliest_version`` names a git revision, so it cannot be set until the first release is
+# tagged -- reno fails outright on a revision that does not exist.  Set it to 0.1.0 once that
+# tag is pushed, to stop the scan from walking history that predates any release note.

@@ -53,7 +53,7 @@ dev = [
     "pytest",                 # For running tests
     "ruff",                   # Formatter and linter
     "pre-commit",             # Pre-commit hooks
-    "towncrier",              # Changelog management
+    "reno>=4.1",              # Release notes management
     "scipy-doctest",          # SciPy's style of doc-testing
     # Local-mode execution and the fake-provider backends the tests transpile against. The package
     # itself imports neither.
@@ -75,6 +75,7 @@ docs = [
     "ipykernel",                    # Kernel that myst-nb executes tutorial notebooks with
     "sphinxcontrib-bibtex",         # BibTeX citations
     "sphinx-proof",                 # Numbered proposition/proof directives
+    "reno>=4.1",                    # Renders the release notes page from releasenotes/
     # The tutorials run for real at build time, so building the docs needs whatever they plot with:
     "qiskit-noise-learning[vis]",   # matplotlib, for this package's own figures
     "qiskit[visualization]",        # matplotlib/pylatexenc, for QuantumCircuit.draw("mpl")
@@ -107,41 +108,3 @@ target-version = "py311"
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402", "F401"]      # Ignore unused import in init files
-
-[tool.towncrier]
-package = "qiskit-noise-learning"
-directory = "changelog.d"
-filename = "CHANGELOG.md"
-start_string = "<!-- towncrier release notes start -->\n"
-title_format = "## [{version}](https://github.com/Qiskit/qiskit-noise-learning/tree/{version}) - {project_date}"
-issue_format = "[#{issue}](https://github.com/Qiskit/qiskit-noise-learning/issues/{issue})"
-
-[[tool.towncrier.type]]
-directory = "security"
-name = "Security"
-showcontent = true
-
-[[tool.towncrier.type]]
-directory = "removed"
-name = "Removed"
-showcontent = true
-
-[[tool.towncrier.type]]
-directory = "deprecated"
-name = "Deprecated"
-showcontent = true
-
-[[tool.towncrier.type]]
-directory = "added"
-name = "Added"
-showcontent = true
-
-[[tool.towncrier.type]]
-directory = "changed"
-name = "Changed"
-showcontent = true
-
-[[tool.towncrier.type]]
-directory = "fixed"
-name = "Fixed"
-showcontent = true
