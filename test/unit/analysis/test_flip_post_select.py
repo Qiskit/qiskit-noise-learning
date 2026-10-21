@@ -15,7 +15,7 @@ import pytest
 import xarray as xr
 from qiskit.transpiler import CouplingMap
 
-from qiskit_noise_learning.analysis import FlipPostSelect
+from qiskit_noise_learning.analysis import FlipPostSelect, suffix_creg_identifier
 from qiskit_noise_learning.data import RawData
 
 
@@ -548,3 +548,12 @@ def test_flip_post_select_one_creg_rule_matches_an_all_ones_partner(make_fit, ma
 
     assert np.array_equal(masks[0], masks[1])
     assert np.array_equal(masks[0], np.array([[False, True]]))
+
+
+def test_suffix_creg_identifier_yields_a_singleton_without_a_base_creg():
+    assert list(suffix_creg_identifier()(["meas0_ps"])) == [("meas0_ps",)]
+
+
+def test_suffix_creg_identifier_rejects_an_empty_suffix():
+    with pytest.raises(ValueError, match="must not be empty"):
+        suffix_creg_identifier("")
