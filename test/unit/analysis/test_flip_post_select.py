@@ -442,17 +442,20 @@ def test_flip_post_select_defaults():
     stage = FlipPostSelect()
 
     assert stage.mode == "edge"
+    assert stage.apply_measurement_flips is False
     assert list(stage.creg_identifier(["meas0", "meas0_ps", "flag_ps", "meas1"])) == [
         ("meas0", "meas0_ps"),
         ("flag_ps",),
     ]
 
 
-def test_flip_post_select_paired_cregs_honor_differing_measurement_flips(make_fit, make_raw_data):
-    """The two-creg rule compares outcomes, so unequal flips in the pair change the verdict."""
+def test_flip_post_select_with_flips_applied_undoes_differing_flips_in_a_pair(
+    make_fit, make_raw_data
+):
+    """With ``apply_measurement_flips=True``, flips that differ across a pair change the verdict."""
     # meas0 carries no flips, meas0_ps carries a flip on every bit
-    # shot 0: the measured bits agree, but the outcomes differ → keep
-    # shot 1: the measured bits differ, but the outcomes agree → mask
+    # shot 0: the stored bits agree, but the physical outcomes differ → keep
+    # shot 1: the stored bits differ, but the physical outcomes agree → mask
     data = np.array(
         [
             [
@@ -474,18 +477,20 @@ def test_flip_post_select_paired_cregs_honor_differing_measurement_flips(make_fi
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = FlipPostSelect(mode="node").run(fit)
+    result = FlipPostSelect(mode="node", apply_measurement_flips=True).run(fit)
 
     mask = result.raw_data.datatree["0"].dataset["data_mask"].values
     assert np.array_equal(mask, np.array([[False, True]]))
 
 
-def test_flip_post_select_edge_honors_measurement_flips(make_fit, make_raw_data):
-    """Edge mode reads the outcomes too, so adjacency is judged on the corrected bits."""
+def test_flip_post_select_with_flips_applied_judges_adjacency_on_the_undone_bits(
+    make_fit, make_raw_data
+):
+    """Edge mode with ``apply_measurement_flips=True`` reads the flips too, not only node mode."""
     # flips on qubits 0 and 1, which are neighbours on a line
-    # shot 0: outcomes fail on qubits 0 and 1 → adjacent pair → mask
-    # shot 1: data equals the flips, so nothing fails → keep
-    # shot 2: outcomes fail on qubits 0 and 3 → not adjacent → keep
+    # shot 0: physical outcomes fail on qubits 0 and 1 → adjacent pair → mask
+    # shot 1: the stored bits equal the flips, so nothing fails → keep
+    # shot 2: physical outcomes fail on qubits 0 and 3 → not adjacent → keep
     data = np.array(
         [
             [
@@ -505,27 +510,25 @@ def test_flip_post_select_edge_honors_measurement_flips(make_fit, make_raw_data)
     )
     fit = make_fit(raw, CouplingMap.from_line(4))
 
-    result = FlipPostSelect(mode="edge").run(fit)
+    result = FlipPostSelect(mode="edge", apply_measurement_flips=True).run(fit)
 
     mask = result.raw_data.datatree["0"].dataset["data_mask"].values
     assert np.array_equal(mask, np.array([[True, False, False]]))
 
 
 def test_flip_post_select_one_creg_rule_matches_an_all_ones_partner(make_fit, make_raw_data):
-    """The one-creg rule is the two-creg rule against a ps register whose outcomes are all ones.
+    """The one-creg rule is the two-creg rule against a ps register that reads all ones.
 
-    The absolute mask asserted here is also the one-creg rule's own flip correctness: the register
-    holds data equal to its flips in shot 0, and all-False data in shot 1.
+    Runs with the default ``apply_measurement_flips=False``, so the bits below are the physical
+    measurement outcomes and the recorded flips do not enter either rule.
     """
     base_data = np.array([[[True, False, True, False], [False, False, False, False]]], dtype=bool)
-    base_flips = np.array([[True, False, True, False]], dtype=bool)
     coupling_map = CouplingMap.from_line(4)
 
     one_creg = make_raw_data(
         creg_names=["meas0_ps"],
         clbit_qubit_idxs={"meas0_ps": np.array([0, 1, 2, 3])},
         data=base_data,
-        measurement_flips=base_flips,
     )
     paired = make_raw_data(
         creg_names=["meas0", "meas0_ps"],
@@ -534,7 +537,6 @@ def test_flip_post_select_one_creg_rule_matches_an_all_ones_partner(make_fit, ma
             "meas0_ps": np.array([0, 1, 2, 3]),
         },
         data=np.concatenate([base_data, np.ones_like(base_data)], axis=-1),
-        measurement_flips=np.concatenate([base_flips, np.zeros_like(base_flips)], axis=-1),
     )
 
     masks = [
@@ -547,7 +549,7 @@ def test_flip_post_select_one_creg_rule_matches_an_all_ones_partner(make_fit, ma
     ]
 
     assert np.array_equal(masks[0], masks[1])
-    assert np.array_equal(masks[0], np.array([[False, True]]))
+    assert np.array_equal(masks[0], np.array([[True, False]]))
 
 
 def test_suffix_creg_identifier_yields_a_singleton_without_a_base_creg():
@@ -557,3 +559,65 @@ def test_suffix_creg_identifier_yields_a_singleton_without_a_base_creg():
 def test_suffix_creg_identifier_rejects_an_empty_suffix():
     with pytest.raises(ValueError, match="must not be empty"):
         suffix_creg_identifier("")
+
+
+def test_flip_post_select_ignores_recorded_flips_by_default(make_fit, make_raw_data):
+    """The default takes the stored bits to be the physical outcomes, ignoring recorded flips.
+
+    Contrasted here against ``apply_measurement_flips=True`` on the same data, which is the only
+    difference between the two runs.
+    """
+    # One creg whose bits are all False and whose flips are all True. Taken as the physical
+    # outcomes, no bit failed and both shots are kept; with the flips applied, every bit fails.
+    data = np.zeros((1, 2, 4), dtype=bool)
+    flips = np.ones((1, 4), dtype=bool)
+    raw = make_raw_data(
+        creg_names=["meas0_ps"],
+        clbit_qubit_idxs={"meas0_ps": np.array([0, 1, 2, 3])},
+        data=data,
+        measurement_flips=flips,
+    )
+    coupling_map = CouplingMap.from_line(4)
+
+    kept = FlipPostSelect(mode="node").run(make_fit(raw, coupling_map))
+    masked = FlipPostSelect(mode="node", apply_measurement_flips=True).run(
+        make_fit(raw, coupling_map)
+    )
+
+    assert np.array_equal(
+        kept.raw_data.datatree["0"].dataset["data_mask"].values, np.array([[False, False]])
+    )
+    assert np.array_equal(
+        masked.raw_data.datatree["0"].dataset["data_mask"].values, np.array([[True, True]])
+    )
+
+
+def test_flip_post_select_paired_cregs_agree_either_way_on_a_shared_frame(make_fit, make_raw_data):
+    """Where a pair's two cregs carry equal flips, both settings of the flag give the same mask."""
+    # shot 0: the bits differ in both cregs -> no bit failed -> keep
+    # shot 1: the bits agree -> every bit failed -> mask
+    base = np.array([[[True, False, True, False], [False, False, False, False]]], dtype=bool)
+    ps = np.array([[[False, True, False, True], [False, False, False, False]]], dtype=bool)
+    shared_flips = np.array([[True, False, True, False]], dtype=bool)
+    raw = make_raw_data(
+        creg_names=["meas0", "meas0_ps"],
+        clbit_qubit_idxs={
+            "meas0": np.array([0, 1, 2, 3]),
+            "meas0_ps": np.array([0, 1, 2, 3]),
+        },
+        data=np.concatenate([base, ps], axis=-1),
+        measurement_flips=np.concatenate([shared_flips, shared_flips], axis=-1),
+    )
+    coupling_map = CouplingMap.from_line(4)
+
+    masks = [
+        FlipPostSelect(mode="node", apply_measurement_flips=apply)
+        .run(make_fit(raw, coupling_map))
+        .raw_data.datatree["0"]
+        .dataset["data_mask"]
+        .values
+        for apply in (False, True)
+    ]
+
+    assert np.array_equal(masks[0], masks[1])
+    assert np.array_equal(masks[0], np.array([[False, True]]))
