@@ -12,8 +12,10 @@
 
 """The vanilla learning protocol."""
 
-from collections.abc import Sequence
+from collections import defaultdict
+from collections.abc import Callable, Iterator, Sequence
 
+import numpy as np
 from qiskit.circuit import CircuitInstruction, QuantumRegister
 from qiskit.providers import BackendV2
 from qiskit.quantum_info import PauliLindbladMap
@@ -29,6 +31,7 @@ from ..analysis import (
     CurveFitObservables,
     Fit,
     LegacySolve,
+    suffix_creg_identifier,
 )
 from ..circuit_generator import ExecutorCircuitGenerator
 from ..circuit_generator.executor.data_mapper_serialization import PAYLOAD_KEY, PROTOCOL_KEY
@@ -329,3 +332,162 @@ def process_vanilla_result(
         )
 
     return [noise_maps[name] for name in gate_names], gate_names, fit
+
+
+# ---------------------------------------------------------------------------------------------
+# Unsupported helper functions
+#
+# The functions below are private and unsupported: they exist to be consumed by
+# qiskit-ibm-runtime, which reports their values in the post-selection metadata of a noise
+# learner V3 result. They are not part of this package's public interface, carry no stability
+# guarantee, and may change or be removed without notice or a deprecation period.
+# ---------------------------------------------------------------------------------------------
+
+
+def _fraction_kept(raw_data: RawData) -> dict[int, float]:
+    """Compute the fraction of shots surviving post-selection, per fragment depth.
+
+    Mirrors the ``fraction_kept`` field that the noise learner V3 result schema carries in its
+    post-selection metadata.
+
+    Each randomization contributes ``1 - data_mask.mean()``, since ``data_mask`` marks the shots to
+    exclude, and the randomizations sharing a fragment depth are averaged. The sequences with no
+    repeatable fragment, which carry the preparation and measurement noise, are bound at fragment
+    depth zero, so they land in the depth-zero entry alongside the depth-zero learning sequences
+    rather than being reported separately.
+
+    Data carrying no mask at all counts as fully kept, giving every fragment depth a fraction of
+    ``1.0``, so that the depths reported do not depend on whether a post-selection stage has run.
+
+    Args:
+        raw_data: The raw data, after any post-selection stage has run. Without one every entry is
+            ``1.0``, since nothing has been masked.
+
+    Returns:
+        A mapping from fragment depth to the average fraction of shots kept, between 0 and 1.
+    """
+    fractions = defaultdict(list)
+
+    for _, node in raw_data.datatree.items():
+        dataset = node.dataset
+        if "fragment_depth" not in dataset:
+            continue
+
+        depths = dataset["fragment_depth"].values
+        if "data_mask" in dataset:
+            kept = 1.0 - dataset["data_mask"].values.mean(axis=-1)
+        else:
+            kept = np.ones(len(depths))
+
+        for depth, fraction in zip(depths, kept):
+            fractions[int(depth)].append(float(fraction))
+
+    return {depth: float(np.mean(values)) for depth, values in sorted(fractions.items())}
+
+
+def _success_rates(
+    raw_data: RawData,
+    creg_identifier: Callable[[list[str]], Iterator[tuple[str, ...]]] | None = None,
+) -> dict[int, dict[int, float]]:
+    """Compute the per-qubit bit-flip success rate, per fragment depth.
+
+    Mirrors the ``success_rates`` field that the noise learner V3 result schema carries in its
+    post-selection metadata: the fraction of shots in which post-selection successfully flipped
+    each qubit. Where :func:`_fraction_kept` gives one number per fragment depth, this resolves it
+    per qubit, so that a single qubit responsible for a low yield is visible.
+
+    A bit counts as successfully flipped under the rule :class:`~.FlipPostSelect` uses to decide
+    failure, read the other way around. For a group of two registers ``(base, ps)`` a bit succeeded
+    if its outcome differs between the two, and for a group of one register a bit succeeded if its
+    outcome is ``False``. Both read the outcome ``data ^ measurement_flips`` on each side of the
+    comparison, undoing the flip introduced by measurement twirling so that what is compared is the
+    physical measurement outcomes; the rates are therefore independent of the twirl each register
+    drew. As in :func:`_fraction_kept`, the sequences with no repeatable fragment are bound at
+    fragment depth zero and so are reported in the depth-zero entry.
+
+    Qubits with no post-selection register to compare against get a rate of ``1.0``, as do all
+    qubits when the data carries no post-selection registers at all, so that every fragment depth
+    reports a rate for every measured qubit either way.
+
+    Args:
+        raw_data: The raw data. This reads ``data`` and ``measurement_flips`` rather than
+            ``data_mask``, so the rates do not depend on whether a post-selection stage has run,
+            nor on the strategy it ran with.
+        creg_identifier: A callable that, given the register names present, returns an iterator
+            over tuples of one or two register names to post-select on, as the ``creg_identifier``
+            argument of :class:`~.FlipPostSelect`. Defaults to the same
+            :func:`~.suffix_creg_identifier` default that class uses.
+
+    Returns:
+        A mapping from fragment depth to a mapping from physical qubit index to the average
+        success rate of that qubit, between 0 and 1.
+
+    Raises:
+        ValueError: If the identifier yields a group of two registers that do not measure the same
+            qubits in the same classical bit order, or a group of other than one or two registers.
+    """
+    creg_identifier = creg_identifier or suffix_creg_identifier()
+
+    rates = defaultdict(lambda: defaultdict(list))
+
+    for _, node in raw_data.datatree.items():
+        dataset = node.dataset
+        if "data" not in dataset:
+            continue
+
+        outcomes = dataset["data"].values ^ dataset["measurement_flips"].values[:, np.newaxis, :]
+        boundaries = dataset.attrs["creg_bit_boundaries"]
+        clbit_qubit_idxs = dataset.attrs["clbit_qubit_idxs"]
+        depths = dataset["fragment_depth"].values
+
+        # Every qubit this leaf measures starts out fully successful, so that a qubit without a
+        # post-selection register, and every qubit of a leaf without any, still reports a rate.
+        checked_qubit_idxs = set()
+        groups = []
+        for names in creg_identifier(dataset.attrs["creg_names"]):
+            if len(names) == 1:
+                (name,) = names
+                start, end = boundaries[name]
+                flipped = ~outcomes[:, :, start:end]
+                qubit_idxs = clbit_qubit_idxs[name]
+            elif len(names) == 2:
+                base_name, ps_name = names
+                base_qubit_idxs = clbit_qubit_idxs[base_name]
+                if not np.array_equal(base_qubit_idxs, clbit_qubit_idxs[ps_name]):
+                    raise ValueError(
+                        f"Registers '{base_name}' and '{ps_name}' must measure the same qubits in "
+                        "the same classical bit order."
+                    )
+                base_start, base_end = boundaries[base_name]
+                ps_start, ps_end = boundaries[ps_name]
+                flipped = outcomes[:, :, base_start:base_end] != outcomes[:, :, ps_start:ps_end]
+                qubit_idxs = base_qubit_idxs
+            else:
+                raise ValueError(
+                    "The register identifier must yield tuples of one or two register names, but "
+                    f"got {tuple(names)}."
+                )
+
+            checked_qubit_idxs.update(int(idx) for idx in qubit_idxs)
+            # Average over shots, leaving one rate per randomization per bit.
+            groups.append((qubit_idxs, flipped.mean(axis=1)))
+
+        measured_qubit_idxs = {
+            int(idx) for idxs in clbit_qubit_idxs.values() for idx in idxs
+        } - checked_qubit_idxs
+
+        for depth in {int(depth) for depth in depths}:
+            for qubit_idx in measured_qubit_idxs:
+                rates[depth][qubit_idx].append(1.0)
+
+        for qubit_idxs, per_randomization in groups:
+            for depth, randomization_rates in zip(depths, per_randomization):
+                for qubit_idx, rate in zip(qubit_idxs, randomization_rates):
+                    rates[int(depth)][int(qubit_idx)].append(float(rate))
+
+    return {
+        depth: {
+            qubit_idx: float(np.mean(values)) for qubit_idx, values in sorted(per_qubit.items())
+        }
+        for depth, per_qubit in sorted(rates.items())
+    }
