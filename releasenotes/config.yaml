@@ -1,7 +1,7 @@
 ---
 encoding: utf8
 default_branch: main
+# A permanent label for whichever notes have not yet made it into a tagged release
 unreleased_version_title: "Upcoming release"
-# ``earliest_version`` names a git revision, so it cannot be set until the first release is
-# tagged -- reno fails outright on a revision that does not exist.  Set it to 0.1.0 once that
-# tag is pushed, to stop the scan from walking history that predates any release note.
+# Names a point at which to stop scanning for prioer release notes
+earliest_version: 0.1.0
