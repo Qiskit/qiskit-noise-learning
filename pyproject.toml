@@ -57,7 +57,7 @@ dev = [
     "scipy-doctest",          # SciPy's style of doc-testing
     # Local-mode execution and the fake-provider backends the tests transpile against. The package
     # itself imports neither.
-    "qiskit-ibm-runtime>=0.50",
+    "qiskit-ibm-runtime>=0.51",
     "qiskit-aer",
 ]
 
@@ -79,7 +79,7 @@ docs = [
     # The tutorials run for real at build time, so building the docs needs whatever they plot with:
     "qiskit-noise-learning[vis]",   # matplotlib, for this package's own figures
     "qiskit[visualization]",        # matplotlib/pylatexenc, for QuantumCircuit.draw("mpl")
-    "qiskit-ibm-runtime>=0.50",     # FakeMarrakesh and local-mode execution, which the tutorials use
+    "qiskit-ibm-runtime>=0.51",     # Tutorials need local-mode execution
     "qiskit-aer",                   # the simulator the tutorials run their programs on
 ]
 
