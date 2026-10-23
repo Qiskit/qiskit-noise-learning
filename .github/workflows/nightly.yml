@@ -37,10 +37,6 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install ".[${{ matrix.extras }}]"
           python -m pip install build extremal-python-dependencies==0.1.0
-      - name: Install qiskit-ibm-runtime main
-        # For Executor.run()'s conversion of a samplomatic QuantumProgram
-        # (qiskit-ibm-runtime#3403), unreleased as of 0.50.0. Remove once the floor is >=0.51.
-        run: python -m pip install --no-cache-dir "git+https://github.com/Qiskit/qiskit-ibm-runtime@main"
       - name: Build Qiskit SDK development wheel
         run: |
           cd ..

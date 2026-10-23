@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    The ``dev`` and ``docs`` extras now require ``qiskit-ibm-runtime>=0.51``, up from ``>=0.50``,
+    for local-mode execution.
