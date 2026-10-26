@@ -18,7 +18,7 @@ from qiskit.quantum_info import PauliLindbladMap
 from samplomatic import Twirl
 from samplomatic.transpiler import generate_boxing_pass_manager
 
-from qiskit_noise_learning.utils import build_with_prep_noise
+from qiskit_noise_learning.utils.build_with_prep_noise import build_with_prep_noise
 
 PLM = PauliLindbladMap.from_list([("XX", 0.03), ("ZI", 0.05), ("IZ", 0.02), ("YY", 0.01)])
 
