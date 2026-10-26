@@ -15,4 +15,5 @@ API reference
    models
    protocols
    sequences
+   utils
    visualizations
