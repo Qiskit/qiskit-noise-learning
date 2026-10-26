@@ -25,13 +25,14 @@ from samplomatic.utils import get_annotation
 from samplomatic.virtual_registers import VirtualType
 
 
-def add_preparation_noise(pre_samplex: PreSamplex, noise_ref: str, modifier_ref: str = ""):
+def _add_preparation_noise(pre_samplex: PreSamplex, noise_ref: str, modifier_ref: str = ""):
     """Adds an inject noise pre-node to the pre-samplex.
 
     This function does not work generically, and the pre-samplex is expected to begin with a
     pre-collect node that the inject noise pre-node will be attached to. This ensures that the
     pre-samplex can be finalized into a samplex. For this condition to hold, the circuit from
-    which the pre-samplex was built to have its first twirled box to be full width and left-dressed.
+    which the pre-samplex was built must have had a full width box operation with a left-dressed
+    twirl annotation.
 
     Args:
         pre_samplex: The pre-samplex to mutate in place.
@@ -91,7 +92,7 @@ def build_with_prep_noise(
     """Build a template circuit with injectable preparation noise.
 
     This function uses the normal samplex build path except adds an additional node for injectable
-    preparation noise.
+    preparation noise at the beginning of the circuit.
 
     Args:
         circuit: The annotated circuit to build.
@@ -114,5 +115,5 @@ def build_with_prep_noise(
         raise ValueError('Dressing of the initial box\'s twirl annotation must be `"left"`.')
 
     template_state, pre_samplex = pre_build(circuit)
-    add_preparation_noise(pre_samplex, prep_noise_ref, prep_modifier_ref)
+    _add_preparation_noise(pre_samplex, prep_noise_ref, prep_modifier_ref)
     return dag_to_circuit(template_state.template), pre_samplex.finalize().finalize()

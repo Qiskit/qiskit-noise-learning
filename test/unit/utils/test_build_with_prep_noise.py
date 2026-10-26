@@ -16,6 +16,7 @@ from qiskit import QuantumCircuit
 from qiskit.circuit import BoxOp
 from qiskit.quantum_info import PauliLindbladMap
 from samplomatic import Twirl
+from samplomatic.samplex.nodes import CombineRegistersNode
 from samplomatic.transpiler import generate_boxing_pass_manager
 
 from qiskit_noise_learning.utils.build_with_prep_noise import build_with_prep_noise
@@ -32,8 +33,10 @@ def map_inputs(samplex, plm=None):
     }
 
 
-def boxed(num_layers, site):
+def boxed(num_layers, site, begin_h=False):
     qc = QuantumCircuit(2)
+    if begin_h:
+        qc.h(0)
     for _ in range(num_layers):
         qc.cz(0, 1)
     kwargs = {"decomposition": "rzsx"}
@@ -80,22 +83,37 @@ def test_build_with_prep_noise_builds_and_samples():
     assert np.asarray(out["pauli_signs"]).shape == (200, 1)
 
 
+@pytest.mark.parametrize("site", ["before", "after"])
+def test_correct_multiplication_order(site):
+    """Test that the prep inject noise is at the correct location."""
+    _, samplex = build_with_prep_noise(boxed(1, site, True))
+
+    # due to the dependency graph of the evaluation nodes, the combine registers node with
+    # the preparation insertion will be the last one when iterating over the nodes. further, we
+    # store the operands of the combine nodes from latest to earliest, so the inject noise at the
+    # start of the circuit should be its last operand regardless of `site`.
+    combine_node = [n for n in samplex.graph.nodes() if isinstance(n, CombineRegistersNode)][-1]
+    *_, inject_noise_register = combine_node._operands  # noqa: SLF001
+    assert inject_noise_register == "inject_noise_0"
+
+
 def test_prep_noise_addressability():
+    """Test that the injected prep noise appears on the correct qubit."""
     qc = QuantumCircuit(2)
     box_qc = QuantumCircuit(2)
     box_op = BoxOp(box_qc, annotations=[Twirl()])
-    qc.append(box_op, qargs=[1, 0])
+    qc.append(box_op, qargs=[1, 0])  # note the permuted qargs
 
     with qc.box([Twirl(dressing="right")]):
         qc.noop(0, 1)
 
     plm = PauliLindbladMap.from_list([("XI", -100)])
-
     _, samplex = build_with_prep_noise(qc)
     out = samplex.sample(
         map_inputs(samplex, plm), num_randomizations=200, rng=2, keep_registers=True
     )
 
+    # expecting to see some virtual X gates on qubit 1, but only identities on 0
     signs = out.metadata["registers"]["inject_noise_0"]
     assert np.all(signs[[0]].virtual_gates == 0)
     assert np.any(signs[[1]].virtual_gates == 2)
