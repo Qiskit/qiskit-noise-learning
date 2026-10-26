@@ -12,5 +12,4 @@ Functions
    :toctree: generated
    :nosignatures:
 
-   inject_prep_noise
    build_with_prep_noise
