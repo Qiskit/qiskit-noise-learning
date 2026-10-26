@@ -11,6 +11,7 @@
 # that they have been altered from the originals.
 
 import numpy as np
+import pytest
 from qiskit import QuantumCircuit
 from qiskit.circuit import BoxOp
 from qiskit.quantum_info import PauliLindbladMap
@@ -20,7 +21,6 @@ from samplomatic.transpiler import generate_boxing_pass_manager
 from qiskit_noise_learning.utils import build_with_prep_noise
 
 PLM = PauliLindbladMap.from_list([("XX", 0.03), ("ZI", 0.05), ("IZ", 0.02), ("YY", 0.01)])
-REF = "prep"
 
 
 def map_inputs(samplex, plm=None):
@@ -46,8 +46,27 @@ def boxed(num_layers, site):
     return generate_boxing_pass_manager(**kwargs).run(qc)
 
 
+def test_raises():
+    qc = QuantumCircuit(1)
+    qc.h(0)
+    with pytest.raises(ValueError, match="does not begin"):
+        build_with_prep_noise(qc)
+
+    qc = QuantumCircuit(1)
+    with qc.box():
+        qc.noop(0)
+    with pytest.raises(ValueError, match="does not contain"):
+        build_with_prep_noise(qc)
+
+    qc = QuantumCircuit(1)
+    with qc.box([Twirl(dressing="right")]):
+        qc.noop(0)
+    with pytest.raises(ValueError, match="Dressing of the initial"):
+        build_with_prep_noise(qc)
+
+
 def test_registers_input_and_sign_output():
-    surgery = build_with_prep_noise(boxed(2, None), REF)[1]
+    surgery = build_with_prep_noise(boxed(2, None))[1]
 
     out = surgery.sample(map_inputs(surgery), num_randomizations=1000, rng=1)
     assert np.asarray(out["parameter_values"]).shape[0] == 1000
@@ -55,7 +74,7 @@ def test_registers_input_and_sign_output():
 
 
 def test_build_with_prep_noise_builds_and_samples():
-    template, samplex = build_with_prep_noise(boxed(2, None), REF)
+    template, samplex = build_with_prep_noise(boxed(2, None))
     out = samplex.sample(map_inputs(samplex), num_randomizations=200, rng=2)
     assert template.num_qubits == 2
     assert np.asarray(out["pauli_signs"]).shape == (200, 1)
@@ -72,7 +91,7 @@ def test_prep_noise_addressability():
 
     plm = PauliLindbladMap.from_list([("XI", -100)])
 
-    _, samplex = build_with_prep_noise(qc, REF)
+    _, samplex = build_with_prep_noise(qc)
     out = samplex.sample(
         map_inputs(samplex, plm), num_randomizations=200, rng=2, keep_registers=True
     )

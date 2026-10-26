@@ -13,12 +13,15 @@
 """Utility to build with preparation noise injection."""
 
 from qiskit import QuantumCircuit
+from qiskit.circuit import BoxOp
 from qiskit.converters import dag_to_circuit
+from samplomatic import Twirl
 from samplomatic.builders import pre_build
 from samplomatic.constants import Direction
 from samplomatic.partition import QubitIndicesPartition
 from samplomatic.pre_samplex import PreCollect, PreEdge, PreInjectNoise, PreSamplex
 from samplomatic.samplex import Samplex
+from samplomatic.utils import get_annotation
 from samplomatic.virtual_registers import VirtualType
 
 
@@ -28,7 +31,7 @@ def add_preparation_noise(pre_samplex: PreSamplex, noise_ref: str, modifier_ref:
     This function does not work generically, and the pre-samplex is expected to begin with a
     pre-collect node that the inject noise pre-node will be attached to. This ensures that the
     pre-samplex can be finalized into a samplex. For this condition to hold, the circuit from
-    which the pre-samplex was built to have its first twirled box to be full-width and left-dressed.
+    which the pre-samplex was built to have its first twirled box to be full width and left-dressed.
 
     Args:
         pre_samplex: The pre-samplex to mutate in place.
@@ -83,7 +86,7 @@ def add_preparation_noise(pre_samplex: PreSamplex, noise_ref: str, modifier_ref:
 
 
 def build_with_prep_noise(
-    circuit: QuantumCircuit, prep_noise_ref: str, prep_modifier_ref: str = ""
+    circuit: QuantumCircuit, prep_noise_ref: str = "prep", prep_modifier_ref: str = ""
 ) -> tuple[QuantumCircuit, Samplex]:
     """Build a template circuit with injectable preparation noise.
 
@@ -97,7 +100,19 @@ def build_with_prep_noise(
 
     Returns:
         The template circuit and the samplex.
+
+    Raises:
+        ValueError: If the circuit does not begin with a left-dressed twirl annotated box.
     """
+    if len(circuit) == 0 or not isinstance(op := circuit[0].operation, BoxOp):
+        raise ValueError("Circuit does not begin with a box operation.")
+
+    if (twirl := get_annotation(op, Twirl)) is None:
+        raise ValueError("Initial box operation does not contain a twirl annotaiton.")
+
+    if twirl.dressing == "right":
+        raise ValueError('Dressing of the initial box\'s twirl annotation must be `"left"`.')
+
     template_state, pre_samplex = pre_build(circuit)
     add_preparation_noise(pre_samplex, prep_noise_ref, prep_modifier_ref)
     return dag_to_circuit(template_state.template), pre_samplex.finalize().finalize()
