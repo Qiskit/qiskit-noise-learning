@@ -125,6 +125,33 @@ def test_clifford_propagate():
     )
 
 
+def test_clifford_propagate_inverse_multiple_cliffords():
+    """Inverse propagation must traverse a multi-Clifford gate in reverse temporal order."""
+    h_circuit = QuantumCircuit(1)
+    h_circuit.h(0)
+    cx_circuit = QuantumCircuit(2)
+    cx_circuit.cx(0, 1)
+    s_circuit = QuantumCircuit(1)
+    s_circuit.s(0)
+    gate = ModelGate(
+        "L0",
+        [
+            ((0,), Clifford(h_circuit)),
+            ((0, 1), Clifford(cx_circuit)),
+            ((1,), Clifford(s_circuit)),
+        ],
+    )
+
+    for label in ["IX", "IY", "IZ", "XI", "YI", "ZI", "XX", "YZ", "ZY"]:
+        pauli = Pauli(label)
+        assert PhasedQubitSparsePauli(
+            pauli.evolve(gate.clifford, frame="s")
+        ) == gate.clifford_propagate(PhasedQubitSparsePauli(pauli))
+        assert PhasedQubitSparsePauli(
+            pauli.evolve(gate.clifford, frame="h")
+        ) == gate.clifford_propagate(PhasedQubitSparsePauli(pauli), inverse=True)
+
+
 def test_hash():
     """Ensure hash call works."""
     assert isinstance(hash(ModelGate(name="gate_name", qubit_idxs=[1, 2, 3])), int)

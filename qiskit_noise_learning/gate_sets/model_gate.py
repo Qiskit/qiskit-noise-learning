@@ -147,7 +147,8 @@ class ModelGate(Gate):
             frame = "h" if inverse else "s"
             pauli_indices = set(pauli.indices)
 
-            for qubit_idxs, clifford in self.cliffords:
+            # the inverse of a composition reverses the order of its factors
+            for qubit_idxs, clifford in reversed(self.cliffords) if inverse else self.cliffords:
                 if not pauli_indices.intersection(qubit_idxs):
                     continue
                 dense_pauli = dense_pauli.evolve(clifford, qargs=qubit_idxs, frame=frame)
@@ -167,7 +168,8 @@ class ModelGate(Gate):
             frame = "h" if inverse else "s"
             pauli_indices = set(pauli.indices)
 
-            for qubit_idxs, clifford in self.cliffords:
+            # the inverse of a composition reverses the order of its factors
+            for qubit_idxs, clifford in reversed(self.cliffords) if inverse else self.cliffords:
                 if not pauli_indices.intersection(qubit_idxs):
                     continue
                 dense_pauli = dense_pauli.evolve(clifford, qargs=qubit_idxs, frame=frame)
