@@ -30,6 +30,7 @@ def make_raw_data(
     clbit_qubit_idxs,
     fragment_depths,
     *,
+    repeatable_gates=None,
     empty_repeatable=(),
     data=None,
     measurement_flips=None,
@@ -38,8 +39,9 @@ def make_raw_data(
 ):
     """Build single-leaf raw data with one instruction sequence per entry of ``fragment_depths``.
 
-    Entries whose index appears in ``empty_repeatable`` get a sequence with no repeatable
-    fragment, standing in for a SPAM sequence.
+    Each sequence's repeatable fragment applies the corresponding gate of ``repeatable_gates``,
+    which defaults to ``"CZ"`` throughout. Entries whose index appears in ``empty_repeatable`` get
+    a sequence with no repeatable fragment instead, standing in for a SPAM sequence.
 
     Every sequence gets :data:`NUM_RANDOMIZATIONS` randomizations of :data:`NUM_SHOTS` shots, so
     ``data``, ``measurement_flips`` and ``data_mask`` are given as single arrays spanning all of
@@ -47,14 +49,15 @@ def make_raw_data(
     Pass ``include_mask=False`` to leave the mask variable off the dataset entirely.
     """
     num_bits = sum(len(idxs) for idxs in clbit_qubit_idxs.values())
+    repeatable_gates = repeatable_gates or ["CZ"] * len(fragment_depths)
     sequences = [
         InstructionSequence(
             start_fragment=[ApplyGate("P")],
-            repeatable_fragment=[] if idx in empty_repeatable else [ApplyGate("CZ")],
+            repeatable_fragment=[] if idx in empty_repeatable else [ApplyGate(gate)],
             end_fragment=[ApplyGate("M")],
             fragment_depth=depth,
         )
-        for idx, depth in enumerate(fragment_depths)
+        for idx, (depth, gate) in enumerate(zip(fragment_depths, repeatable_gates))
     ]
     num_randomizations = NUM_RANDOMIZATIONS * len(sequences)
 
@@ -96,7 +99,37 @@ def test_fraction_kept_averages_the_shots_kept_at_each_depth():
     mask[NUM_RANDOMIZATIONS:, 25:] = True
     raw_data = make_raw_data(["meas"], {"meas": QUBITS}, [2, 4], data_mask=mask)
 
-    assert _fraction_kept(raw_data) == pytest.approx({2: 0.8, 4: 0.25})
+    assert _fraction_kept(raw_data, ["CZ"]) == [pytest.approx({2: 0.8, 4: 0.25})]
+
+
+def test_fraction_kept_reports_one_entry_per_instruction():
+    """Only the sequences applying a gate report against the instruction that became it."""
+    mask = np.zeros((2 * NUM_RANDOMIZATIONS, NUM_SHOTS), dtype=bool)
+    mask[:NUM_RANDOMIZATIONS, 80:] = True
+    mask[NUM_RANDOMIZATIONS:, 25:] = True
+    raw_data = make_raw_data(
+        ["meas"], {"meas": QUBITS}, [2, 4], repeatable_gates=["CZ", "CX"], data_mask=mask
+    )
+
+    assert _fraction_kept(raw_data, ["CZ", "CX"]) == [
+        pytest.approx({2: 0.8}),
+        pytest.approx({4: 0.25}),
+    ]
+
+
+def test_fraction_kept_shares_spam_across_every_instruction():
+    """SPAM sequences probe no gate in particular, so they land in every instruction's entry."""
+    mask = np.zeros((2 * NUM_RANDOMIZATIONS, NUM_SHOTS), dtype=bool)
+    mask[:NUM_RANDOMIZATIONS, 70:] = True
+    mask[NUM_RANDOMIZATIONS:, 90:] = True
+    raw_data = make_raw_data(
+        ["meas"], {"meas": QUBITS}, [2, 0], empty_repeatable=[1], data_mask=mask
+    )
+
+    assert _fraction_kept(raw_data, ["CZ", "M"]) == [
+        pytest.approx({0: 0.9, 2: 0.7}),
+        pytest.approx({0: 0.9}),
+    ]
 
 
 def test_fraction_kept_merges_spam_into_the_depth_zero_entry():
@@ -108,13 +141,20 @@ def test_fraction_kept_merges_spam_into_the_depth_zero_entry():
         ["meas"], {"meas": QUBITS}, [0, 0], empty_repeatable=[1], data_mask=mask
     )
 
-    assert _fraction_kept(raw_data) == pytest.approx({0: 0.8})
+    assert _fraction_kept(raw_data, ["CZ"]) == [pytest.approx({0: 0.8})]
+
+
+def test_fraction_kept_is_empty_for_an_instruction_with_no_sequences():
+    """An instruction that no sequence probes, and that no SPAM sequence is there to cover."""
+    raw_data = make_raw_data(["meas"], {"meas": QUBITS}, [0, 2])
+
+    assert _fraction_kept(raw_data, ["CZ", "CX"]) == [{0: 1.0, 2: 1.0}, {}]
 
 
 def test_fraction_kept_is_one_without_a_mask():
     raw_data = make_raw_data(["meas"], {"meas": QUBITS}, [0, 2], include_mask=False)
 
-    assert _fraction_kept(raw_data) == {0: 1.0, 2: 1.0}
+    assert _fraction_kept(raw_data, ["CZ"]) == [{0: 1.0, 2: 1.0}]
 
 
 def test_success_rates_counts_the_bits_the_pulse_flipped():
@@ -131,9 +171,50 @@ def test_success_rates_counts_the_bits_the_pulse_flipped():
         ["meas", "meas_ps"], {"meas": QUBITS, "meas_ps": QUBITS}, [2], data=bits
     )
 
-    rates = _success_rates(raw_data)
+    (rates,) = _success_rates(raw_data, ["CZ"])
     assert rates.keys() == {2}
     assert rates[2] == pytest.approx({5: 0.9, 6: 0.4})
+
+
+def test_success_rates_report_one_entry_per_instruction():
+    """Only the sequences applying a gate report against the instruction that became it."""
+    bits = np.zeros((2 * NUM_RANDOMIZATIONS, NUM_SHOTS, 4), dtype=bool)
+    bits[:NUM_RANDOMIZATIONS, :90, 2:] = True
+    bits[NUM_RANDOMIZATIONS:, :40, 2:] = True
+    raw_data = make_raw_data(
+        ["meas", "meas_ps"],
+        {"meas": QUBITS, "meas_ps": QUBITS},
+        [2, 4],
+        repeatable_gates=["CZ", "CX"],
+        data=bits,
+    )
+
+    cz_rates, cx_rates = _success_rates(raw_data, ["CZ", "CX"])
+    assert cz_rates.keys() == {2}
+    assert cz_rates[2] == pytest.approx({5: 0.9, 6: 0.9})
+    assert cx_rates.keys() == {4}
+    assert cx_rates[4] == pytest.approx({5: 0.4, 6: 0.4})
+
+
+def test_success_rates_share_spam_across_every_instruction():
+    """SPAM sequences probe no gate in particular, so they land in every instruction's entry."""
+    bits = np.zeros((2 * NUM_RANDOMIZATIONS, NUM_SHOTS, 4), dtype=bool)
+    bits[:NUM_RANDOMIZATIONS, :80, 2:] = True
+    bits[NUM_RANDOMIZATIONS:, :60, 2:] = True
+    raw_data = make_raw_data(
+        ["meas", "meas_ps"],
+        {"meas": QUBITS, "meas_ps": QUBITS},
+        [2, 0],
+        empty_repeatable=[1],
+        data=bits,
+    )
+
+    cz_rates, meas_rates = _success_rates(raw_data, ["CZ", "M"])
+    assert cz_rates.keys() == {0, 2}
+    assert cz_rates[0] == pytest.approx({5: 0.6, 6: 0.6})
+    assert cz_rates[2] == pytest.approx({5: 0.8, 6: 0.8})
+    assert meas_rates.keys() == {0}
+    assert meas_rates[0] == pytest.approx({5: 0.6, 6: 0.6})
 
 
 def test_success_rates_merges_spam_into_the_depth_zero_entry():
@@ -150,16 +231,26 @@ def test_success_rates_merges_spam_into_the_depth_zero_entry():
         data=bits,
     )
 
-    rates = _success_rates(raw_data)
+    (rates,) = _success_rates(raw_data, ["CZ"])
     assert rates.keys() == {0}
     assert rates[0] == pytest.approx({5: 0.7, 6: 0.7})
+
+
+def test_success_rates_are_empty_for_an_instruction_with_no_sequences():
+    """An instruction that no sequence probes, and that no SPAM sequence is there to cover."""
+    raw_data = make_raw_data(["meas"], {"meas": QUBITS}, [0, 2])
+
+    assert _success_rates(raw_data, ["CZ", "CX"]) == [
+        {0: {5: 1.0, 6: 1.0}, 2: {5: 1.0, 6: 1.0}},
+        {},
+    ]
 
 
 def test_success_rates_are_one_without_post_selection_registers():
     """Every measured qubit still reports a rate, at every depth."""
     raw_data = make_raw_data(["meas"], {"meas": QUBITS}, [0, 2])
 
-    assert _success_rates(raw_data) == {0: {5: 1.0, 6: 1.0}, 2: {5: 1.0, 6: 1.0}}
+    assert _success_rates(raw_data, ["CZ"]) == [{0: {5: 1.0, 6: 1.0}, 2: {5: 1.0, 6: 1.0}}]
 
 
 def test_success_rates_are_one_for_a_qubit_with_no_post_selection_partner():
@@ -174,7 +265,7 @@ def test_success_rates_are_one_for_a_qubit_with_no_post_selection_partner():
         data=bits,
     )
 
-    rates = _success_rates(raw_data)
+    (rates,) = _success_rates(raw_data, ["CZ"])
     assert rates.keys() == {2}
     assert rates[2] == pytest.approx({5: 1.0, 6: 1.0, 7: 0.4})
 
@@ -198,8 +289,8 @@ def test_success_rates_with_flips_applied_undoes_differing_flips_in_a_pair():
         measurement_flips=flips,
     )
 
-    assert _success_rates(raw_data)[2] == pytest.approx({5: 0.0, 6: 0.0})
-    assert _success_rates(raw_data, apply_measurement_flips=True)[2] == pytest.approx(
+    assert _success_rates(raw_data, ["CZ"])[0][2] == pytest.approx({5: 0.0, 6: 0.0})
+    assert _success_rates(raw_data, ["CZ"], apply_measurement_flips=True)[0][2] == pytest.approx(
         {5: 1.0, 6: 1.0}
     )
 
@@ -220,6 +311,6 @@ def test_success_rates_agree_either_way_on_a_shared_frame():
     untwirled = make_raw_data(*cregs, data=bits)
     twirled = make_raw_data(*cregs, data=bits ^ flips[:, np.newaxis, :], measurement_flips=flips)
 
-    assert _success_rates(twirled, apply_measurement_flips=True)[2] == pytest.approx(
-        _success_rates(untwirled)[2]
+    assert _success_rates(twirled, ["CZ"], apply_measurement_flips=True)[0][2] == pytest.approx(
+        _success_rates(untwirled, ["CZ"])[0][2]
     )

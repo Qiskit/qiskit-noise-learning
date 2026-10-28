@@ -13,7 +13,7 @@
 """The vanilla learning protocol."""
 
 from collections import defaultdict
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 
 import numpy as np
 from qiskit.circuit import CircuitInstruction, QuantumRegister
@@ -50,6 +50,7 @@ from ..experiment_builder import (
 )
 from ..gate_sets import QiskitGateSet
 from ..models import PauliLindbladModel, split_pauli_lindblad_model
+from ..sequences import ApplyGate, InstructionSequence
 
 VANILLA_KEY = "vanilla"
 """Key for protocol passthrough data."""
@@ -334,19 +335,56 @@ def process_vanilla_result(
     return [noise_maps[name] for name in gate_names], gate_names, fit
 
 
-def _fraction_kept(raw_data: RawData) -> dict[int, float]:
-    """Compute the fraction of shots surviving post-selection, per fragment depth.
+def _reported_instruction_idxs(
+    sequences: Iterable[InstructionSequence], gate_names: Sequence[str]
+) -> list[list[int]]:
+    """Attribute each instruction sequence to the gates it contains.
+
+    Args:
+        sequences: The unbound instruction sequence of each randomization.
+        gate_names: The gate name of each instruction, in instruction order.
+
+    Returns:
+        For each sequence, the ascending indices of the instructions it reports against.
+    """
+    all_idxs = list(range(len(gate_names)))
+    cache: dict[InstructionSequence, list[int]] = {}
+
+    reported_idxs = []
+    for sequence in sequences:
+        if (idxs := cache.get(sequence)) is None:
+            probed_names = {
+                instr.gate_name
+                for instr in sequence.repeatable_fragment
+                if isinstance(instr, ApplyGate)
+            }
+            idxs = (
+                all_idxs
+                if not probed_names
+                else [idx for idx, name in enumerate(gate_names) if name in probed_names]
+            )
+            cache[sequence] = idxs
+        reported_idxs.append(idxs)
+
+    return reported_idxs
+
+
+def _fraction_kept(raw_data: RawData, gate_names: Sequence[str]) -> list[dict[int, float]]:
+    """Compute the fraction of shots surviving post-selection, per instruction and fragment depth.
 
     Assumes the data comes from a run of the vanilla protocol.
 
     Args:
         raw_data: The raw data, after any post-selection stage has run. Without one every entry is
             ``1.0``, since nothing has been masked.
+        gate_names: The gate name of each instruction, in instruction order, as
+            :func:`~.process_vanilla_result` returns them.
 
     Returns:
-        A mapping from fragment depth to the average fraction of shots kept, between 0 and 1.
+        One mapping per instruction, in the order of *gate_names*, from fragment depth to the
+        average fraction of shots kept, between 0 and 1.
     """
-    fractions = defaultdict(list)
+    fractions = [defaultdict(list) for _ in gate_names]
 
     for _, node in raw_data.datatree.items():
         dataset = node.dataset
@@ -359,24 +397,35 @@ def _fraction_kept(raw_data: RawData) -> dict[int, float]:
         else:
             kept = np.ones(len(depths))
 
-        for depth, fraction in zip(depths, kept):
-            fractions[int(depth)].append(float(fraction))
+        instruction_idxs = _reported_instruction_idxs(
+            dataset["unbound_instruction_sequence"].values, gate_names
+        )
 
-    return {depth: float(np.mean(values)) for depth, values in sorted(fractions.items())}
+        for idxs, depth, fraction in zip(instruction_idxs, depths, kept):
+            for idx in idxs:
+                fractions[idx][int(depth)].append(float(fraction))
+
+    return [
+        {depth: float(np.mean(values)) for depth, values in sorted(per_depth.items())}
+        for per_depth in fractions
+    ]
 
 
 def _success_rates(
     raw_data: RawData,
+    gate_names: Sequence[str],
     creg_identifier: Callable[[list[str]], Iterator[tuple[str, ...]]] | None = None,
     apply_measurement_flips: bool = False,
-) -> dict[int, dict[int, float]]:
-    """Compute the per-qubit bit-flip success rate, per fragment depth.
+) -> list[dict[int, dict[int, float]]]:
+    """Compute the per-qubit bit-flip success rate, per instruction and fragment depth.
 
-    Assumes the data is coming from a run of the vanilla protocl.
+    Assumes the data is coming from a run of the vanilla protocol.
 
     Args:
         raw_data: The raw data. This reads ``data`` rather than ``data_mask``, so the rates do not
             depend on whether a post-selection stage has run, nor on the strategy it ran with.
+        gate_names: The gate name of each instruction, in instruction order, as
+            :func:`~.process_vanilla_result` returns them.
         creg_identifier: A callable that, given the register names present, returns an iterator
             over tuples of one or two register names to post-select on, as the ``creg_identifier``
             argument of :class:`~.FlipPostSelect`. Defaults to the same
@@ -386,8 +435,9 @@ def _success_rates(
             argument of the same name on :class:`~.FlipPostSelect`.
 
     Returns:
-        A mapping from fragment depth to a mapping from physical qubit index to the average
-        success rate of that qubit, between 0 and 1.
+        One mapping per instruction, in the order of *gate_names*, from fragment depth to a
+        mapping from physical qubit index to the average success rate of that qubit, between 0 and
+        1.
 
     Raises:
         ValueError: If the identifier yields a group of two registers that do not measure the same
@@ -395,7 +445,7 @@ def _success_rates(
     """
     creg_identifier = creg_identifier or suffix_creg_identifier()
 
-    rates = defaultdict(lambda: defaultdict(list))
+    rates = [defaultdict(lambda: defaultdict(list)) for _ in gate_names]
 
     for _, node in raw_data.datatree.items():
         dataset = node.dataset
@@ -408,6 +458,9 @@ def _success_rates(
         boundaries = dataset.attrs["creg_bit_boundaries"]
         clbit_qubit_idxs = dataset.attrs["clbit_qubit_idxs"]
         depths = dataset["fragment_depth"].values
+        instruction_idxs = _reported_instruction_idxs(
+            dataset["unbound_instruction_sequence"].values, gate_names
+        )
 
         checked_qubit_idxs = set()
         groups = []
@@ -446,18 +499,26 @@ def _success_rates(
             int(idx) for idxs in clbit_qubit_idxs.values() for idx in idxs
         } - checked_qubit_idxs
 
-        for depth in {int(depth) for depth in depths}:
+        for instruction_idx, depth in {
+            (idx, int(depth)) for idxs, depth in zip(instruction_idxs, depths) for idx in idxs
+        }:
             for qubit_idx in unchecked_qubit_idxs:
-                rates[depth][qubit_idx].append(1.0)
+                rates[instruction_idx][depth][qubit_idx].append(1.0)
 
         for qubit_idxs, per_randomization in groups:
-            for depth, randomization_rates in zip(depths, per_randomization):
+            for idxs, depth, randomization_rates in zip(
+                instruction_idxs, depths, per_randomization
+            ):
                 for qubit_idx, rate in zip(qubit_idxs, randomization_rates):
-                    rates[int(depth)][int(qubit_idx)].append(float(rate))
+                    for idx in idxs:
+                        rates[idx][int(depth)][int(qubit_idx)].append(float(rate))
 
-    return {
-        depth: {
-            qubit_idx: float(np.mean(values)) for qubit_idx, values in sorted(per_qubit.items())
+    return [
+        {
+            depth: {
+                qubit_idx: float(np.mean(values)) for qubit_idx, values in sorted(per_qubit.items())
+            }
+            for depth, per_qubit in sorted(per_depth.items())
         }
-        for depth, per_qubit in sorted(rates.items())
-    }
+        for per_depth in rates
+    ]
