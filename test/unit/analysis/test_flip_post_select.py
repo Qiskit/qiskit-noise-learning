@@ -449,6 +449,16 @@ def test_flip_post_select_defaults():
     ]
 
 
+def test_suffix_creg_identifier_list():
+    """Test suffix_creg_identifier when a list is supplied."""
+
+    creg_identifier = suffix_creg_identifier(["_ps", "_pre"])
+    assert set(creg_identifier(["meas0_pre", "meas0", "meas0_ps"])) == {
+        ("meas0", "meas0_pre"),
+        ("meas0", "meas0_ps"),
+    }
+
+
 def test_flip_post_select_with_flips_applied_undoes_differing_flips_in_a_pair(
     make_fit, make_raw_data
 ):
