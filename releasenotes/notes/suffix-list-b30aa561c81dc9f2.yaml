@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Extends the :func:`~.suffix_creg_identifier` to accept a list of suffixes rather than just one.
