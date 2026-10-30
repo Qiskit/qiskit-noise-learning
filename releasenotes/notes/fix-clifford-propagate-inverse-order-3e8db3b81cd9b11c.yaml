@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixed :meth:`~.ModelGate.clifford_propagate` with ``inverse=True``; it was traversing the
+    cliffords in forward temporal order regardless of whether ``inverse==True`` or
+    ``inverse==False``.

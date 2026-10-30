@@ -11,6 +11,7 @@
 # that they have been altered from the originals.
 
 from collections.abc import Callable, Iterator, Mapping, Sequence
+from itertools import product
 from typing import Literal
 
 import numpy as np
@@ -160,7 +161,7 @@ def _failed_bits(
 
 
 def suffix_creg_identifier(
-    suffix: str = "_ps",
+    suffix: str | list[str] = "_ps",
 ) -> Callable[[list[str]], Iterator[tuple[str, ...]]]:
     """Return a creg identifier that pairs each creg named ``"*<suffix>"`` with ``"*"``.
 
@@ -172,21 +173,25 @@ def suffix_creg_identifier(
 
     Args:
         suffix: The complete creg name suffix marking a post-selection register, including any
-            separator. The default pairs ``"meas_ps"`` with ``"meas"``.
+            separator. The default pairs ``"meas_ps"`` with ``"meas"``. If a list is supplied,
+            the pairings will be made for each supplied suffix.
 
     Returns:
         A callable mapping a list of creg names to an iterator over groups of creg names.
 
     Raises:
-        ValueError: If *suffix* is empty, which would pair every creg with itself.
+        ValueError: If *suffix* is empty.
     """
     if not suffix:
         raise ValueError("The suffix must not be empty.")
 
+    if isinstance(suffix, str):
+        suffix = [suffix]
+
     def creg_identifier(creg_names):
-        for name in creg_names:
-            if name.endswith(suffix):
-                base = name[: -len(suffix)]
+        for name, current_suffix in product(creg_names, suffix):
+            if name.endswith(current_suffix):
+                base = name[: -len(current_suffix)]
                 yield (base, name) if base in creg_names else (name,)
 
     return creg_identifier
