@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Added the `build_with_prep_noise` utility function to allow injection of preparation
+    noise.
