@@ -37,11 +37,8 @@ of every aspect of a noise learning protocol. The second is a higher-level inter
 `prepare_vanilla_program` and `process_vanilla_result` for the standard "vanilla" protocol — each
 pair wrapping a stock workflow into a single call on either side of execution.
 
-See the following tutorials for examples:
-
-- [`docs/tutorials/learning_protocol.md`](docs/tutorials/learning_protocol.md) — end-to-end use of the protocol functions
-- [`docs/tutorials/workflow.md`](docs/tutorials/workflow.md) — step-by-step walkthrough of the internal pipeline
-
+[Documentation](https://quantum.cloud.ibm.com/docs/en/addons/qiskit-noise-learning) for this package
+is available on the IBM Quantum Platform.
 
 ## Development
 
