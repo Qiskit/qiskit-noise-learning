@@ -229,7 +229,7 @@ class QiskitGate(Gate):
                 meas_qubits.add(qubit)
             else:
                 for qubit in inst.qubits:
-                    if (qubit := inst.qubits[0]) in reset_qubits:
+                    if qubit in reset_qubits:
                         raise ValueError(
                             f"Cannot convert QiskitGate {self.name} into a ModelGate, as an "
                             f"instruction occurs after a reset on {qubit}."

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes validation of the Clifford-MCM-reset ordering in the model gate construction method
+    :meth:`~.QiskitGate.model_gate`.

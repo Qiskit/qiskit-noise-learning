@@ -314,6 +314,21 @@ def test_model_gate_raises():
         QiskitGate("L0", circuit=qc, qubit_idxs=range(4)).model_gate
 
 
+@pytest.mark.parametrize(("ctrl", "targ"), [(2, 0), (0, 2)])
+def test_model_gate_raises_multi_qubit_instruction(ctrl, targ):
+    with pytest.raises(ValueError, match="non-reset instruction occurs after a measurement"):
+        qc = QuantumCircuit(4, 1)
+        qc.measure(2, 0)
+        qc.cx(ctrl, targ)
+        QiskitGate("L0", circuit=qc, qubit_idxs=range(4)).model_gate
+
+    with pytest.raises(ValueError, match="instruction occurs after a reset"):
+        qc = QuantumCircuit(4)
+        qc.reset(2)
+        qc.cx(ctrl, targ)
+        QiskitGate("L0", circuit=qc, qubit_idxs=range(4)).model_gate
+
+
 def test_to_instruction():
     circuit = QuantumCircuit(2)
     circuit.cz(0, 1)
